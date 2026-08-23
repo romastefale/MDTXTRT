@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Editor Markdown</title>
+    
+    <!-- Telegram Web App Script (obrigatório) -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        dark: {
+                            bg: '#121212',
+                            surface: '#1e1e1e',
+                            border: '#2d2d2d',
+                            text: '#e0e0e0',
+                            muted: '#888888'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- Marked.js -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        :root {
+            --tg-bg: var(--tg-theme-bg-color, #121212);
+            --tg-text: var(--tg-theme-text-color, #e0e0e0);
+            --tg-hint: var(--tg-theme-hint-color, #888888);
+            --tg-button: var(--tg-theme-button-color, #2481cc);
+            --tg-button-text: var(--tg-theme-button-text-color, #ffffff);
+            --tg-secondary: var(--tg-theme-secondary-bg-color, #1e1e1e);
+        }
+
+        body {
+            background-color: var(--tg-bg);
+            color: var(--tg-text);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+        
+        .preview-content {
+            font-size: 17px;
+            line-height: 1.55;
+            word-wrap: break-word;
+            max-width: 700px;
+            margin: 0 auto;
+        }
+
+        .preview-content h1 {
+            font-size: 1.9em;
+            font-weight: 700;
+            margin-top: 1.1em;
+            margin-bottom: 0.4em;
+            color: var(--tg-text);
+        }
+
+        .preview-content h2 {
+            font-size: 1.45em;
+            font-weight: 600;
+            margin-top: 1.1em;
+            margin-bottom: 0.4em;
+            color: var(--tg-text);
+        }
+
+        .preview-content h3 {
+            font-size: 1.2em;
+            font-weight: 600;
+            margin-top: 1em;
+            margin-bottom: 0.35em;
+            color: var(--tg-text);
+        }
+
+        .preview-content p {
+            margin-bottom: 0.9em;
+        }
+
+        .preview-content blockquote {
+            border-left: 3px solid var(--tg-hint);
+            padding-left: 14px;
+            margin-left: 0;
+            color: var(--tg-hint);
+            font-style: italic;
+        }
+
+        .preview-content pre {
+            background-color: var(--tg-secondary);
+            border: 1px solid rgba(255,255,255,0.08);
+            padding: 14px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin-bottom: 1em;
+            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+            font-size: 0.88em;
+        }
+
+        .preview-content code {
+            background-color: rgba(255,255,255,0.08);
+            color: var(--tg-text);
+            padding: 2px 5px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 0.9em;
+        }
+        
+        .preview-content pre code {
+            background-color: transparent;
+            padding: 0;
+        }
+
+        .preview-content .tg-spoiler {
+            background-image: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAYAAACp8Z5+AAAAIklEQVQIW2NkQAKrVq36zwjjgzhhYWGMYAEYB8RmROaABADeOQ8CXl/xfgAAAABJRU5ErkJggg==');
+            background-color: rgba(255,255,255,0.12);
+            color: transparent;
+            border-radius: 3px;
+            padding: 0 4px;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+        
+        .preview-content .tg-spoiler:hover, .preview-content .tg-spoiler.revealed {
+            background-image: none;
+            color: inherit;
+        }
+
+        .preview-content ul {
+            list-style-type: disc;
+            padding-left: 1.4em;
+            margin-bottom: 0.9em;
+        }
+
+        .preview-content ol {
+            list-style-type: decimal;
+            padding-left: 1.4em;
+            margin-bottom: 0.9em;
+        }
+
+        .preview-content a {
+            color: var(--tg-button);
+            text-decoration: underline;
+        }
+
+        .preview-content hr {
+            border: none;
+            border-top: 1px solid rgba(255,255,255,0.1);
+            margin: 1.6em 0;
+        }
+
+        .preview-content img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
+            margin: 0.9em 0;
+            display: block;
+        }
+
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+
+        #markdownInput {
+            font-size: 17px;
+            line-height: 1.55;
+            max-width: 700px;
+            margin: 0 auto;
+            color: var(--tg-text);
+            background: transparent;
+        }
+        
+        .toolbar-btn {
+            padding: 7px;
+            border-radius: 8px;
+            color: var(--tg-hint);
+            transition: all 0.15s;
+            background: transparent;
+            border: none;
+            cursor: pointer;
+        }
+        .toolbar-btn:active {
+            background-color: rgba(255,255,255,0.1);
+            color: var(--tg-text);
+        }
+
+        .safe-top {
+            padding-top: env(safe-area-inset-top);
+        }
+        .safe-bottom {
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+
+        header {
+            background-color: var(--tg-secondary);
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+
+        #mobileToolbar {
+            background-color: var(--tg-secondary);
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+    </style>
+</head>
+<body class="h-screen flex flex-col">
+
+    <!-- Cabeçalho -->
+    <header class="p-2.5 flex justify-between items-center shrink-0 safe-top">
+        <div class="flex items-center gap-3">
+            <h1 class="text-base font-semibold tracking-wide" style="color: var(--tg-text);">Editor</h1>
+            
+            <div id="formattingToolbar" class="hidden sm:flex items-center gap-0.5 border-l border-white/10 pl-3">
+                <button class="toolbar-btn" onclick="insertSyntax('**', '**')" title="Negrito">
+                    <i data-lucide="bold" class="w-4 h-4"></i>
+                </button>
+                <button class="toolbar-btn" onclick="insertSyntax('_', '_')" title="Itálico">
+                    <i data-lucide="italic" class="w-4 h-4"></i>
+                </button>
+                <button class="toolbar-btn" onclick="insertSyntax('~~', '~~')" title="Tachado">
+                    <i data-lucide="strikethrough" class="w-4 h-4"></i>
+                </button>
+                <button class="toolbar-btn" onclick="insertSyntax('||', '||')" title="Spoiler">
+                    <i data-lucide="eye-off" class="w-4 h-4"></i>
+                </button>
+                <button class="toolbar-btn" onclick="insertSyntax('`', '`')" title="Código inline">
+                    <i data-lucide="terminal" class="w-4 h-4"></i>
+                </button>
+                <div class="w-px h-4 bg-white/10 mx-1"></div>
+                <button class="toolbar-btn" onclick="insertLineSyntax('# ')" title="Título 1">
+                    <i data-lucide="heading-1" class="w-4 h-4"></i>
+                </button>
+                <button class="toolbar-btn" onclick="insertLineSyntax('## ')" title="Título 2">
+                    <i data-lucide="heading-2" class="w-4 h-4"></i>
+                </button>
+                <button class="toolbar-btn" onclick="insertLineSyntax('### ')" title="Título 3">
+                    <i data-lucide="heading-3" class="w-4 h-4"></i>
+                </button>
+                <button class="toolbar-btn" onclick="insertLineSyntax('> ')" title="Citação">
+                    <i data-lucide="quote" class="w-4 h-4"></i>
+                </button>
+                <button class="toolbar-btn" onclick="insertLineSyntax('- ')" title="Lista">
+                    <i data-lucide="list" class="w-4 h-4"></i>
+                </button>
+                <button class="toolbar-btn" onclick="insertLineSyntax('1. ')" title="Lista numerada">
+                    <i data-lucide="list-ordered" class="w-4 h-4"></i>
+                </button>
+                <div class="w-px h-4 bg-white/10 mx-1"></div>
+                <button class="toolbar-btn" onclick="insertSyntax('[Texto](', ')')" title="Link">
+                    <i data-lucide="link" class="w-4 h-4"></i>
+                </button>
+                <button class="toolbar-btn" onclick="insertSyntax('![descrição](', ')')" title="Imagem">
+                    <i data-lucide="image" class="w-4 h-4"></i>
+                </button>
+                <button class="toolbar-btn" onclick="insertSyntax('```\n', '\n```')" title="Bloco de Código">
+                    <i data-lucide="code" class="w-4 h-4"></i>
+                </button>
+                <button class="toolbar-btn" onclick="insertLineSyntax('---\n')" title="Linha horizontal">
+                    <i data-lucide="minus" class="w-4 h-4"></i>
+                </button>
+            </div>
+        </div>
+        
+        <div class="flex items-center gap-1.5">
+            <div id="previewActions" class="hidden flex items-center gap-1.5">
+                <button id="copyMarkdownBtn" class="px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5" style="background: rgba(255,255,255,0.08); color: var(--tg-text);">
+                    <i data-lucide="file-text" class="w-3.5 h-3.5"></i>
+                    <span class="hidden sm:inline">.md</span>
+                </button>
+                <button id="copyRichBtn" class="px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5" style="background: rgba(255,255,255,0.08); color: var(--tg-text);">
+                    <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                    <span class="hidden sm:inline">Rich</span>
+                </button>
+            </div>
+
+            <button id="toggleBtn" class="p-2 rounded-lg" style="color: var(--tg-hint);" title="Alternar Visualização">
+                <i id="toggleIcon" data-lucide="eye" class="w-5 h-5"></i>
+            </button>
+        </div>
+    </header>
+
+    <div id="mobileToolbar" class="sm:hidden flex overflow-x-auto p-2 no-scrollbar gap-1.5 shrink-0">
+        <button class="toolbar-btn shrink-0" onclick="insertSyntax('**', '**')"><i data-lucide="bold" class="w-4 h-4"></i></button>
+        <button class="toolbar-btn shrink-0" onclick="insertSyntax('_', '_')" ><i data-lucide="italic" class="w-4 h-4"></i></button>
+        <button class="toolbar-btn shrink-0" onclick="insertSyntax('||', '||')"><i data-lucide="eye-off" class="w-4 h-4"></i></button>
+        <button class="toolbar-btn shrink-0" onclick="insertSyntax('`', '`')"><i data-lucide="terminal" class="w-4 h-4"></i></button>
+        <button class="toolbar-btn shrink-0" onclick="insertLineSyntax('# ')"><i data-lucide="heading-1" class="w-4 h-4"></i></button>
+        <button class="toolbar-btn shrink-0" onclick="insertLineSyntax('## ')"><i data-lucide="heading-2" class="w-4 h-4"></i></button>
+        <button class="toolbar-btn shrink-0" onclick="insertLineSyntax('- ')"><i data-lucide="list" class="w-4 h-4"></i></button>
+        <button class="toolbar-btn shrink-0" onclick="insertLineSyntax('1. ')"><i data-lucide="list-ordered" class="w-4 h-4"></i></button>
+        <button class="toolbar-btn shrink-0" onclick="insertSyntax('[', '](url)')"><i data-lucide="link" class="w-4 h-4"></i></button>
+        <button class="toolbar-btn shrink-0" onclick="insertSyntax('![', '](url)')"><i data-lucide="image" class="w-4 h-4"></i></button>
+    </div>
+
+    <main class="flex-1 overflow-y-auto relative" style="background: var(--tg-bg);">
+        <textarea id="markdownInput" 
+            class="absolute inset-0 w-full h-full p-4 md:p-8 resize-none focus:outline-none no-scrollbar" 
+            placeholder="Título...&#10;&#10;Escreva seu conteúdo em Markdown.&#10;&#10;Compatível com Rich Messages do Telegram."></textarea>
+        
+        <div id="richPreview" class="absolute inset-0 w-full h-full p-4 md:p-8 outline-none preview-content z-10 hidden" tabindex="0" style="background: var(--tg-bg);">
+        </div>
+    </main>
+
+    <div id="toast" class="fixed bottom-24 left-1/2 transform -translate-x-1/2 px-4 py-2 rounded-xl shadow-lg opacity-0 pointer-events-none transition-opacity duration-300 z-50 flex items-center gap-2 text-sm font-medium"
+         style="background: var(--tg-button); color: var(--tg-button-text);">
+        <i data-lucide="check" class="w-4 h-4"></i>
+        <span id="toastMessage">Ação realizada!</span>
+    </div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        
+        tg.ready();
+        tg.expand();
+        
+        document.documentElement.style.setProperty('--tg-bg', tg.themeParams.bg_color || '#121212');
+        document.documentElement.style.setProperty('--tg-text', tg.themeParams.text_color || '#e0e0e0');
+        document.documentElement.style.setProperty('--tg-hint', tg.themeParams.hint_color || '#888888');
+        document.documentElement.style.setProperty('--tg-button', tg.themeParams.button_color || '#2481cc');
+        document.documentElement.style.setProperty('--tg-button-text', tg.themeParams.button_text_color || '#ffffff');
+        document.documentElement.style.setProperty('--tg-secondary', tg.themeParams.secondary_bg_color || '#1e1e1e');
+
+        tg.setHeaderColor(tg.themeParams.secondary_bg_color || '#1e1e1e');
+        tg.setBackgroundColor(tg.themeParams.bg_color || '#121212');
+        
+        tg.enableClosingConfirmation();
+
+        lucide.createIcons();
+
+        marked.setOptions({
+            breaks: true,
+            gfm: true
+        });
+
+        const input = document.getElementById('markdownInput');
+        const preview = document.getElementById('richPreview');
+        const toggleBtn = document.getElementById('toggleBtn');
+        const copyMarkdownBtn = document.getElementById('copyMarkdownBtn');
+        const copyRichBtn = document.getElementById('copyRichBtn');
+        const previewActions = document.getElementById('previewActions');
+        const desktopToolbar = document.getElementById('formattingToolbar');
+        const mobileToolbar = document.getElementById('mobileToolbar');
+        const toast = document.getElementById('toast');
+        const toastMessage = document.getElementById('toastMessage');
+
+        let isPreview = false;
+
+        function insertSyntax(startTag, endTag) {
+            const start = input.selectionStart;
+            const end = input.selectionEnd;
+            const text = input.value;
+            
+            const selectedText = text.substring(start, end);
+            const newText = text.substring(0, start) + startTag + selectedText + endTag + text.substring(end);
+            
+            input.value = newText;
+            input.focus();
+            
+            if (selectedText.length === 0) {
+                input.selectionStart = input.selectionEnd = start + startTag.length;
+            } else {
+                input.selectionStart = start;
+                input.selectionEnd = start + startTag.length + selectedText.length + endTag.length;
+            }
+            
+            if (tg.HapticFeedback) {
+                tg.HapticFeedback.selectionChanged();
+            }
+            updateMainButton();
+        }
+
+        function insertLineSyntax(tag) {
+            const start = input.selectionStart;
+            const text = input.value;
+            
+            let lineStart = text.lastIndexOf('\n', start - 1);
+            lineStart = lineStart === -1 ? 0 : lineStart + 1;
+
+            const newText = text.substring(0, lineStart) + tag + text.substring(lineStart);
+            input.value = newText;
+            
+            input.focus();
+            input.selectionStart = input.selectionEnd = start + tag.length;
+            
+            if (tg.HapticFeedback) {
+                tg.HapticFeedback.selectionChanged();
+            }
+            updateMainButton();
+        }
+
+        input.addEventListener('keydown', function(e) {
+            if (e.ctrlKey || e.metaKey) {
+                switch(e.key.toLowerCase()) {
+                    case 'b': e.preventDefault(); insertSyntax('**', '**'); break;
+                    case 'i': e.preventDefault(); insertSyntax('_', '_'); break;
+                    case 'k': e.preventDefault(); insertSyntax('[', '](url)'); break;
+                    case 'e': e.preventDefault(); insertSyntax('`', '`'); break;
+                }
+            }
+        });
+
+        function preprocessTelegramSyntax(text) {
+            return text.replace(/\|\|(.*?)\|\|/g, '<span class="tg-spoiler">$1</span>');
+        }
+
+        function toggleMode() {
+            isPreview = !isPreview;
+
+            if (isPreview) {
+                let text = input.value;
+                preview.innerHTML = text.trim() === '' 
+                    ? '<span style="color: var(--tg-hint); font-style: italic;">Nada para visualizar.</span>' 
+                    : marked.parse(preprocessTelegramSyntax(text));
+
+                input.classList.add('hidden');
+                preview.classList.remove('hidden');
+                
+                toggleBtn.innerHTML = '<i data-lucide="pencil" class="w-5 h-5"></i>';
+                
+                previewActions.classList.remove('hidden');
+                desktopToolbar.classList.add('hidden');
+                mobileToolbar.classList.add('hidden');
+                
+            } else {
+                preview.classList.add('hidden');
+                input.classList.remove('hidden');
+                
+                toggleBtn.innerHTML = '<i data-lucide="eye" class="w-5 h-5"></i>';
+                
+                previewActions.classList.add('hidden');
+                desktopToolbar.classList.remove('hidden');
+                desktopToolbar.classList.add('sm:flex');
+                mobileToolbar.classList.remove('hidden');
+                
+                input.focus();
+            }
+            lucide.createIcons();
+            
+            if (tg.HapticFeedback) {
+                tg.HapticFeedback.impactOccurred('light');
+            }
+        }
+
+        preview.addEventListener('click', (e) => {
+            if (e.target.classList.contains('tg-spoiler')) {
+                e.target.classList.toggle('revealed');
+                if (tg.HapticFeedback) {
+                    tg.HapticFeedback.selectionChanged();
+                }
+            }
+        });
+
+        function showToast(msg) {
+            toastMessage.innerText = msg;
+            toast.classList.remove('opacity-0');
+            setTimeout(() => toast.classList.add('opacity-0'), 2500);
+        }
+
+        async function copyMarkdown() {
+            const text = input.value;
+            if (text.trim() === '') return;
+
+            try {
+                await navigator.clipboard.writeText(text);
+                showToast("Markdown copiado!");
+                if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+            } catch (err) {
+                const textarea = document.createElement('textarea');
+                textarea.value = text;
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+                showToast("Markdown copiado!");
+            }
+        }
+
+        async function copyRichText() {
+            if (input.value.trim() === '') return;
+
+            try {
+                const html = preview.innerHTML;
+                const plain = input.value;
+
+                const blobHtml = new Blob([html], { type: 'text/html' });
+                const blobText = new Blob([plain], { type: 'text/plain' });
+                
+                const clipboardItem = new ClipboardItem({
+                    'text/html': blobHtml,
+                    'text/plain': blobText
+                });
+
+                await navigator.clipboard.write([clipboardItem]);
+                showToast("Rich Text copiado!");
+                if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+                return;
+            } catch (err) {}
+
+            const range = document.createRange();
+            range.selectNodeContents(preview);
+            const selection = window.getSelection();
+            selection.removeAllRanges();
+            selection.addRange(range);
+
+            try {
+                if (document.execCommand('copy')) {
+                    showToast("Rich Text copiado!");
+                    if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+                }
+            } catch (err) {
+                console.error(err);
+            }
+            selection.removeAllRanges();
+        }
+
+        function updateMainButton() {
+            const hasContent = input.value.trim().length > 0;
+            
+            if (hasContent) {
+                tg.MainButton.setText('Enviar para o Bot');
+                tg.MainButton.show();
+                tg.MainButton.enable();
+            } else {
+                tg.MainButton.hide();
+            }
+        }
+
+        function sendToBot() {
+            const text = input.value.trim();
+            if (!text) return;
+
+            tg.sendData(JSON.stringify({
+                type: 'markdown',
+                content: text,
+                timestamp: Date.now()
+            }));
+
+            if (tg.HapticFeedback) {
+                tg.HapticFeedback.notificationOccurred('success');
+            }
+        }
+
+        tg.MainButton.onClick(sendToBot);
+
+        input.addEventListener('input', () => {
+            updateMainButton();
+            try {
+                localStorage.setItem('tg-markdown-editor', input.value);
+            } catch(e) {}
+        });
+
+        try {
+            const saved = localStorage.getItem('tg-markdown-editor');
+            if (saved) {
+                input.value = saved;
+                updateMainButton();
+            }
+        } catch(e) {}
+
+        toggleBtn.addEventListener('click', toggleMode);
+        copyMarkdownBtn.addEventListener('click', copyMarkdown);
+        copyRichBtn.addEventListener('click', copyRichText);
+
+        updateMainButton();
+
+        tg.BackButton.show();
+        tg.BackButton.onClick(() => {
+            if (input.value.trim() && !confirm('Sair sem enviar?')) return;
+            tg.close();
+        });
+    </script>
+</body>
+</html>
