@@ -1,7 +1,11 @@
 """
 Servidor aiohttp e Bot Telegram com suporte a Markdown, Telegraph e WebApp.
+Versão corrigida: validação de initData, Telegraph não-bloqueante, fallback V2.
 """
 
+import asyncio
+import hashlib
+import hmac
 import html
 import io
 import json
@@ -83,6 +87,47 @@ INDEX_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "index.htm
 _telegraph: Optional[Telegraph] = None
 
 
+# ---------------------------------------------------------------------------
+# CORREÇÃO 1: Validação de initData (HMAC-SHA256 conforme docs do Telegram)
+# https://core.telegram.org/bots/webapps#validating-data-received-via-the-mini-app
+# ---------------------------------------------------------------------------
+
+def validate_init_data(init_data: str) -> Optional[dict]:
+    """Valida initData do WebApp. Retorna o dict user ou None se inválido."""
+    if not init_data or not TOKEN:
+        return None
+    try:
+        pairs = sorted(
+            piece.split("=", 1) for piece in init_data.split("&") if "=" in piece
+        )
+        received_hash = ""
+        data_check_pairs = []
+        for key, value in pairs:
+            if key == "hash":
+                received_hash = value
+            else:
+                data_check_pairs.append(f"{key}={value}")
+        if not received_hash:
+            return None
+        data_check_string = "\n".join(data_check_pairs)
+
+        secret_key = hmac.new(b"WebAppData", TOKEN.encode(), hashlib.sha256).digest()
+        calc_hash = hmac.new(
+            secret_key, data_check_string.encode(), hashlib.sha256
+        ).hexdigest()
+
+        if not hmac.compare_digest(calc_hash, received_hash):
+            return None
+
+        # initData validado: extrair usuário com segurança
+        for key, value in pairs:
+            if key == "user":
+                return json.loads(value)
+    except Exception:
+        log.exception("validate_init_data")
+    return None
+
+
 def public_web_app_url(request: Optional[web.Request] = None) -> str:
     if WEB_APP_URL:
         return WEB_APP_URL.rstrip("/")
@@ -94,21 +139,25 @@ def public_web_app_url(request: Optional[web.Request] = None) -> str:
     return ""
 
 
-def get_telegraph() -> Telegraph:
-    global _telegraph
-    if _telegraph is not None:
-        return _telegraph
+def _create_telegraph_client() -> Telegraph:
     client = Telegraph(access_token=TELEGRAPH_TOKEN or None)
     if not TELEGRAPH_TOKEN:
         acc = client.create_account(short_name="MDTXTRT", author_name=AUTHOR_NAME)
         token = acc.get("access_token", "")
         if token:
-            client._telegraph.access_token = token
+            # CORREÇÃO 2: reconstrói o cliente em vez de tocar em atributo privado
+            client = Telegraph(access_token=token)
         log.warning(
             "Conta Telegraph criada em runtime. Configure TELEGRAPH_ACCESS_TOKEN para persistencia."
         )
-    _telegraph = client
     return client
+
+
+def get_telegraph() -> Telegraph:
+    global _telegraph
+    if _telegraph is None:
+        _telegraph = _create_telegraph_client()
+    return _telegraph
 
 
 def markdown_to_telegraph_html(source: str) -> str:
@@ -158,7 +207,7 @@ def markdown_to_telegraph_html(source: str) -> str:
             parts.append(f"<pre>{code}</pre>")
             continue
 
-        if re.match(r"^---+$", stripped) or re.match(r"^\*\*\*+$", stripped):
+        if re.match(r"^---+",stripped)orre.match(r"\*\*\*+", stripped) or re.match(r"^\*\*\*+",stripped)orre.match(r"\*\*\*+", stripped):
             flush_para(para)
             parts.append("<hr>")
             i += 1
@@ -361,7 +410,7 @@ def markdown_to_telegram_html(source: str) -> tuple[str, list[str]]:
             parts.append(f"<blockquote>{q_text}</blockquote>")
             continue
 
-        if re.match(r"^---+$", stripped) or re.match(r"^\*\*\*+$", stripped):
+        if re.match(r"^---+",stripped)orre.match(r"\*\*\*+", stripped) or re.match(r"^\*\*\*+",stripped)orre.match(r"\*\*\*+", stripped):
             parts.append("──────────────")
             i += 1
             continue
@@ -446,6 +495,11 @@ def markdown_to_telegram_html(source: str) -> tuple[str, list[str]]:
     return "\n".join(parts), found_images
 
 
+def _escape_markdown_v2(text: str) -> str:
+    """Escapa caracteres especiais exigidos pelo parser MarkdownV2."""
+    return re.sub(r"([_*\[\]()~`>#+\-=|{}.!\\])", r"\\\1", text)
+
+
 def publish_page(title: str, content_md: str, path_hint: str = "") -> dict:
     title = (title or "Sem titulo").strip()[:256]
     hint = (path_hint or "").strip()
@@ -464,6 +518,15 @@ def publish_page(title: str, content_md: str, path_hint: str = "") -> dict:
         "path": page.get("path"),
         "title": api_title,
     }
+
+
+async def publish_page_async(title: str, content_md: str, path_hint: str = "") -> dict:
+    # CORREÇÃO 3: Telegraph é síncrono (requests) — roda em executor
+    # para não bloquear o event loop do aiohttp.
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(
+        None, publish_page, title, content_md, path_hint
+    )
 
 
 async def dispatch_user_artifacts(bot, chat_id: int | str, title: str, content: str):
@@ -500,11 +563,14 @@ async def dispatch_user_artifacts(bot, chat_id: int | str, title: str, content: 
                 link_preview_options=preview_opts,
             )
         except Exception:
+            # CORREÇÃO 4: fallback com MarkdownV2 escapado; sem parse_mode
+            # como último recurso (o antigo MARKDOWN V1 é deprecado e falha
+            # de forma imprevisível).
             try:
                 await bot.send_message(
                     chat_id=chat_id,
-                    text=plain_text,
-                    parse_mode=ParseMode.MARKDOWN,
+                    text=_escape_markdown_v2(plain_text),
+                    parse_mode=ParseMode.MARKDOWN_V2,
                 )
             except Exception:
                 await bot.send_message(chat_id=chat_id, text=plain_text)
@@ -515,29 +581,14 @@ async def dispatch_user_artifacts(bot, chat_id: int | str, title: str, content: 
         for chunk in chunks:
             await bot.send_message(chat_id=chat_id, text=chunk)
 
+    # CORREÇÃO 5: os 3 arquivos anteriores (.md, .txt, copiar_conteudo.txt)
+    # tinham conteúdo idêntico. Envia apenas o .md.
     buf_md = io.BytesIO(plain_text.encode("utf-8"))
     buf_md.name = f"{filename_base}.md"
     await bot.send_document(
         chat_id=chat_id,
         document=buf_md,
         caption=f"📄 {filename_base}.md",
-    )
-
-    buf_txt = io.BytesIO(plain_text.encode("utf-8"))
-    buf_txt.name = f"{filename_base}.txt"
-    await bot.send_document(
-        chat_id=chat_id,
-        document=buf_txt,
-        caption=f"📝 {filename_base}.txt",
-    )
-
-    buf_copy = io.BytesIO(content.encode("utf-8"))
-    buf_copy.name = "copiar_conteudo.txt"
-    await bot.send_document(
-        chat_id=chat_id,
-        document=buf_copy,
-        caption="📋 <b>copiar_conteudo.txt</b>\nBasta abrir este arquivo e copiar o conteúdo.",
-        parse_mode=ParseMode.HTML,
     )
 
 
@@ -584,7 +635,9 @@ async def tgrich(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
     except Exception:
         try:
-            await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN)
+            await update.message.reply_text(
+                _escape_markdown_v2(text), parse_mode=ParseMode.MARKDOWN_V2
+            )
         except Exception as exc:
             await update.message.reply_text(f"Falha de sintaxe: {exc}")
 
@@ -627,7 +680,7 @@ async def handle_webapp_data(update: Update, context: ContextTypes.DEFAULT_TYPE)
             return
 
         if payload["action"] in {"publish_telegraph", "telegraph"}:
-            page = publish_page(payload["title"], content, payload["path"])
+            page = await publish_page_async(payload["title"], content, payload["path"])
             await update.message.reply_text(f"Publicado: {page['url']}")
             return
 
@@ -672,6 +725,12 @@ async def health(_request: web.Request):
     )
 
 
+# ---------------------------------------------------------------------------
+# CORREÇÃO 6: autenticação obrigatória nas rotas da API.
+# O initData (assinado pelo Telegram) é validado no servidor e o user_id
+# autorizado é extraído do payload validado — nunca confiado ao cliente.
+# ---------------------------------------------------------------------------
+
 async def api_send_chat(request: web.Request):
     try:
         data = await request.json()
@@ -684,11 +743,12 @@ async def api_send_chat(request: web.Request):
             {"ok": False, "error": "Documento vazio"}, status=400
         )
 
-    user_id = data.get("user_id")
-    if not user_id:
+    user = validate_init_data(data.get("init_data") or "")
+    if not user or not user.get("id"):
         return web.json_response(
-            {"ok": False, "error": "Identificador de usuário ausente."}, status=400
+            {"ok": False, "error": "initData inválido ou ausente."}, status=401
         )
+    user_id = user["id"]
 
     bot_app = request.app.get("bot")
     if not bot_app:
@@ -716,13 +776,21 @@ async def api_publish(request: web.Request):
         data = await request.json()
     except Exception:
         return web.json_response({"ok": False, "error": "JSON inválido"}, status=400)
+
+    # Mesma autenticação da rota de envio: impede abuso anônimo da conta Telegraph.
+    user = validate_init_data(data.get("init_data") or "")
+    if not user or not user.get("id"):
+        return web.json_response(
+            {"ok": False, "error": "initData inválido ou ausente."}, status=401
+        )
+
     content = (data.get("content") or "").strip()
     if not content:
         return web.json_response(
             {"ok": False, "error": "Documento vazio"}, status=400
         )
     try:
-        page = publish_page(
+        page = await publish_page_async(
             data.get("title") or "Sem titulo", content, data.get("path") or ""
         )
         return web.json_response({"ok": True, **page})
