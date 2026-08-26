@@ -207,7 +207,7 @@ def markdown_to_telegraph_html(source: str) -> str:
             parts.append(f"<pre>{code}</pre>")
             continue
 
-        if re.match(r"^---+",stripped)orre.match(r"\*\*\*+", stripped) or re.match(r"^\*\*\*+",stripped)orre.match(r"\*\*\*+", stripped):
+        if re.match(r"^(---+|\*\*\*+)", stripped):
             flush_para(para)
             parts.append("<hr>")
             i += 1
