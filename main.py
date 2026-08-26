@@ -12,11 +12,43 @@ from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandl
 from telegraph import Telegraph
 from telegraph.exceptions import TelegraphException
 
+TOKEN_RE = re.compile(r"bot\d+:[A-Za-z0-9_-]+")
+SECRET_RE = re.compile(
+    r"(TELEGRAM_TOKEN|BOT_TOKEN|TELEGRAPH_ACCESS_TOKEN|access_token)=([^\s]+)"
+)
+
+
+def _scrub(text: str) -> str:
+    text = TOKEN_RE.sub("bot***", text)
+    text = SECRET_RE.sub(r"\1=***", text)
+    return text
+
+
+class RedactSecrets(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        if isinstance(record.msg, str):
+            record.msg = _scrub(record.msg)
+        if record.args:
+            if isinstance(record.args, dict):
+                record.args = {k: _scrub(v) if isinstance(v, str) else v for k, v in record.args.items()}
+            else:
+                record.args = tuple(_scrub(a) if isinstance(a, str) else a for a in record.args)
+        return True
+
+
+_secret_filter = RedactSecrets()
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     level=logging.INFO,
 )
+for _handler in logging.getLogger().handlers:
+    _handler.addFilter(_secret_filter)
+logging.getLogger().addFilter(_secret_filter)
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
+logging.getLogger("telegram.ext._updater").setLevel(logging.WARNING)
 log = logging.getLogger("mdtxtrt")
+log.addFilter(_secret_filter)
 
 TOKEN = os.environ.get("TELEGRAM_TOKEN") or os.environ.get("BOT_TOKEN")
 WEB_APP_URL = os.environ.get("WEB_APP_URL", "").strip()
@@ -47,9 +79,11 @@ def get_telegraph() -> Telegraph:
     client = Telegraph(access_token=TELEGRAPH_TOKEN or None)
     if not TELEGRAPH_TOKEN:
         acc = client.create_account(short_name="MDTXTRT", author_name=AUTHOR_NAME)
+        token = acc.get("access_token", "")
+        if token:
+            client._telegraph.access_token = token
         log.warning(
-            "Conta Telegraph criada nesta execucao. Grave TELEGRAPH_ACCESS_TOKEN=%s",
-            acc.get("access_token", ""),
+            "Conta Telegraph criada nesta execucao. Defina TELEGRAPH_ACCESS_TOKEN no Railway; o valor nao e escrito no log."
         )
     _telegraph = client
     return client
