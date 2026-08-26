@@ -1,588 +1,103 @@
 <!DOCTYPE html>
 <html lang="pt-BR" class="dark">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Editor Markdown</title>
-    
-    <!-- Telegram Web App Script (obrigatório) -->
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            darkMode: 'class',
-            theme: {
-                extend: {
-                    colors: {
-                        dark: {
-                            bg: '#121212',
-                            surface: '#1e1e1e',
-                            border: '#2d2d2d',
-                            text: '#e0e0e0',
-                            muted: '#888888'
-                        }
-                    }
-                }
-            }
-        }
-    </script>
-    
-    <!-- Marked.js -->
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-
-    <!-- Lucide Icons -->
-    <script src="https://unpkg.com/lucide@latest"></script>
-
-    <style>
-        :root {
-            --tg-bg: var(--tg-theme-bg-color, #121212);
-            --tg-text: var(--tg-theme-text-color, #e0e0e0);
-            --tg-hint: var(--tg-theme-hint-color, #888888);
-            --tg-button: var(--tg-theme-button-color, #2481cc);
-            --tg-button-text: var(--tg-theme-button-text-color, #ffffff);
-            --tg-secondary: var(--tg-theme-secondary-bg-color, #1e1e1e);
-        }
-
-        body {
-            background-color: var(--tg-bg);
-            color: var(--tg-text);
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            margin: 0;
-            padding: 0;
-            overflow: hidden;
-        }
-        
-        .preview-content {
-            font-size: 17px;
-            line-height: 1.55;
-            word-wrap: break-word;
-            max-width: 700px;
-            margin: 0 auto;
-        }
-
-        .preview-content h1 {
-            font-size: 1.9em;
-            font-weight: 700;
-            margin-top: 1.1em;
-            margin-bottom: 0.4em;
-            color: var(--tg-text);
-        }
-
-        .preview-content h2 {
-            font-size: 1.45em;
-            font-weight: 600;
-            margin-top: 1.1em;
-            margin-bottom: 0.4em;
-            color: var(--tg-text);
-        }
-
-        .preview-content h3 {
-            font-size: 1.2em;
-            font-weight: 600;
-            margin-top: 1em;
-            margin-bottom: 0.35em;
-            color: var(--tg-text);
-        }
-
-        .preview-content p {
-            margin-bottom: 0.9em;
-        }
-
-        .preview-content blockquote {
-            border-left: 3px solid var(--tg-hint);
-            padding-left: 14px;
-            margin-left: 0;
-            color: var(--tg-hint);
-            font-style: italic;
-        }
-
-        .preview-content pre {
-            background-color: var(--tg-secondary);
-            border: 1px solid rgba(255,255,255,0.08);
-            padding: 14px;
-            border-radius: 8px;
-            overflow-x: auto;
-            margin-bottom: 1em;
-            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
-            font-size: 0.88em;
-        }
-
-        .preview-content code {
-            background-color: rgba(255,255,255,0.08);
-            color: var(--tg-text);
-            padding: 2px 5px;
-            border-radius: 4px;
-            font-family: monospace;
-            font-size: 0.9em;
-        }
-        
-        .preview-content pre code {
-            background-color: transparent;
-            padding: 0;
-        }
-
-        .preview-content .tg-spoiler {
-            background-image: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAYAAACp8Z5+AAAAIklEQVQIW2NkQAKrVq36zwjjgzhhYWGMYAEYB8RmROaABADeOQ8CXl/xfgAAAABJRU5ErkJggg==');
-            background-color: rgba(255,255,255,0.12);
-            color: transparent;
-            border-radius: 3px;
-            padding: 0 4px;
-            cursor: pointer;
-            transition: color 0.2s;
-        }
-        
-        .preview-content .tg-spoiler:hover, .preview-content .tg-spoiler.revealed {
-            background-image: none;
-            color: inherit;
-        }
-
-        .preview-content ul {
-            list-style-type: disc;
-            padding-left: 1.4em;
-            margin-bottom: 0.9em;
-        }
-
-        .preview-content ol {
-            list-style-type: decimal;
-            padding-left: 1.4em;
-            margin-bottom: 0.9em;
-        }
-
-        .preview-content a {
-            color: var(--tg-button);
-            text-decoration: underline;
-        }
-
-        .preview-content hr {
-            border: none;
-            border-top: 1px solid rgba(255,255,255,0.1);
-            margin: 1.6em 0;
-        }
-
-        .preview-content img {
-            max-width: 100%;
-            height: auto;
-            border-radius: 8px;
-            margin: 0.9em 0;
-            display: block;
-        }
-
-        .no-scrollbar::-webkit-scrollbar {
-            display: none;
-        }
-        .no-scrollbar {
-            -ms-overflow-style: none;
-            scrollbar-width: none;
-        }
-
-        #markdownInput {
-            font-size: 17px;
-            line-height: 1.55;
-            max-width: 700px;
-            margin: 0 auto;
-            color: var(--tg-text);
-            background: transparent;
-        }
-        
-        .toolbar-btn {
-            padding: 7px;
-            border-radius: 8px;
-            color: var(--tg-hint);
-            transition: all 0.15s;
-            background: transparent;
-            border: none;
-            cursor: pointer;
-        }
-        .toolbar-btn:active {
-            background-color: rgba(255,255,255,0.1);
-            color: var(--tg-text);
-        }
-
-        .safe-top {
-            padding-top: env(safe-area-inset-top);
-        }
-        .safe-bottom {
-            padding-bottom: env(safe-area-inset-bottom);
-        }
-
-        header {
-            background-color: var(--tg-secondary);
-            border-bottom: 1px solid rgba(255,255,255,0.06);
-        }
-
-        #mobileToolbar {
-            background-color: var(--tg-secondary);
-            border-bottom: 1px solid rgba(255,255,255,0.06);
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>MDTXTRT</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<style>
+:root{--bg:var(--tg-theme-bg-color,#121212);--fg:var(--tg-theme-text-color,#e0e0e0);--hint:var(--tg-theme-hint-color,#888);--btn:var(--tg-theme-button-color,#2481cc);--btnt:var(--tg-theme-button-text-color,#fff);--sec:var(--tg-theme-secondary-bg-color,#1e1e1e)}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--fg);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+body{display:flex;flex-direction:column}
+header{display:flex;gap:8px;align-items:center;padding:10px 12px;background:var(--sec);border-bottom:1px solid rgba(255,255,255,.06)}
+header h1{font-size:15px;margin:0;flex:0 0 auto}
+.grow{flex:1}
+button{border:0;border-radius:8px;padding:8px 10px;background:transparent;color:var(--hint);cursor:pointer}
+button.primary{background:var(--btn);color:var(--btnt);font-weight:600;font-size:12px}
+.meta{padding:8px 12px;background:var(--sec);border-bottom:1px solid rgba(255,255,255,.06);display:flex;flex-direction:column;gap:6px}
+.meta input{background:transparent;border:0;color:var(--fg);outline:none;font:inherit}
+.meta input[type=text]:last-child{color:var(--hint);font-size:12px}
+.tools{display:flex;gap:4px;overflow:auto;padding:6px 10px;background:var(--sec)}
+.tools button{padding:6px 8px;font-size:12px}
+main{flex:1;position:relative;min-height:0}
+textarea,#preview{position:absolute;inset:0;width:100%;height:100%;padding:16px;border:0;resize:none;background:transparent;color:var(--fg);font:17px/1.55 inherit;outline:none}
+#preview{overflow:auto;display:none}
+#preview h1{font-size:1.8em}#preview h2{font-size:1.4em}#preview pre{background:var(--sec);padding:12px;border-radius:8px;overflow:auto}
+#preview code{background:rgba(255,255,255,.08);padding:1px 4px;border-radius:4px}
+#preview blockquote{border-left:3px solid var(--hint);margin-left:0;padding-left:12px;color:var(--hint)}
+#preview a{color:var(--btn)}
+.toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);background:var(--btn);color:var(--btnt);padding:8px 14px;border-radius:16px;font-size:13px;opacity:0;transition:opacity .25s;pointer-events:none}
+.toast.on{opacity:1}
+</style>
 </head>
-<body class="h-screen flex flex-col">
-
-    <!-- Cabeçalho -->
-    <header class="p-2.5 flex justify-between items-center shrink-0 safe-top">
-        <div class="flex items-center gap-3">
-            <h1 class="text-base font-semibold tracking-wide" style="color: var(--tg-text);">Editor</h1>
-            
-            <div id="formattingToolbar" class="hidden sm:flex items-center gap-0.5 border-l border-white/10 pl-3">
-                <button class="toolbar-btn" onclick="insertSyntax('**', '**')" title="Negrito">
-                    <i data-lucide="bold" class="w-4 h-4"></i>
-                </button>
-                <button class="toolbar-btn" onclick="insertSyntax('_', '_')" title="Itálico">
-                    <i data-lucide="italic" class="w-4 h-4"></i>
-                </button>
-                <button class="toolbar-btn" onclick="insertSyntax('~~', '~~')" title="Tachado">
-                    <i data-lucide="strikethrough" class="w-4 h-4"></i>
-                </button>
-                <button class="toolbar-btn" onclick="insertSyntax('||', '||')" title="Spoiler">
-                    <i data-lucide="eye-off" class="w-4 h-4"></i>
-                </button>
-                <button class="toolbar-btn" onclick="insertSyntax('`', '`')" title="Código inline">
-                    <i data-lucide="terminal" class="w-4 h-4"></i>
-                </button>
-                <div class="w-px h-4 bg-white/10 mx-1"></div>
-                <button class="toolbar-btn" onclick="insertLineSyntax('# ')" title="Título 1">
-                    <i data-lucide="heading-1" class="w-4 h-4"></i>
-                </button>
-                <button class="toolbar-btn" onclick="insertLineSyntax('## ')" title="Título 2">
-                    <i data-lucide="heading-2" class="w-4 h-4"></i>
-                </button>
-                <button class="toolbar-btn" onclick="insertLineSyntax('### ')" title="Título 3">
-                    <i data-lucide="heading-3" class="w-4 h-4"></i>
-                </button>
-                <button class="toolbar-btn" onclick="insertLineSyntax('> ')" title="Citação">
-                    <i data-lucide="quote" class="w-4 h-4"></i>
-                </button>
-                <button class="toolbar-btn" onclick="insertLineSyntax('- ')" title="Lista">
-                    <i data-lucide="list" class="w-4 h-4"></i>
-                </button>
-                <button class="toolbar-btn" onclick="insertLineSyntax('1. ')" title="Lista numerada">
-                    <i data-lucide="list-ordered" class="w-4 h-4"></i>
-                </button>
-                <div class="w-px h-4 bg-white/10 mx-1"></div>
-                <button class="toolbar-btn" onclick="insertSyntax('[Texto](', ')')" title="Link">
-                    <i data-lucide="link" class="w-4 h-4"></i>
-                </button>
-                <button class="toolbar-btn" onclick="insertSyntax('![descrição](', ')')" title="Imagem">
-                    <i data-lucide="image" class="w-4 h-4"></i>
-                </button>
-                <button class="toolbar-btn" onclick="insertSyntax('```\n', '\n```')" title="Bloco de Código">
-                    <i data-lucide="code" class="w-4 h-4"></i>
-                </button>
-                <button class="toolbar-btn" onclick="insertLineSyntax('---\n')" title="Linha horizontal">
-                    <i data-lucide="minus" class="w-4 h-4"></i>
-                </button>
-            </div>
-        </div>
-        
-        <div class="flex items-center gap-1.5">
-            <div id="previewActions" class="hidden flex items-center gap-1.5">
-                <button id="copyMarkdownBtn" class="px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5" style="background: rgba(255,255,255,0.08); color: var(--tg-text);">
-                    <i data-lucide="file-text" class="w-3.5 h-3.5"></i>
-                    <span class="hidden sm:inline">.md</span>
-                </button>
-                <button id="copyRichBtn" class="px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5" style="background: rgba(255,255,255,0.08); color: var(--tg-text);">
-                    <i data-lucide="copy" class="w-3.5 h-3.5"></i>
-                    <span class="hidden sm:inline">Rich</span>
-                </button>
-            </div>
-
-            <button id="toggleBtn" class="p-2 rounded-lg" style="color: var(--tg-hint);" title="Alternar Visualização">
-                <i id="toggleIcon" data-lucide="eye" class="w-5 h-5"></i>
-            </button>
-        </div>
-    </header>
-
-    <div id="mobileToolbar" class="sm:hidden flex overflow-x-auto p-2 no-scrollbar gap-1.5 shrink-0">
-        <button class="toolbar-btn shrink-0" onclick="insertSyntax('**', '**')"><i data-lucide="bold" class="w-4 h-4"></i></button>
-        <button class="toolbar-btn shrink-0" onclick="insertSyntax('_', '_')" ><i data-lucide="italic" class="w-4 h-4"></i></button>
-        <button class="toolbar-btn shrink-0" onclick="insertSyntax('||', '||')"><i data-lucide="eye-off" class="w-4 h-4"></i></button>
-        <button class="toolbar-btn shrink-0" onclick="insertSyntax('`', '`')"><i data-lucide="terminal" class="w-4 h-4"></i></button>
-        <button class="toolbar-btn shrink-0" onclick="insertLineSyntax('# ')"><i data-lucide="heading-1" class="w-4 h-4"></i></button>
-        <button class="toolbar-btn shrink-0" onclick="insertLineSyntax('## ')"><i data-lucide="heading-2" class="w-4 h-4"></i></button>
-        <button class="toolbar-btn shrink-0" onclick="insertLineSyntax('- ')"><i data-lucide="list" class="w-4 h-4"></i></button>
-        <button class="toolbar-btn shrink-0" onclick="insertLineSyntax('1. ')"><i data-lucide="list-ordered" class="w-4 h-4"></i></button>
-        <button class="toolbar-btn shrink-0" onclick="insertSyntax('[', '](url)')"><i data-lucide="link" class="w-4 h-4"></i></button>
-        <button class="toolbar-btn shrink-0" onclick="insertSyntax('![', '](url)')"><i data-lucide="image" class="w-4 h-4"></i></button>
-    </div>
-
-    <main class="flex-1 overflow-y-auto relative" style="background: var(--tg-bg);">
-        <textarea id="markdownInput" 
-            class="absolute inset-0 w-full h-full p-4 md:p-8 resize-none focus:outline-none no-scrollbar" 
-            placeholder="Título...&#10;&#10;Escreva seu conteúdo em Markdown.&#10;&#10;Compatível com Rich Messages do Telegram."></textarea>
-        
-        <div id="richPreview" class="absolute inset-0 w-full h-full p-4 md:p-8 outline-none preview-content z-10 hidden" tabindex="0" style="background: var(--tg-bg);">
-        </div>
-    </main>
-
-    <div id="toast" class="fixed bottom-24 left-1/2 transform -translate-x-1/2 px-4 py-2 rounded-xl shadow-lg opacity-0 pointer-events-none transition-opacity duration-300 z-50 flex items-center gap-2 text-sm font-medium"
-         style="background: var(--tg-button); color: var(--tg-button-text);">
-        <i data-lucide="check" class="w-4 h-4"></i>
-        <span id="toastMessage">Ação realizada!</span>
-    </div>
-
-    <script>
-        const tg = window.Telegram.WebApp;
-        
-        tg.ready();
-        tg.expand();
-        
-        document.documentElement.style.setProperty('--tg-bg', tg.themeParams.bg_color || '#121212');
-        document.documentElement.style.setProperty('--tg-text', tg.themeParams.text_color || '#e0e0e0');
-        document.documentElement.style.setProperty('--tg-hint', tg.themeParams.hint_color || '#888888');
-        document.documentElement.style.setProperty('--tg-button', tg.themeParams.button_color || '#2481cc');
-        document.documentElement.style.setProperty('--tg-button-text', tg.themeParams.button_text_color || '#ffffff');
-        document.documentElement.style.setProperty('--tg-secondary', tg.themeParams.secondary_bg_color || '#1e1e1e');
-
-        tg.setHeaderColor(tg.themeParams.secondary_bg_color || '#1e1e1e');
-        tg.setBackgroundColor(tg.themeParams.bg_color || '#121212');
-        
-        tg.enableClosingConfirmation();
-
-        lucide.createIcons();
-
-        marked.setOptions({
-            breaks: true,
-            gfm: true
-        });
-
-        const input = document.getElementById('markdownInput');
-        const preview = document.getElementById('richPreview');
-        const toggleBtn = document.getElementById('toggleBtn');
-        const copyMarkdownBtn = document.getElementById('copyMarkdownBtn');
-        const copyRichBtn = document.getElementById('copyRichBtn');
-        const previewActions = document.getElementById('previewActions');
-        const desktopToolbar = document.getElementById('formattingToolbar');
-        const mobileToolbar = document.getElementById('mobileToolbar');
-        const toast = document.getElementById('toast');
-        const toastMessage = document.getElementById('toastMessage');
-
-        let isPreview = false;
-
-        function insertSyntax(startTag, endTag) {
-            const start = input.selectionStart;
-            const end = input.selectionEnd;
-            const text = input.value;
-            
-            const selectedText = text.substring(start, end);
-            const newText = text.substring(0, start) + startTag + selectedText + endTag + text.substring(end);
-            
-            input.value = newText;
-            input.focus();
-            
-            if (selectedText.length === 0) {
-                input.selectionStart = input.selectionEnd = start + startTag.length;
-            } else {
-                input.selectionStart = start;
-                input.selectionEnd = start + startTag.length + selectedText.length + endTag.length;
-            }
-            
-            if (tg.HapticFeedback) {
-                tg.HapticFeedback.selectionChanged();
-            }
-            updateMainButton();
-        }
-
-        function insertLineSyntax(tag) {
-            const start = input.selectionStart;
-            const text = input.value;
-            
-            let lineStart = text.lastIndexOf('\n', start - 1);
-            lineStart = lineStart === -1 ? 0 : lineStart + 1;
-
-            const newText = text.substring(0, lineStart) + tag + text.substring(lineStart);
-            input.value = newText;
-            
-            input.focus();
-            input.selectionStart = input.selectionEnd = start + tag.length;
-            
-            if (tg.HapticFeedback) {
-                tg.HapticFeedback.selectionChanged();
-            }
-            updateMainButton();
-        }
-
-        input.addEventListener('keydown', function(e) {
-            if (e.ctrlKey || e.metaKey) {
-                switch(e.key.toLowerCase()) {
-                    case 'b': e.preventDefault(); insertSyntax('**', '**'); break;
-                    case 'i': e.preventDefault(); insertSyntax('_', '_'); break;
-                    case 'k': e.preventDefault(); insertSyntax('[', '](url)'); break;
-                    case 'e': e.preventDefault(); insertSyntax('`', '`'); break;
-                }
-            }
-        });
-
-        function preprocessTelegramSyntax(text) {
-            return text.replace(/\|\|(.*?)\|\|/g, '<span class="tg-spoiler">$1</span>');
-        }
-
-        function toggleMode() {
-            isPreview = !isPreview;
-
-            if (isPreview) {
-                let text = input.value;
-                preview.innerHTML = text.trim() === '' 
-                    ? '<span style="color: var(--tg-hint); font-style: italic;">Nada para visualizar.</span>' 
-                    : marked.parse(preprocessTelegramSyntax(text));
-
-                input.classList.add('hidden');
-                preview.classList.remove('hidden');
-                
-                toggleBtn.innerHTML = '<i data-lucide="pencil" class="w-5 h-5"></i>';
-                
-                previewActions.classList.remove('hidden');
-                desktopToolbar.classList.add('hidden');
-                mobileToolbar.classList.add('hidden');
-                
-            } else {
-                preview.classList.add('hidden');
-                input.classList.remove('hidden');
-                
-                toggleBtn.innerHTML = '<i data-lucide="eye" class="w-5 h-5"></i>';
-                
-                previewActions.classList.add('hidden');
-                desktopToolbar.classList.remove('hidden');
-                desktopToolbar.classList.add('sm:flex');
-                mobileToolbar.classList.remove('hidden');
-                
-                input.focus();
-            }
-            lucide.createIcons();
-            
-            if (tg.HapticFeedback) {
-                tg.HapticFeedback.impactOccurred('light');
-            }
-        }
-
-        preview.addEventListener('click', (e) => {
-            if (e.target.classList.contains('tg-spoiler')) {
-                e.target.classList.toggle('revealed');
-                if (tg.HapticFeedback) {
-                    tg.HapticFeedback.selectionChanged();
-                }
-            }
-        });
-
-        function showToast(msg) {
-            toastMessage.innerText = msg;
-            toast.classList.remove('opacity-0');
-            setTimeout(() => toast.classList.add('opacity-0'), 2500);
-        }
-
-        async function copyMarkdown() {
-            const text = input.value;
-            if (text.trim() === '') return;
-
-            try {
-                await navigator.clipboard.writeText(text);
-                showToast("Markdown copiado!");
-                if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
-            } catch (err) {
-                const textarea = document.createElement('textarea');
-                textarea.value = text;
-                document.body.appendChild(textarea);
-                textarea.select();
-                document.execCommand('copy');
-                document.body.removeChild(textarea);
-                showToast("Markdown copiado!");
-            }
-        }
-
-        async function copyRichText() {
-            if (input.value.trim() === '') return;
-
-            try {
-                const html = preview.innerHTML;
-                const plain = input.value;
-
-                const blobHtml = new Blob([html], { type: 'text/html' });
-                const blobText = new Blob([plain], { type: 'text/plain' });
-                
-                const clipboardItem = new ClipboardItem({
-                    'text/html': blobHtml,
-                    'text/plain': blobText
-                });
-
-                await navigator.clipboard.write([clipboardItem]);
-                showToast("Rich Text copiado!");
-                if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
-                return;
-            } catch (err) {}
-
-            const range = document.createRange();
-            range.selectNodeContents(preview);
-            const selection = window.getSelection();
-            selection.removeAllRanges();
-            selection.addRange(range);
-
-            try {
-                if (document.execCommand('copy')) {
-                    showToast("Rich Text copiado!");
-                    if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
-                }
-            } catch (err) {
-                console.error(err);
-            }
-            selection.removeAllRanges();
-        }
-
-        function updateMainButton() {
-            const hasContent = input.value.trim().length > 0;
-            
-            if (hasContent) {
-                tg.MainButton.setText('Enviar para o Bot');
-                tg.MainButton.show();
-                tg.MainButton.enable();
-            } else {
-                tg.MainButton.hide();
-            }
-        }
-
-        function sendToBot() {
-            const text = input.value.trim();
-            if (!text) return;
-
-            tg.sendData(JSON.stringify({
-                type: 'markdown',
-                content: text,
-                timestamp: Date.now()
-            }));
-
-            if (tg.HapticFeedback) {
-                tg.HapticFeedback.notificationOccurred('success');
-            }
-        }
-
-        tg.MainButton.onClick(sendToBot);
-
-        input.addEventListener('input', () => {
-            updateMainButton();
-            try {
-                localStorage.setItem('tg-markdown-editor', input.value);
-            } catch(e) {}
-        });
-
-        try {
-            const saved = localStorage.getItem('tg-markdown-editor');
-            if (saved) {
-                input.value = saved;
-                updateMainButton();
-            }
-        } catch(e) {}
-
-        toggleBtn.addEventListener('click', toggleMode);
-        copyMarkdownBtn.addEventListener('click', copyMarkdown);
-        copyRichBtn.addEventListener('click', copyRichText);
-
-        updateMainButton();
-
-        tg.BackButton.show();
-        tg.BackButton.onClick(() => {
-            if (input.value.trim() && !confirm('Sair sem enviar?')) return;
-            tg.close();
-        });
-    </script>
+<body>
+<header>
+  <h1>MDTXTRT</h1>
+  <div class="grow"></div>
+  <button id="toggleBtn" type="button">Preview</button>
+  <button id="copyBtn" type="button">Copiar</button>
+  <button id="publishBtn" class="primary" type="button">Publicar</button>
+</header>
+<div class="meta">
+  <input id="fileTitle" type="text" placeholder="Título do documento">
+  <input id="telegraphPath" type="text" placeholder="Slug opcional (ex: meu-artigo)">
+</div>
+<div class="tools" id="tools">
+  <button type="button" data-wrap="**,**">B</button>
+  <button type="button" data-wrap="_,_">I</button>
+  <button type="button" data-wrap="~~,~~">S</button>
+  <button type="button" data-wrap="||,||">||</button>
+  <button type="button" data-line="# ">H1</button>
+  <button type="button" data-line="## ">H2</button>
+  <button type="button" data-line="- ">•</button>
+  <button type="button" data-line="1. ">1.</button>
+  <button type="button" data-wrap="`,`">&lt;/&gt;</button>
+  <button type="button" data-wrap="```\n,\n```">code</button>
+  <button type="button" data-wrap="[,](url)">link</button>
+</div>
+<main>
+  <textarea id="markdownInput" placeholder="Escreva em Markdown."></textarea>
+  <div id="preview"></div>
+</main>
+<div id="toast" class="toast"></div>
+<script>
+const tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : {};
+if (tg.ready) tg.ready();
+if (tg.expand) tg.expand();
+if (tg.enableClosingConfirmation) tg.enableClosingConfirmation();
+if (window.marked) marked.setOptions({breaks:true,gfm:true});
+const input = document.getElementById('markdownInput');
+const preview = document.getElementById('preview');
+const titleInput = document.getElementById('fileTitle');
+const pathInput = document.getElementById('telegraphPath');
+const toastEl = document.getElementById('toast');
+let isPreview = false;
+function toast(msg){toastEl.textContent=msg;toastEl.classList.add('on');setTimeout(()=>toastEl.classList.remove('on'),2200)}
+function wrap(a,b){const s=input.selectionStart,e=input.selectionEnd,t=input.value,sel=t.slice(s,e);input.value=t.slice(0,s)+a+sel+b+t.slice(e);input.focus();input.selectionStart=input.selectionEnd=s+a.length+(sel?sel.length+b.length:0);save();updateBtn()}
+function line(tag){const s=input.selectionStart,t=input.value;let i=t.lastIndexOf('\n',s-1);i=i<0?0:i+1;input.value=t.slice(0,i)+tag+t.slice(i);input.focus();input.selectionStart=input.selectionEnd=s+tag.length;save();updateBtn()}
+document.getElementById('tools').addEventListener('click',ev=>{
+  const b=ev.target.closest('button'); if(!b) return;
+  if(b.dataset.wrap){const parts=b.dataset.wrap.split(','); const a=parts[0].replace(/\\n/g,'\n'); const c=(parts[1]||'').replace(/\\n/g,'\n'); wrap(a,c);}
+  if(b.dataset.line) line(b.dataset.line);
+});
+function save(){try{localStorage.setItem('mdtxtrt_draft',input.value);localStorage.setItem('mdtxtrt_title',titleInput.value);localStorage.setItem('mdtxtrt_path',pathInput.value);}catch(e){}}
+function payload(action){return{action,type:action==='publish_telegraph'?'telegraph':'markdown',title:(titleInput.value||'').trim()||'Sem título',path:(pathInput.value||'').trim(),content:input.value,timestamp:Date.now()}}
+function updateBtn(){if(!tg.MainButton)return; if(input.value.trim()){tg.MainButton.setText('Enviar para o Bot');tg.MainButton.show();tg.MainButton.enable()} else tg.MainButton.hide()}
+function sendToBot(){if(!input.value.trim())return;save();if(!tg.sendData){toast('Abra pelo Telegram');return} const raw=JSON.stringify(payload('markdown')); if(raw.length>4000){toast('Texto grande — use Publicar');return} tg.sendData(raw); if(tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success')}
+async function publishTelegraph(){if(!input.value.trim()){toast('Documento vazio');return} save();
+  try{const res=await fetch('/api/publish',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload('publish_telegraph'))}); const data=await res.json(); if(!data.ok) throw new Error(data.error||'Falha'); toast('Publicado'); if(data.url){try{await navigator.clipboard.writeText(data.url)}catch(e){} if(tg.openLink) tg.openLink(data.url); else window.open(data.url,'_blank')}}
+  catch(err){toast(err.message||'Erro ao publicar')}}
+document.getElementById('toggleBtn').onclick=()=>{isPreview=!isPreview; if(isPreview){preview.innerHTML=input.value.trim()?(window.marked?marked.parse(input.value.replace(/\|\|(.*?)\|\|/g,'$1')):input.value.replace(/\n/g,'<br>')):'<em style="color:var(--hint)">Vazio</em>'; preview.style.display='block'; input.style.display='none'; document.getElementById('toggleBtn').textContent='Editar'} else {preview.style.display='none'; input.style.display='block'; document.getElementById('toggleBtn').textContent='Preview'; input.focus()}}
+document.getElementById('copyBtn').onclick=async()=>{try{await navigator.clipboard.writeText(input.value);toast('Copiado')}catch(e){toast('Falha ao copiar')}}
+document.getElementById('publishBtn').onclick=publishTelegraph;
+input.addEventListener('input',()=>{updateBtn();save()});
+titleInput.addEventListener('input',save); pathInput.addEventListener('input',save);
+try{input.value=localStorage.getItem('mdtxtrt_draft')||localStorage.getItem('tg-markdown-editor')||''; titleInput.value=localStorage.getItem('mdtxtrt_title')||''; pathInput.value=localStorage.getItem('mdtxtrt_path')||''}catch(e){}
+if(tg.MainButton) tg.MainButton.onClick(sendToBot);
+if(tg.BackButton){tg.BackButton.show(); tg.BackButton.onClick(()=>{if(input.value.trim()&&!confirm('Sair sem enviar?'))return; tg.close()})}
+updateBtn(); setInterval(save,300000);
+</script>
 </body>
 </html>
