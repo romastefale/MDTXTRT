@@ -7,7 +7,8 @@ import re
 from typing import Optional
 
 from aiohttp import web
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update, WebAppInfo
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update, WebAppInfo, LinkPreviewOptions
+from telegram.constants import ParseMode
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
 from telegraph import Telegraph
 from telegraph.exceptions import TelegraphException
@@ -90,8 +91,9 @@ def get_telegraph() -> Telegraph:
 
 
 def markdown_to_telegraph_html(source: str) -> str:
+    """Converte Markdown para HTML suportado pela API do Telegraph."""
     text = source.replace("\r\n", "\n").replace("\r", "\n")
-    text = text.replace("||", "")
+    text = re.sub(r"\|\|(.*?)\|\|", r"\1", text)
     parts: list[str] = []
     i = 0
     lines = text.split("\n")
@@ -107,6 +109,7 @@ def markdown_to_telegraph_html(source: str) -> str:
 
     def inline(s: str) -> str:
         s = html.escape(s)
+        s = re.sub(r"!\[([^\]]*)\]\(tg://emoji\?id=\d+\)", r"\1", s)
         s = re.sub(r"!\[([^\]]*)\]\(([^)]+)\)", r'<img src="\2" alt="\1">', s)
         s = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", r'<a href="\2">\1</a>', s)
         s = re.sub(r"`([^`]+)`", r"<code>\1</code>", s)
@@ -115,6 +118,7 @@ def markdown_to_telegraph_html(source: str) -> str:
         s = re.sub(r"(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)", r"<em>\1</em>", s)
         s = re.sub(r"_(.+?)_", r"<em>\1</em>", s)
         s = re.sub(r"~~(.+?)~~", r"<s>\1</s>", s)
+        s = re.sub(r"(?<!~)\~(?!\~)(.+?)(?<!~)\~(?!\~)", r"<s>\1</s>", s)
         return s
 
     para: list[str] = []
@@ -148,13 +152,37 @@ def markdown_to_telegraph_html(source: str) -> str:
             i += 1
             continue
 
-        if stripped.startswith("> "):
+        if stripped.startswith("> ") or stripped.startswith("**> ") or stripped.startswith("**>") or stripped == ">":
             flush_para(para)
             quote: list[str] = []
-            while i < n and lines[i].strip().startswith(">"):
-                quote.append(lines[i].strip().lstrip("> ").strip())
+            while i < n and (lines[i].strip().startswith(">") or lines[i].strip().startswith("**>")):
+                lq = lines[i].strip()
+                if lq.startswith("**>"):
+                    lq = lq[3:].lstrip(" ")
+                elif lq.startswith(">"):
+                    lq = lq[1:].lstrip(" ")
+                lq = lq.rstrip("|").rstrip()
+                quote.append(lq)
                 i += 1
             parts.append(f"<blockquote>{inline(' '.join(quote))}</blockquote>")
+            continue
+
+        # Processamento de tabelas Markdown para Telegraph
+        if stripped.startswith("|") and stripped.endswith("|"):
+            flush_para(para)
+            table_lines: list[str] = []
+            while i < n and lines[i].strip().startswith("|") and lines[i].strip().endswith("|"):
+                table_lines.append(lines[i].strip())
+                i += 1
+            if len(table_lines) >= 2 and re.match(r"^[|\s\-:]+$", table_lines[1]):
+                headers = [c.strip() for c in table_lines[0].strip("|").split("|")]
+                rows = [[c.strip() for c in row.strip("|").split("|")] for row in table_lines[2:]]
+                th_html = "".join(f"<th>{inline(h)}</th>" for h in headers)
+                tr_html = "".join("<tr>" + "".join(f"<td>{inline(cell)}</td>" for cell in r) + "</tr>" for r in rows)
+                parts.append(f"<table><thead><tr>{th_html}</tr></thead><tbody>{tr_html}</tbody></table>")
+            else:
+                for tl in table_lines:
+                    parts.append(f"<p>{inline(tl)}</p>")
             continue
 
         ul_match = re.match(r"^[-*+]\s+(.*)$", stripped)
@@ -196,6 +224,178 @@ def markdown_to_telegraph_html(source: str) -> str:
     return html_content or "<p></p>"
 
 
+def markdown_to_telegram_html(source: str) -> tuple[str, list[str]]:
+    """Converte Markdown para Telegram Rich Text HTML, mapeando H1-H6, tabelas, imagens e divisores."""
+    text = source.replace("\r\n", "\n").replace("\r", "\n")
+    lines = text.split("\n")
+    n = len(lines)
+    parts: list[str] = []
+    found_images: list[str] = []
+    i = 0
+
+    def inline_tg(s: str) -> str:
+        code_spans: list[str] = []
+
+        def save_code(m: re.Match) -> str:
+            code_spans.append(html.escape(m.group(1)))
+            return f"CODESPAN{len(code_spans)-1}XYZ"
+
+        s = re.sub(r"`([^`]+)`", save_code, s)
+        s = html.escape(s)
+
+        # Imagens Markdown: ![alt](url) -> link formatado e capturado para link preview
+        def handle_img(m: re.Match) -> str:
+            alt, url = m.group(1), m.group(2)
+            if not url.startswith("tg://emoji"):
+                found_images.append(url)
+                display_text = f"🖼️ {alt}" if alt else "🖼️ Foto"
+                return f'<a href="{url}">{display_text}</a>'
+            return m.group(0)
+
+        s = re.sub(r"!\[([^\]]*)\]\((https?://[^)]+)\)", handle_img, s)
+
+        # Emoji personalizado Telegram
+        s = re.sub(r"!\[([^\]]*)\]\(tg://emoji\?id=(\d+)\)", r'<tg-emoji emoji-id="\2">\1</tg-emoji>', s)
+        # Ligações inline
+        s = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", r'<a href="\2">\1</a>', s)
+        # Spoiler
+        s = re.sub(r"\|\|(.+?)\|\|", r'<tg-spoiler>\1</tg-spoiler>', s)
+        # Sublinhado
+        s = re.sub(r"__(.+?)__", r'<u>\1</u>', s)
+        # Negrito
+        s = re.sub(r"\*\*(.+?)\*\*", r'<b>\1</b>', s)
+        s = re.sub(r"(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)", r'<b>\1</b>', s)
+        # Itálico
+        s = re.sub(r"(?<!_)_(?!_)(.+?)(?<!_)_(?!_)", r'<i>\1</i>', s)
+        # Tachado
+        s = re.sub(r"~~(.+?)~~", r'<s>\1</s>', s)
+        s = re.sub(r"(?<!~)\~(?!\~)(.+?)(?<!~)\~(?!\~)", r'<s>\1</s>', s)
+
+        for idx, c in enumerate(code_spans):
+            s = s.replace(f"CODESPAN{idx}XYZ", f"<code>{c}</code>")
+        return s
+
+    while i < n:
+        line = lines[i]
+        stripped = line.strip()
+
+        # Bloco de código
+        if stripped.startswith("```"):
+            lang = stripped[3:].strip()
+            i += 1
+            block: list[str] = []
+            while i < n and not lines[i].strip().startswith("```"):
+                block.append(html.escape(lines[i]))
+                i += 1
+            i += 1
+            code = "\n".join(block)
+            if lang:
+                parts.append(f'<pre><code class="language-{html.escape(lang)}">{code}</code></pre>')
+            else:
+                parts.append(f"<pre>{code}</pre>")
+            continue
+
+        # Citação expansível Telegram: **> ou terminando com ||
+        if stripped.startswith("**>") or (stripped.startswith(">") and stripped.endswith("||")):
+            quote: list[str] = []
+            while i < n and (lines[i].strip().startswith("**>") or lines[i].strip().startswith(">")):
+                lq = lines[i].strip()
+                if lq.startswith("**>"):
+                    lq = lq[3:].lstrip(" ")
+                elif lq.startswith(">"):
+                    lq = lq[1:].lstrip(" ")
+                lq = lq.rstrip("|").rstrip()
+                quote.append(lq)
+                i += 1
+            q_text = "\n".join(inline_tg(q) for q in quote)
+            parts.append(f"<blockquote expandable>{q_text}</blockquote>")
+            continue
+
+        # Citação normal
+        if stripped.startswith(">"):
+            quote = []
+            while i < n and lines[i].strip().startswith(">") and not lines[i].strip().startswith("**>"):
+                lq = lines[i].strip()[1:].lstrip(" ")
+                quote.append(lq)
+                i += 1
+            q_text = "\n".join(inline_tg(q) for q in quote)
+            parts.append(f"<blockquote>{q_text}</blockquote>")
+            continue
+
+        # Linha divisória horizontal
+        if re.match(r"^---+$", stripped) or re.match(r"^\*\*\*+$", stripped):
+            parts.append("──────────────")
+            i += 1
+            continue
+
+        # Tabela Markdown formatada em Rich Text (Bloco monoespaçado alinhado)
+        if stripped.startswith("|") and stripped.endswith("|"):
+            table_lines: list[str] = []
+            while i < n and lines[i].strip().startswith("|") and lines[i].strip().endswith("|"):
+                table_lines.append(lines[i].strip())
+                i += 1
+            if len(table_lines) >= 2 and re.match(r"^[|\s\-:]+$", table_lines[1]):
+                headers = [c.strip() for c in table_lines[0].strip("|").split("|")]
+                rows = [[c.strip() for c in row.strip("|").split("|")] for row in table_lines[2:]]
+                col_widths = [len(h) for h in headers]
+                for row in rows:
+                    for c_idx, cell in enumerate(row):
+                        if c_idx < len(col_widths):
+                            col_widths[c_idx] = max(col_widths[c_idx], len(cell))
+                header_str = " | ".join(h.ljust(col_widths[idx]) for idx, h in enumerate(headers))
+                sep_str = "-+-".join("-" * col_widths[idx] for idx in range(len(headers)))
+                row_strs = [" | ".join(cell.ljust(col_widths[c_idx]) for c_idx, cell in enumerate(row)) for row in rows]
+                table_block = "\n".join([header_str, sep_str] + row_strs)
+                parts.append(f"<pre>{html.escape(table_block)}</pre>")
+            else:
+                for tl in table_lines:
+                    parts.append(inline_tg(tl))
+            continue
+
+        # Títulos H1 a H6 com diferenciação visual
+        h_match = re.match(r"^(#{1,6})\s+(.*)$", stripped)
+        if h_match:
+            h_len = len(h_match.group(1))
+            h_text = inline_tg(h_match.group(2))
+            if h_len == 1:
+                parts.append(f"<b>━━━ {h_text.upper()} ━━━</b>")
+            elif h_len == 2:
+                parts.append(f"<b>▶ {h_text}</b>")
+            elif h_len == 3:
+                parts.append(f"<b>◆ {h_text}</b>")
+            elif h_len == 4:
+                parts.append(f"<b>• <u>{h_text}</u></b>")
+            elif h_len == 5:
+                parts.append(f"<b><i>» {h_text}</i></b>")
+            else:
+                parts.append(f"<i>• {h_text}</i>")
+            i += 1
+            continue
+
+        # Checklists / Tarefas
+        task_match = re.match(r"^[-*+]\s+\[([ xX])\]\s+(.*)$", stripped)
+        if task_match:
+            mark = "☑" if task_match.group(1).lower() == "x" else "☐"
+            parts.append(f"{mark} {inline_tg(task_match.group(2))}")
+            i += 1
+            continue
+
+        # Lista de marcas
+        ul_match = re.match(r"^[-*+]\s+(.*)$", stripped)
+        if ul_match:
+            parts.append(f"• {inline_tg(ul_match.group(1))}")
+            i += 1
+            continue
+
+        if not stripped:
+            parts.append("")
+        else:
+            parts.append(inline_tg(line))
+        i += 1
+
+    return "\n".join(parts), found_images
+
+
 def publish_page(title: str, content_md: str, path_hint: str = "") -> dict:
     title = (title or "Sem titulo").strip()[:256]
     hint = (path_hint or "").strip()
@@ -219,37 +419,49 @@ def publish_page(title: str, content_md: str, path_hint: str = "") -> dict:
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     app_url = public_web_app_url()
     text = (
-        "MDTXTRT - editor Markdown para Telegram Rich Messages e Telegraph.\n\n"
-        "Abra o Mini App para escrever, pre-visualizar e publicar.\n"
-        "/help lista os comandos."
+        "🚀 <b>Bem-vindo ao MDTXTRT!</b>\n\n"
+        "Para utilizar a aplicação, escrever em Markdown, pré-visualizar e publicar seus textos, "
+        "abra o aplicativo <b>Web App</b> clicando no botão <b>\"Abrir editor\"</b> logo abaixo.\n\n"
+        "ℹ️ Digite /help para consultar a lista completa de comandos e recursos."
     )
     markup = None
     if app_url:
         markup = InlineKeyboardMarkup(
             [[InlineKeyboardButton("Abrir editor", web_app=WebAppInfo(url=app_url))]]
         )
-    await update.message.reply_text(text, reply_markup=markup)
+    await update.message.reply_text(text, reply_markup=markup, parse_mode=ParseMode.HTML)
 
 
 async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "/start - abre o Mini App\n"
-        "/help - esta lista\n"
-        "/tgrich <texto> - envia o texto com parse Markdown\n"
-        "/mdrich - responda a uma mensagem para receber o .md nativo\n\n"
-        "No Mini App: Publicar Telegraph ou Enviar para o bot."
+        "/help - lista todos os recursos\n"
+        "/tgrich <texto> - envia o texto em Rich Text Telegram\n"
+        "/mdrich - responda a uma mensagem para exportar o .md nativo\n\n"
+        "Recursos Markdown suportados:\n"
+        "• Títulos (H1 a H6 com estilos dedicados)\n"
+        "• Formatações (Negrito, Itálico, Sublinhado, Tachado, Spoiler)\n"
+        "• Citações normais e Expansíveis (**> ||)\n"
+        "• Tabelas organizadas em pre e Linhas divisórias (---)\n"
+        "• Checklists (☑ / ☐), Listas com marcadores e numéricas\n"
+        "• Imagens por URL (com link preview) e Emojis customizados Telegram"
     )
 
 
 async def tgrich(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
-        await update.message.reply_text("Uso: /tgrich *negrito* _italico_")
+        await update.message.reply_text("Uso: /tgrich *negrito* _italico_ __sublinhado__ ||spoiler||")
         return
     text = update.message.text.split(None, 1)[1]
+    tg_html, images = markdown_to_telegram_html(text)
+    preview_opts = LinkPreviewOptions(is_disabled=False, url=images[0]) if images else None
     try:
-        await update.message.reply_text(text, parse_mode="Markdown")
-    except Exception as exc:
-        await update.message.reply_text(f"Falha de sintaxe Markdown: {exc}")
+        await update.message.reply_text(tg_html, parse_mode=ParseMode.HTML, link_preview_options=preview_opts)
+    except Exception:
+        try:
+            await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN)
+        except Exception as exc:
+            await update.message.reply_text(f"Falha de sintaxe: {exc}")
 
 
 async def mdrich(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -293,17 +505,43 @@ async def handle_webapp_data(update: Update, context: ContextTypes.DEFAULT_TYPE)
             return
 
         title = payload["title"]
-        header = f"{title}\n\n" if title and title != "Sem titulo" else ""
-        text = header + content
-        if len(text) > 3900:
-            buf = io.BytesIO(text.encode("utf-8"))
-            buf.name = f"{title or 'documento'}.md"
-            await update.message.reply_document(document=buf, caption=title)
-        else:
+        safe_title = re.sub(r'[\\/*?:"<>|]', "", title).strip() if title else ""
+        filename_base = safe_title if safe_title and safe_title != "Sem titulo" else "documento"
+
+        header_html = f"<b>{html.escape(title)}</b>\n\n" if title and title != "Sem titulo" else ""
+        header_plain = f"{title}\n\n" if title and title != "Sem titulo" else ""
+
+        tg_html, images = markdown_to_telegram_html(content)
+        full_tg_html = header_html + tg_html
+        plain_text = header_plain + content
+
+        # Configura LinkPreviewOptions se houver imagens Markdown no texto
+        preview_opts = LinkPreviewOptions(is_disabled=False, url=images[0], prefer_large_media=True) if images else None
+
+        # 1. Enviar como mensagem formatada no chat
+        if len(full_tg_html) <= 4096:
             try:
-                await update.message.reply_text(text, parse_mode="Markdown")
+                await update.message.reply_text(full_tg_html, parse_mode=ParseMode.HTML, link_preview_options=preview_opts)
             except Exception:
-                await update.message.reply_text(text)
+                try:
+                    await update.message.reply_text(plain_text, parse_mode=ParseMode.MARKDOWN)
+                except Exception:
+                    await update.message.reply_text(plain_text)
+        else:
+            chunks = [plain_text[i:i + 4000] for i in range(0, len(plain_text), 4000)]
+            for chunk in chunks:
+                await update.message.reply_text(chunk)
+
+        # 2. Enviar como anexo em formato Markdown (.md)
+        buf_md = io.BytesIO(plain_text.encode("utf-8"))
+        buf_md.name = f"{filename_base}.md"
+        await update.message.reply_document(document=buf_md, caption=f"📄 {filename_base}.md")
+
+        # 3. Enviar como anexo em formato Texto (.txt)
+        buf_txt = io.BytesIO(plain_text.encode("utf-8"))
+        buf_txt.name = f"{filename_base}.txt"
+        await update.message.reply_document(document=buf_txt, caption=f"📝 {filename_base}.txt")
+
     except TelegraphException as exc:
         await update.message.reply_text(f"Telegraph recusou o HTML: {exc}")
     except Exception as exc:
