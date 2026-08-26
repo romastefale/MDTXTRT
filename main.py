@@ -29,7 +29,6 @@ from telegram.ext import (
 from telegraph import Telegraph
 from telegraph.exceptions import TelegraphException
 
-# Padrões para higienização de tokens e segredos em logs
 TOKEN_RE = re.compile(r"bot\d+:[A-Za-z0-9_-]+")
 SECRET_RE = re.compile(
     r"(TELEGRAM_TOKEN|BOT_TOKEN|TELEGRAPH_ACCESS_TOKEN|access_token)=([^\s]+)"
@@ -73,7 +72,6 @@ logging.getLogger("telegram.ext._updater").setLevel(logging.WARNING)
 log = logging.getLogger("mdtxtrt")
 log.addFilter(_secret_filter)
 
-# Variáveis com suporte aos padrões definidos e fallback
 TOKEN = os.environ.get("TELEGRAM_TOKEN", "tokendobot").strip()
 WEB_APP_URL = os.environ.get("WEB_APP_URL", "https://mdmtrt.up.railway.app").strip()
 PORT = int(os.environ.get("PORT", "8080"))
@@ -86,7 +84,6 @@ _telegraph: Optional[Telegraph] = None
 
 
 def public_web_app_url(request: Optional[web.Request] = None) -> str:
-    """Retorna o endpoint público do Web App."""
     if WEB_APP_URL:
         return WEB_APP_URL.rstrip("/")
     domain = os.environ.get("RAILWAY_PUBLIC_DOMAIN", "").strip()
@@ -98,7 +95,6 @@ def public_web_app_url(request: Optional[web.Request] = None) -> str:
 
 
 def get_telegraph() -> Telegraph:
-    """Obtém ou instancia o cliente da API do Telegraph."""
     global _telegraph
     if _telegraph is not None:
         return _telegraph
@@ -116,7 +112,7 @@ def get_telegraph() -> Telegraph:
 
 
 def markdown_to_telegraph_html(source: str) -> str:
-    """Converte Markdown puro para HTML compatível com a API do Telegraph."""
+    """Converte Markdown puro para HTML estruturado otimizado para a API do Telegraph."""
     text = source.replace("\r\n", "\n").replace("\r", "\n")
     text = re.sub(r"\|\|(.*?)\|\|", r"\1", text)
     parts: list[str] = []
@@ -150,7 +146,6 @@ def markdown_to_telegraph_html(source: str) -> str:
         line = lines[i]
         stripped = line.strip()
 
-        # Bloco de código
         if stripped.startswith("```"):
             flush_para(para)
             i += 1
@@ -163,14 +158,12 @@ def markdown_to_telegraph_html(source: str) -> str:
             parts.append(f"<pre>{code}</pre>")
             continue
 
-        # Linha horizontal divisória
         if re.match(r"^---+$", stripped) or re.match(r"^\*\*\*+$", stripped):
             flush_para(para)
             parts.append("<hr>")
             i += 1
             continue
 
-        # Títulos
         heading = re.match(r"^(#{1,6})\s+(.*)$", stripped)
         if heading:
             flush_para(para)
@@ -179,7 +172,6 @@ def markdown_to_telegraph_html(source: str) -> str:
             i += 1
             continue
 
-        # Citações
         if (
             stripped.startswith("> ")
             or stripped.startswith("**> ")
@@ -202,7 +194,7 @@ def markdown_to_telegraph_html(source: str) -> str:
             parts.append(f"<blockquote>{inline(' '.join(quote))}</blockquote>")
             continue
 
-        # Tabelas
+        # Conversão otimizada de tabelas Markdown para tags nativas do Telegraph
         if stripped.startswith("|") and stripped.endswith("|"):
             flush_para(para)
             table_lines: list[str] = []
@@ -232,7 +224,6 @@ def markdown_to_telegraph_html(source: str) -> str:
                     parts.append(f"<p>{inline(tl)}</p>")
             continue
 
-        # Listas com marcadores e numéricas
         ul_match = re.match(r"^[-*+]\s+(.*)$", stripped)
         ol_match = re.match(r"^\d+\.\s+(.*)$", stripped)
         if ul_match or ol_match:
@@ -273,7 +264,6 @@ def markdown_to_telegraph_html(source: str) -> str:
 
 
 def markdown_to_telegram_html(source: str) -> tuple[str, list[str]]:
-    """Converte Markdown para Telegram Rich Text HTML com suporte estruturado."""
     text = source.replace("\r\n", "\n").replace("\r", "\n")
     lines = text.split("\n")
     n = len(lines)
@@ -321,7 +311,6 @@ def markdown_to_telegram_html(source: str) -> tuple[str, list[str]]:
         line = lines[i]
         stripped = line.strip()
 
-        # Blocos de código com linguagem opcional
         if stripped.startswith("```"):
             lang = stripped[3:].strip()
             i += 1
@@ -339,7 +328,6 @@ def markdown_to_telegram_html(source: str) -> tuple[str, list[str]]:
                 parts.append(f"<pre>{code}</pre>")
             continue
 
-        # Citações expansíveis
         if stripped.startswith("**>") or (
             stripped.startswith(">") and stripped.endswith("||")
         ):
@@ -359,7 +347,6 @@ def markdown_to_telegram_html(source: str) -> tuple[str, list[str]]:
             parts.append(f"<blockquote expandable>{q_text}</blockquote>")
             continue
 
-        # Citações padrão
         if stripped.startswith(">"):
             quote = []
             while (
@@ -374,13 +361,11 @@ def markdown_to_telegram_html(source: str) -> tuple[str, list[str]]:
             parts.append(f"<blockquote>{q_text}</blockquote>")
             continue
 
-        # Linha horizontal divisória
         if re.match(r"^---+$", stripped) or re.match(r"^\*\*\*+$", stripped):
             parts.append("──────────────")
             i += 1
             continue
 
-        # Tabelas alinhadas em bloco pré-formatado
         if stripped.startswith("|") and stripped.endswith("|"):
             table_lines: list[str] = []
             while (
@@ -420,7 +405,6 @@ def markdown_to_telegram_html(source: str) -> tuple[str, list[str]]:
                     parts.append(inline_tg(tl))
             continue
 
-        # Diferenciação visual de Títulos H1-H6
         h_match = re.match(r"^(#{1,6})\s+(.*)$", stripped)
         if h_match:
             h_len = len(h_match.group(1))
@@ -440,7 +424,6 @@ def markdown_to_telegram_html(source: str) -> tuple[str, list[str]]:
             i += 1
             continue
 
-        # Checklists / Tarefas
         task_match = re.match(r"^[-*+]\s+\[([ xX])\]\s+(.*)$", stripped)
         if task_match:
             mark = "☑" if task_match.group(1).lower() == "x" else "☐"
@@ -448,7 +431,6 @@ def markdown_to_telegram_html(source: str) -> tuple[str, list[str]]:
             i += 1
             continue
 
-        # Marcadores padrão
         ul_match = re.match(r"^[-*+]\s+(.*)$", stripped)
         if ul_match:
             parts.append(f"• {inline_tg(ul_match.group(1))}")
@@ -465,7 +447,6 @@ def markdown_to_telegram_html(source: str) -> tuple[str, list[str]]:
 
 
 def publish_page(title: str, content_md: str, path_hint: str = "") -> dict:
-    """Publica o documento Markdown formatado no Telegraph."""
     title = (title or "Sem titulo").strip()[:256]
     hint = (path_hint or "").strip()
     api_title = hint[:256] if hint else title
@@ -485,12 +466,86 @@ def publish_page(title: str, content_md: str, path_hint: str = "") -> dict:
     }
 
 
+async def dispatch_user_artifacts(bot, chat_id: int | str, title: str, content: str):
+    safe_title = re.sub(r'[\\/*?:"<>|]', "", title).strip() if title else ""
+    filename_base = (
+        safe_title if safe_title and safe_title != "Sem titulo" else "documento"
+    )
+
+    header_html = (
+        f"<b>{html.escape(title)}</b>\n\n"
+        if title and title != "Sem titulo"
+        else ""
+    )
+    header_plain = f"{title}\n\n" if title and title != "Sem titulo" else ""
+
+    tg_html, images = markdown_to_telegram_html(content)
+    full_tg_html = header_html + tg_html
+    plain_text = header_plain + content
+
+    preview_opts = (
+        LinkPreviewOptions(
+            is_disabled=False, url=images[0], prefer_large_media=True
+        )
+        if images
+        else None
+    )
+
+    if len(full_tg_html) <= 4096:
+        try:
+            await bot.send_message(
+                chat_id=chat_id,
+                text=full_tg_html,
+                parse_mode=ParseMode.HTML,
+                link_preview_options=preview_opts,
+            )
+        except Exception:
+            try:
+                await bot.send_message(
+                    chat_id=chat_id,
+                    text=plain_text,
+                    parse_mode=ParseMode.MARKDOWN,
+                )
+            except Exception:
+                await bot.send_message(chat_id=chat_id, text=plain_text)
+    else:
+        chunks = [
+            plain_text[i : i + 4000] for i in range(0, len(plain_text), 4000)
+        ]
+        for chunk in chunks:
+            await bot.send_message(chat_id=chat_id, text=chunk)
+
+    buf_md = io.BytesIO(plain_text.encode("utf-8"))
+    buf_md.name = f"{filename_base}.md"
+    await bot.send_document(
+        chat_id=chat_id,
+        document=buf_md,
+        caption=f"📄 {filename_base}.md",
+    )
+
+    buf_txt = io.BytesIO(plain_text.encode("utf-8"))
+    buf_txt.name = f"{filename_base}.txt"
+    await bot.send_document(
+        chat_id=chat_id,
+        document=buf_txt,
+        caption=f"📝 {filename_base}.txt",
+    )
+
+    buf_copy = io.BytesIO(content.encode("utf-8"))
+    buf_copy.name = "copiar_conteudo.txt"
+    await bot.send_document(
+        chat_id=chat_id,
+        document=buf_copy,
+        caption="📋 <b>copiar_conteudo.txt</b>\nBasta abrir este arquivo e copiar o conteúdo.",
+        parse_mode=ParseMode.HTML,
+    )
+
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Comando /start exibindo o botão de teclado do Web App."""
     app_url = public_web_app_url()
     text = (
         "🚀 <b>Bem-vindo ao MDTXTRT!</b>\n\n"
-        "Abra o editor pelo teclado abaixo para redigir, pré-visualizar e despachar textos formatados."
+        "Abra o editor pelo teclado abaixo para redigir, pré-visualizar e despachar textos e anexos."
     )
     markup = None
     if app_url:
@@ -504,7 +559,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Comando /help detalhando comandos disponíveis."""
     await update.message.reply_text(
         "/start - Abre o Mini App com suporte a envio direto\n"
         "/help - Lista todos os recursos suportados\n"
@@ -514,7 +568,6 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def tgrich(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Comando /tgrich para envio manual de rich text inline."""
     if not context.args:
         await update.message.reply_text(
             "Uso: /tgrich *negrito* _italico_ __sublinhado__ ||spoiler||"
@@ -537,7 +590,6 @@ async def tgrich(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def mdrich(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Comando /mdrich que converte a mensagem respondida em arquivo .md."""
     target = update.message.reply_to_message
     if not target:
         await update.message.reply_text("Responda a uma mensagem com /mdrich.")
@@ -567,7 +619,6 @@ def _payload_from_webapp(raw: str) -> dict:
 
 
 async def handle_webapp_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Manipula dados enviados pelo Mini App Telegram (Tríplice envio de artefatos)."""
     try:
         payload = _payload_from_webapp(update.message.web_app_data.data)
         content = payload["content"]
@@ -580,65 +631,11 @@ async def handle_webapp_data(update: Update, context: ContextTypes.DEFAULT_TYPE)
             await update.message.reply_text(f"Publicado: {page['url']}")
             return
 
-        title = payload["title"]
-        safe_title = re.sub(r'[\\/*?:"<>|]', "", title).strip() if title else ""
-        filename_base = (
-            safe_title if safe_title and safe_title != "Sem titulo" else "documento"
-        )
-
-        header_html = (
-            f"<b>{html.escape(title)}</b>\n\n"
-            if title and title != "Sem titulo"
-            else ""
-        )
-        header_plain = f"{title}\n\n" if title and title != "Sem titulo" else ""
-
-        tg_html, images = markdown_to_telegram_html(content)
-        full_tg_html = header_html + tg_html
-        plain_text = header_plain + content
-
-        preview_opts = (
-            LinkPreviewOptions(
-                is_disabled=False, url=images[0], prefer_large_media=True
-            )
-            if images
-            else None
-        )
-
-        # 1. Mensagem formatada no chat
-        if len(full_tg_html) <= 4096:
-            try:
-                await update.message.reply_text(
-                    full_tg_html,
-                    parse_mode=ParseMode.HTML,
-                    link_preview_options=preview_opts,
-                )
-            except Exception:
-                try:
-                    await update.message.reply_text(
-                        plain_text, parse_mode=ParseMode.MARKDOWN
-                    )
-                except Exception:
-                    await update.message.reply_text(plain_text)
-        else:
-            chunks = [
-                plain_text[i : i + 4000] for i in range(0, len(plain_text), 4000)
-            ]
-            for chunk in chunks:
-                await update.message.reply_text(chunk)
-
-        # 2. Arquivo anexo .md
-        buf_md = io.BytesIO(plain_text.encode("utf-8"))
-        buf_md.name = f"{filename_base}.md"
-        await update.message.reply_document(
-            document=buf_md, caption=f"📄 {filename_base}.md"
-        )
-
-        # 3. Arquivo anexo .txt
-        buf_txt = io.BytesIO(plain_text.encode("utf-8"))
-        buf_txt.name = f"{filename_base}.txt"
-        await update.message.reply_document(
-            document=buf_txt, caption=f"📝 {filename_base}.txt"
+        await dispatch_user_artifacts(
+            bot=context.bot,
+            chat_id=update.effective_chat.id,
+            title=payload["title"],
+            content=content,
         )
 
     except TelegraphException as exc:
@@ -649,7 +646,6 @@ async def handle_webapp_data(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 
 async def serve_index(_request: web.Request):
-    """Entrega a página HTML do editor web."""
     try:
         with open(INDEX_PATH, "r", encoding="utf-8") as fh:
             return web.Response(
@@ -665,7 +661,6 @@ async def serve_index(_request: web.Request):
 
 
 async def health(_request: web.Request):
-    """Endpoint de status e saúde da aplicação."""
     return web.json_response(
         {
             "ok": True,
@@ -677,8 +672,46 @@ async def health(_request: web.Request):
     )
 
 
+async def api_send_chat(request: web.Request):
+    try:
+        data = await request.json()
+    except Exception:
+        return web.json_response({"ok": False, "error": "JSON inválido"}, status=400)
+
+    content = (data.get("content") or "").strip()
+    if not content:
+        return web.json_response(
+            {"ok": False, "error": "Documento vazio"}, status=400
+        )
+
+    user_id = data.get("user_id")
+    if not user_id:
+        return web.json_response(
+            {"ok": False, "error": "Identificador de usuário ausente."}, status=400
+        )
+
+    bot_app = request.app.get("bot")
+    if not bot_app:
+        return web.json_response(
+            {"ok": False, "error": "Bot não inicializado."}, status=503
+        )
+
+    title = data.get("title") or "Sem titulo"
+
+    try:
+        await dispatch_user_artifacts(
+            bot=bot_app.bot,
+            chat_id=user_id,
+            title=title,
+            content=content,
+        )
+        return web.json_response({"ok": True})
+    except Exception as exc:
+        log.exception("api_send_chat")
+        return web.json_response({"ok": False, "error": str(exc)}, status=500)
+
+
 async def api_publish(request: web.Request):
-    """API endpoint para publicação via Telegraph a partir do editor."""
     try:
         data = await request.json()
     except Exception:
@@ -701,7 +734,6 @@ async def api_publish(request: web.Request):
 
 
 async def on_startup(app: web.Application):
-    """Inicialização dos serviços do Telegram Application."""
     if not TOKEN:
         log.warning("TELEGRAM_TOKEN ausente.")
         return
@@ -721,7 +753,6 @@ async def on_startup(app: web.Application):
 
 
 async def on_cleanup(app: web.Application):
-    """Finalização segura do pooling e encerramento da aplicação."""
     application = app.get("bot")
     if not application:
         return
@@ -731,11 +762,11 @@ async def on_cleanup(app: web.Application):
 
 
 def build_web_app() -> web.Application:
-    """Criação e roteamento do servidor aiohttp."""
     app = web.Application()
     app.router.add_get("/", serve_index)
     app.router.add_get("/health", health)
     app.router.add_post("/api/publish", api_publish)
+    app.router.add_post("/api/send-chat", api_send_chat)
     app.on_startup.append(on_startup)
     app.on_cleanup.append(on_cleanup)
     return app

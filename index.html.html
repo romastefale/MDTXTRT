@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>MDTXTRT</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <style>
+    :root {
+      --bg: var(--tg-theme-bg-color, #121212);
+      --fg: var(--tg-theme-text-color, #e0e0e0);
+      --hint: var(--tg-theme-hint-color, #888888);
+      --btn: var(--tg-theme-button-color, #2481cc);
+      --btnt: var(--tg-theme-button-text-color, #ffffff);
+      --sec: var(--tg-theme-secondary-bg-color, #1e1e1e);
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      height: 100%;
+      margin: 0;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    body { display: flex; flex-direction: column; }
+    header, .meta, .tools { user-select: none; -webkit-user-select: none; }
+    header {
+      display: flex; gap: 8px; align-items: center; padding: 10px 12px;
+      background: var(--sec); border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    header h1 { font-size: 15px; margin: 0; flex: 0 0 auto; font-weight: 700; letter-spacing: 0.5px; }
+    .grow { flex: 1; }
+    button {
+      border: 0; border-radius: 8px; padding: 8px 10px; background: transparent;
+      color: var(--hint); cursor: pointer; font: inherit;
+    }
+    button.primary { background: var(--btn); color: var(--btnt); font-weight: 600; font-size: 12px; }
+    button.action-btn { background: rgba(36, 129, 204, 0.18); color: var(--btn); font-weight: 600; font-size: 12px; }
+    .meta {
+      padding: 8px 12px; background: var(--sec);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      display: flex; flex-direction: column; gap: 6px;
+    }
+    .meta input {
+      background: transparent; border: 0; color: var(--fg); outline: none; font: inherit;
+      user-select: text; -webkit-user-select: text;
+    }
+    .meta input[type=text]:last-child { color: var(--hint); font-size: 12px; }
+    .tools {
+      display: flex; gap: 4px; overflow-x: auto; padding: 6px 10px;
+      background: var(--sec); white-space: nowrap; -webkit-overflow-scrolling: touch;
+    }
+    .tools button {
+      padding: 6px 8px; font-size: 12px; flex-shrink: 0;
+      background: rgba(255, 255, 255, 0.04); border-radius: 6px;
+    }
+    main { flex: 1; position: relative; min-height: 0; }
+    textarea, #preview {
+      position: absolute; inset: 0; width: 100%; height: 100%; padding: 16px;
+      border: 0; resize: none; background: transparent; color: var(--fg);
+      font: 16px/1.55 inherit; outline: none; user-select: text; -webkit-user-select: text;
+    }
+    #preview { overflow: auto; display: none; }
+    #preview h1 { font-size: 1.8em; }
+    #preview h2 { font-size: 1.4em; }
+    #preview h3 { font-size: 1.2em; }
+    #preview h4 { font-size: 1.1em; }
+    #preview h5 { font-size: 1.0em; }
+    #preview h6 { font-size: 0.9em; }
+    #preview pre { background: var(--sec); padding: 12px; border-radius: 8px; overflow: auto; }
+    #preview code { background: rgba(255, 255, 255, 0.08); padding: 1px 4px; border-radius: 4px; }
+    #preview blockquote { border-left: 3px solid var(--hint); margin-left: 0; padding-left: 12px; color: var(--hint); }
+    #preview blockquote.expandable {
+      border-left: 3px solid var(--btn); background: rgba(36, 129, 204, 0.08);
+      padding: 8px 12px; border-radius: 4px; margin: 8px 0;
+    }
+    #preview blockquote.expandable summary {
+      cursor: pointer; font-weight: 600; color: var(--btn); font-size: 12px; margin-bottom: 4px; outline: none;
+    }
+    #preview table { border-collapse: collapse; width: 100%; margin: 12px 0; }
+    #preview th, #preview td { border: 1px solid rgba(255, 255, 255, 0.15); padding: 6px 10px; text-align: left; }
+    #preview th { background: rgba(255, 255, 255, 0.05); }
+    #preview hr { border: 0; border-top: 1px solid rgba(255, 255, 255, 0.15); margin: 16px 0; }
+    #preview u { text-decoration: underline; }
+    #preview s { text-decoration: line-through; }
+    #preview a { color: var(--btn); }
+    .spoiler {
+      background: rgba(255, 255, 255, 0.2); color: transparent; border-radius: 3px;
+      padding: 0 3px; cursor: pointer; user-select: none; transition: color 0.2s, background 0.2s;
+    }
+    .spoiler.revealed { color: inherit; background: rgba(255, 255, 255, 0.08); }
+    .toast {
+      position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%);
+      background: var(--btn); color: var(--btnt); padding: 8px 16px; border-radius: 16px;
+      font-size: 13px; opacity: 0; transition: opacity 0.25s; pointer-events: none; z-index: 100;
+      text-align: center; max-width: 90%;
+    }
+    .toast.on { opacity: 1; }
+  </style>
+</head>
+<body>
+<header>
+  <h1>MDTXTRT</h1>
+  <div class="grow"></div>
+  <button id="toggleBtn" type="button">Preview</button>
+  <button id="sendHeaderBtn" class="action-btn" type="button">Enviar Anexos</button>
+  <button id="publishBtn" class="primary" type="button">Telegraph</button>
+</header>
+
+<div class="meta">
+  <input id="fileTitle" type="text" placeholder="Título do documento">
+  <input id="telegraphPath" type="text" placeholder="Slug opcional (ex: meu-artigo)">
+</div>
+
+<div class="tools" id="tools">
+  <button type="button" data-wrap="**,**" title="Negrito"><b>B</b></button>
+  <button type="button" data-wrap="_,_" title="Itálico"><i>I</i></button>
+  <button type="button" data-wrap="__,__" title="Sublinhado"><u>U</u></button>
+  <button type="button" data-wrap="~~,~~" title="Tachado"><s>S</s></button>
+  <button type="button" data-wrap="||,||" title="Spoiler">||</button>
+  <button type="button" data-line="> " title="Citação">”</button>
+  <button type="button" data-wrap="**>,||" title="Citação Expansível">”+</button>
+  <button type="button" data-line="# " title="Título 1">H1</button>
+  <button type="button" data-line="## " title="Título 2">H2</button>
+  <button type="button" data-line="### " title="Título 3">H3</button>
+  <button type="button" data-line="#### " title="Título 4">H4</button>
+  <button type="button" data-line="##### " title="Título 5">H5</button>
+  <button type="button" data-line="###### " title="Título 6">H6</button>
+  <button type="button" data-line="- " title="Marcador">•</button>
+  <button type="button" data-line="1. " title="Lista Numerada">1.</button>
+  <button type="button" data-line="- [ ] " title="Checklist">☑</button>
+  <button type="button" data-line="---\n" title="Linha Divisória">HR</button>
+  <button type="button" data-line="| Coluna 1 | Coluna 2 |\n|---|---|\n| Item 1 | Item 2 |\n" title="Tabela">Tab</button>
+  <button type="button" data-wrap="`,`" title="Código Inline">&lt;/&gt;</button>
+  <button type="button" data-wrap="```\n,\n```" title="Bloco de Código">code</button>
+  <button type="button" data-wrap="[,](url)" title="Ligação">link</button>
+  <button type="button" data-wrap="![Imagem](,)" title="Imagem">img</button>
+  <button type="button" data-wrap="![👍](tg://emoji?id=,)" title="Emoji Personalizado">emoji</button>
+</div>
+
+<main>
+  <textarea id="markdownInput" placeholder="Escreva em Markdown..."></textarea>
+  <div id="preview"></div>
+</main>
+
+<div id="toast" class="toast"></div>
+
+<script>
+  const tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : {};
+  if (tg.ready) tg.ready();
+  if (tg.expand) tg.expand();
+  if (tg.enableClosingConfirmation) tg.enableClosingConfirmation();
+  if (window.marked) marked.setOptions({ breaks: true, gfm: true });
+
+  const input = document.getElementById('markdownInput');
+  const preview = document.getElementById('preview');
+  const titleInput = document.getElementById('fileTitle');
+  const pathInput = document.getElementById('telegraphPath');
+  const toastEl = document.getElementById('toast');
+  let isPreview = false;
+  let isSending = false;
+
+  function toast(msg) {
+    toastEl.textContent = msg;
+    toastEl.classList.add('on');
+    setTimeout(() => toastEl.classList.remove('on'), 2500);
+  }
+
+  function wrap(prefix, suffix) {
+    const s = input.selectionStart;
+    const e = input.selectionEnd;
+    const t = input.value;
+    const sel = t.slice(s, e);
+    input.value = t.slice(0, s) + prefix + sel + suffix + t.slice(e);
+    input.focus();
+    input.selectionStart = input.selectionEnd = s + prefix.length + (sel ? sel.length + suffix.length : 0);
+    save();
+    updateBtn();
+  }
+
+  function line(tag) {
+    const s = input.selectionStart;
+    const t = input.value;
+    let i = t.lastIndexOf('\n', s - 1);
+    i = i < 0 ? 0 : i + 1;
+    input.value = t.slice(0, i) + tag + t.slice(i);
+    input.focus();
+    input.selectionStart = input.selectionEnd = s + tag.length;
+    save();
+    updateBtn();
+  }
+
+  document.getElementById('tools').addEventListener('click', (ev) => {
+    const b = ev.target.closest('button');
+    if (!b) return;
+    if (b.dataset.wrap) {
+      const parts = b.dataset.wrap.split(',');
+      const a = parts[0].replace(/\\n/g, '\n');
+      const c = (parts[1] || '').replace(/\\n/g, '\n');
+      wrap(a, c);
+    }
+    if (b.dataset.line) {
+      line(b.dataset.line.replace(/\\n/g, '\n'));
+    }
+  });
+
+  function save() {
+    try {
+      localStorage.setItem('mdtxtrt_draft', input.value);
+      localStorage.setItem('mdtxtrt_title', titleInput.value);
+      localStorage.setItem('mdtxtrt_path', pathInput.value);
+    } catch (e) {}
+  }
+
+  function getPayload(action = 'markdown') {
+    return {
+      action: action,
+      title: (titleInput.value || '').trim() || 'Sem título',
+      path: (pathInput.value || '').trim(),
+      content: input.value,
+      user_id: tg.initDataUnsafe && tg.initDataUnsafe.user ? tg.initDataUnsafe.user.id : null,
+      init_data: tg.initData || '',
+      timestamp: Date.now()
+    };
+  }
+
+  function updateBtn() {
+    if (!tg.MainButton) return;
+    if (input.value.trim()) {
+      tg.MainButton.setText('Enviar Anexos ao Chat');
+      tg.MainButton.show();
+      tg.MainButton.enable();
+    } else {
+      tg.MainButton.hide();
+    }
+  }
+
+  async function triggerBotDispatch() {
+    if (isSending) return;
+    const content = input.value.trim();
+    if (!content) {
+      toast('Documento vazio');
+      return;
+    }
+
+    save();
+    isSending = true;
+    toast('Enviando arquivos ao bot...');
+
+    const payload = getPayload('markdown');
+
+    try {
+      const res = await fetch('/api/send-chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await res.json();
+      if (!data.ok) {
+        throw new Error(data.error || 'Falha no envio');
+      }
+
+      if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+      toast('Anexos enviados no chat!');
+
+      if (tg.sendData) {
+        try { tg.sendData(JSON.stringify(payload)); } catch (e) {}
+      }
+
+      setTimeout(() => {
+        if (tg.close) tg.close();
+      }, 1000);
+
+    } catch (err) {
+      if (tg.sendData) {
+        try {
+          tg.sendData(JSON.stringify(payload));
+          toast('Enviado via Telegram');
+          setTimeout(() => { if (tg.close) tg.close(); }, 800);
+          return;
+        } catch (e) {}
+      }
+      toast(err.message || 'Erro ao comunicar com o bot');
+    } finally {
+      isSending = false;
+    }
+  }
+
+  async function publishTelegraph() {
+    if (!input.value.trim()) {
+      toast('Documento vazio');
+      return;
+    }
+    save();
+    try {
+      const res = await fetch('/api/publish', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(getPayload('publish_telegraph'))
+      });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || 'Falha ao publicar');
+      toast('Publicado no Telegraph');
+      if (data.url) {
+        try { await navigator.clipboard.writeText(data.url); } catch (e) {}
+        if (tg.openLink) {
+          tg.openLink(data.url);
+        } else {
+          window.open(data.url, '_blank');
+        }
+      }
+    } catch (err) {
+      toast(err.message || 'Erro ao publicar');
+    }
+  }
+
+  function renderPreview() {
+    if (!input.value.trim()) return '<em style="color:var(--hint)">Vazio</em>';
+    let txt = input.value;
+    txt = txt.replace(/\*\*>\s*([\s\S]*?)\|\|/g, '<blockquote class="expandable"><details open><summary>Citação Expansível</summary>$1</details></blockquote>');
+    txt = txt.replace(/__(.+?)__/g, '<u>$1</u>');
+    txt = txt.replace(/\|\|(.*?)\|\|/g, '<span class="spoiler" onclick="this.classList.toggle(\'revealed\')">$1</span>');
+    txt = txt.replace(/!\[([^\]]*)\]\(tg:\/\/emoji\?id=\d+\)/g, '$1');
+    if (window.marked) return marked.parse(txt);
+    return txt.replace(/\n/g, '<br>');
+  }
+
+  document.getElementById('toggleBtn').onclick = () => {
+    isPreview = !isPreview;
+    if (isPreview) {
+      preview.innerHTML = renderPreview();
+      preview.style.display = 'block';
+      input.style.display = 'none';
+      document.getElementById('toggleBtn').textContent = 'Editar';
+    } else {
+      preview.style.display = 'none';
+      input.style.display = 'block';
+      document.getElementById('toggleBtn').textContent = 'Preview';
+      input.focus();
+    }
+  };
+
+  document.getElementById('sendHeaderBtn').onclick = triggerBotDispatch;
+  document.getElementById('publishBtn').onclick = publishTelegraph;
+
+  input.addEventListener('input', () => { updateBtn(); save(); });
+  titleInput.addEventListener('input', save);
+  pathInput.addEventListener('input', save);
+
+  try {
+    input.value = localStorage.getItem('mdtxtrt_draft') || localStorage.getItem('tg-markdown-editor') || '';
+    titleInput.value = localStorage.getItem('mdtxtrt_title') || '';
+    pathInput.value = localStorage.getItem('mdtxtrt_path') || '';
+  } catch (e) {}
+
+  if (tg.MainButton) tg.MainButton.onClick(triggerBotDispatch);
+  if (tg.BackButton) {
+    tg.BackButton.show();
+    tg.BackButton.onClick(() => {
+      if (input.value.trim() && !confirm('Sair sem enviar?')) return;
+      tg.close();
+    });
+  }
+
+  updateBtn();
+  setInterval(save, 300000);
+</script>
+</body>
+</html>
