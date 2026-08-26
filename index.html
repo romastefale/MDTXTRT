@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>MDTXTRT</title>
-  <!-- Telegram Web App SDK e Marked para parse de Markdown -->
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <style>
@@ -16,9 +15,7 @@
       --btnt: var(--tg-theme-button-text-color, #ffffff);
       --sec: var(--tg-theme-secondary-bg-color, #1e1e1e);
     }
-    * {
-      box-sizing: border-box;
-    }
+    * { box-sizing: border-box; }
     html, body {
       height: 100%;
       margin: 0;
@@ -26,186 +23,78 @@
       color: var(--fg);
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
-    body {
-      display: flex;
-      flex-direction: column;
-    }
+    body { display: flex; flex-direction: column; }
+    header, .meta, .tools { user-select: none; -webkit-user-select: none; }
     header {
-      display: flex;
-      gap: 8px;
-      align-items: center;
-      padding: 10px 12px;
-      background: var(--sec);
-      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      display: flex; gap: 8px; align-items: center; padding: 10px 12px;
+      background: var(--sec); border-bottom: 1px solid rgba(255, 255, 255, 0.06);
     }
-    header h1 {
-      font-size: 15px;
-      margin: 0;
-      flex: 0 0 auto;
-      font-weight: 700;
-      letter-spacing: 0.5px;
-    }
-    .grow {
-      flex: 1;
-    }
+    header h1 { font-size: 15px; margin: 0; flex: 0 0 auto; font-weight: 700; letter-spacing: 0.5px; }
+    .grow { flex: 1; }
     button {
-      border: 0;
-      border-radius: 8px;
-      padding: 8px 10px;
-      background: transparent;
-      color: var(--hint);
-      cursor: pointer;
-      font: inherit;
+      border: 0; border-radius: 8px; padding: 8px 10px; background: transparent;
+      color: var(--hint); cursor: pointer; font: inherit;
     }
-    button.primary {
-      background: var(--btn);
-      color: var(--btnt);
-      font-weight: 600;
-      font-size: 12px;
-    }
+    button.primary { background: var(--btn); color: var(--btnt); font-weight: 600; font-size: 12px; }
+    button.action-btn { background: rgba(36, 129, 204, 0.18); color: var(--btn); font-weight: 600; font-size: 12px; }
     .meta {
-      padding: 8px 12px;
-      background: var(--sec);
+      padding: 8px 12px; background: var(--sec);
       border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
+      display: flex; flex-direction: column; gap: 6px;
     }
     .meta input {
-      background: transparent;
-      border: 0;
-      color: var(--fg);
-      outline: none;
-      font: inherit;
+      background: transparent; border: 0; color: var(--fg); outline: none; font: inherit;
+      user-select: text; -webkit-user-select: text;
     }
-    .meta input[type=text]:last-child {
-      color: var(--hint);
-      font-size: 12px;
-    }
+    .meta input[type=text]:last-child { color: var(--hint); font-size: 12px; }
     .tools {
-      display: flex;
-      gap: 4px;
-      overflow-x: auto;
-      padding: 6px 10px;
-      background: var(--sec);
-      white-space: nowrap;
-      -webkit-overflow-scrolling: touch;
+      display: flex; gap: 4px; overflow-x: auto; padding: 6px 10px;
+      background: var(--sec); white-space: nowrap; -webkit-overflow-scrolling: touch;
     }
     .tools button {
-      padding: 6px 8px;
-      font-size: 12px;
-      flex-shrink: 0;
-      background: rgba(255, 255, 255, 0.04);
-      border-radius: 6px;
+      padding: 6px 8px; font-size: 12px; flex-shrink: 0;
+      background: rgba(255, 255, 255, 0.04); border-radius: 6px;
     }
-    main {
-      flex: 1;
-      position: relative;
-      min-height: 0;
-    }
+    main { flex: 1; position: relative; min-height: 0; }
     textarea, #preview {
-      position: absolute;
-      inset: 0;
-      width: 100%;
-      height: 100%;
-      padding: 16px;
-      border: 0;
-      resize: none;
-      background: transparent;
-      color: var(--fg);
-      font: 16px/1.55 inherit;
-      outline: none;
+      position: absolute; inset: 0; width: 100%; height: 100%; padding: 16px;
+      border: 0; resize: none; background: transparent; color: var(--fg);
+      font: 16px/1.55 inherit; outline: none; user-select: text; -webkit-user-select: text;
     }
-    #preview {
-      overflow: auto;
-      display: none;
-    }
+    #preview { overflow: auto; display: none; }
     #preview h1 { font-size: 1.8em; }
     #preview h2 { font-size: 1.4em; }
     #preview h3 { font-size: 1.2em; }
     #preview h4 { font-size: 1.1em; }
     #preview h5 { font-size: 1.0em; }
     #preview h6 { font-size: 0.9em; }
-    #preview pre {
-      background: var(--sec);
-      padding: 12px;
-      border-radius: 8px;
-      overflow: auto;
-    }
-    #preview code {
-      background: rgba(255, 255, 255, 0.08);
-      padding: 1px 4px;
-      border-radius: 4px;
-    }
-    #preview blockquote {
-      border-left: 3px solid var(--hint);
-      margin-left: 0;
-      padding-left: 12px;
-      color: var(--hint);
-    }
+    #preview pre { background: var(--sec); padding: 12px; border-radius: 8px; overflow: auto; }
+    #preview code { background: rgba(255, 255, 255, 0.08); padding: 1px 4px; border-radius: 4px; }
+    #preview blockquote { border-left: 3px solid var(--hint); margin-left: 0; padding-left: 12px; color: var(--hint); }
     #preview blockquote.expandable {
-      border-left: 3px solid var(--btn);
-      background: rgba(36, 129, 204, 0.08);
-      padding: 8px 12px;
-      border-radius: 4px;
-      margin: 8px 0;
+      border-left: 3px solid var(--btn); background: rgba(36, 129, 204, 0.08);
+      padding: 8px 12px; border-radius: 4px; margin: 8px 0;
     }
     #preview blockquote.expandable summary {
-      cursor: pointer;
-      font-weight: 600;
-      color: var(--btn);
-      font-size: 12px;
-      margin-bottom: 4px;
-      outline: none;
+      cursor: pointer; font-weight: 600; color: var(--btn); font-size: 12px; margin-bottom: 4px; outline: none;
     }
-    #preview table {
-      border-collapse: collapse;
-      width: 100%;
-      margin: 12px 0;
-    }
-    #preview th, #preview td {
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      padding: 6px 10px;
-      text-align: left;
-    }
-    #preview th {
-      background: rgba(255, 255, 255, 0.05);
-    }
-    #preview hr {
-      border: 0;
-      border-top: 1px solid rgba(255, 255, 255, 0.15);
-      margin: 16px 0;
-    }
+    #preview table { border-collapse: collapse; width: 100%; margin: 12px 0; }
+    #preview th, #preview td { border: 1px solid rgba(255, 255, 255, 0.15); padding: 6px 10px; text-align: left; }
+    #preview th { background: rgba(255, 255, 255, 0.05); }
+    #preview hr { border: 0; border-top: 1px solid rgba(255, 255, 255, 0.15); margin: 16px 0; }
     #preview u { text-decoration: underline; }
     #preview s { text-decoration: line-through; }
     #preview a { color: var(--btn); }
     .spoiler {
-      background: rgba(255, 255, 255, 0.2);
-      color: transparent;
-      border-radius: 3px;
-      padding: 0 3px;
-      cursor: pointer;
-      user-select: none;
-      transition: color 0.2s, background 0.2s;
+      background: rgba(255, 255, 255, 0.2); color: transparent; border-radius: 3px;
+      padding: 0 3px; cursor: pointer; user-select: none; transition: color 0.2s, background 0.2s;
     }
-    .spoiler.revealed {
-      color: inherit;
-      background: rgba(255, 255, 255, 0.08);
-    }
+    .spoiler.revealed { color: inherit; background: rgba(255, 255, 255, 0.08); }
     .toast {
-      position: fixed;
-      left: 50%;
-      bottom: 28px;
-      transform: translateX(-50%);
-      background: var(--btn);
-      color: var(--btnt);
-      padding: 8px 14px;
-      border-radius: 16px;
-      font-size: 13px;
-      opacity: 0;
-      transition: opacity 0.25s;
-      pointer-events: none;
-      z-index: 100;
+      position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%);
+      background: var(--btn); color: var(--btnt); padding: 8px 16px; border-radius: 16px;
+      font-size: 13px; opacity: 0; transition: opacity 0.25s; pointer-events: none; z-index: 100;
+      text-align: center; max-width: 90%;
     }
     .toast.on { opacity: 1; }
   </style>
@@ -215,7 +104,7 @@
   <h1>MDTXTRT</h1>
   <div class="grow"></div>
   <button id="toggleBtn" type="button">Preview</button>
-  <button id="copyBtn" type="button">Copiar</button>
+  <button id="sendHeaderBtn" class="action-btn" type="button">Enviar Anexos</button>
   <button id="publishBtn" class="primary" type="button">Telegraph</button>
 </header>
 
@@ -258,7 +147,6 @@
 <div id="toast" class="toast"></div>
 
 <script>
-  // Inicialização com Telegram WebApp
   const tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : {};
   if (tg.ready) tg.ready();
   if (tg.expand) tg.expand();
@@ -271,11 +159,12 @@
   const pathInput = document.getElementById('telegraphPath');
   const toastEl = document.getElementById('toast');
   let isPreview = false;
+  let isSending = false;
 
   function toast(msg) {
     toastEl.textContent = msg;
     toastEl.classList.add('on');
-    setTimeout(() => toastEl.classList.remove('on'), 2200);
+    setTimeout(() => toastEl.classList.remove('on'), 2500);
   }
 
   function wrap(prefix, suffix) {
@@ -324,13 +213,14 @@
     } catch (e) {}
   }
 
-  function payload(action) {
+  function getPayload(action = 'markdown') {
     return {
       action: action,
-      type: action === 'publish_telegraph' ? 'telegraph' : 'markdown',
       title: (titleInput.value || '').trim() || 'Sem título',
       path: (pathInput.value || '').trim(),
       content: input.value,
+      user_id: tg.initDataUnsafe && tg.initDataUnsafe.user ? tg.initDataUnsafe.user.id : null,
+      init_data: tg.initData || '',
       timestamp: Date.now()
     };
   }
@@ -338,7 +228,7 @@
   function updateBtn() {
     if (!tg.MainButton) return;
     if (input.value.trim()) {
-      tg.MainButton.setText('Enviar para o Bot');
+      tg.MainButton.setText('Enviar Anexos ao Chat');
       tg.MainButton.show();
       tg.MainButton.enable();
     } else {
@@ -346,20 +236,56 @@
     }
   }
 
-  function sendToBot() {
-    if (!input.value.trim()) return;
+  async function triggerBotDispatch() {
+    if (isSending) return;
+    const content = input.value.trim();
+    if (!content) {
+      toast('Documento vazio');
+      return;
+    }
+
     save();
-    if (!tg.sendData) {
-      toast('Abra pelo Telegram');
-      return;
+    isSending = true;
+    toast('Enviando arquivos ao bot...');
+
+    const payload = getPayload('markdown');
+
+    try {
+      const res = await fetch('/api/send-chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await res.json();
+      if (!data.ok) {
+        throw new Error(data.error || 'Falha no envio');
+      }
+
+      if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+      toast('Anexos enviados no chat!');
+
+      if (tg.sendData) {
+        try { tg.sendData(JSON.stringify(payload)); } catch (e) {}
+      }
+
+      setTimeout(() => {
+        if (tg.close) tg.close();
+      }, 1000);
+
+    } catch (err) {
+      if (tg.sendData) {
+        try {
+          tg.sendData(JSON.stringify(payload));
+          toast('Enviado via Telegram');
+          setTimeout(() => { if (tg.close) tg.close(); }, 800);
+          return;
+        } catch (e) {}
+      }
+      toast(err.message || 'Erro ao comunicar com o bot');
+    } finally {
+      isSending = false;
     }
-    const raw = JSON.stringify(payload('markdown'));
-    if (new Blob([raw]).size > 4096) {
-      toast('Texto extenso (>4KB) — use o Telegraph');
-      return;
-    }
-    tg.sendData(raw);
-    if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
   }
 
   async function publishTelegraph() {
@@ -372,15 +298,13 @@
       const res = await fetch('/api/publish', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload('publish_telegraph'))
+        body: JSON.stringify(getPayload('publish_telegraph'))
       });
       const data = await res.json();
       if (!data.ok) throw new Error(data.error || 'Falha ao publicar');
       toast('Publicado no Telegraph');
       if (data.url) {
-        try {
-          await navigator.clipboard.writeText(data.url);
-        } catch (e) {}
+        try { await navigator.clipboard.writeText(data.url); } catch (e) {}
         if (tg.openLink) {
           tg.openLink(data.url);
         } else {
@@ -418,28 +342,20 @@
     }
   };
 
-  document.getElementById('copyBtn').onclick = async () => {
-    try {
-      await navigator.clipboard.writeText(input.value);
-      toast('Copiado');
-    } catch (e) {
-      toast('Falha ao copiar');
-    }
-  };
-
+  document.getElementById('sendHeaderBtn').onclick = triggerBotDispatch;
   document.getElementById('publishBtn').onclick = publishTelegraph;
+
   input.addEventListener('input', () => { updateBtn(); save(); });
   titleInput.addEventListener('input', save);
   pathInput.addEventListener('input', save);
 
-  // Carregar rascunhos salvos
   try {
     input.value = localStorage.getItem('mdtxtrt_draft') || localStorage.getItem('tg-markdown-editor') || '';
     titleInput.value = localStorage.getItem('mdtxtrt_title') || '';
     pathInput.value = localStorage.getItem('mdtxtrt_path') || '';
   } catch (e) {}
 
-  if (tg.MainButton) tg.MainButton.onClick(sendToBot);
+  if (tg.MainButton) tg.MainButton.onClick(triggerBotDispatch);
   if (tg.BackButton) {
     tg.BackButton.show();
     tg.BackButton.onClick(() => {
