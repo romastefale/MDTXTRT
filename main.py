@@ -48,7 +48,7 @@ def get_telegraph() -> Telegraph:
     if not TELEGRAPH_TOKEN:
         acc = client.create_account(short_name="MDTXTRT", author_name=AUTHOR_NAME)
         log.warning(
-            "Conta Telegraph criada nesta execução. Grave TELEGRAPH_ACCESS_TOKEN=%s",
+            "Conta Telegraph criada nesta execucao. Grave TELEGRAPH_ACCESS_TOKEN=%s",
             acc.get("access_token", ""),
         )
     _telegraph = client
@@ -56,7 +56,6 @@ def get_telegraph() -> Telegraph:
 
 
 def markdown_to_telegraph_html(source: str) -> str:
-    """Converte Markdown simples para o subconjunto HTML aceito pelo Telegraph."""
     text = source.replace("\r\n", "\n").replace("\r", "\n")
     text = text.replace("||", "")
     parts: list[str] = []
@@ -164,7 +163,7 @@ def markdown_to_telegraph_html(source: str) -> str:
 
 
 def publish_page(title: str, content_md: str, path_hint: str = "") -> dict:
-    title = (title or "Sem título").strip()[:256]
+    title = (title or "Sem titulo").strip()[:256]
     hint = (path_hint or "").strip()
     api_title = hint[:256] if hint else title
     body = markdown_to_telegraph_html(content_md)
@@ -186,8 +185,8 @@ def publish_page(title: str, content_md: str, path_hint: str = "") -> dict:
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     app_url = public_web_app_url()
     text = (
-        "MDTXTRT — editor Markdown para Telegram Rich Messages e Telegraph.\n\n"
-        "Abra o Mini App para escrever, pré-visualizar e publicar.\n"
+        "MDTXTRT - editor Markdown para Telegram Rich Messages e Telegraph.\n\n"
+        "Abra o Mini App para escrever, pre-visualizar e publicar.\n"
         "/help lista os comandos."
     )
     markup = None
@@ -200,17 +199,17 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "/start — abre o Mini App\n"
-        "/help — esta lista\n"
-        "/tgrich <texto> — envia o texto com parse Markdown\n"
-        "/mdrich — responda a uma mensagem para receber o .md nativo\n\n"
+        "/start - abre o Mini App\n"
+        "/help - esta lista\n"
+        "/tgrich <texto> - envia o texto com parse Markdown\n"
+        "/mdrich - responda a uma mensagem para receber o .md nativo\n\n"
         "No Mini App: Publicar Telegraph ou Enviar para o bot."
     )
 
 
 async def tgrich(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
-        await update.message.reply_text("Uso: /tgrich *negrito* _itálico_")
+        await update.message.reply_text("Uso: /tgrich *negrito* _italico_")
         return
     text = update.message.text.split(None, 1)[1]
     try:
@@ -226,7 +225,7 @@ async def mdrich(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     md_text = target.text_markdown_v2 or target.caption_markdown_v2
     if not md_text:
-        await update.message.reply_text("A mensagem alvo não tem texto formatável.")
+        await update.message.reply_text("A mensagem alvo nao tem texto formatavel.")
         return
     buf = io.BytesIO(md_text.encode("utf-8"))
     buf.name = "exported.md"
@@ -236,11 +235,11 @@ async def mdrich(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def _payload_from_webapp(raw: str) -> dict:
     data = json.loads(raw)
     if not isinstance(data, dict):
-        return {"action": "markdown", "content": str(data), "title": "Sem título"}
+        return {"action": "markdown", "content": str(data), "title": "Sem titulo"}
     action = data.get("action") or data.get("type") or "markdown"
     return {
         "action": action,
-        "title": data.get("title") or "Sem título",
+        "title": data.get("title") or "Sem titulo",
         "path": data.get("path") or "",
         "content": data.get("content") or "",
     }
@@ -260,7 +259,7 @@ async def handle_webapp_data(update: Update, context: ContextTypes.DEFAULT_TYPE)
             return
 
         title = payload["title"]
-        header = f"{title}\n\n" if title and title != "Sem título" else ""
+        header = f"{title}\n\n" if title and title != "Sem titulo" else ""
         text = header + content
         if len(text) > 3900:
             buf = io.BytesIO(text.encode("utf-8"))
@@ -281,9 +280,9 @@ async def handle_webapp_data(update: Update, context: ContextTypes.DEFAULT_TYPE)
 async def serve_index(_request: web.Request):
     try:
         with open(INDEX_PATH, "r", encoding="utf-8") as fh:
-            return web.Response(text=fh.read(), content_type="text/html; charset=utf-8")
+            return web.Response(text=fh.read(), content_type="text/html", charset="utf-8")
     except FileNotFoundError:
-        return web.Response(text="index.html ausente", status=404)
+        return web.Response(text="index.html ausente", status=404, content_type="text/plain", charset="utf-8")
 
 
 async def health(_request: web.Request):
@@ -302,12 +301,12 @@ async def api_publish(request: web.Request):
     try:
         data = await request.json()
     except Exception:
-        return web.json_response({"ok": False, "error": "JSON inválido"}, status=400)
+        return web.json_response({"ok": False, "error": "JSON invalido"}, status=400)
     content = (data.get("content") or "").strip()
     if not content:
         return web.json_response({"ok": False, "error": "Documento vazio"}, status=400)
     try:
-        page = publish_page(data.get("title") or "Sem título", content, data.get("path") or "")
+        page = publish_page(data.get("title") or "Sem titulo", content, data.get("path") or "")
         return web.json_response({"ok": True, **page})
     except TelegraphException as exc:
         return web.json_response({"ok": False, "error": str(exc)}, status=502)
@@ -318,7 +317,7 @@ async def api_publish(request: web.Request):
 
 async def on_startup(app: web.Application):
     if not TOKEN:
-        log.warning("TELEGRAM_TOKEN ausente — Mini App sobe, bot fica desligado.")
+        log.warning("TELEGRAM_TOKEN ausente - Mini App sobe, bot fica desligado.")
         return
     application = Application.builder().token(TOKEN).build()
     application.add_handler(CommandHandler("start", start))
