@@ -92,6 +92,13 @@
       <h2>Chat vs Mini App</h2>
       <p>Mini App (botão de /start ou menu): redigir, pré-visualizar, formatar, enviar ao chat e publicar no Telegraph. Use quando for escrever.</p>
       <p>Comandos no chat: use quando o texto já está no Telegram — um arquivo, um encaminhamento ou uma mensagem para converter ou exportar.</p>
+      <h2>Nesta interface</h2>
+      <ul>
+        <li><code>abrir</code> — carrega .md e mostra o tgrich.</li>
+        <li><code>mdrich</code> — baixa o documento em Markdown otimizado.</li>
+        <li><code>chat</code> — envia rich text + .md para o Telegram.</li>
+        <li><code>telegraph</code> — publica a página (no Mini App).</li>
+      </ul>
     </div>
     <div id="drop" class="drop">Solte o arquivo .md</div>
   </main>
@@ -161,8 +168,12 @@
     { l: "B", p: "**", s: "**" }, { l: "I", p: "_", s: "_" }, { l: "U", p: "__", s: "__" },
     { l: "S", p: "~~", s: "~~" }, { l: "||", p: "||", s: "||" }, { l: "code", p: "`", s: "`" },
     { l: "bloco", p: "```\n", s: "\n```" }, { l: "link", p: "[", s: "](url)" },
-    { l: ">", p: "> ", s: "", line: 1 }, { l: "•", p: "- ", s: "", line: 1 },
+    { l: "img", p: "![", s: "](url)" },
+    { l: ">", p: "> ", s: "", line: 1 }, { l: ">+", p: "**> ", s: "", line: 1 },
+    { l: "•", p: "- ", s: "", line: 1 }, { l: "1.", p: "1. ", s: "", line: 1 },
+    { l: "task", p: "- [ ] ", s: "", line: 1 },
     { l: "H1", p: "# ", s: "", line: 1 }, { l: "H2", p: "## ", s: "", line: 1 },
+    { l: "H3", p: "### ", s: "", line: 1 },
     { l: "hr", p: "---\n", s: "", line: 1 }
   ];
   TOOLS.forEach(function (t) {
@@ -211,7 +222,7 @@
     s = s.replace(/\|\|(.+?)\|\|/g, "<span class=\"spoiler\">$1</span>");
     s = s.replace(/__(.+?)__/g, "<u>$1</u>");
     s = s.replace(/\*\*(.+?)\*\*/g, "<b>$1</b>");
-    s = s.replace(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, "<b>$1</b>");
+    s = s.replace(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, "<i>$1</i>");
     s = s.replace(/(?<!_)_(?!_)(.+?)(?<!_)_(?!_)/g, "<i>$1</i>");
     s = s.replace(/~~(.+?)~~/g, "<s>$1</s>");
     codes.forEach(function (c, i) {
@@ -241,7 +252,10 @@
       if (hm) {
         var h = inlineTg(hm[2], images);
         var n = hm[1].length;
-        parts.push(n === 1 ? "<b>━━━ " + h.toUpperCase() + " ━━━</b>" : n === 2 ? "<b>▶ " + h + "</b>" : "<b>◆ " + h + "</b>");
+        var h1 = h.replace(/(<[^>]+>)|([^<]+)/g, function (_, tag, text) {
+          return tag || (text ? text.toUpperCase() : "");
+        });
+        parts.push(n === 1 ? "<b>━━━ " + h1 + " ━━━</b>" : n === 2 ? "<b>▶ " + h + "</b>" : "<b>◆ " + h + "</b>");
         i += 1;
         continue;
       }

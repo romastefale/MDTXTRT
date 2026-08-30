@@ -54,12 +54,30 @@ def split_html_chunks(html_text: str, limit: int = 4096) -> list[str]:
         if len(remaining) <= limit:
             chunks.append(remaining)
             break
-        cut = remaining.rfind("\n", 0, limit)
+        window = remaining[:limit]
+        cut = window.rfind("\n")
         if cut < limit // 2:
-            cut = limit
+            cut = window.rfind(">")
+            if cut >= limit // 2:
+                cut += 1
+            else:
+                cut = limit
+        last_lt = remaining.rfind("<", 0, cut)
+        last_gt = remaining.rfind(">", 0, cut)
+        if last_lt > last_gt and last_lt > 0:
+            cut = last_lt
+        if cut <= 0:
+            cut = min(limit, len(remaining))
         chunks.append(remaining[:cut])
         remaining = remaining[cut:].lstrip("\n")
     return chunks
+
+
+def _upper_keep_tags(s: str) -> str:
+    return "".join(
+        part if part.startswith("<") else part.upper()
+        for part in re.split(r"(<[^>]+>)", s)
+    )
 
 
 def _u16_to_index(text: str, offset: int) -> int:
@@ -266,7 +284,7 @@ def markdown_to_telegram_html(source: str) -> tuple[str, list[str]]:
         s = re.sub(r"\|\|(.+?)\|\|", r"<tg-spoiler>\1</tg-spoiler>", s)
         s = re.sub(r"__(.+?)__", r"<u>\1</u>", s)
         s = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", s)
-        s = re.sub(r"(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)", r"<b>\1</b>", s)
+        s = re.sub(r"(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)", r"<i>\1</i>", s)
         s = re.sub(r"(?<!_)_(?!_)(.+?)(?<!_)_(?!_)", r"<i>\1</i>", s)
         s = re.sub(r"~~(.+?)~~", r"<s>\1</s>", s)
         for idx, c in enumerate(code_spans):
@@ -371,7 +389,7 @@ def markdown_to_telegram_html(source: str) -> tuple[str, list[str]]:
             h_len = len(h_match.group(1))
             h_text = inline_tg(h_match.group(2))
             mapping = {
-                1: f"<b>━━━ {h_text.upper()} ━━━</b>",
+                1: f"<b>━━━ {_upper_keep_tags(h_text)} ━━━</b>",
                 2: f"<b>▶ {h_text}</b>",
                 3: f"<b>◆ {h_text}</b>",
                 4: f"<b>• <u>{h_text}</u></b>",

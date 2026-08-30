@@ -9,7 +9,9 @@ import json
 import logging
 import os
 import re
+import time
 from typing import Optional
+from urllib.parse import unquote
 
 from aiohttp import web
 from telegram import (
@@ -110,9 +112,22 @@ def validate_init_data(init_data: str) -> Optional[dict]:
         ).hexdigest()
         if not hmac.compare_digest(calc_hash, received_hash):
             return None
+        user_obj = None
+        auth_date = 0
         for key, value in pairs:
             if key == "user":
-                return json.loads(value)
+                user_obj = json.loads(unquote(value))
+            elif key == "auth_date":
+                try:
+                    auth_date = int(value)
+                except ValueError:
+                    auth_date = 0
+        if not user_obj or not user_obj.get("id"):
+            return None
+        if auth_date and abs(time.time() - auth_date) > 86400:
+            log.warning("initData expirado")
+            return None
+        return user_obj
     except Exception:
         log.exception("validate_init_data")
     return None
@@ -138,9 +153,11 @@ def get_telegraph() -> Telegraph:
             token = acc.get("access_token", "")
             if token:
                 client = Telegraph(access_token=token)
-            log.warning(
-                "Conta Telegraph criada em runtime. Configure TELEGRAPH_ACCESS_TOKEN."
-            )
+                log.warning(
+                    "Telegraph sem token persistente. Cole no Railway a variável "
+                    "TELEGRAPH_ACCESS_TOKEN com este valor: %s",
+                    token,
+                )
         _telegraph = client
     return _telegraph
 
@@ -230,39 +247,11 @@ async def dispatch_user_artifacts(bot, chat_id: int | str, title: str, content: 
     filename_base = (
         safe_title if safe_title and safe_title != "Sem título" else "documento"
     )
-    header_html = (
-        f"<b>{html.escape(title)}</b>\n\n" if title and title != "Sem título" else ""
-    )
-    header_plain = f"{title}\n\n" if title and title != "Sem título" else ""
-    tg_html, images = markdown_to_telegram_html(content)
-    full_tg_html = header_html + tg_html
-    plain_text = header_plain + content
-    preview_opts = (
-        LinkPreviewOptions(is_disabled=False, url=images[0], prefer_large_media=True)
-        if images
-        else None
-    )
-    if len(full_tg_html) <= 4096:
-        try:
-            await bot.send_message(
-                chat_id=chat_id,
-                text=full_tg_html,
-                parse_mode=ParseMode.HTML,
-                link_preview_options=preview_opts,
-            )
-        except Exception:
-            try:
-                await bot.send_message(
-                    chat_id=chat_id,
-                    text=_escape_markdown_v2(plain_text),
-                    parse_mode=ParseMode.MARKDOWN_V2,
-                )
-            except Exception:
-                await bot.send_message(chat_id=chat_id, text=plain_text)
-    else:
-        for chunk in split_html_chunks(plain_text, 4000):
-            await bot.send_message(chat_id=chat_id, text=chunk)
-    buf_md = io.BytesIO(optimize_markdown(plain_text).encode("utf-8"))
+    body = content
+    if title and title != "Sem título":
+        body = f"**{title}**\n\n{content}"
+    await send_tgrich_message(bot, chat_id, body)
+    buf_md = io.BytesIO(optimize_markdown(body).encode("utf-8"))
     buf_md.name = f"{filename_base}.md"
     await bot.send_document(chat_id=chat_id, document=buf_md, caption=f"{filename_base}.md")
 

@@ -22,21 +22,33 @@ Editor Markdown para Telegram Mini App. Converte `.md` em rich text do Telegram 
 - Autosave local (`mdtxtrt_draft`, `mdtxtrt_title`, `mdtxtrt_path`)
 - Fundo preto no modo escuro, branco no modo claro. Botões flat.
 
-## Railway
+## Configuração (Railway + BotFather)
 
 Start command: `python main.py`
 
 | Variável | Obrigatória | Função |
 |---|---|---|
-| `TELEGRAM_TOKEN` | sim, para o bot | token do BotFather |
-| `WEB_APP_URL` | recomendada | URL pública HTTPS do mesmo serviço |
+| `TELEGRAM_TOKEN` | sim | token do BotFather |
+| `WEB_APP_URL` | recomendada | URL pública HTTPS, hoje `https://mdmtrt.up.railway.app` |
 | `TELEGRAPH_ACCESS_TOKEN` | recomendada | persiste a conta Telegraph entre deploys |
 | `TELEGRAPH_AUTHOR` | não | autor das páginas (padrão `MDTXTRT`) |
 | `PORT` | automática | Railway preenche |
 
-BotFather → *Bot Settings* → *Menu Button* / *Configure Mini App* → cole `WEB_APP_URL`.
+Os comandos `/start` `/helo` `/tgrich` `/mdrich` são registados no menu do bot no arranque. O botão de menu Mini App também é definido no arranque se `WEB_APP_URL` existir.
 
-Os comandos `/start` `/helo` `/tgrich` `/mdrich` são registados no menu do bot no arranque.
+### Telegraph persistente
+
+1. Publique uma página uma vez pelo Mini App (o bot cria a conta).
+2. Abra os logs do Railway e procure a linha `TELEGRAPH_ACCESS_TOKEN com este valor:`.
+3. Variables → New variable → nome `TELEGRAPH_ACCESS_TOKEN`, valor copiado → Save.
+4. Redeploy.
+
+### BotFather
+
+1. `/mybots` → o bot → **Bot Settings**.
+2. **Menu Button** / **Configure Mini App** → URL `https://mdmtrt.up.railway.app`.
+3. **Domain** → o mesmo host, sem `https://`: `mdmtrt.up.railway.app`.
+4. Se for usar o bot em grupos: **Group Privacy** → **Turn off** para o bot ver anexos `.md` no grupo.
 
 ## Local
 
