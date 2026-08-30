@@ -365,14 +365,25 @@
     showToast("mdrich: .md exportado");
   };
 
+  function telegramInitData() {
+    if (!tg) return "";
+    try { if (tg.ready) tg.ready(); } catch (e) {}
+    return String(tg.initData || "").trim();
+  }
   async function postAPI(endpoint) {
     if (!editor.value.trim()) { showToast("Documento vazio"); return null; }
     save();
+    var initData = telegramInitData();
+    if (!initData) throw new Error("Abre o Mini App pelo botão no Telegram");
+    var headers = { "Content-Type": "application/json" };
+    headers.Authorization = "tma " + initData;
+    headers["X-Telegram-Init-Data"] = initData;
     var res = await fetch(endpoint, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: headers,
       body: JSON.stringify({
-        init_data: tg && tg.initData ? tg.initData : "",
+        init_data: initData,
+        initData: initData,
         title: inpTitle.value || "Sem título",
         path: inpPath.value || "",
         content: editor.value
@@ -387,7 +398,7 @@
     if (!editor.value.trim()) { showToast("Documento vazio"); return; }
     busy = true;
     try {
-      if (tg && tg.initData) {
+      if (telegramInitData()) {
         await postAPI("/api/send-chat");
         if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred("success");
         showToast("Enviado ao chat");
@@ -417,6 +428,11 @@
   document.getElementById("btnChat").onclick = sendChat;
   document.getElementById("btnPub").onclick = async function () {
     if (busy) return;
+    if (!editor.value.trim()) { showToast("Documento vazio"); return; }
+    if (!telegramInitData()) {
+      showToast("Abre o Mini App pelo botão no Telegram para publicar");
+      return;
+    }
     busy = true;
     try {
       var json = await postAPI("/api/publish");
@@ -426,7 +442,7 @@
         if (tg && tg.openLink) tg.openLink(json.url);
       }
     } catch (err) {
-      showToast(/initData|401/.test(String(err.message)) ? "Publique pelo Mini App no Telegram" : (err.message || "Falha"));
+      showToast(err.message || "Falha ao publicar");
     }
     busy = false;
   };

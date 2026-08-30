@@ -11,7 +11,7 @@ import os
 import re
 import time
 from typing import Optional
-from urllib.parse import unquote
+from urllib.parse import parse_qsl, unquote
 
 from aiohttp import web
 from telegram import (
@@ -80,57 +80,128 @@ logging.getLogger("telegram.ext._updater").setLevel(logging.WARNING)
 log = logging.getLogger("mdtxtrt")
 log.addFilter(_secret_filter)
 
-TOKEN = os.environ.get("TELEGRAM_TOKEN", "").strip()
+
+def _clean_token(raw: str) -> str:
+    token = (raw or "").strip().strip('"').strip("'")
+    if token.startswith("bot") and len(token) > 3 and token[3].isdigit():
+        token = token[3:]
+    return token
+
+
+TOKEN = _clean_token(os.environ.get("TELEGRAM_TOKEN", ""))
 WEB_APP_URL = os.environ.get("WEB_APP_URL", "https://mdmtrt.up.railway.app").strip()
 PORT = int(os.environ.get("PORT", "8080"))
 TELEGRAPH_TOKEN = os.environ.get("TELEGRAPH_ACCESS_TOKEN", "").strip()
 AUTHOR_NAME = os.environ.get("TELEGRAPH_AUTHOR", "MDTXTRT")
 INDEX_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "index.html")
 _telegraph: Optional[Telegraph] = None
+INIT_MAX_AGE = 48 * 3600
+
+
+def _hmac_hex(data_check_string: str) -> str:
+    secret_key = hmac.new(b"WebAppData", TOKEN.encode("utf-8"), hashlib.sha256).digest()
+    return hmac.new(
+        secret_key, data_check_string.encode("utf-8"), hashlib.sha256
+    ).hexdigest()
+
+
+def _checked_fields(pairs) -> Optional[dict]:
+    fields: dict[str, str] = {}
+    received_hash = ""
+    for key, value in pairs:
+        if key == "hash":
+            received_hash = value
+        elif key == "signature":
+            continue
+        else:
+            fields[key] = value
+    if not received_hash or not TOKEN:
+        return None
+    data_check_string = "\n".join(f"{k}={fields[k]}" for k in sorted(fields))
+    if not hmac.compare_digest(_hmac_hex(data_check_string), received_hash):
+        return None
+    return fields
+
+
+def _user_from_fields(fields: dict) -> Optional[dict]:
+    raw = fields.get("user") or ""
+    for candidate in (raw, unquote(raw)):
+        if not candidate:
+            continue
+        try:
+            obj = json.loads(candidate)
+        except (TypeError, json.JSONDecodeError):
+            continue
+        if isinstance(obj, dict) and obj.get("id"):
+            return obj
+    return None
 
 
 def validate_init_data(init_data: str) -> Optional[dict]:
-    if not init_data or not TOKEN:
+    if not TOKEN:
+        log.warning("sessão Telegram: TOKEN ausente")
+        return None
+    raw = (init_data or "").strip()
+    if not raw:
         return None
     try:
-        pairs = sorted(
-            piece.split("=", 1) for piece in init_data.split("&") if "=" in piece
-        )
-        received_hash = ""
-        data_check_pairs = []
-        for key, value in pairs:
-            if key == "hash":
-                received_hash = value
-            else:
-                data_check_pairs.append(f"{key}={value}")
-        if not received_hash:
+        decoded_pairs = parse_qsl(raw, keep_blank_values=True)
+        raw_pairs = [
+            tuple(piece.split("=", 1)) for piece in raw.split("&") if "=" in piece
+        ]
+        fields = _checked_fields(decoded_pairs) or _checked_fields(raw_pairs)
+        if not fields:
+            log.warning("sessão Telegram: assinatura inválida")
             return None
-        data_check_string = "\n".join(data_check_pairs)
-        secret_key = hmac.new(b"WebAppData", TOKEN.encode(), hashlib.sha256).digest()
-        calc_hash = hmac.new(
-            secret_key, data_check_string.encode(), hashlib.sha256
-        ).hexdigest()
-        if not hmac.compare_digest(calc_hash, received_hash):
+        user_obj = _user_from_fields(fields)
+        if not user_obj:
+            log.warning("sessão Telegram: utilizador ausente")
             return None
-        user_obj = None
-        auth_date = 0
-        for key, value in pairs:
-            if key == "user":
-                user_obj = json.loads(unquote(value))
-            elif key == "auth_date":
-                try:
-                    auth_date = int(value)
-                except ValueError:
-                    auth_date = 0
-        if not user_obj or not user_obj.get("id"):
-            return None
-        if auth_date and abs(time.time() - auth_date) > 86400:
-            log.warning("initData expirado")
+        try:
+            auth_date = int(fields.get("auth_date") or 0)
+        except ValueError:
+            auth_date = 0
+        if auth_date and abs(time.time() - auth_date) > INIT_MAX_AGE:
+            log.warning("sessão Telegram: expirada")
             return None
         return user_obj
     except Exception:
         log.exception("validate_init_data")
     return None
+
+
+def init_data_from_request(data: dict, request: web.Request) -> str:
+    raw = data.get("init_data") or data.get("initData") or ""
+    if isinstance(raw, dict):
+        raw = ""
+    raw = str(raw or "").strip()
+    if raw:
+        return raw
+    header = (request.headers.get("X-Telegram-Init-Data") or "").strip()
+    if header:
+        return header
+    auth = request.headers.get("Authorization") or ""
+    if auth.lower().startswith("tma "):
+        return auth[4:].strip()
+    return ""
+
+
+def session_error(raw: str):
+    if not raw:
+        return web.json_response(
+            {
+                "ok": False,
+                "error": "Abre o Mini App pelo botão no Telegram para enviar e publicar.",
+            },
+            status=401,
+        )
+    return web.json_response(
+        {
+            "ok": False,
+            "error": "Sessão do Telegram inválida. Fecha e abre o Mini App pelo bot.",
+        },
+        status=401,
+    )
 
 
 def public_web_app_url(request: Optional[web.Request] = None) -> str:
@@ -486,11 +557,10 @@ async def api_send_chat(request: web.Request):
     content = (data.get("content") or "").strip()
     if not content:
         return web.json_response({"ok": False, "error": "Documento vazio"}, status=400)
-    user = validate_init_data(data.get("init_data") or "")
+    raw = init_data_from_request(data, request)
+    user = validate_init_data(raw)
     if not user or not user.get("id"):
-        return web.json_response(
-            {"ok": False, "error": "initData inválido ou ausente."}, status=401
-        )
+        return session_error(raw)
     bot_app = request.app.get("bot")
     if not bot_app:
         return web.json_response({"ok": False, "error": "Bot não inicializado."}, status=503)
@@ -512,11 +582,10 @@ async def api_publish(request: web.Request):
         data = await request.json()
     except Exception:
         return web.json_response({"ok": False, "error": "JSON inválido"}, status=400)
-    user = validate_init_data(data.get("init_data") or "")
+    raw = init_data_from_request(data, request)
+    user = validate_init_data(raw)
     if not user or not user.get("id"):
-        return web.json_response(
-            {"ok": False, "error": "initData inválido ou ausente."}, status=401
-        )
+        return session_error(raw)
     content = (data.get("content") or "").strip()
     if not content:
         return web.json_response({"ok": False, "error": "Documento vazio"}, status=400)
