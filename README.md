@@ -1,26 +1,30 @@
 # MDTXTRT
 
-Editor Markdown para Telegram Mini App, com preview, envio ao bot e publicação no [Telegraph](https://telegra.ph).
+Editor Markdown para Telegram Mini App. Converte `.md` em rich text do Telegram e exporta mensagens em Markdown otimizado.
 
-O backend que tinha ido parar em `romastefale/TELEGRAPH` voltou para cá.
+## Comandos
 
-## O que faz
+| Comando | Função |
+|---|---|
+| `/start` | Abre o Mini App e resume as funções |
+| `/helo` | Lista os comandos e explica chat vs Mini App (`/help` é alias) |
+| `/tgrich` | Markdown → rich text do Telegram. Responda a um arquivo `.md`, ou envie o comando seguido do texto. Anexos e encaminhamentos `.md` disparam isto automaticamente |
+| `/mdrich` | Responda a uma mensagem para exportar `.md` compatível e otimizado |
 
-- Escrever Markdown no Mini App
-- Preview em tempo real
-- Spoilers `||texto||`, títulos, listas, código, imagens, links
-- **Publicar** no Telegraph (`POST /api/publish`) — sem o limite de 4 KB do `sendData`
-- **Enviar para o Bot** via `Telegram.WebApp.sendData`
-- Exportar / copiar `.md` e rich text
+## Mini App
+
+- Escrever Markdown com pré-visualização
+- Vista **tgrich**: como a mensagem fica no Telegram
+- Spoilers `||texto||`, títulos, listas, código, imagens, ligações
+- Publicar no Telegraph (`POST /api/publish`)
+- Enviar ao bot (`POST /api/send-chat`)
+- Exportar `.md` (mdrich) e abrir anexos
 - Autosave local (`mdtxtrt_draft`, `mdtxtrt_title`, `mdtxtrt_path`)
-- Comandos `/tgrich` e `/mdrich`
+- Fundo preto no modo escuro, branco no modo claro. Botões flat.
 
 ## Railway
 
-Este serviço agora é **Python**, não mais `npx serve`.
-
-1. No serviço do Railway, start command: `python main.py`
-2. Variáveis:
+Start command: `python main.py`
 
 | Variável | Obrigatória | Função |
 |---|---|---|
@@ -30,13 +34,9 @@ Este serviço agora é **Python**, não mais `npx serve`.
 | `TELEGRAPH_AUTHOR` | não | autor das páginas (padrão `MDTXTRT`) |
 | `PORT` | automática | Railway preenche |
 
-Se `TELEGRAPH_ACCESS_TOKEN` não existir, o processo cria uma conta e escreve o token no log. Copie para a variável e faça redeploy.
+BotFather → *Bot Settings* → *Menu Button* / *Configure Mini App* → cole `WEB_APP_URL`.
 
-3. BotFather → *Bot Settings* → *Menu Button* / *Configure Mini App* → cole `WEB_APP_URL`.
-
-4. Depois do deploy, teste `https://SEU-DOMINIO/health`.
-
-O `package.json` antigo fazia o Nixpacks escolher Node. Ele foi removido deste repo.
+Os comandos `/start` `/helo` `/tgrich` `/mdrich` são registados no menu do bot no arranque.
 
 ## Local
 
@@ -49,21 +49,4 @@ export WEB_APP_URL=http://localhost:8080
 python main.py
 ```
 
-Abra `http://localhost:8080`. Publicar Telegraph funciona no navegador. Enviar ao bot só dentro do Telegram.
-
-## Contrato do Mini App
-
-`sendData` e `POST /api/publish` usam o mesmo JSON:
-
-```json
-{
-  "action": "publish_telegraph",
-  "type": "telegraph",
-  "title": "Título",
-  "path": "slug-opcional",
-  "content": "# markdown",
-  "timestamp": 0
-}
-```
-
-`action` / `type` `markdown` manda o texto para o chat do bot.
+Abrir `http://localhost:8080`. Publicar Telegraph e enviar ao chat só autenticam dentro do Telegram (initData).

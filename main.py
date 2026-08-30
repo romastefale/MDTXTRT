@@ -1,7 +1,4 @@
-"""
-Servidor aiohttp e Bot Telegram com suporte a Markdown, Telegraph e WebApp.
-Versão corrigida: validação de initData, Telegraph não-bloqueante, fallback V2.
-"""
+"""Servidor aiohttp e Bot Telegram. Comandos: /start /helo /tgrich /mdrich."""
 
 import asyncio
 import hashlib
@@ -16,9 +13,11 @@ from typing import Optional
 
 from aiohttp import web
 from telegram import (
-    KeyboardButton,
+    BotCommand,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
     LinkPreviewOptions,
-    ReplyKeyboardMarkup,
+    MenuButtonWebApp,
     Update,
     WebAppInfo,
 )
@@ -37,12 +36,15 @@ TOKEN_RE = re.compile(r"bot\d+:[A-Za-z0-9_-]+")
 SECRET_RE = re.compile(
     r"(TELEGRAM_TOKEN|BOT_TOKEN|TELEGRAPH_ACCESS_TOKEN|access_token)=([^\s]+)"
 )
+MD_EXTS = {".md", ".markdown", ".mdown", ".txt"}
+MD_MIMES = {"text/markdown", "text/x-markdown", "text/plain"}
+MAX_DOC_BYTES = 1_048_576
+MDV2_ESC = re.compile(r"\\([_*\[\]()~`>#+\-=|{}.!\\])")
 
 
 def _scrub(text: str) -> str:
     text = TOKEN_RE.sub("bot***", text)
-    text = SECRET_RE.sub(r"\1=***", text)
-    return text
+    return SECRET_RE.sub(r"\1=***", text)
 
 
 class RedactSecrets(logging.Filter):
@@ -76,19 +78,16 @@ logging.getLogger("telegram.ext._updater").setLevel(logging.WARNING)
 log = logging.getLogger("mdtxtrt")
 log.addFilter(_secret_filter)
 
-TOKEN = os.environ.get("TELEGRAM_TOKEN", "tokendobot").strip()
+TOKEN = os.environ.get("TELEGRAM_TOKEN", "").strip()
 WEB_APP_URL = os.environ.get("WEB_APP_URL", "https://mdmtrt.up.railway.app").strip()
 PORT = int(os.environ.get("PORT", "8080"))
 TELEGRAPH_TOKEN = os.environ.get("TELEGRAPH_ACCESS_TOKEN", "").strip()
 AUTHOR_NAME = os.environ.get("TELEGRAPH_AUTHOR", "MDTXTRT")
-
 INDEX_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "index.html")
-
 _telegraph: Optional[Telegraph] = None
 
 
 def validate_init_data(init_data: str) -> Optional[dict]:
-    """Valida initData do WebApp. Retorna o dicionário de utilizador ou None se inválido."""
     if not init_data or not TOKEN:
         return None
     try:
@@ -105,15 +104,12 @@ def validate_init_data(init_data: str) -> Optional[dict]:
         if not received_hash:
             return None
         data_check_string = "\n".join(data_check_pairs)
-
         secret_key = hmac.new(b"WebAppData", TOKEN.encode(), hashlib.sha256).digest()
         calc_hash = hmac.new(
             secret_key, data_check_string.encode(), hashlib.sha256
         ).hexdigest()
-
         if not hmac.compare_digest(calc_hash, received_hash):
             return None
-
         for key, value in pairs:
             if key == "user":
                 return json.loads(value)
@@ -133,358 +129,32 @@ def public_web_app_url(request: Optional[web.Request] = None) -> str:
     return ""
 
 
-def _create_telegraph_client() -> Telegraph:
-    client = Telegraph(access_token=TELEGRAPH_TOKEN or None)
-    if not TELEGRAPH_TOKEN:
-        acc = client.create_account(short_name="MDTXTRT", author_name=AUTHOR_NAME)
-        token = acc.get("access_token", "")
-        if token:
-            client = Telegraph(access_token=token)
-        log.warning(
-            "Conta Telegraph criada em runtime. Configure TELEGRAPH_ACCESS_TOKEN para persistência."
-        )
-    return client
-
-
 def get_telegraph() -> Telegraph:
     global _telegraph
     if _telegraph is None:
-        _telegraph = _create_telegraph_client()
+        client = Telegraph(access_token=TELEGRAPH_TOKEN or None)
+        if not TELEGRAPH_TOKEN:
+            acc = client.create_account(short_name="MDTXTRT", author_name=AUTHOR_NAME)
+            token = acc.get("access_token", "")
+            if token:
+                client = Telegraph(access_token=token)
+            log.warning(
+                "Conta Telegraph criada em runtime. Configure TELEGRAPH_ACCESS_TOKEN."
+            )
+        _telegraph = client
     return _telegraph
 
 
-def markdown_to_telegraph_html(source: str) -> str:
-    """Converte Markdown puro para HTML estruturado otimizado para a API do Telegraph."""
-    text = source.replace("\r\n", "\n").replace("\r", "\n")
-    text = re.sub(r"\|\|(.*?)\|\|", r"\1", text)
-    parts: list[str] = []
-    i = 0
-    lines = text.split("\n")
-    n = len(lines)
 
-    def flush_para(buf: list[str]) -> None:
-        if not buf:
-            return
-        raw = " ".join(s.strip() for s in buf if s.strip())
-        if raw:
-            parts.append(f"<p>{inline(raw)}</p>")
-        buf.clear()
-
-    def inline(s: str) -> str:
-        s = html.escape(s)
-        s = re.sub(r"!\[([^\]]*)\]\(tg://emoji\?id=\d+\)", r"\1", s)
-        s = re.sub(r"!\[([^\]]*)\]\(([^)]+)\)", r'<img src="\2" alt="\1">', s)
-        s = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", r'<a href="\2">\1</a>', s)
-        s = re.sub(r"`([^`]+)`", r"<code>\1</code>", s)
-        s = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", s)
-        s = re.sub(r"__(.+?)__", r"<u>\1</u>", s)
-        s = re.sub(r"(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)", r"<em>\1</em>", s)
-        s = re.sub(r"_(.+?)_", r"<em>\1</em>", s)
-        s = re.sub(r"~~(.+?)~~", r"<s>\1</s>", s)
-        return s
-
-    para: list[str] = []
-    while i < n:
-        line = lines[i]
-        stripped = line.strip()
-
-        if stripped.startswith("```"):
-            flush_para(para)
-            i += 1
-            block: list[str] = []
-            while i < n and not lines[i].strip().startswith("```"):
-                block.append(html.escape(lines[i]))
-                i += 1
-            i += 1
-            code = "\n".join(block)
-            parts.append(f"<pre>{code}</pre>")
-            continue
-
-        if re.match(r"^---+", stripped) or re.match(r"^\*\*\*+", stripped):
-            flush_para(para)
-            parts.append("<hr>")
-            i += 1
-            continue
-
-        heading = re.match(r"^(#{1,6})\s+(.*)$", stripped)
-        if heading:
-            flush_para(para)
-            level = min(len(heading.group(1)) + 2, 4)
-            parts.append(f"<h{level}>{inline(heading.group(2))}</h{level}>")
-            i += 1
-            continue
-
-        if (
-            stripped.startswith("> ")
-            or stripped.startswith("**> ")
-            or stripped.startswith("**>")
-            or stripped == ">"
-        ):
-            flush_para(para)
-            quote: list[str] = []
-            while i < n and (
-                lines[i].strip().startswith(">") or lines[i].strip().startswith("**>")
-            ):
-                lq = lines[i].strip()
-                if lq.startswith("**>"):
-                    lq = lq[3:].lstrip(" ")
-                elif lq.startswith(">"):
-                    lq = lq[1:].lstrip(" ")
-                lq = lq.rstrip("|").rstrip()
-                quote.append(lq)
-                i += 1
-            parts.append(f"<blockquote>{inline(' '.join(quote))}</blockquote>")
-            continue
-
-        if stripped.startswith("|") and stripped.endswith("|"):
-            flush_para(para)
-            table_lines: list[str] = []
-            while (
-                i < n
-                and lines[i].strip().startswith("|")
-                and lines[i].strip().endswith("|")
-            ):
-                table_lines.append(lines[i].strip())
-                i += 1
-            if len(table_lines) >= 2 and re.match(r"^[|\s\-:]+$", table_lines[1]):
-                headers = [c.strip() for c in table_lines[0].strip("|").split("|")]
-                rows = [
-                    [c.strip() for c in row.strip("|").split("|")]
-                    for row in table_lines[2:]
-                ]
-                th_html = "".join(f"<th>{inline(h)}</th>" for h in headers)
-                tr_html = "".join(
-                    "<tr>" + "".join(f"<td>{inline(cell)}</td>" for cell in r) + "</tr>"
-                    for r in rows
-                )
-                parts.append(
-                    f"<table><thead><tr>{th_html}</tr></thead><tbody>{tr_html}</tbody></table>"
-                )
-            else:
-                for tl in table_lines:
-                    parts.append(f"<p>{inline(tl)}</p>")
-            continue
-
-        ul_match = re.match(r"^[-*+]\s+(.*)$", stripped)
-        ol_match = re.match(r"^\d+\.\s+(.*)$", stripped)
-        if ul_match or ol_match:
-            flush_para(para)
-            ordered = bool(ol_match)
-            items: list[str] = []
-            while i < n:
-                raw = lines[i].strip()
-                tm = re.match(r"^[-*+]\s+\[([ xX])\]\s+(.*)$", raw)
-                um = re.match(r"^[-*+]\s+(.*)$", raw)
-                om = re.match(r"^\d+\.\s+(.*)$", raw)
-                if tm:
-                    mark = "☑" if tm.group(1).lower() == "x" else "☐"
-                    items.append(f"<li>{mark} {inline(tm.group(2))}</li>")
-                    ordered = False
-                elif um and not ordered:
-                    items.append(f"<li>{inline(um.group(1))}</li>")
-                elif om and ordered:
-                    items.append(f"<li>{inline(om.group(1))}</li>")
-                else:
-                    break
-                i += 1
-            tag = "ol" if ordered else "ul"
-            parts.append(f"<{tag}>{''.join(items)}</{tag}>")
-            continue
-
-        if not stripped:
-            flush_para(para)
-            i += 1
-            continue
-
-        para.append(stripped)
-        i += 1
-
-    flush_para(para)
-    html_content = "".join(parts).strip()
-    return html_content or "<p></p>"
-
-
-def markdown_to_telegram_html(source: str) -> tuple[str, list[str]]:
-    text = source.replace("\r\n", "\n").replace("\r", "\n")
-    lines = text.split("\n")
-    n = len(lines)
-    parts: list[str] = []
-    found_images: list[str] = []
-    i = 0
-
-    def inline_tg(s: str) -> str:
-        code_spans: list[str] = []
-
-        def save_code(m: re.Match) -> str:
-            code_spans.append(html.escape(m.group(1)))
-            return f"CODESPAN{len(code_spans)-1}XYZ"
-
-        s = re.sub(r"`([^`]+)`", save_code, s)
-        s = html.escape(s)
-
-        def handle_img(m: re.Match) -> str:
-            alt, url = m.group(1), m.group(2)
-            if not url.startswith("tg://emoji"):
-                found_images.append(url)
-                display_text = f"🖼️ {alt}" if alt else "🖼️ Imagem"
-                return f'<a href="{url}">{display_text}</a>'
-            return m.group(0)
-
-        s = re.sub(r"!\[([^\]]*)\]\((https?://[^)]+)\)", handle_img, s)
-        s = re.sub(
-            r"!\[([^\]]*)\]\(tg://emoji\?id=(\d+)\)",
-            r'<tg-emoji emoji-id="\2">\1</tg-emoji>',
-            s,
-        )
-        s = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", r'<a href="\2">\1</a>', s)
-        s = re.sub(r"\|\|(.+?)\|\|", r"<tg-spoiler>\1</tg-spoiler>", s)
-        s = re.sub(r"__(.+?)__", r"<u>\1</u>", s)
-        s = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", s)
-        s = re.sub(r"(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)", r"<b>\1</b>", s)
-        s = re.sub(r"(?<!_)_(?!_)(.+?)(?<!_)_(?!_)", r"<i>\1</i>", s)
-        s = re.sub(r"~~(.+?)~~", r"<s>\1</s>", s)
-
-        for idx, c in enumerate(code_spans):
-            s = s.replace(f"CODESPAN{idx}XYZ", f"<code>{c}</code>")
-        return s
-
-    while i < n:
-        line = lines[i]
-        stripped = line.strip()
-
-        if stripped.startswith("```"):
-            lang = stripped[3:].strip()
-            i += 1
-            block: list[str] = []
-            while i < n and not lines[i].strip().startswith("```"):
-                block.append(html.escape(lines[i]))
-                i += 1
-            i += 1
-            code = "\n".join(block)
-            if lang:
-                parts.append(
-                    f'<pre><code class="language-{html.escape(lang)}">{code}</code></pre>'
-                )
-            else:
-                parts.append(f"<pre>{code}</pre>")
-            continue
-
-        if stripped.startswith("**>") or (
-            stripped.startswith(">") and stripped.endswith("||")
-        ):
-            quote: list[str] = []
-            while i < n and (
-                lines[i].strip().startswith("**>") or lines[i].strip().startswith(">")
-            ):
-                lq = lines[i].strip()
-                if lq.startswith("**>"):
-                    lq = lq[3:].lstrip(" ")
-                elif lq.startswith(">"):
-                    lq = lq[1:].lstrip(" ")
-                lq = lq.rstrip("|").rstrip()
-                quote.append(lq)
-                i += 1
-            q_text = "\n".join(inline_tg(q) for q in quote)
-            parts.append(f"<blockquote expandable>{q_text}</blockquote>")
-            continue
-
-        if stripped.startswith(">"):
-            quote = []
-            while (
-                i < n
-                and lines[i].strip().startswith(">")
-                and not lines[i].strip().startswith("**>")
-            ):
-                lq = lines[i].strip()[1:].lstrip(" ")
-                quote.append(lq)
-                i += 1
-            q_text = "\n".join(inline_tg(q) for q in quote)
-            parts.append(f"<blockquote>{q_text}</blockquote>")
-            continue
-
-        if re.match(r"^---+", stripped) or re.match(r"^\*\*\*+", stripped):
-            parts.append("──────────────")
-            i += 1
-            continue
-
-        if stripped.startswith("|") and stripped.endswith("|"):
-            table_lines: list[str] = []
-            while (
-                i < n
-                and lines[i].strip().startswith("|")
-                and lines[i].strip().endswith("|")
-            ):
-                table_lines.append(lines[i].strip())
-                i += 1
-            if len(table_lines) >= 2 and re.match(r"^[|\s\-:]+$", table_lines[1]):
-                headers = [c.strip() for c in table_lines[0].strip("|").split("|")]
-                rows = [
-                    [c.strip() for c in row.strip("|").split("|")]
-                    for row in table_lines[2:]
-                ]
-                col_widths = [len(h) for h in headers]
-                for row in rows:
-                    for c_idx, cell in enumerate(row):
-                        if c_idx < len(col_widths):
-                            col_widths[c_idx] = max(col_widths[c_idx], len(cell))
-                header_str = " | ".join(
-                    h.ljust(col_widths[idx]) for idx, h in enumerate(headers)
-                )
-                sep_str = "-+-".join(
-                    "-" * col_widths[idx] for idx in range(len(headers))
-                )
-                row_strs = [
-                    " | ".join(
-                        cell.ljust(col_widths[c_idx]) for c_idx, cell in enumerate(row)
-                    )
-                    for row in rows
-                ]
-                table_block = "\n".join([header_str, sep_str] + row_strs)
-                parts.append(f"<pre>{html.escape(table_block)}</pre>")
-            else:
-                for tl in table_lines:
-                    parts.append(inline_tg(tl))
-            continue
-
-        h_match = re.match(r"^(#{1,6})\s+(.*)$", stripped)
-        if h_match:
-            h_len = len(h_match.group(1))
-            h_text = inline_tg(h_match.group(2))
-            if h_len == 1:
-                parts.append(f"<b>━━━ {h_text.upper()} ━━━</b>")
-            elif h_len == 2:
-                parts.append(f"<b>▶ {h_text}</b>")
-            elif h_len == 3:
-                parts.append(f"<b>◆ {h_text}</b>")
-            elif h_len == 4:
-                parts.append(f"<b>• <u>{h_text}</u></b>")
-            elif h_len == 5:
-                parts.append(f"<b><i>» {h_text}</i></b>")
-            else:
-                parts.append(f"<i>• {h_text}</i>")
-            i += 1
-            continue
-
-        task_match = re.match(r"^[-*+]\s+\[([ xX])\]\s+(.*)$", stripped)
-        if task_match:
-            mark = "☑" if task_match.group(1).lower() == "x" else "☐"
-            parts.append(f"{mark} {inline_tg(task_match.group(2))}")
-            i += 1
-            continue
-
-        ul_match = re.match(r"^[-*+]\s+(.*)$", stripped)
-        if ul_match:
-            parts.append(f"• {inline_tg(ul_match.group(1))}")
-            i += 1
-            continue
-
-        if not stripped:
-            parts.append("")
-        else:
-            parts.append(inline_tg(line))
-        i += 1
-
-    return "\n".join(parts), found_images
+from convert import (
+    entities_to_markdown,
+    filename_from_markdown,
+    is_markdown_document,
+    markdown_to_telegram_html,
+    markdown_to_telegraph_html,
+    optimize_markdown,
+    split_html_chunks,
+)
 
 
 def _escape_markdown_v2(text: str) -> str:
@@ -498,24 +168,61 @@ def publish_page(title: str, content_md: str, path_hint: str = "") -> dict:
     body = markdown_to_telegraph_html(content_md)
     if hint and hint != title:
         body = f"<p><strong>{html.escape(title)}</strong></p>" + body
-    client = get_telegraph()
-    page = client.create_page(
-        title=api_title,
-        html_content=body,
-        author_name=AUTHOR_NAME,
+    page = get_telegraph().create_page(
+        title=api_title, html_content=body, author_name=AUTHOR_NAME
     )
-    return {
-        "url": page.get("url"),
-        "path": page.get("path"),
-        "title": api_title,
-    }
+    return {"url": page.get("url"), "path": page.get("path"), "title": api_title}
 
 
 async def publish_page_async(title: str, content_md: str, path_hint: str = "") -> dict:
     loop = asyncio.get_running_loop()
-    return await loop.run_in_executor(
-        None, publish_page, title, content_md, path_hint
+    return await loop.run_in_executor(None, publish_page, title, content_md, path_hint)
+
+
+async def read_document_text(bot, document) -> str:
+    size = getattr(document, "file_size", None) or 0
+    if size > MAX_DOC_BYTES:
+        raise ValueError("Arquivo acima de 1 MB.")
+    file = await bot.get_file(document.file_id)
+    buf = io.BytesIO()
+    await file.download_to_memory(buf)
+    raw = buf.getvalue()
+    if len(raw) > MAX_DOC_BYTES:
+        raise ValueError("Arquivo acima de 1 MB.")
+    if b"\x00" in raw[:2048]:
+        raise ValueError("Arquivo binário. Envie .md, .markdown ou .txt.")
+    return raw.decode("utf-8", errors="replace")
+
+
+async def send_tgrich_message(bot, chat_id, content: str, reply_to_message_id=None):
+    tg_html, images = markdown_to_telegram_html(content)
+    preview_opts = (
+        LinkPreviewOptions(is_disabled=False, url=images[0], prefer_large_media=True)
+        if images
+        else None
     )
+    for idx, chunk in enumerate(split_html_chunks(tg_html)):
+        kwargs = {
+            "chat_id": chat_id,
+            "text": chunk,
+            "parse_mode": ParseMode.HTML,
+            "link_preview_options": preview_opts if idx == 0 else None,
+        }
+        if idx == 0 and reply_to_message_id:
+            kwargs["reply_to_message_id"] = reply_to_message_id
+        try:
+            await bot.send_message(**kwargs)
+        except Exception:
+            try:
+                await bot.send_message(
+                    chat_id=chat_id,
+                    text=_escape_markdown_v2(content if idx == 0 else chunk),
+                    parse_mode=ParseMode.MARKDOWN_V2,
+                )
+            except Exception:
+                await bot.send_message(
+                    chat_id=chat_id, text=content if idx == 0 else chunk
+                )
 
 
 async def dispatch_user_artifacts(bot, chat_id: int | str, title: str, content: str):
@@ -523,26 +230,18 @@ async def dispatch_user_artifacts(bot, chat_id: int | str, title: str, content: 
     filename_base = (
         safe_title if safe_title and safe_title != "Sem título" else "documento"
     )
-
     header_html = (
-        f"<b>{html.escape(title)}</b>\n\n"
-        if title and title != "Sem título"
-        else ""
+        f"<b>{html.escape(title)}</b>\n\n" if title and title != "Sem título" else ""
     )
     header_plain = f"{title}\n\n" if title and title != "Sem título" else ""
-
     tg_html, images = markdown_to_telegram_html(content)
     full_tg_html = header_html + tg_html
     plain_text = header_plain + content
-
     preview_opts = (
-        LinkPreviewOptions(
-            is_disabled=False, url=images[0], prefer_large_media=True
-        )
+        LinkPreviewOptions(is_disabled=False, url=images[0], prefer_large_media=True)
         if images
         else None
     )
-
     if len(full_tg_html) <= 4096:
         try:
             await bot.send_message(
@@ -561,85 +260,176 @@ async def dispatch_user_artifacts(bot, chat_id: int | str, title: str, content: 
             except Exception:
                 await bot.send_message(chat_id=chat_id, text=plain_text)
     else:
-        chunks = [
-            plain_text[i : i + 4000] for i in range(0, len(plain_text), 4000)
-        ]
-        for chunk in chunks:
+        for chunk in split_html_chunks(plain_text, 4000):
             await bot.send_message(chat_id=chat_id, text=chunk)
-
-    buf_md = io.BytesIO(plain_text.encode("utf-8"))
+    buf_md = io.BytesIO(optimize_markdown(plain_text).encode("utf-8"))
     buf_md.name = f"{filename_base}.md"
-    await bot.send_document(
-        chat_id=chat_id,
-        document=buf_md,
-        caption=f"📄 {filename_base}.md",
+    await bot.send_document(chat_id=chat_id, document=buf_md, caption=f"{filename_base}.md")
+
+
+def mini_app_markup():
+    app_url = public_web_app_url()
+    if not app_url:
+        return None
+    return InlineKeyboardMarkup(
+        [[InlineKeyboardButton("Abrir Mini App", web_app=WebAppInfo(url=app_url))]]
     )
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    app_url = public_web_app_url()
+    if not update.message:
+        return
     text = (
-        "🚀 <b>Bem-vindo ao MDTXTRT!</b>\n\n"
-        "Abra o editor através do teclado abaixo para redigir, pré-visualizar e enviar textos e anexos."
+        "<b>MDTXTRT</b>\n\n"
+        "Converte Markdown em rich text do Telegram e exporta mensagens em .md.\n\n"
+        "• Mini App — redigir, pré-visualizar, enviar ao chat e publicar no Telegraph\n"
+        "• Arquivo .md anexado ou encaminhado — vira mensagem formatada (tgrich)\n"
+        "• /tgrich — a mesma conversão, respondendo a um arquivo compatível\n"
+        "• /mdrich — responde a uma mensagem e exporta .md otimizado\n"
+        "• /helo — comandos e a diferença entre chat e Mini App"
     )
-    markup = None
-    if app_url:
-        markup = ReplyKeyboardMarkup(
-            [[KeyboardButton("📝 Abrir Editor", web_app=WebAppInfo(url=app_url))]],
-            resize_keyboard=True,
-        )
     await update.message.reply_text(
-        text, reply_markup=markup, parse_mode=ParseMode.HTML
+        text, reply_markup=mini_app_markup(), parse_mode=ParseMode.HTML
     )
 
 
-async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+HELO_TEXT = (
+    "<b>MDTXTRT</b> — Markdown e Telegram\n\n"
+    "<b>Comandos</b>\n"
+    "/start — abre o Mini App e resume as funções\n"
+    "/helo — este texto\n"
+    "/tgrich — Markdown para rich text do Telegram\n"
+    "    responda a um .md (anexo ou encaminhado)\n"
+    "    ou envie /tgrich seguido do texto\n"
+    "    arquivos .md anexados já disparam isto sozinhos\n"
+    "/mdrich — responda a uma mensagem para exportar .md compatível e otimizado\n\n"
+    "<b>Chat vs Mini App</b>\n"
+    "Mini App (botão de /start ou menu): redigir, pré-visualizar, formatar, "
+    "enviar ao chat e publicar no Telegraph. Use quando for escrever.\n\n"
+    "Comandos no chat: use quando o texto já está no Telegram — um arquivo, "
+    "um encaminhamento ou uma mensagem para converter ou exportar.\n\n"
+    "Formatos: .md .markdown .txt"
+)
+
+
+async def helo_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.message:
+        return
     await update.message.reply_text(
-        "/start - Abre o Mini App com suporte a envio direto\n"
-        "/help - Lista todos os recursos suportados\n"
-        "/tgrich <texto> - Envia o texto formatado em Rich Text Telegram\n"
-        "/mdrich - Responda a uma mensagem para exportar em .md"
+        HELO_TEXT, reply_markup=mini_app_markup(), parse_mode=ParseMode.HTML
     )
+
+
+def _command_arg_text(message) -> str:
+    text = (message.text or message.caption or "").strip()
+    if not text:
+        return ""
+    parts = text.split(None, 1)
+    if parts and parts[0].startswith("/"):
+        return parts[1] if len(parts) > 1 else ""
+    return text
+
+
+async def source_for_tgrich(message, context) -> str:
+    if is_markdown_document(message.document):
+        return await read_document_text(context.bot, message.document)
+    target = message.reply_to_message
+    if target:
+        if is_markdown_document(target.document):
+            return await read_document_text(context.bot, target.document)
+        raw = target.text or target.caption
+        if raw:
+            return raw
+        if target.document:
+            return await read_document_text(context.bot, target.document)
+    arg = _command_arg_text(message)
+    if arg:
+        return arg
+    raise ValueError(
+        "Responda a um arquivo .md compatível, anexe um .md, ou envie /tgrich seguido do texto."
+    )
+
+
+async def source_for_mdrich(message, context) -> str:
+    target = message.reply_to_message
+    if not target:
+        if is_markdown_document(message.document):
+            return optimize_markdown(await read_document_text(context.bot, message.document))
+        raise ValueError("Responda a uma mensagem com /mdrich.")
+    if target.document:
+        text = await read_document_text(context.bot, target.document)
+        if is_markdown_document(target.document):
+            return optimize_markdown(text)
+        caption = target.caption or ""
+        if caption:
+            cap_md = entities_to_markdown(caption, target.caption_entities or [])
+            return optimize_markdown(cap_md + "\n\n" + text)
+        return optimize_markdown(text)
+    raw = target.text or target.caption or ""
+    ents = target.entities or target.caption_entities or []
+    if not raw:
+        raise ValueError("A mensagem alvo não possui texto exportável.")
+    return optimize_markdown(entities_to_markdown(raw, ents))
 
 
 async def tgrich(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not context.args:
-        await update.message.reply_text(
-            "Uso: /tgrich *negrito* _itálico_ __sublinhado__ ||spoiler||"
-        )
+    message = update.message
+    if not message:
         return
-    text = update.message.text.split(None, 1)[1]
-    tg_html, images = markdown_to_telegram_html(text)
-    preview_opts = (
-        LinkPreviewOptions(is_disabled=False, url=images[0]) if images else None
-    )
     try:
-        await update.message.reply_text(
-            tg_html, parse_mode=ParseMode.HTML, link_preview_options=preview_opts
+        source = await source_for_tgrich(message, context)
+        if not source.strip():
+            await message.reply_text("Documento vazio.")
+            return
+        await send_tgrich_message(
+            context.bot, message.chat_id, source, reply_to_message_id=message.message_id
         )
+    except ValueError as exc:
+        await message.reply_text(str(exc))
     except Exception:
-        try:
-            await update.message.reply_text(
-                _escape_markdown_v2(text), parse_mode=ParseMode.MARKDOWN_V2
-            )
-        except Exception as exc:
-            await update.message.reply_text(f"Falha de sintaxe: {exc}")
+        log.exception("tgrich")
+        await message.reply_text("Não foi possível converter o arquivo.")
 
 
 async def mdrich(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    target = update.message.reply_to_message
-    if not target:
-        await update.message.reply_text("Responda a uma mensagem com /mdrich.")
+    message = update.message
+    if not message:
         return
-    md_text = target.text_markdown_v2 or target.caption_markdown_v2
-    if not md_text:
-        await update.message.reply_text(
-            "A mensagem alvo não possui texto formatável."
-        )
+    try:
+        md_text = await source_for_mdrich(message, context)
+        if not md_text.strip():
+            await message.reply_text("Nada para exportar.")
+            return
+        name = filename_from_markdown(md_text)
+        buf = io.BytesIO(md_text.encode("utf-8"))
+        buf.name = f"{name}.md"
+        await message.reply_document(document=buf, caption=f"{name}.md")
+    except ValueError as exc:
+        await message.reply_text(str(exc))
+    except Exception:
+        log.exception("mdrich")
+        await message.reply_text("Não foi possível exportar o .md.")
+
+
+def _caption_command(message) -> str:
+    caption = (message.caption or "").strip()
+    if not caption.startswith("/"):
+        return ""
+    return caption.split()[0].split("@")[0].lower()
+
+
+async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    message = update.message
+    if not message or not message.document:
         return
-    buf = io.BytesIO(md_text.encode("utf-8"))
-    buf.name = "exported.md"
-    await update.message.reply_document(document=buf)
+    cmd = _caption_command(message)
+    if cmd in {"/start", "/helo", "/help"}:
+        return
+    if cmd == "/mdrich":
+        await mdrich(update, context)
+        return
+    if cmd == "/tgrich" or is_markdown_document(message.document):
+        await tgrich(update, context)
 
 
 def _payload_from_webapp(raw: str) -> dict:
@@ -662,19 +452,16 @@ async def handle_webapp_data(update: Update, context: ContextTypes.DEFAULT_TYPE)
         if not str(content).strip():
             await update.message.reply_text("Documento vazio.")
             return
-
         if payload["action"] in {"publish_telegraph", "telegraph"}:
             page = await publish_page_async(payload["title"], content, payload["path"])
             await update.message.reply_text(f"Publicado: {page['url']}")
             return
-
         await dispatch_user_artifacts(
             bot=context.bot,
             chat_id=update.effective_chat.id,
             title=payload["title"],
             content=content,
         )
-
     except TelegraphException as exc:
         await update.message.reply_text(f"Telegraph recusou o HTML: {exc}")
     except Exception as exc:
@@ -685,16 +472,9 @@ async def handle_webapp_data(update: Update, context: ContextTypes.DEFAULT_TYPE)
 async def serve_index(_request: web.Request):
     try:
         with open(INDEX_PATH, "r", encoding="utf-8") as fh:
-            return web.Response(
-                text=fh.read(), content_type="text/html", charset="utf-8"
-            )
+            return web.Response(text=fh.read(), content_type="text/html", charset="utf-8")
     except FileNotFoundError:
-        return web.Response(
-            text="index.html ausente",
-            status=404,
-            content_type="text/plain",
-            charset="utf-8",
-        )
+        return web.Response(text="index.html ausente", status=404, content_type="text/plain")
 
 
 async def health(_request: web.Request):
@@ -714,33 +494,22 @@ async def api_send_chat(request: web.Request):
         data = await request.json()
     except Exception:
         return web.json_response({"ok": False, "error": "JSON inválido"}, status=400)
-
     content = (data.get("content") or "").strip()
     if not content:
-        return web.json_response(
-            {"ok": False, "error": "Documento vazio"}, status=400
-        )
-
+        return web.json_response({"ok": False, "error": "Documento vazio"}, status=400)
     user = validate_init_data(data.get("init_data") or "")
     if not user or not user.get("id"):
         return web.json_response(
             {"ok": False, "error": "initData inválido ou ausente."}, status=401
         )
-    user_id = user["id"]
-
     bot_app = request.app.get("bot")
     if not bot_app:
-        return web.json_response(
-            {"ok": False, "error": "Bot não inicializado."}, status=503
-        )
-
-    title = data.get("title") or "Sem título"
-
+        return web.json_response({"ok": False, "error": "Bot não inicializado."}, status=503)
     try:
         await dispatch_user_artifacts(
             bot=bot_app.bot,
-            chat_id=user_id,
-            title=title,
+            chat_id=user["id"],
+            title=data.get("title") or "Sem título",
             content=content,
         )
         return web.json_response({"ok": True})
@@ -754,18 +523,14 @@ async def api_publish(request: web.Request):
         data = await request.json()
     except Exception:
         return web.json_response({"ok": False, "error": "JSON inválido"}, status=400)
-
     user = validate_init_data(data.get("init_data") or "")
     if not user or not user.get("id"):
         return web.json_response(
             {"ok": False, "error": "initData inválido ou ausente."}, status=401
         )
-
     content = (data.get("content") or "").strip()
     if not content:
-        return web.json_response(
-            {"ok": False, "error": "Documento vazio"}, status=400
-        )
+        return web.json_response({"ok": False, "error": "Documento vazio"}, status=400)
     try:
         page = await publish_page_async(
             data.get("title") or "Sem título", content, data.get("path") or ""
@@ -780,18 +545,38 @@ async def api_publish(request: web.Request):
 
 async def on_startup(app: web.Application):
     if not TOKEN:
-        log.warning("TELEGRAM_TOKEN ausente.")
+        log.warning("TELEGRAM_TOKEN ausente. Mini App no ar; bot desligado.")
         return
     application = Application.builder().token(TOKEN).build()
     application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("help", help_cmd))
+    application.add_handler(CommandHandler("helo", helo_cmd))
+    application.add_handler(CommandHandler("help", helo_cmd))
     application.add_handler(CommandHandler("tgrich", tgrich))
     application.add_handler(CommandHandler("mdrich", mdrich))
     application.add_handler(
         MessageHandler(filters.StatusUpdate.WEB_APP_DATA, handle_webapp_data)
     )
+    application.add_handler(MessageHandler(filters.Document.ALL, handle_document))
     await application.initialize()
     await application.start()
+    try:
+        await application.bot.set_my_commands(
+            [
+                BotCommand("start", "Abre o Mini App e resume as funções"),
+                BotCommand("helo", "Comandos e chat vs Mini App"),
+                BotCommand("tgrich", "Markdown para rich text do Telegram"),
+                BotCommand("mdrich", "Exporta a mensagem respondida em .md"),
+            ]
+        )
+        app_url = public_web_app_url()
+        if app_url:
+            await application.bot.set_chat_menu_button(
+                menu_button=MenuButtonWebApp(
+                    text="Editor", web_app=WebAppInfo(url=app_url)
+                )
+            )
+    except Exception:
+        log.exception("set_my_commands")
     await application.updater.start_polling(drop_pending_updates=True)
     app["bot"] = application
     log.info("Bot em escuta (polling).")

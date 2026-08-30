@@ -1,310 +1,437 @@
 <!DOCTYPE html>
-<html lang="pt-BR" class="dark">
+<html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
   <title>MDTXTRT</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
   <style>
-    :root {
-      --bg: var(--tg-theme-bg-color, #121212);
-      --fg: var(--tg-theme-text-color, #e0e0e0);
-      --hint: var(--tg-theme-hint-color, #888888);
-      --btn: var(--tg-theme-button-color, #2481cc);
-      --btnt: var(--tg-theme-button-text-color, #ffffff);
-      --sec: var(--tg-theme-secondary-bg-color, #1e1e1e);
+    :root { --bg:#fff; --fg:#111; --muted:#5c5c5c; --line:#e6e6e6; --surface:#f4f4f4; --accent:#111; --accent-fg:#fff; }
+    html[data-theme="dark"] { --bg:#000; --fg:#f2f2f2; --muted:#9a9a9a; --line:#222; --surface:#111; --accent:#f2f2f2; --accent-fg:#000; }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) { --bg:#000; --fg:#f2f2f2; --muted:#9a9a9a; --line:#222; --surface:#111; --accent:#f2f2f2; --accent-fg:#000; }
     }
     * { box-sizing: border-box; }
-    html, body {
-      height: 100%;
-      margin: 0;
-      background: var(--bg);
-      color: var(--fg);
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    }
-    body { display: flex; flex-direction: column; }
-    header, .meta, .tools { user-select: none; -webkit-user-select: none; }
-    header {
-      display: flex; gap: 8px; align-items: center; padding: 10px 12px;
-      background: var(--sec); border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-    }
-    header h1 { font-size: 15px; margin: 0; flex: 0 0 auto; font-weight: 700; letter-spacing: 0.5px; }
-    .grow { flex: 1; }
-    button {
-      border: 0; border-radius: 8px; padding: 8px 10px; background: transparent;
-      color: var(--hint); cursor: pointer; font: inherit;
-    }
-    button.primary { background: var(--btn); color: var(--btnt); font-weight: 600; font-size: 12px; }
-    button.action-btn { background: rgba(36, 129, 204, 0.18); color: var(--btn); font-weight: 600; font-size: 12px; }
-    .meta {
-      padding: 8px 12px; background: var(--sec);
-      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-      display: flex; flex-direction: column; gap: 6px;
-    }
-    .meta input {
-      background: transparent; border: 0; color: var(--fg); outline: none; font: inherit;
-      user-select: text; -webkit-user-select: text;
-    }
-    .meta input[type=text]:last-child { color: var(--hint); font-size: 12px; }
-    .tools {
-      display: flex; gap: 4px; overflow-x: auto; padding: 6px 10px;
-      background: var(--sec); white-space: nowrap; -webkit-overflow-scrolling: touch;
-    }
-    .tools button {
-      padding: 6px 8px; font-size: 12px; flex-shrink: 0;
-      background: rgba(255, 255, 255, 0.04); border-radius: 6px;
-    }
+    html, body { height: 100%; margin: 0; background: var(--bg); color: var(--fg); font-family: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+    body { display: flex; flex-direction: column; min-height: 100dvh; }
+    button { border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; border-radius: 0; box-shadow: none; }
+    button:disabled { opacity: 0.4; cursor: default; }
+    header { border-bottom: 1px solid var(--line); padding: max(0.6rem, env(safe-area-inset-top)) 16px 0; }
+    .brand { display: flex; align-items: center; justify-content: space-between; height: 40px; }
+    h1 { font-size: 14px; font-weight: 600; letter-spacing: 0.14em; margin: 0; }
+    .tag { font-size: 12px; color: var(--muted); }
+    nav { display: flex; gap: 4px; margin-bottom: -1px; }
+    nav button { height: 44px; padding: 0 12px; font-size: 14px; color: var(--muted); border-bottom: 2px solid transparent; }
+    nav button.on { color: var(--fg); border-bottom-color: var(--fg); }
+    .meta { display: flex; flex-direction: column; gap: 4px; padding: 8px 16px; border-bottom: 1px solid var(--line); }
+    .meta input { border: 0; background: transparent; color: var(--fg); outline: none; font: inherit; }
+    .meta input:first-child { height: 36px; font-size: 14px; }
+    .meta input:last-child { height: 32px; font-size: 12px; color: var(--muted); }
+    .tools { display: flex; gap: 2px; overflow-x: auto; padding: 4px 8px; border-bottom: 1px solid var(--line); }
+    .tools button { height: 36px; min-width: 36px; padding: 0 10px; font-size: 12px; font-family: "IBM Plex Mono", ui-monospace, monospace; color: var(--muted); flex-shrink: 0; }
+    .tools button:hover { color: var(--fg); background: var(--surface); }
     main { flex: 1; position: relative; min-height: 0; }
-    textarea, #preview {
-      position: absolute; inset: 0; width: 100%; height: 100%;
-      border: 0; outline: none; resize: none; padding: 12px;
-      background: transparent; color: var(--fg); font: inherit;
-      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-      font-size: 14px; line-height: 1.5;
-      user-select: text; -webkit-user-select: text;
-      display: none;
-    }
-    textarea.active { display: block; }
-    #preview {
-      overflow-y: auto; display: none; font-size: 15px; line-height: 1.6;
-    }
-    #preview.active { display: block; }
-    #preview h1, #preview h2, #preview h3 { margin: 0.8em 0 0.4em; }
-    #preview code {
-      background: rgba(255, 255, 255, 0.08); padding: 1px 4px; border-radius: 4px;
-    }
-    #preview pre {
-      background: rgba(255, 255, 255, 0.06); padding: 10px;
-      border-radius: 8px; overflow-x: auto;
-    }
-    #preview blockquote {
-      border-left: 3px solid var(--btn); margin: 0.6em 0; padding-left: 10px;
-      color: var(--hint);
-    }
-    #preview table { border-collapse: collapse; margin: 0.6em 0; }
-    #preview th, #preview td { border: 1px solid rgba(255,255,255,0.15); padding: 4px 8px; }
-    .toast {
-      position: fixed; left: 50%; bottom: 80px; transform: translateX(-50%);
-      background: var(--sec); color: var(--fg); padding: 8px 16px;
-      border-radius: 20px; font-size: 13px; opacity: 0;
-      transition: opacity 0.25s; pointer-events: none; z-index: 50;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
-    }
-    .toast.show { opacity: 1; }
+    textarea, .pane { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; outline: none; resize: none; padding: 12px 16px; background: transparent; color: var(--fg); font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 14px; line-height: 1.55; display: none; overflow: auto; }
+    textarea.on, .pane.on { display: block; }
+    .pane { font-family: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif; white-space: pre-wrap; word-break: break-word; }
+    .help { white-space: normal; }
+    .help h2 { font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin: 1.6em 0 0.6em; }
+    .help h2:first-of-type { margin-top: 0.2em; }
+    .help p, .help li { font-size: 15px; line-height: 1.55; }
+    .help ul { list-style: none; margin: 0.3em 0 0.8em; padding: 0; }
+    .help li { padding: 0.45em 0; border-bottom: 1px solid var(--line); }
+    .help code { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 0.86em; }
+    .pane a { color: inherit; }
+    .pane code { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 0.86em; background: var(--surface); padding: 0 4px; }
+    .pane pre { background: var(--surface); padding: 12px; overflow: auto; }
+    .pane blockquote { margin: 0.7em 0; padding-left: 12px; border-left: 2px solid var(--fg); color: var(--muted); }
+    .spoiler { background: var(--fg); color: var(--fg); cursor: pointer; padding: 0 2px; }
+    .spoiler.revealed { background: var(--surface); color: inherit; }
+    footer { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom); }
+    footer button { height: 48px; font-size: 12px; }
+    footer button.solid { background: var(--accent); color: var(--accent-fg); }
+    .toast { position: fixed; left: 50%; bottom: 64px; transform: translateX(-50%); background: var(--accent); color: var(--accent-fg); padding: 8px 16px; font-size: 12px; opacity: 0; pointer-events: none; transition: opacity 150ms; }
+    .toast.on { opacity: 1; }
+    .drop { display: none; position: absolute; inset: 0; align-items: center; justify-content: center; font-size: 14px; background: var(--bg); }
+    .drop.on { display: flex; }
   </style>
 </head>
 <body>
   <header>
-    <h1>MDTXTRT</h1>
-    <div class="grow"></div>
-    <button id="btnToggle" type="button">👁</button>
-    <button id="btnSendChat" class="action-btn" type="button">💬 Chat</button>
-    <button id="btnPublish" class="primary" type="button">📡 Telegraph</button>
+    <div class="brand"><h1>MDTXTRT</h1><span class="tag">Markdown para Telegram</span></div>
+    <nav>
+      <button type="button" data-view="edit" class="on">editar</button>
+      <button type="button" data-view="preview">pré-ver</button>
+      <button type="button" data-view="tgrich">tgrich</button>
+      <button type="button" data-view="helo">helo</button>
+    </nav>
   </header>
-
-  <div class="meta">
-    <input id="inpTitle" type="text" placeholder="Titulo do documento">
-    <input id="inpPath" type="text" placeholder="Slug para URL (opcional)">
+  <div class="meta" id="meta">
+    <input id="inpTitle" type="text" placeholder="Título do documento">
+    <input id="inpPath" type="text" placeholder="Slug opcional para o Telegraph">
   </div>
-
-  <div class="tools">
-    <button data-md="**" data-md-close="**" type="button"><b>B</b></button>
-    <button data-md="_" data-md-close="_" type="button"><i>I</i></button>
-    <button data-md="__" data-md-close="__" type="button"><u>U</u></button>
-    <button data-md="~~" data-md-close="~~" type="button"><s>S</s></button>
-    <button data-md="||" data-md-close="||" type="button">Spoiler</button>
-    <button data-md="`" data-md-close="`" type="button">Code</button>
-    <button data-md="\n```\n" data-md-close="\n```\n" type="button">Bloco</button>
-    <button data-md="[" data-md-close="](url)" type="button">Link</button>
-    <button data-md="\n> " data-md-close="" type="button">Citação</button>
-    <button data-md="\n**> " data-md-close="" type="button">Expansível</button>
-    <button data-md="\n- " data-md-close="" type="button">Lista</button>
-    <button data-md="\n- [ ] " data-md-close="" type="button">Task</button>
-    <button data-md="\n# " data-md-close="" type="button">H1</button>
-    <button data-md="\n## " data-md-close="" type="button">H2</button>
-    <button data-md="\n---\n" data-md-close="" type="button">Linha</button>
-  </div>
-
+  <div class="tools" id="tools"></div>
   <main>
-    <textarea id="editor" placeholder="# Titulo&#10;&#10;Escreva seu **markdown** aqui..."></textarea>
-    <div id="preview"></div>
+    <textarea id="editor" placeholder="# Título&#10;&#10;Escreva em **Markdown**."></textarea>
+    <div id="preview" class="pane"></div>
+    <div id="tgrich" class="pane"></div>
+    <div id="helo" class="pane help">
+      <p>MDTXTRT converte Markdown em rich text do Telegram e exporta mensagens em .md otimizado.</p>
+      <h2>Comandos</h2>
+      <ul>
+        <li><code>/start</code> — abre o Mini App e resume o que o bot faz.</li>
+        <li><code>/helo</code> — este texto: comandos e a diferença entre chat e Mini App.</li>
+        <li><code>/tgrich</code> — converte Markdown em rich text do Telegram. Responda a um arquivo .md compatível, ou envie o comando seguido do texto. Anexos e encaminhamentos .md disparam isto sozinhos.</li>
+        <li><code>/mdrich</code> — responda a uma mensagem para exportar .md compatível e otimizado.</li>
+      </ul>
+      <h2>Chat vs Mini App</h2>
+      <p>Mini App (botão de /start ou menu): redigir, pré-visualizar, formatar, enviar ao chat e publicar no Telegraph. Use quando for escrever.</p>
+      <p>Comandos no chat: use quando o texto já está no Telegram — um arquivo, um encaminhamento ou uma mensagem para converter ou exportar.</p>
+    </div>
+    <div id="drop" class="drop">Solte o arquivo .md</div>
   </main>
-
+  <footer>
+    <button type="button" id="btnOpen">abrir</button>
+    <button type="button" id="btnMd">mdrich</button>
+    <button type="button" id="btnChat">chat</button>
+    <button type="button" class="solid" id="btnPub">telegraph</button>
+  </footer>
+  <input id="file" type="file" accept=".md,.markdown,.txt,.mdown,text/markdown,text/plain" hidden>
   <div id="toast" class="toast"></div>
-
 <script>
 (function () {
-  "use strict";
-
   var tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
   var editor = document.getElementById("editor");
   var preview = document.getElementById("preview");
+  var tgrich = document.getElementById("tgrich");
+  var helo = document.getElementById("helo");
+  var meta = document.getElementById("meta");
+  var tools = document.getElementById("tools");
   var inpTitle = document.getElementById("inpTitle");
   var inpPath = document.getElementById("inpPath");
   var toastEl = document.getElementById("toast");
-
-  var STORAGE_KEY = "mdtxtrt:draft:v2";
-  var isPreview = false;
+  var view = "edit";
   var toastTimer = null;
+  var busy = false;
+  var AMP = String.fromCharCode(38);
 
+  function applyTheme() {
+    var scheme = (tg && tg.colorScheme) || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+    document.documentElement.setAttribute("data-theme", scheme);
+    var bg = scheme === "dark" ? "#000000" : "#ffffff";
+    if (tg && tg.setHeaderColor) tg.setHeaderColor(bg);
+    if (tg && tg.setBackgroundColor) tg.setBackgroundColor(bg);
+  }
   if (tg) {
     tg.ready();
     tg.expand();
+    if (tg.enableClosingConfirmation) tg.enableClosingConfirmation();
   }
+  applyTheme();
+  if (tg && tg.onEvent) tg.onEvent("themeChanged", applyTheme);
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", function () {
+    if (!(tg && tg.colorScheme)) applyTheme();
+  });
 
   function showToast(msg) {
     toastEl.textContent = msg;
-    toastEl.classList.add("show");
+    toastEl.classList.add("on");
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(function () {
-      toastEl.classList.remove("show");
-    }, 2200);
+    toastTimer = setTimeout(function () { toastEl.classList.remove("on"); }, 2200);
   }
-
-  // CORREÇÃO: initData é enviado em TODA requisição à API.
-  // O servidor valida o HMAC e autoriza o envio — o user_id passado
-  // pelo cliente não é mais confiável.
-  function getInitData() {
-    return tg && tg.initData ? tg.initData : "";
-  }
-
-  function saveDraft() {
+  function save() {
     try {
-      localStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify({
-          content: editor.value,
-          title: inpTitle.value,
-          path: inpPath.value
-        })
-      );
-    } catch (e) { /* storage indisponível */ }
+      localStorage.setItem("mdtxtrt_draft", editor.value);
+      localStorage.setItem("mdtxtrt_title", inpTitle.value);
+      localStorage.setItem("mdtxtrt_path", inpPath.value);
+    } catch (e) {}
   }
+  try {
+    editor.value = localStorage.getItem("mdtxtrt_draft") || "";
+    inpTitle.value = localStorage.getItem("mdtxtrt_title") || "";
+    inpPath.value = localStorage.getItem("mdtxtrt_path") || "";
+  } catch (e) {}
 
-  function loadDraft() {
-    try {
-      var raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return;
-      var d = JSON.parse(raw);
-      if (d.content) editor.value = d.content;
-      if (d.title) inpTitle.value = d.title;
-      if (d.path) inpPath.value = d.path;
-    } catch (e) { /* draft corrompido */ }
-  }
-
-  // CORREÇÃO: salvar também quando o app sai de foco.
-  setInterval(saveDraft, 300000);
-  document.addEventListener("visibilitychange", function () {
-    if (document.visibilityState === "hidden") saveDraft();
+  var TOOLS = [
+    { l: "B", p: "**", s: "**" }, { l: "I", p: "_", s: "_" }, { l: "U", p: "__", s: "__" },
+    { l: "S", p: "~~", s: "~~" }, { l: "||", p: "||", s: "||" }, { l: "code", p: "`", s: "`" },
+    { l: "bloco", p: "```\n", s: "\n```" }, { l: "link", p: "[", s: "](url)" },
+    { l: ">", p: "> ", s: "", line: 1 }, { l: "•", p: "- ", s: "", line: 1 },
+    { l: "H1", p: "# ", s: "", line: 1 }, { l: "H2", p: "## ", s: "", line: 1 },
+    { l: "hr", p: "---\n", s: "", line: 1 }
+  ];
+  TOOLS.forEach(function (t) {
+    var b = document.createElement("button");
+    b.type = "button";
+    b.textContent = t.l;
+    b.addEventListener("click", function () { insert(t.p, t.s, t.line); });
+    tools.appendChild(b);
   });
-  window.addEventListener("beforeunload", saveDraft);
-
-  function renderPreview() {
-    try {
-      preview.innerHTML = marked.parse(editor.value || "");
-    } catch (e) {
-      preview.textContent = editor.value;
-    }
-  }
-
-  function togglePreview() {
-    isPreview = !isPreview;
-    if (isPreview) {
-      renderPreview();
-      editor.classList.remove("active");
-      preview.classList.add("active");
+  function insert(prefix, suffix, asLine) {
+    var start = editor.selectionStart, end = editor.selectionEnd, v = editor.value;
+    if (asLine) {
+      var i = v.lastIndexOf("\n", start - 1) + 1;
+      editor.value = v.slice(0, i) + prefix + v.slice(i);
+      editor.focus();
+      editor.setSelectionRange(start + prefix.length, end + prefix.length);
     } else {
-      preview.classList.remove("active");
-      editor.classList.add("active");
+      var sel = v.slice(start, end);
+      editor.value = v.slice(0, start) + prefix + sel + suffix + v.slice(end);
+      var pos = start + prefix.length + sel.length;
+      editor.focus();
+      editor.setSelectionRange(pos, pos);
     }
+    save();
   }
 
-  editor.classList.add("active");
-
-  function insertAround(prefix, suffix) {
-    var start = editor.selectionStart;
-    var end = editor.selectionEnd;
-    prefix = prefix.replace(/\\n/g, "\n");
-    suffix = suffix.replace(/\\n/g, "\n");
-    var sel = editor.value.substring(start, end) || "";
-    var before = editor.value.substring(0, start);
-    var after = editor.value.substring(end);
-    editor.value = before + prefix + sel + suffix + after;
-    var pos = start + prefix.length + sel.length;
-    editor.focus();
-    editor.setSelectionRange(pos, pos);
+  function esc(s) {
+    return String(s)
+      .replace(/&/g, AMP + "amp;")
+      .replace(/</g, AMP + "lt;")
+      .replace(/>/g, AMP + "gt;")
+      .replace(/"/g, AMP + "quot;");
+  }
+  function inlineTg(s, images) {
+    var codes = [];
+    s = s.replace(/`([^`]+)`/g, function (_, c) {
+      codes.push(esc(c));
+      return "CODESPAN" + (codes.length - 1) + "XYZ";
+    });
+    s = esc(s);
+    s = s.replace(/!\[([^\]]*)\]\((https?:\/\/[^)]+)\)/g, function (_, alt, url) {
+      images.push(url);
+      return "<a href=\"" + url + "\">" + (alt || "imagem") + "</a>";
+    });
+    s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, "<a href=\"$2\">$1</a>");
+    s = s.replace(/\|\|(.+?)\|\|/g, "<span class=\"spoiler\">$1</span>");
+    s = s.replace(/__(.+?)__/g, "<u>$1</u>");
+    s = s.replace(/\*\*(.+?)\*\*/g, "<b>$1</b>");
+    s = s.replace(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, "<b>$1</b>");
+    s = s.replace(/(?<!_)_(?!_)(.+?)(?<!_)_(?!_)/g, "<i>$1</i>");
+    s = s.replace(/~~(.+?)~~/g, "<s>$1</s>");
+    codes.forEach(function (c, i) {
+      s = s.replace("CODESPAN" + i + "XYZ", "<code>" + c + "</code>");
+    });
+    return s;
+  }
+  function toTgrich(src) {
+    var lines = src.replace(/\r\n/g, "\n").split("\n");
+    var parts = [];
+    var images = [];
+    var i = 0;
+    while (i < lines.length) {
+      var stripped = lines[i].trim();
+      if (stripped.indexOf("```") === 0) {
+        i += 1;
+        var block = [];
+        while (i < lines.length && lines[i].trim().indexOf("```") !== 0) {
+          block.push(esc(lines[i]));
+          i += 1;
+        }
+        i += 1;
+        parts.push("<pre>" + block.join("\n") + "</pre>");
+        continue;
+      }
+      var hm = stripped.match(/^(#{1,6})\s+(.*)$/);
+      if (hm) {
+        var h = inlineTg(hm[2], images);
+        var n = hm[1].length;
+        parts.push(n === 1 ? "<b>━━━ " + h.toUpperCase() + " ━━━</b>" : n === 2 ? "<b>▶ " + h + "</b>" : "<b>◆ " + h + "</b>");
+        i += 1;
+        continue;
+      }
+      if (/^[-*+]\s+/.test(stripped)) {
+        parts.push("• " + inlineTg(stripped.replace(/^[-*+]\s+/, ""), images));
+        i += 1;
+        continue;
+      }
+      if (/^>\s?/.test(stripped) || stripped.indexOf("**>") === 0) {
+        var quote = [];
+        while (i < lines.length && (lines[i].trim().indexOf(">") === 0 || lines[i].trim().indexOf("**>") === 0)) {
+          var lq = lines[i].trim();
+          if (lq.indexOf("**>") === 0) lq = lq.slice(3).replace(/^ /, "");
+          else lq = lq.replace(/^>\s?/, "");
+          quote.push(lq);
+          i += 1;
+        }
+        parts.push("<blockquote>" + quote.map(function (q) { return inlineTg(q, images); }).join("\n") + "</blockquote>");
+        continue;
+      }
+      if (!stripped) parts.push("");
+      else parts.push(inlineTg(lines[i], images));
+      i += 1;
+    }
+    return parts.join("\n");
+  }
+  function optimize(src) {
+    var t = src.replace(/\r\n/g, "\n").replace(/^\ufeff/, "");
+    t = t.split("\n").map(function (l) { return l.replace(/[ \t]+$/g, ""); }).join("\n");
+    t = t.replace(/\n{3,}/g, "\n\n").trim();
+    return t ? t + "\n" : "";
   }
 
-  async function postAPI(endpoint, extra) {
-    if (!editor.value.trim()) {
-      showToast("Documento vazio.");
-      return null;
+  function setView(v) {
+    view = v;
+    document.querySelectorAll("nav button").forEach(function (b) {
+      b.classList.toggle("on", b.getAttribute("data-view") === v);
+    });
+    editor.classList.toggle("on", v === "edit");
+    preview.classList.toggle("on", v === "preview");
+    tgrich.classList.toggle("on", v === "tgrich");
+    helo.classList.toggle("on", v === "helo");
+    meta.style.display = v === "helo" ? "none" : "";
+    tools.style.display = v === "edit" ? "" : "none";
+    if (v === "preview") {
+      var txt = editor.value.replace(/\|\|(.*?)\|\|/g, "<span class=\"spoiler\">$1</span>");
+      preview.innerHTML = editor.value.trim() && window.marked
+        ? marked.parse(txt)
+        : "<p style=\"color:var(--muted)\">Nada para pré-visualizar.</p>";
     }
-    saveDraft();
-    var payload = Object.assign(
-      {
-        init_data: getInitData(),
-        title: inpTitle.value || "Sem titulo",
+    if (v === "tgrich") {
+      tgrich.innerHTML = editor.value.trim()
+        ? toTgrich(editor.value)
+        : "<p style=\"color:var(--muted)\">Abra um .md ou escreva Markdown.</p>";
+    }
+  }
+  setView("edit");
+  document.querySelectorAll("nav button").forEach(function (b) {
+    b.addEventListener("click", function () { setView(b.getAttribute("data-view")); });
+  });
+  document.querySelector("main").addEventListener("click", function (e) {
+    if (e.target.classList && e.target.classList.contains("spoiler")) e.target.classList.toggle("revealed");
+  });
+
+  function loadFile(file) {
+    var n = (file.name || "").toLowerCase();
+    if (!/\.(md|markdown|mdown|txt)$/.test(n) && file.type && file.type.indexOf("text/") !== 0) {
+      showToast("Envie um arquivo .md ou .txt");
+      return;
+    }
+    var reader = new FileReader();
+    reader.onload = function () {
+      editor.value = optimize(String(reader.result || ""));
+      if (!inpTitle.value) inpTitle.value = file.name.replace(/\.[^.]+$/, "");
+      save();
+      setView("tgrich");
+      showToast("Arquivo aberto em tgrich");
+    };
+    reader.readAsText(file);
+  }
+  document.getElementById("btnOpen").onclick = function () { document.getElementById("file").click(); };
+  document.getElementById("file").onchange = function (e) {
+    if (e.target.files[0]) loadFile(e.target.files[0]);
+    e.target.value = "";
+  };
+  document.body.addEventListener("dragover", function (e) {
+    e.preventDefault();
+    document.getElementById("drop").classList.add("on");
+  });
+  document.body.addEventListener("dragleave", function () {
+    document.getElementById("drop").classList.remove("on");
+  });
+  document.body.addEventListener("drop", function (e) {
+    e.preventDefault();
+    document.getElementById("drop").classList.remove("on");
+    if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
+  });
+
+  document.getElementById("btnMd").onclick = function () {
+    var md = optimize(editor.value);
+    if (!md.trim()) { showToast("Documento vazio"); return; }
+    var name = (inpTitle.value || "documento").replace(/[\\/*?:"<>|]/g, "").slice(0, 60) || "documento";
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([md], { type: "text/markdown;charset=utf-8" }));
+    a.download = name + ".md";
+    a.click();
+    showToast("mdrich: .md exportado");
+  };
+
+  async function postAPI(endpoint) {
+    if (!editor.value.trim()) { showToast("Documento vazio"); return null; }
+    save();
+    var res = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        init_data: tg && tg.initData ? tg.initData : "",
+        title: inpTitle.value || "Sem título",
         path: inpPath.value || "",
         content: editor.value
-      },
-      extra || {}
-    );
+      })
+    });
+    var json = await res.json().catch(function () { return {}; });
+    if (!res.ok || json.ok === false) throw new Error(json.error || ("HTTP " + res.status));
+    return json;
+  }
+  async function sendChat() {
+    if (busy) return;
+    if (!editor.value.trim()) { showToast("Documento vazio"); return; }
+    busy = true;
     try {
-      var res = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
-      var json = await res.json().catch(function () { return {}; });
-      if (!res.ok || json.ok === false) {
-        throw new Error(json.error || ("HTTP " + res.status));
+      if (tg && tg.initData) {
+        await postAPI("/api/send-chat");
+        if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred("success");
+        showToast("Enviado ao chat");
+      } else {
+        await navigator.clipboard.writeText(toTgrich(editor.value));
+        showToast("Rich text copiado (abra pelo Telegram para enviar)");
       }
-      return json;
     } catch (err) {
-      showToast("Falha: " + err.message);
-      return null;
+      if (tg && tg.sendData) {
+        try {
+          tg.sendData(JSON.stringify({
+            action: "markdown",
+            title: inpTitle.value || "Sem título",
+            path: inpPath.value || "",
+            content: editor.value,
+            timestamp: Date.now()
+          }));
+          showToast("Enviado via Telegram");
+          busy = false;
+          return;
+        } catch (e) {}
+      }
+      showToast(err.message || "Falha ao enviar");
     }
+    busy = false;
   }
-
-  function sendToChat() {
-    postAPI("/api/send-chat").then(function (ok) {
-      if (ok) showToast("Enviado ao chat ✅");
-    });
-  }
-
-  document.getElementById("btnToggle").addEventListener("click", togglePreview);
-  document.getElementById("btnSendChat").addEventListener("click", sendToChat);
-
-  document.getElementById("btnPublish").addEventListener("click", function () {
-    showToast("Publicando...");
-    postAPI("/api/publish").then(function (json) {
-      if (json && json.url) showToast("Publicado ✅");
-    });
-  });
-
+  document.getElementById("btnChat").onclick = sendChat;
+  document.getElementById("btnPub").onclick = async function () {
+    if (busy) return;
+    busy = true;
+    try {
+      var json = await postAPI("/api/publish");
+      if (json && json.url) {
+        try { await navigator.clipboard.writeText(json.url); } catch (e) {}
+        showToast("Publicado no Telegraph");
+        if (tg && tg.openLink) tg.openLink(json.url);
+      }
+    } catch (err) {
+      showToast(/initData|401/.test(String(err.message)) ? "Publique pelo Mini App no Telegram" : (err.message || "Falha"));
+    }
+    busy = false;
+  };
   if (tg && tg.MainButton) {
     tg.MainButton.setText("ENVIAR AO CHAT");
-    tg.MainButton.onClick(sendToChat);
-    tg.MainButton.show();
+    tg.MainButton.onClick(sendChat);
+    if (editor.value.trim()) tg.MainButton.show();
   }
-
-  inpTitle.addEventListener("input", saveDraft);
-  inpPath.addEventListener("input", saveDraft);
-
-  Array.prototype.forEach.call(
-    document.querySelectorAll(".tools button[data-md]"),
-    function (btn) {
-      btn.addEventListener("click", function () {
-        insertAround(btn.getAttribute("data-md"), btn.getAttribute("data-md-close") || "");
-        saveDraft();
-      });
+  editor.addEventListener("input", function () {
+    save();
+    if (tg && tg.MainButton) {
+      if (editor.value.trim()) { tg.MainButton.show(); tg.MainButton.enable(); }
+      else tg.MainButton.hide();
     }
-  );
-
-  loadDraft();
+  });
+  inpTitle.addEventListener("input", save);
+  inpPath.addEventListener("input", save);
 })();
+
 </script>
 </body>
 </html>
