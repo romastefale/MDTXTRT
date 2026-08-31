@@ -101,6 +101,7 @@
         <li><code>mdrich</code> — envia o .md otimizado para o teu chat.</li>
         <li><code>chat</code> — envia o Markdown como rich text no chat.</li>
         <li><code>telegraph</code> — publica a página (no Mini App).</li>
+        <li><code>img</code> — fotografia da galeria. <code>link</code> é só hiperligação.</li>
       </ul>
     </div>
     <div id="drop" class="drop">Solte o arquivo .md</div>
@@ -112,6 +113,7 @@
     <button type="button" class="solid" id="btnPub">telegraph</button>
   </footer>
   <input id="file" type="file" accept=".md,.markdown,.txt,.mdown,text/markdown,text/plain" hidden>
+  <input id="photo" type="file" accept="image/jpeg,image/png,image/webp,image/gif" hidden>
   <div id="toast" class="toast"></div>
 <script>
 (function () {
@@ -190,8 +192,8 @@
   var TOOLS = [
     { l: "B", p: "**", s: "**" }, { l: "I", p: "_", s: "_" }, { l: "U", p: "__", s: "__" },
     { l: "S", p: "~~", s: "~~" }, { l: "||", p: "||", s: "||" }, { l: "code", p: "`", s: "`" },
-    { l: "bloco", p: "```\n", s: "\n```" }, { l: "link", p: "[", s: "](url)" },
-    { l: "img", p: "![", s: "](url)" },
+    { l: "bloco", p: "```\n", s: "\n```" }, { l: "link", p: "[", s: "]()", link: 1 },
+    { l: "img", photo: 1 },
     { l: ">", p: "> ", s: "", line: 1 }, { l: ">+", p: "**> ", s: "", line: 1 },
     { l: "•", p: "- ", s: "", line: 1 }, { l: "1.", p: "1. ", s: "", line: 1 },
     { l: "task", p: "- [ ] ", s: "", line: 1 },
@@ -203,7 +205,14 @@
     var b = document.createElement("button");
     b.type = "button";
     b.textContent = t.l;
-    b.addEventListener("click", function () { insert(t.p, t.s, t.line); });
+    b.addEventListener("click", function () {
+      if (t.photo) { document.getElementById("photo").click(); return; }
+      insert(t.p, t.s, t.line);
+      if (t.link) {
+        var at = editor.selectionStart + 1;
+        editor.setSelectionRange(at, at);
+      }
+    });
     tools.appendChild(b);
   });
   function insert(prefix, suffix, asLine) {
@@ -251,9 +260,25 @@
     return out.join("\n");
   }
   function renderGfm(src) {
-    var md = markdownForRichApi(src).replace(/\|\|(.*?)\|\|/g, "<span class=\"spoiler\">$1</span>");
+    var prepared = String(src || "").replace(
+      /!\[([^\]]*)\]\(mdtxtrt:\/\/media\/([A-Za-z0-9_-]+)\)/g,
+      "![$1](/media/$2)"
+    );
+    var md = markdownForRichApi(prepared).replace(/\|\|(.*?)\|\|/g, "<span class=\"spoiler\">$1</span>");
     if (!String(src || "").trim()) return "";
     return window.marked ? marked.parse(md) : md;
+  }
+  function badPhotoMarks(src) {
+    var bad = [];
+    var re = /!\[([^\]]*)\]\(([^)]*)\)/g;
+    var m;
+    while ((m = re.exec(src || ""))) {
+      var u = String(m[2] || "").trim();
+      if (/^mdtxtrt:\/\/media\/[A-Za-z0-9_-]+$/.test(u)) continue;
+      if (/^https:\/\//i.test(u) && u.length > 10) continue;
+      bad.push(u || "vazio");
+    }
+    return bad;
   }
   function optimize(src) {
     var t = src.replace(/\r\n/g, "\n").replace(/^\ufeff/, "");
@@ -274,9 +299,8 @@
     meta.style.display = v === "helo" ? "none" : "";
     tools.style.display = v === "edit" ? "" : "none";
     if (v === "preview") {
-      var txt = editor.value.replace(/\|\|(.*?)\|\|/g, "<span class=\"spoiler\">$1</span>");
-      preview.innerHTML = editor.value.trim() && window.marked
-        ? marked.parse(txt)
+      preview.innerHTML = editor.value.trim()
+        ? renderGfm(editor.value)
         : "<p style=\"color:var(--muted)\">Nada para pré-visualizar.</p>";
     }
     if (v === "tgrich") {
@@ -295,8 +319,13 @@
 
   function loadFile(file) {
     var n = (file.name || "").toLowerCase();
-    if (!/\.(md|markdown|mdown|txt)$/.test(n) && file.type && file.type.indexOf("text/") !== 0) {
-      showToast("Envie um arquivo .md ou .txt");
+    var mime = (file.type || "").toLowerCase();
+    if (mime.indexOf("image/") === 0 || /\.(jpe?g|png|webp|gif)$/.test(n)) {
+      insertPhoto(file);
+      return;
+    }
+    if (!/\.(md|markdown|mdown|txt)$/.test(n) && mime && mime.indexOf("text/") !== 0) {
+      showToast("Envie um arquivo .md ou uma fotografia");
       return;
     }
     var reader = new FileReader();
@@ -314,6 +343,34 @@
     if (e.target.files[0]) loadFile(e.target.files[0]);
     e.target.value = "";
   };
+  document.getElementById("photo").onchange = function (e) {
+    if (e.target.files[0]) insertPhoto(e.target.files[0]);
+    e.target.value = "";
+  };
+  async function insertPhoto(file) {
+    if (busy) return;
+    busy = true;
+    try {
+      var fd = new FormData();
+      fd.append("file", file);
+      var res = await fetch("/api/media", { method: "POST", body: fd });
+      var json = await res.json().catch(function () { return {}; });
+      if (!res.ok || !json.id) throw new Error(json.error || "Não foi possível enviar a foto");
+      var tag = "![](mdtxtrt://media/" + json.id + ")";
+      var start = editor.selectionStart;
+      var v = editor.value;
+      var pad = start > 0 && v.charAt(start - 1) !== "\n" ? "\n" : "";
+      editor.value = v.slice(0, start) + pad + tag + "\n" + v.slice(editor.selectionEnd);
+      var pos = start + pad.length + tag.length + 1;
+      editor.focus();
+      editor.setSelectionRange(pos, pos);
+      save();
+      showToast("Fotografia no documento");
+    } catch (err) {
+      showToast(err.message || "Foto recusada");
+    }
+    busy = false;
+  }
   document.body.addEventListener("dragover", function (e) {
     e.preventDefault();
     document.getElementById("drop").classList.add("on");
@@ -395,6 +452,11 @@
   async function sendChat() {
     if (busy) return;
     if (!editor.value.trim()) { showToast("Documento vazio"); return; }
+    var bad = badPhotoMarks(editor.value);
+    if (bad.length) {
+      showToast("Foto com URL inválido. Use o botão img.");
+      return;
+    }
     busy = true;
     try {
       await deliverToBot("chat");

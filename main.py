@@ -14,7 +14,7 @@ import time
 from typing import Optional
 from urllib.parse import parse_qsl, unquote
 
-from aiohttp import ClientSession, ClientTimeout, web
+from aiohttp import ClientSession, ClientTimeout, FormData, web
 from telegram import (
     BotCommand,
     InlineKeyboardButton,
@@ -41,6 +41,14 @@ SECRET_RE = re.compile(
 MD_EXTS = {".md", ".markdown", ".mdown", ".txt"}
 MD_MIMES = {"text/markdown", "text/x-markdown", "text/plain"}
 MAX_DOC_BYTES = 1_048_576
+MAX_PHOTO_BYTES = 10_485_760
+PHOTO_MIMES = {
+    "image/jpeg",
+    "image/jpg",
+    "image/png",
+    "image/webp",
+    "image/gif",
+}
 MDV2_ESC = re.compile(r"\\([_*\[\]()~`>#+\-=|{}.!\\])")
 
 
@@ -97,6 +105,7 @@ INDEX_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "index.htm
 _telegraph: Optional[Telegraph] = None
 INIT_MAX_AGE = 48 * 3600
 STASH: dict[str, dict] = {}
+MEDIA: dict[str, dict] = {}
 STASH_TTL = 10 * 60
 CODE_ALPHABET = "abcdefghijkmnpqrstuvwxyz23456789"
 
@@ -258,13 +267,30 @@ class TelegramApiError(Exception):
         super().__init__(f"{status}: {description}")
 
 
-async def telegram_api(method: str, payload: dict) -> dict:
+async def telegram_api(method: str, payload: dict, files: Optional[dict] = None) -> dict:
     if not TOKEN:
         raise TelegramApiError(503, "TELEGRAM_TOKEN ausente")
     url = f"https://api.telegram.org/bot{TOKEN}/{method}"
     timeout = ClientTimeout(total=60)
     async with ClientSession(timeout=timeout) as session:
-        async with session.post(url, json=payload) as resp:
+        if files:
+            form = FormData()
+            for key, value in payload.items():
+                if isinstance(value, (dict, list)):
+                    form.add_field(key, json.dumps(value, ensure_ascii=False))
+                else:
+                    form.add_field(key, str(value))
+            for name, (filename, data, mime) in files.items():
+                form.add_field(
+                    name,
+                    data,
+                    filename=filename,
+                    content_type=mime or "application/octet-stream",
+                )
+            post_cm = session.post(url, data=form)
+        else:
+            post_cm = session.post(url, json=payload)
+        async with post_cm as resp:
             try:
                 data = await resp.json(content_type=None)
             except Exception:
@@ -282,27 +308,45 @@ async def telegram_api(method: str, payload: dict) -> dict:
             return data
 
 
-def build_rich_message_payload(content: str) -> dict:
+def build_rich_message_payload(content: str) -> tuple[dict, dict]:
     md = markdown_for_rich_api(content)
-    md, media = extract_rich_media(md)
+    md, local_ids = extract_rich_media(md)
+    files: dict = {}
+    media: list[dict] = []
+    now = time.time()
+    for mid in local_ids:
+        item = MEDIA.get(mid)
+        if not item or item.get("exp", 0) < now:
+            continue
+        attach = f"file_{mid}"
+        media.append(
+            {"id": mid, "media": {"type": "photo", "media": f"attach://{attach}"}}
+        )
+        files[attach] = (
+            item.get("name") or f"{mid}.jpg",
+            item["data"],
+            item.get("mime") or "image/jpeg",
+        )
     rich: dict = {"markdown": md}
     if media:
         rich["media"] = media
-    return rich
+    return rich, files
 
 
 async def send_rich_message(chat_id, content: str, reply_to_message_id=None):
-    rich = build_rich_message_payload(content)
+    rich, files = build_rich_message_payload(content)
     chunks = split_markdown_chunks(rich["markdown"])
     media = rich.get("media") or []
     for idx, chunk in enumerate(chunks):
         body = {"markdown": chunk}
+        use_files = None
         if idx == 0 and media:
             body["media"] = media
+            use_files = files
         payload = {"chat_id": chat_id, "rich_message": body}
         if idx == 0 and reply_to_message_id:
             payload["reply_parameters"] = {"message_id": reply_to_message_id}
-        await telegram_api("sendRichMessage", payload)
+        await telegram_api("sendRichMessage", payload, files=use_files)
 
 
 def message_rich_payload(message):
@@ -370,9 +414,14 @@ def purge_stash() -> None:
     now = time.time()
     for key in [k for k, item in STASH.items() if item.get("exp", 0) < now]:
         STASH.pop(key, None)
+    for key in [k for k, item in MEDIA.items() if item.get("exp", 0) < now]:
+        MEDIA.pop(key, None)
     while len(STASH) > 200:
         oldest = min(STASH, key=lambda k: STASH[k].get("exp", 0))
         STASH.pop(oldest, None)
+    while len(MEDIA) > 80:
+        oldest = min(MEDIA, key=lambda k: MEDIA[k].get("exp", 0))
+        MEDIA.pop(oldest, None)
 
 
 def new_stash_code() -> str:
@@ -768,6 +817,55 @@ async def api_stash(request: web.Request):
     )
 
 
+async def api_media(request: web.Request):
+    purge_stash()
+    try:
+        post = await request.post()
+    except Exception:
+        return web.json_response({"ok": False, "error": "Envio inválido"}, status=400)
+    upload = post.get("file")
+    if upload is None or not hasattr(upload, "file"):
+        return web.json_response({"ok": False, "error": "Falta a fotografia"}, status=400)
+    raw = upload.file.read()
+    if not raw:
+        return web.json_response({"ok": False, "error": "Ficheiro vazio"}, status=400)
+    if len(raw) > MAX_PHOTO_BYTES:
+        return web.json_response({"ok": False, "error": "Foto acima de 10 MB"}, status=413)
+    mime = (getattr(upload, "content_type", None) or "").lower()
+    name = (getattr(upload, "filename", None) or "foto.jpg").lower()
+    if mime not in PHOTO_MIMES and not name.endswith(
+        (".jpg", ".jpeg", ".png", ".webp", ".gif")
+    ):
+        return web.json_response(
+            {"ok": False, "error": "Use JPEG, PNG, WebP ou GIF"},
+            status=415,
+        )
+    if mime not in PHOTO_MIMES:
+        mime = "image/jpeg"
+    mid = new_stash_code()
+    filename = getattr(upload, "filename", None) or f"{mid}.jpg"
+    MEDIA[mid] = {
+        "data": raw,
+        "name": filename,
+        "mime": mime,
+        "exp": time.time() + STASH_TTL,
+    }
+    return web.json_response({"ok": True, "id": mid})
+
+
+async def serve_media(request: web.Request):
+    purge_stash()
+    mid = (request.match_info.get("mid") or "").strip()
+    item = MEDIA.get(mid)
+    if not item or item.get("exp", 0) < time.time():
+        return web.Response(text="Foto expirada", status=404)
+    return web.Response(
+        body=item["data"],
+        content_type=item.get("mime") or "image/jpeg",
+        headers={"Cache-Control": "private, max-age=60"},
+    )
+
+
 async def on_startup(app: web.Application):
     app["bot_username"] = ""
     if not TOKEN:
@@ -824,11 +922,13 @@ async def on_cleanup(app: web.Application):
 
 
 def build_web_app() -> web.Application:
-    app = web.Application(client_max_size=MAX_DOC_BYTES + 131072)
+    app = web.Application(client_max_size=MAX_PHOTO_BYTES + 131072)
     app.router.add_get("/", serve_index)
     app.router.add_get("/health", health)
     app.router.add_get("/api/config", api_config)
+    app.router.add_get("/media/{mid}", serve_media)
     app.router.add_post("/api/stash", api_stash)
+    app.router.add_post("/api/media", api_media)
     app.router.add_post("/api/publish", api_publish)
     app.router.add_post("/api/send-chat", api_send_chat)
     app.on_startup.append(on_startup)

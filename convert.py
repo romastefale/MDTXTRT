@@ -217,7 +217,10 @@ def markdown_to_telegraph_html(source: str) -> str:
 
 RICH_CHAR_LIMIT = 32768
 _EXPANDABLE_LINE = re.compile(r"^\*\*>\s?(.*)$")
-_IMG_MD = re.compile(r"!\[([^\]]*)\]\((https?://[^)]+)\)")
+_LOCAL_IMG = re.compile(
+    r"!\[([^\]]*)\]\(mdtxtrt://media/([A-Za-z0-9_-]+)\)"
+)
+_OTHER_IMG = re.compile(r"!\[([^\]]*)\]\((?!tg://photo\?id=)([^)]*)\)")
 
 
 def markdown_for_rich_api(source: str) -> str:
@@ -252,20 +255,30 @@ def markdown_for_rich_api(source: str) -> str:
     return "\n".join(out)
 
 
-def extract_rich_media(markdown: str) -> tuple[str, list[dict]]:
-    media: list[dict] = []
+def extract_rich_media(markdown: str) -> tuple[str, list[str]]:
+    """Só fotos já enviadas ao bot. URLs http ficam no Markdown."""
+    ids: list[str] = []
 
     def _repl(match: re.Match) -> str:
-        alt, url = match.group(1), match.group(2)
-        mid = f"img{len(media)}"
-        media.append({"id": mid, "media": {"type": "photo", "media": url}})
+        alt, mid = match.group(1), match.group(2)
+        if mid not in ids:
+            ids.append(mid)
         if alt:
-            safe_alt = alt.replace('"', '\\"')
+            safe_alt = alt.replace('"', "")
             return f'![](tg://photo?id={mid} "{safe_alt}")'
         return f"![](tg://photo?id={mid})"
 
-    rewritten = _IMG_MD.sub(_repl, markdown or "")
-    return rewritten, media
+    rewritten = _LOCAL_IMG.sub(_repl, markdown or "")
+
+    def _link(match: re.Match) -> str:
+        alt, url = match.group(1), (match.group(2) or "").strip()
+        label = alt or "imagem"
+        if url.startswith("https://") or url.startswith("http://"):
+            return f"[{label}]({url})"
+        return label
+
+    rewritten = _OTHER_IMG.sub(_link, rewritten)
+    return rewritten, ids
 
 
 def split_markdown_chunks(text: str, limit: int = RICH_CHAR_LIMIT) -> list[str]:
