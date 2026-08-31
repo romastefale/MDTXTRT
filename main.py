@@ -9,6 +9,7 @@ import json
 import logging
 import os
 import re
+import secrets
 import time
 from typing import Optional
 from urllib.parse import parse_qsl, unquote
@@ -96,6 +97,9 @@ AUTHOR_NAME = os.environ.get("TELEGRAPH_AUTHOR", "MDTXTRT")
 INDEX_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "index.html")
 _telegraph: Optional[Telegraph] = None
 INIT_MAX_AGE = 48 * 3600
+STASH: dict[str, dict] = {}
+STASH_TTL = 10 * 60
+CODE_ALPHABET = "abcdefghijkmnpqrstuvwxyz23456789"
 
 
 def _hmac_hex(data_check_string: str) -> str:
@@ -327,6 +331,39 @@ async def dispatch_user_artifacts(bot, chat_id: int | str, title: str, content: 
     await bot.send_document(chat_id=chat_id, document=buf_md, caption=f"{filename_base}.md")
 
 
+def purge_stash() -> None:
+    now = time.time()
+    for key in [k for k, item in STASH.items() if item.get("exp", 0) < now]:
+        STASH.pop(key, None)
+    while len(STASH) > 200:
+        oldest = min(STASH, key=lambda k: STASH[k].get("exp", 0))
+        STASH.pop(oldest, None)
+
+
+def new_stash_code() -> str:
+    purge_stash()
+    for _ in range(12):
+        code = "".join(secrets.choice(CODE_ALPHABET) for _ in range(10))
+        if code not in STASH:
+            return code
+    return secrets.token_hex(5)
+
+
+async def deliver_payload(bot, chat_id, action: str, title: str, content: str) -> None:
+    if action == "mdrich":
+        md_text = optimize_markdown(content)
+        name = filename_from_markdown(md_text)
+        if title and title != "Sem título":
+            safe = re.sub(r'[\\/*?:"<>|]', "", title).strip()[:60]
+            if safe:
+                name = safe
+        buf = io.BytesIO(md_text.encode("utf-8"))
+        buf.name = f"{name}.md"
+        await bot.send_document(chat_id=chat_id, document=buf, caption=f"{name}.md")
+        return
+    await dispatch_user_artifacts(bot, chat_id, title, content)
+
+
 def mini_app_markup():
     app_url = public_web_app_url()
     if not app_url:
@@ -338,6 +375,26 @@ def mini_app_markup():
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message:
+        return
+    arg = (context.args[0] if context.args else "").strip()
+    if arg:
+        kind = arg[0]
+        code = arg[1:]
+        item = STASH.pop(code, None)
+        if item and item.get("exp", 0) >= time.time():
+            action = "mdrich" if kind == "m" or item.get("action") == "mdrich" else "chat"
+            await deliver_payload(
+                context.bot,
+                update.effective_chat.id,
+                action,
+                item.get("title") or "Sem título",
+                item.get("content") or "",
+            )
+            return
+        await update.message.reply_text(
+            "Este envio já foi usado ou expirou. Abre o Mini App e toca outra vez.",
+            reply_markup=mini_app_markup(),
+        )
         return
     text = (
         "<b>MDTXTRT</b>\n\n"
@@ -516,11 +573,12 @@ async def handle_webapp_data(update: Update, context: ContextTypes.DEFAULT_TYPE)
             page = await publish_page_async(payload["title"], content, payload["path"])
             await update.message.reply_text(f"Publicado: {page['url']}")
             return
-        await dispatch_user_artifacts(
-            bot=context.bot,
-            chat_id=update.effective_chat.id,
-            title=payload["title"],
-            content=content,
+        await deliver_payload(
+            context.bot,
+            update.effective_chat.id,
+            "mdrich" if payload["action"] == "mdrich" else "chat",
+            payload["title"],
+            content,
         )
     except TelegraphException as exc:
         await update.message.reply_text(f"Telegraph recusou o HTML: {exc}")
@@ -601,7 +659,55 @@ async def api_publish(request: web.Request):
         return web.json_response({"ok": False, "error": str(exc)}, status=500)
 
 
+async def api_config(request: web.Request):
+    username = request.app.get("bot_username") or ""
+    return web.json_response(
+        {
+            "ok": True,
+            "bot": username,
+            "web_app_url": public_web_app_url() or None,
+        }
+    )
+
+
+async def api_stash(request: web.Request):
+    try:
+        data = await request.json()
+    except Exception:
+        return web.json_response({"ok": False, "error": "JSON inválido"}, status=400)
+    content = (data.get("content") or "").strip()
+    if not content:
+        return web.json_response({"ok": False, "error": "Documento vazio"}, status=400)
+    if len(content.encode("utf-8")) > MAX_DOC_BYTES:
+        return web.json_response({"ok": False, "error": "Documento acima de 1 MB"}, status=413)
+    action = (data.get("action") or "chat").strip().lower()
+    if action not in {"chat", "mdrich", "tgrich", "markdown"}:
+        action = "chat"
+    if action in {"tgrich", "markdown"}:
+        action = "chat"
+    username = request.app.get("bot_username") or ""
+    if not username:
+        return web.json_response(
+            {"ok": False, "error": "Bot ainda a arrancar. Toca outra vez dentro de instantes."},
+            status=503,
+        )
+    code = new_stash_code()
+    STASH[code] = {
+        "action": action,
+        "title": (data.get("title") or "Sem título").strip() or "Sem título",
+        "content": content,
+        "exp": time.time() + STASH_TTL,
+    }
+    prefix = "m" if action == "mdrich" else "c"
+    start_param = f"{prefix}{code}"
+    url = f"https://t.me/{username}?start={start_param}"
+    return web.json_response(
+        {"ok": True, "start": start_param, "url": url, "bot": username}
+    )
+
+
 async def on_startup(app: web.Application):
+    app["bot_username"] = ""
     if not TOKEN:
         log.warning("TELEGRAM_TOKEN ausente. Mini App no ar; bot desligado.")
         return
@@ -637,7 +743,13 @@ async def on_startup(app: web.Application):
         log.exception("set_my_commands")
     await application.updater.start_polling(drop_pending_updates=True)
     app["bot"] = application
-    log.info("Bot em escuta (polling).")
+    try:
+        me = await application.bot.get_me()
+        app["bot_username"] = me.username or ""
+        log.info("Bot em escuta @%s", app["bot_username"])
+    except Exception:
+        log.exception("get_me")
+        log.info("Bot em escuta (polling).")
 
 
 async def on_cleanup(app: web.Application):
@@ -650,9 +762,11 @@ async def on_cleanup(app: web.Application):
 
 
 def build_web_app() -> web.Application:
-    app = web.Application()
+    app = web.Application(client_max_size=MAX_DOC_BYTES + 131072)
     app.router.add_get("/", serve_index)
     app.router.add_get("/health", health)
+    app.router.add_get("/api/config", api_config)
+    app.router.add_post("/api/stash", api_stash)
     app.router.add_post("/api/publish", api_publish)
     app.router.add_post("/api/send-chat", api_send_chat)
     app.on_startup.append(on_startup)

@@ -17,8 +17,9 @@
       :root:not([data-theme="light"]) { --bg:#000; --fg:#f2f2f2; --muted:#9a9a9a; --line:#222; --surface:#111; --accent:#f2f2f2; --accent-fg:#000; }
     }
     * { box-sizing: border-box; }
-    html, body { height: 100%; margin: 0; background: var(--bg); color: var(--fg); font-family: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
-    body { display: flex; flex-direction: column; min-height: 100dvh; }
+    html, body { height: var(--app-height, 100dvh); margin: 0; background: var(--bg); color: var(--fg); font-family: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif; -webkit-font-smoothing: antialiased; overflow: hidden; }
+    body { display: flex; flex-direction: column; min-height: 0; }
+    header, .meta, .tools, footer { flex-shrink: 0; }
     button { border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; border-radius: 0; box-shadow: none; }
     button:disabled { opacity: 0.4; cursor: default; }
     header { border-bottom: 1px solid var(--line); padding: max(0.6rem, env(safe-area-inset-top)) 16px 0; }
@@ -95,8 +96,8 @@
       <h2>Nesta interface</h2>
       <ul>
         <li><code>abrir</code> — carrega .md e mostra o tgrich.</li>
-        <li><code>mdrich</code> — baixa o documento em Markdown otimizado.</li>
-        <li><code>chat</code> — envia rich text + .md para o Telegram.</li>
+        <li><code>mdrich</code> — envia o .md otimizado para o teu chat.</li>
+        <li><code>chat</code> — envia rich text + .md para o teu chat.</li>
         <li><code>telegraph</code> — publica a página (no Mini App).</li>
       </ul>
     </div>
@@ -138,9 +139,20 @@
     tg.ready();
     tg.expand();
     if (tg.enableClosingConfirmation) tg.enableClosingConfirmation();
+    if (tg.disableVerticalSwipes) tg.disableVerticalSwipes();
+  }
+  function applyViewport() {
+    var h = (tg && tg.viewportStableHeight) ? tg.viewportStableHeight : window.innerHeight;
+    if (!h) h = window.innerHeight;
+    document.documentElement.style.setProperty("--app-height", h + "px");
   }
   applyTheme();
-  if (tg && tg.onEvent) tg.onEvent("themeChanged", applyTheme);
+  applyViewport();
+  if (tg && tg.onEvent) {
+    tg.onEvent("themeChanged", applyTheme);
+    tg.onEvent("viewportChanged", applyViewport);
+  }
+  window.addEventListener("resize", applyViewport);
   matchMedia("(prefers-color-scheme: dark)").addEventListener("change", function () {
     if (!(tg && tg.colorScheme)) applyTheme();
   });
@@ -354,21 +366,47 @@
     if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
   });
 
-  document.getElementById("btnMd").onclick = function () {
+  document.getElementById("btnMd").onclick = async function () {
     var md = optimize(editor.value);
     if (!md.trim()) { showToast("Documento vazio"); return; }
-    var name = (inpTitle.value || "documento").replace(/[\\/*?:"<>|]/g, "").slice(0, 60) || "documento";
-    var a = document.createElement("a");
-    a.href = URL.createObjectURL(new Blob([md], { type: "text/markdown;charset=utf-8" }));
-    a.download = name + ".md";
-    a.click();
-    showToast("mdrich: .md exportado");
+    if (busy) return;
+    busy = true;
+    try {
+      await deliverToBot("mdrich");
+      showToast("Arquivo .md no chat");
+    } catch (err) {
+      try {
+        await navigator.clipboard.writeText(md);
+        showToast("Markdown copiado");
+      } catch (e) {
+        showToast("Não foi possível exportar");
+      }
+    }
+    busy = false;
   };
 
   function telegramInitData() {
     if (!tg) return "";
     try { if (tg.ready) tg.ready(); } catch (e) {}
     return String(tg.initData || "").trim();
+  }
+  async function copyText(text) {
+    try { await navigator.clipboard.writeText(text); return true; } catch (e) { return false; }
+  }
+  async function deliverToBot(action) {
+    var res = await fetch("/api/stash", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: action,
+        title: inpTitle.value || "Sem título",
+        content: editor.value
+      })
+    });
+    var json = await res.json().catch(function () { return {}; });
+    if (!res.ok || !json.url) throw new Error(json.error || "Não foi possível enviar");
+    if (tg && tg.openTelegramLink) tg.openTelegramLink(json.url);
+    else window.location.href = json.url;
   }
   async function postAPI(endpoint) {
     if (!editor.value.trim()) { showToast("Documento vazio"); return null; }
@@ -398,33 +436,17 @@
     if (!editor.value.trim()) { showToast("Documento vazio"); return; }
     busy = true;
     try {
-      if (telegramInitData()) {
-        await postAPI("/api/send-chat");
-        if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred("success");
-        showToast("Enviado ao chat");
-      } else {
-        await navigator.clipboard.writeText(toTgrich(editor.value));
-        showToast("Rich text copiado (abra pelo Telegram para enviar)");
-      }
+      await deliverToBot("chat");
+      if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred("success");
+      showToast("Enviado ao chat");
     } catch (err) {
-      if (tg && tg.sendData) {
-        try {
-          tg.sendData(JSON.stringify({
-            action: "markdown",
-            title: inpTitle.value || "Sem título",
-            path: inpPath.value || "",
-            content: editor.value,
-            timestamp: Date.now()
-          }));
-          showToast("Enviado via Telegram");
-          busy = false;
-          return;
-        } catch (e) {}
-      }
-      showToast(err.message || "Falha ao enviar");
+      var html = toTgrich(editor.value);
+      if (await copyText(html)) showToast("Rich text copiado");
+      else showToast("Não foi possível enviar");
     }
     busy = false;
   }
+
   document.getElementById("btnChat").onclick = sendChat;
   document.getElementById("btnPub").onclick = async function () {
     if (busy) return;
