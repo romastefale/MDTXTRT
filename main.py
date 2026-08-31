@@ -14,12 +14,11 @@ import time
 from typing import Optional
 from urllib.parse import parse_qsl, unquote
 
-from aiohttp import web
+from aiohttp import ClientSession, ClientTimeout, web
 from telegram import (
     BotCommand,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
-    LinkPreviewOptions,
     MenuButtonWebApp,
     Update,
     WebAppInfo,
@@ -240,17 +239,85 @@ def get_telegraph() -> Telegraph:
 
 from convert import (
     entities_to_markdown,
+    extract_rich_media,
     filename_from_markdown,
     is_markdown_document,
-    markdown_to_telegram_html,
+    markdown_for_rich_api,
     markdown_to_telegraph_html,
     optimize_markdown,
-    split_html_chunks,
+    rich_message_to_markdown,
+    split_markdown_chunks,
 )
 
 
-def _escape_markdown_v2(text: str) -> str:
-    return re.sub(r"([_*\[\]()~`>#+\-=|{}.!\\])", r"\\\1", text)
+class TelegramApiError(Exception):
+    def __init__(self, status: int, description: str, data=None):
+        self.status = status
+        self.description = description
+        self.data = data or {}
+        super().__init__(f"{status}: {description}")
+
+
+async def telegram_api(method: str, payload: dict) -> dict:
+    if not TOKEN:
+        raise TelegramApiError(503, "TELEGRAM_TOKEN ausente")
+    url = f"https://api.telegram.org/bot{TOKEN}/{method}"
+    timeout = ClientTimeout(total=60)
+    async with ClientSession(timeout=timeout) as session:
+        async with session.post(url, json=payload) as resp:
+            try:
+                data = await resp.json(content_type=None)
+            except Exception:
+                body = await resp.text()
+                log.error("Telegram %s %s: %s", method, resp.status, body[:500])
+                raise TelegramApiError(resp.status, body[:300] or (resp.reason or "erro"))
+            if resp.status >= 400 or not (isinstance(data, dict) and data.get("ok")):
+                description = ""
+                if isinstance(data, dict):
+                    description = str(data.get("description") or "")
+                log.error("Telegram %s %s: %s", method, resp.status, data)
+                raise TelegramApiError(
+                    resp.status, description or (resp.reason or "erro"), data
+                )
+            return data
+
+
+def build_rich_message_payload(content: str) -> dict:
+    md = markdown_for_rich_api(content)
+    md, media = extract_rich_media(md)
+    rich: dict = {"markdown": md}
+    if media:
+        rich["media"] = media
+    return rich
+
+
+async def send_rich_message(chat_id, content: str, reply_to_message_id=None):
+    rich = build_rich_message_payload(content)
+    chunks = split_markdown_chunks(rich["markdown"])
+    media = rich.get("media") or []
+    for idx, chunk in enumerate(chunks):
+        body = {"markdown": chunk}
+        if idx == 0 and media:
+            body["media"] = media
+        payload = {"chat_id": chat_id, "rich_message": body}
+        if idx == 0 and reply_to_message_id:
+            payload["reply_parameters"] = {"message_id": reply_to_message_id}
+        await telegram_api("sendRichMessage", payload)
+
+
+def message_rich_payload(message):
+    if message is None:
+        return None
+    rm = getattr(message, "rich_message", None)
+    if rm:
+        return rm
+    kwargs = getattr(message, "api_kwargs", None)
+    if isinstance(kwargs, dict) and kwargs.get("rich_message"):
+        return kwargs["rich_message"]
+    private = getattr(message, "_api_kwargs", None)
+    if isinstance(private, dict) and private.get("rich_message"):
+        return private["rich_message"]
+    return None
 
 
 def publish_page(title: str, content_md: str, path_hint: str = "") -> dict:
@@ -286,37 +353,6 @@ async def read_document_text(bot, document) -> str:
     return raw.decode("utf-8", errors="replace")
 
 
-async def send_tgrich_message(bot, chat_id, content: str, reply_to_message_id=None):
-    tg_html, images = markdown_to_telegram_html(content)
-    preview_opts = (
-        LinkPreviewOptions(is_disabled=False, url=images[0], prefer_large_media=True)
-        if images
-        else None
-    )
-    for idx, chunk in enumerate(split_html_chunks(tg_html)):
-        kwargs = {
-            "chat_id": chat_id,
-            "text": chunk,
-            "parse_mode": ParseMode.HTML,
-            "link_preview_options": preview_opts if idx == 0 else None,
-        }
-        if idx == 0 and reply_to_message_id:
-            kwargs["reply_to_message_id"] = reply_to_message_id
-        try:
-            await bot.send_message(**kwargs)
-        except Exception:
-            try:
-                await bot.send_message(
-                    chat_id=chat_id,
-                    text=_escape_markdown_v2(content if idx == 0 else chunk),
-                    parse_mode=ParseMode.MARKDOWN_V2,
-                )
-            except Exception:
-                await bot.send_message(
-                    chat_id=chat_id, text=content if idx == 0 else chunk
-                )
-
-
 async def dispatch_user_artifacts(bot, chat_id: int | str, title: str, content: str):
     safe_title = re.sub(r'[\\/*?:"<>|]', "", title).strip() if title else ""
     filename_base = (
@@ -325,7 +361,7 @@ async def dispatch_user_artifacts(bot, chat_id: int | str, title: str, content: 
     body = content
     if title and title != "Sem título":
         body = f"**{title}**\n\n{content}"
-    await send_tgrich_message(bot, chat_id, body)
+    await send_rich_message(chat_id, body)
     buf_md = io.BytesIO(optimize_markdown(body).encode("utf-8"))
     buf_md.name = f"{filename_base}.md"
     await bot.send_document(chat_id=chat_id, document=buf_md, caption=f"{filename_base}.md")
@@ -383,13 +419,18 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         item = STASH.pop(code, None)
         if item and item.get("exp", 0) >= time.time():
             action = "mdrich" if kind == "m" or item.get("action") == "mdrich" else "chat"
-            await deliver_payload(
-                context.bot,
-                update.effective_chat.id,
-                action,
-                item.get("title") or "Sem título",
-                item.get("content") or "",
-            )
+            try:
+                await deliver_payload(
+                    context.bot,
+                    update.effective_chat.id,
+                    action,
+                    item.get("title") or "Sem título",
+                    item.get("content") or "",
+                )
+            except TelegramApiError as exc:
+                await update.message.reply_text(
+                    f"Telegram recusou sendRichMessage: {exc.description}"
+                )
             return
         await update.message.reply_text(
             "Este envio já foi usado ou expirou. Abre o Mini App e toca outra vez.",
@@ -473,6 +514,11 @@ async def source_for_mdrich(message, context) -> str:
         if is_markdown_document(message.document):
             return optimize_markdown(await read_document_text(context.bot, message.document))
         raise ValueError("Responda a uma mensagem com /mdrich.")
+    rm = message_rich_payload(target)
+    if rm:
+        md = rich_message_to_markdown(rm)
+        if str(md).strip():
+            return optimize_markdown(md)
     if target.document:
         text = await read_document_text(context.bot, target.document)
         if is_markdown_document(target.document):
@@ -498,9 +544,11 @@ async def tgrich(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not source.strip():
             await message.reply_text("Documento vazio.")
             return
-        await send_tgrich_message(
-            context.bot, message.chat_id, source, reply_to_message_id=message.message_id
+        await send_rich_message(
+            message.chat_id, source, reply_to_message_id=message.message_id
         )
+    except TelegramApiError as exc:
+        await message.reply_text(f"Telegram recusou sendRichMessage: {exc.description}")
     except ValueError as exc:
         await message.reply_text(str(exc))
     except Exception:

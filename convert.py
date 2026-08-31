@@ -417,3 +417,352 @@ def markdown_to_telegram_html(source: str) -> tuple[str, list[str]]:
         parts.append("" if not stripped else inline_tg(line))
         i += 1
     return "\n".join(parts), found_images
+
+
+RICH_CHAR_LIMIT = 32768
+_EXPANDABLE_LINE = re.compile(r"^\*\*>\s?(.*)$")
+_IMG_MD = re.compile(r"!\[([^\]]*)\]\((https?://[^)]+)\)")
+
+
+def markdown_for_rich_api(source: str) -> str:
+    """Pré-passo só do dialecto que o GFM da API não cobre."""
+    text = (source or "").replace("\r\n", "\n").replace("\r", "\n")
+    lines = text.split("\n")
+    out: list[str] = []
+    i = 0
+    n = len(lines)
+    while i < n:
+        stripped = lines[i].strip()
+        expandable = bool(_EXPANDABLE_LINE.match(stripped)) or (
+            stripped.startswith(">") and stripped.endswith("||")
+        )
+        if expandable:
+            quote: list[str] = []
+            while i < n:
+                s = lines[i].strip()
+                m_exp = _EXPANDABLE_LINE.match(s)
+                if not (m_exp or s.startswith(">")):
+                    break
+                piece = m_exp.group(1) if m_exp else s[1:].lstrip(" ")
+                if piece.endswith("||"):
+                    piece = piece[:-2].rstrip()
+                quote.append(piece)
+                i += 1
+            body = "\n".join(quote).strip()
+            out.append(f"<details>\n{body}\n</details>" if body else "<details></details>")
+            continue
+        out.append(lines[i])
+        i += 1
+    return "\n".join(out)
+
+
+def extract_rich_media(markdown: str) -> tuple[str, list[dict]]:
+    media: list[dict] = []
+
+    def _repl(match: re.Match) -> str:
+        alt, url = match.group(1), match.group(2)
+        mid = f"img{len(media)}"
+        media.append({"id": mid, "media": {"type": "photo", "media": url}})
+        if alt:
+            safe_alt = alt.replace('"', '\\"')
+            return f'![](tg://photo?id={mid} "{safe_alt}")'
+        return f"![](tg://photo?id={mid})"
+
+    rewritten = _IMG_MD.sub(_repl, markdown or "")
+    return rewritten, media
+
+
+def split_markdown_chunks(text: str, limit: int = RICH_CHAR_LIMIT) -> list[str]:
+    if len(text) <= limit:
+        return [text]
+    chunks: list[str] = []
+    remaining = text
+    while remaining:
+        if len(remaining) <= limit:
+            chunks.append(remaining)
+            break
+        window = remaining[:limit]
+        cut = window.rfind("\n")
+        if cut < limit // 2:
+            cut = limit
+        chunks.append(remaining[:cut])
+        remaining = remaining[cut:].lstrip("\n")
+    return chunks
+
+
+def _to_plain(obj):
+    if obj is None or isinstance(obj, (str, int, float, bool)):
+        return obj
+    if isinstance(obj, (list, tuple)):
+        return [_to_plain(x) for x in obj]
+    if isinstance(obj, dict):
+        return {k: _to_plain(v) for k, v in obj.items()}
+    if hasattr(obj, "to_dict"):
+        try:
+            return _to_plain(obj.to_dict())
+        except Exception:
+            pass
+    data = {}
+    for key in dir(obj):
+        if key.startswith("_"):
+            continue
+        if key in {"to_dict", "to_json", "de_json", "de_list", "api_kwargs"}:
+            continue
+        try:
+            val = getattr(obj, key)
+        except Exception:
+            continue
+        if callable(val):
+            continue
+        data[key] = _to_plain(val)
+    kwargs = getattr(obj, "api_kwargs", None)
+    if isinstance(kwargs, dict):
+        for key, val in kwargs.items():
+            data.setdefault(key, _to_plain(val))
+    return data
+
+
+def rich_text_to_md(node) -> str:
+    if node is None:
+        return ""
+    if isinstance(node, str):
+        return node
+    if isinstance(node, (int, float)):
+        return str(node)
+    if isinstance(node, (list, tuple)):
+        return "".join(rich_text_to_md(x) for x in node)
+    if not isinstance(node, dict):
+        node = _to_plain(node)
+        if not isinstance(node, dict):
+            return str(node) if node is not None else ""
+    typ = str(node.get("type") or "")
+    if typ in {"concat", "rich_text"} or "texts" in node:
+        return rich_text_to_md(node.get("texts") or node.get("text"))
+    inner = node.get("text")
+    if inner is None:
+        inner = node.get("texts")
+    inner_md = rich_text_to_md(inner) if inner is not None else ""
+    if typ in {"plain", "text", "regular", ""}:
+        return inner_md
+    if typ == "bold":
+        return f"**{inner_md}**"
+    if typ == "italic":
+        return f"*{inner_md}*"
+    if typ in {"underline", "ins"}:
+        return f"<u>{inner_md}</u>"
+    if typ == "strikethrough":
+        return f"~~{inner_md}~~"
+    if typ == "spoiler":
+        return f"||{inner_md}||"
+    if typ == "code":
+        return f"`{inner_md}`"
+    if typ == "marked":
+        return f"=={inner_md}=="
+    if typ == "subscript":
+        return f"<sub>{inner_md}</sub>"
+    if typ == "superscript":
+        return f"<sup>{inner_md}</sup>"
+    if typ in {"url", "text_link"}:
+        url = node.get("url") or node.get("href") or ""
+        return f"[{inner_md}]({url})" if url else inner_md
+    if typ in {"email_address", "email"}:
+        email = node.get("email") or node.get("email_address") or inner_md
+        return f"[{inner_md or email}](mailto:{email})"
+    if typ == "phone_number":
+        phone = node.get("phone_number") or inner_md
+        return f"[{inner_md or phone}](tel:{phone})"
+    if typ in {"text_mention", "mention"}:
+        user = node.get("user") or {}
+        uid = user.get("id") if isinstance(user, dict) else getattr(user, "id", "")
+        uid = uid or node.get("user_id") or node.get("username") or ""
+        return f"[{inner_md}](tg://user?id={uid})" if uid else inner_md
+    if typ == "custom_emoji":
+        eid = node.get("custom_emoji_id") or ""
+        alt = inner_md or node.get("alternative_text") or ""
+        return f"![{alt}](tg://emoji?id={eid})" if eid else alt
+    if typ == "anchor_link":
+        name = node.get("anchor_name") or node.get("name") or ""
+        return f"[{inner_md}](#{name})" if name else inner_md
+    return inner_md
+
+
+def _heading_md(text: str, level: int) -> str:
+    level = max(1, min(int(level or 1), 6))
+    return f"{'#' * level} {text}".rstrip()
+
+
+def _list_item_md(item, ordered: bool, index: int) -> str:
+    if isinstance(item, str):
+        body = item
+    elif isinstance(item, dict):
+        if item.get("blocks"):
+            body = "\n".join(
+                rich_block_to_md(b) for b in item["blocks"] if b is not None
+            )
+        else:
+            body = rich_text_to_md(item.get("text") or item.get("content") or item)
+        if item.get("task") or "checked" in item or item.get("is_checked") is not None:
+            mark = "x" if item.get("checked") or item.get("is_checked") else " "
+            prefix = f"- [{mark}] "
+            lines = (body or "").split("\n")
+            return prefix + lines[0] + (("\n  " + "\n  ".join(lines[1:])) if len(lines) > 1 else "")
+    else:
+        body = rich_text_to_md(item)
+    prefix = f"{index}. " if ordered else "- "
+    lines = (body or "").split("\n")
+    return prefix + lines[0] + (("\n  " + "\n  ".join(lines[1:])) if len(lines) > 1 else "")
+
+
+def rich_block_to_md(block) -> str:
+    if block is None:
+        return ""
+    if isinstance(block, str):
+        return block
+    if not isinstance(block, dict):
+        block = _to_plain(block)
+        if not isinstance(block, dict):
+            return str(block) if block is not None else ""
+    typ = str(block.get("type") or "")
+    nested = block.get(typ) if typ and isinstance(block.get(typ), (dict, list)) else None
+
+    def _text() -> str:
+        if nested and isinstance(nested, dict):
+            return rich_text_to_md(
+                nested.get("text") or nested.get("elements") or nested
+            )
+        return rich_text_to_md(
+            block.get("text")
+            or block.get("elements")
+            or block.get("content")
+            or nested
+        )
+
+    if typ in {"paragraph", "footer"}:
+        return _text()
+    if typ in {"section_heading", "heading"}:
+        level = (
+            block.get("level")
+            or block.get("size")
+            or (nested.get("level") if isinstance(nested, dict) else None)
+            or (nested.get("size") if isinstance(nested, dict) else None)
+            or 1
+        )
+        return _heading_md(_text(), level)
+    if typ in {"preformatted", "pre"}:
+        lang = block.get("language") or (
+            nested.get("language") if isinstance(nested, dict) else ""
+        ) or ""
+        body = _text()
+        return f"```{lang}\n{body}\n```"
+    if typ in {"divider", "horizontal_rule"}:
+        return "---"
+    if typ in {"block_quotation", "blockquote"}:
+        inner_blocks = block.get("blocks")
+        if inner_blocks:
+            inner = "\n".join(rich_block_to_md(b) for b in inner_blocks)
+        else:
+            inner = _text()
+        return "\n".join(f"> {ln}" if ln else ">" for ln in inner.split("\n"))
+    if typ in {"expandable_block_quotation", "expandable_blockquote"}:
+        inner_blocks = block.get("blocks")
+        if inner_blocks:
+            inner = "\n".join(rich_block_to_md(b) for b in inner_blocks)
+        else:
+            inner = _text()
+        lines = inner.split("\n")
+        if not lines:
+            return ""
+        first = f"**> {lines[0]}" if not lines[0].startswith("**>") else lines[0]
+        rest = [f"> {ln}" if ln else ">" for ln in lines[1:]]
+        return "\n".join([first] + rest)
+    if typ == "details":
+        summary = rich_text_to_md(block.get("summary") or "")
+        inner = "\n".join(rich_block_to_md(b) for b in (block.get("blocks") or []))
+        return f"<details>\n<summary>{summary}</summary>\n{inner}\n</details>"
+    if typ == "list":
+        src = nested if isinstance(nested, dict) else block
+        items = src.get("items") or []
+        ordered = bool(src.get("is_ordered") or src.get("ordered") or src.get("type") == "ordered")
+        out = []
+        for idx, item in enumerate(items, 1):
+            out.append(_list_item_md(item, ordered, idx))
+        return "\n".join(out)
+    if typ == "table":
+        src = nested if isinstance(nested, dict) else block
+        rows = src.get("cells") or src.get("rows") or []
+        md_rows: list[list[str]] = []
+        for row in rows:
+            if isinstance(row, dict) and "cells" in row:
+                cells = row["cells"]
+            else:
+                cells = row
+            md_rows.append(
+                [
+                    rich_text_to_md(
+                        c.get("text") if isinstance(c, dict) else c
+                    ).replace("\n", " ").strip()
+                    for c in (cells or [])
+                ]
+            )
+        if not md_rows:
+            return ""
+        width = max(len(r) for r in md_rows)
+        for row in md_rows:
+            while len(row) < width:
+                row.append("")
+        header = md_rows[0]
+        lines = [
+            "| " + " | ".join(header) + " |",
+            "| " + " | ".join("---" for _ in header) + " |",
+        ]
+        for row in md_rows[1:]:
+            lines.append("| " + " | ".join(row) + " |")
+        return "\n".join(lines)
+    if typ in {"photo", "video", "animation", "audio", "document", "voice_note"}:
+        caption = block.get("caption")
+        if isinstance(caption, dict):
+            cap = rich_text_to_md(caption.get("text") or caption)
+        else:
+            cap = rich_text_to_md(caption)
+        url = ""
+        media_obj = block.get(typ) or block.get("photo") or {}
+        if isinstance(media_obj, list) and media_obj:
+            last = media_obj[-1]
+            url = (last.get("file_id") if isinstance(last, dict) else "") or ""
+            if url:
+                url = f"tg://{typ}?id={url}"
+        elif isinstance(media_obj, dict):
+            url = media_obj.get("file_id") or media_obj.get("url") or ""
+        if url:
+            return f"![{cap}]({url})"
+        return cap
+    if typ == "mathematical_expression":
+        expr = block.get("expression") or _text()
+        return f"$${expr}$$"
+    if typ == "pull_quotation":
+        return f"<aside>{_text()}</aside>"
+    if block.get("blocks"):
+        return "\n\n".join(rich_block_to_md(b) for b in block["blocks"])
+    return _text()
+
+
+def rich_message_to_markdown(rich) -> str:
+    if not rich:
+        return ""
+    if isinstance(rich, str):
+        return rich
+    if not isinstance(rich, dict):
+        rich = _to_plain(rich)
+        if isinstance(rich, str):
+            return rich
+        if not isinstance(rich, dict):
+            return ""
+    if rich.get("markdown"):
+        return str(rich["markdown"])
+    blocks = rich.get("blocks")
+    if blocks:
+        parts = [rich_block_to_md(b) for b in blocks]
+        return "\n\n".join(p for p in parts if p)
+    if rich.get("html"):
+        return str(rich["html"])
+    return rich_text_to_md(rich.get("text") or rich)
