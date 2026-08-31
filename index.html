@@ -17,8 +17,8 @@
       :root:not([data-theme="light"]) { --bg:#000; --fg:#f2f2f2; --muted:#9a9a9a; --line:#222; --surface:#111; --accent:#f2f2f2; --accent-fg:#000; }
     }
     * { box-sizing: border-box; }
-    html, body { height: var(--app-height, 100dvh); margin: 0; background: var(--bg); color: var(--fg); font-family: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif; -webkit-font-smoothing: antialiased; overflow: hidden; }
-    body { display: flex; flex-direction: column; min-height: 0; }
+    html, body { height: var(--app-height, 100dvh); min-height: 100dvh; margin: 0; background: var(--bg); color: var(--fg); font-family: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif; -webkit-font-smoothing: antialiased; overflow: hidden; }
+    body { display: flex; flex-direction: column; }
     header, .meta, .tools, footer { flex-shrink: 0; }
     button { border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; border-radius: 0; box-shadow: none; }
     button:disabled { opacity: 0.4; cursor: default; }
@@ -141,10 +141,20 @@
     if (tg.enableClosingConfirmation) tg.enableClosingConfirmation();
     if (tg.disableVerticalSwipes) tg.disableVerticalSwipes();
   }
+  var lastAppHeight = 0;
   function applyViewport() {
-    var h = (tg && tg.viewportStableHeight) ? tg.viewportStableHeight : window.innerHeight;
-    if (!h) h = window.innerHeight;
-    document.documentElement.style.setProperty("--app-height", h + "px");
+    var h = 0;
+    if (window.visualViewport && window.visualViewport.height > 0) {
+      h = window.visualViewport.height;
+    }
+    if (!(h > 0)) h = window.innerHeight || 0;
+    if (!(h > 0) && lastAppHeight > 0) h = lastAppHeight;
+    if (h > 0) {
+      lastAppHeight = h;
+      document.documentElement.style.setProperty("--app-height", h + "px");
+    } else {
+      document.documentElement.style.removeProperty("--app-height");
+    }
   }
   applyTheme();
   applyViewport();
