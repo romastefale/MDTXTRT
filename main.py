@@ -311,12 +311,18 @@ def message_rich_payload(message):
     rm = getattr(message, "rich_message", None)
     if rm:
         return rm
-    kwargs = getattr(message, "api_kwargs", None)
-    if isinstance(kwargs, dict) and kwargs.get("rich_message"):
-        return kwargs["rich_message"]
-    private = getattr(message, "_api_kwargs", None)
-    if isinstance(private, dict) and private.get("rich_message"):
-        return private["rich_message"]
+    for attr in ("api_kwargs", "_api_kwargs"):
+        kwargs = getattr(message, attr, None)
+        if isinstance(kwargs, dict) and kwargs.get("rich_message"):
+            return kwargs["rich_message"]
+    to_dict = getattr(message, "to_dict", None)
+    if callable(to_dict):
+        try:
+            data = to_dict()
+        except Exception:
+            data = None
+        if isinstance(data, dict) and data.get("rich_message"):
+            return data["rich_message"]
     return None
 
 
@@ -354,17 +360,10 @@ async def read_document_text(bot, document) -> str:
 
 
 async def dispatch_user_artifacts(bot, chat_id: int | str, title: str, content: str):
-    safe_title = re.sub(r'[\\/*?:"<>|]', "", title).strip() if title else ""
-    filename_base = (
-        safe_title if safe_title and safe_title != "Sem título" else "documento"
-    )
     body = content
     if title and title != "Sem título":
         body = f"**{title}**\n\n{content}"
     await send_rich_message(chat_id, body)
-    buf_md = io.BytesIO(optimize_markdown(body).encode("utf-8"))
-    buf_md.name = f"{filename_base}.md"
-    await bot.send_document(chat_id=chat_id, document=buf_md, caption=f"{filename_base}.md")
 
 
 def purge_stash() -> None:
@@ -495,6 +494,11 @@ async def source_for_tgrich(message, context) -> str:
     if target:
         if is_markdown_document(target.document):
             return await read_document_text(context.bot, target.document)
+        rm = message_rich_payload(target)
+        if rm:
+            md = rich_message_to_markdown(rm)
+            if str(md).strip():
+                return md
         raw = target.text or target.caption
         if raw:
             return raw
@@ -628,6 +632,10 @@ async def handle_webapp_data(update: Update, context: ContextTypes.DEFAULT_TYPE)
             payload["title"],
             content,
         )
+    except TelegramApiError as exc:
+        await update.message.reply_text(
+            f"Telegram recusou sendRichMessage: {exc.description}"
+        )
     except TelegraphException as exc:
         await update.message.reply_text(f"Telegraph recusou o HTML: {exc}")
     except Exception as exc:
@@ -678,6 +686,12 @@ async def api_send_chat(request: web.Request):
             content=content,
         )
         return web.json_response({"ok": True})
+    except TelegramApiError as exc:
+        log.error("api_send_chat recusou: %s", exc.description)
+        return web.json_response(
+            {"ok": False, "error": f"Telegram recusou sendRichMessage: {exc.description}"},
+            status=502,
+        )
     except Exception as exc:
         log.exception("api_send_chat")
         return web.json_response({"ok": False, "error": str(exc)}, status=500)

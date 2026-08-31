@@ -51,6 +51,8 @@
     .pane code { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 0.86em; background: var(--surface); padding: 0 4px; }
     .pane pre { background: var(--surface); padding: 12px; overflow: auto; }
     .pane blockquote { margin: 0.7em 0; padding-left: 12px; border-left: 2px solid var(--fg); color: var(--muted); }
+    .pane details { margin: 0.7em 0; }
+    .pane summary { cursor: pointer; font-weight: 500; }
     .spoiler { background: var(--fg); color: var(--fg); cursor: pointer; padding: 0 2px; }
     .spoiler.revealed { background: var(--surface); color: inherit; }
     footer { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom); }
@@ -97,7 +99,7 @@
       <ul>
         <li><code>abrir</code> — carrega .md e mostra o tgrich.</li>
         <li><code>mdrich</code> — envia o .md otimizado para o teu chat.</li>
-        <li><code>chat</code> — envia rich text + .md para o teu chat.</li>
+        <li><code>chat</code> — envia o Markdown como rich text no chat.</li>
         <li><code>telegraph</code> — publica a página (no Mini App).</li>
       </ul>
     </div>
@@ -126,7 +128,6 @@
   var view = "edit";
   var toastTimer = null;
   var busy = false;
-  var AMP = String.fromCharCode(38);
 
   function applyTheme() {
     var scheme = (tg && tg.colorScheme) || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
@@ -222,87 +223,37 @@
     save();
   }
 
-  function esc(s) {
-    return String(s)
-      .replace(/&/g, AMP + "amp;")
-      .replace(/</g, AMP + "lt;")
-      .replace(/>/g, AMP + "gt;")
-      .replace(/"/g, AMP + "quot;");
-  }
-  function inlineTg(s, images) {
-    var codes = [];
-    s = s.replace(/`([^`]+)`/g, function (_, c) {
-      codes.push(esc(c));
-      return "CODESPAN" + (codes.length - 1) + "XYZ";
-    });
-    s = esc(s);
-    s = s.replace(/!\[([^\]]*)\]\((https?:\/\/[^)]+)\)/g, function (_, alt, url) {
-      images.push(url);
-      return "<a href=\"" + url + "\">" + (alt || "imagem") + "</a>";
-    });
-    s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, "<a href=\"$2\">$1</a>");
-    s = s.replace(/\|\|(.+?)\|\|/g, "<span class=\"spoiler\">$1</span>");
-    s = s.replace(/__(.+?)__/g, "<u>$1</u>");
-    s = s.replace(/\*\*(.+?)\*\*/g, "<b>$1</b>");
-    s = s.replace(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, "<i>$1</i>");
-    s = s.replace(/(?<!_)_(?!_)(.+?)(?<!_)_(?!_)/g, "<i>$1</i>");
-    s = s.replace(/~~(.+?)~~/g, "<s>$1</s>");
-    codes.forEach(function (c, i) {
-      s = s.replace("CODESPAN" + i + "XYZ", "<code>" + c + "</code>");
-    });
-    return s;
-  }
-  function toTgrich(src) {
-    var lines = src.replace(/\r\n/g, "\n").split("\n");
-    var parts = [];
-    var images = [];
+  function markdownForRichApi(src) {
+    var lines = String(src || "").replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
+    var out = [];
     var i = 0;
     while (i < lines.length) {
       var stripped = lines[i].trim();
-      if (stripped.indexOf("```") === 0) {
-        i += 1;
-        var block = [];
-        while (i < lines.length && lines[i].trim().indexOf("```") !== 0) {
-          block.push(esc(lines[i]));
-          i += 1;
-        }
-        i += 1;
-        parts.push("<pre>" + block.join("\n") + "</pre>");
-        continue;
-      }
-      var hm = stripped.match(/^(#{1,6})\s+(.*)$/);
-      if (hm) {
-        var h = inlineTg(hm[2], images);
-        var n = hm[1].length;
-        var h1 = h.replace(/(<[^>]+>)|([^<]+)/g, function (_, tag, text) {
-          return tag || (text ? text.toUpperCase() : "");
-        });
-        parts.push(n === 1 ? "<b>━━━ " + h1 + " ━━━</b>" : n === 2 ? "<b>▶ " + h + "</b>" : "<b>◆ " + h + "</b>");
-        i += 1;
-        continue;
-      }
-      if (/^[-*+]\s+/.test(stripped)) {
-        parts.push("• " + inlineTg(stripped.replace(/^[-*+]\s+/, ""), images));
-        i += 1;
-        continue;
-      }
-      if (/^>\s?/.test(stripped) || stripped.indexOf("**>") === 0) {
+      var expandable = /^\*\*>\s?/.test(stripped) || (stripped.charAt(0) === ">" && stripped.slice(-2) === "||");
+      if (expandable) {
         var quote = [];
-        while (i < lines.length && (lines[i].trim().indexOf(">") === 0 || lines[i].trim().indexOf("**>") === 0)) {
-          var lq = lines[i].trim();
-          if (lq.indexOf("**>") === 0) lq = lq.slice(3).replace(/^ /, "");
-          else lq = lq.replace(/^>\s?/, "");
-          quote.push(lq);
+        while (i < lines.length) {
+          var s = lines[i].trim();
+          var exp = s.match(/^\*\*>\s?(.*)$/);
+          if (!(exp || s.charAt(0) === ">")) break;
+          var piece = exp ? exp[1] : s.replace(/^>\s?/, "");
+          if (piece.slice(-2) === "||") piece = piece.slice(0, -2).replace(/\s+$/, "");
+          quote.push(piece);
           i += 1;
         }
-        parts.push("<blockquote>" + quote.map(function (q) { return inlineTg(q, images); }).join("\n") + "</blockquote>");
+        var body = quote.join("\n").replace(/^\s+|\s+$/g, "");
+        out.push("<details>\n" + body + "\n</details>");
         continue;
       }
-      if (!stripped) parts.push("");
-      else parts.push(inlineTg(lines[i], images));
+      out.push(lines[i]);
       i += 1;
     }
-    return parts.join("\n");
+    return out.join("\n");
+  }
+  function renderGfm(src) {
+    var md = markdownForRichApi(src).replace(/\|\|(.*?)\|\|/g, "<span class=\"spoiler\">$1</span>");
+    if (!String(src || "").trim()) return "";
+    return window.marked ? marked.parse(md) : md;
   }
   function optimize(src) {
     var t = src.replace(/\r\n/g, "\n").replace(/^\ufeff/, "");
@@ -330,7 +281,7 @@
     }
     if (v === "tgrich") {
       tgrich.innerHTML = editor.value.trim()
-        ? toTgrich(editor.value)
+        ? renderGfm(editor.value)
         : "<p style=\"color:var(--muted)\">Abra um .md ou escreva Markdown.</p>";
     }
   }
@@ -450,8 +401,7 @@
       if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred("success");
       showToast("Enviado ao chat");
     } catch (err) {
-      var html = toTgrich(editor.value);
-      if (await copyText(html)) showToast("Rich text copiado");
+      if (await copyText(optimize(editor.value))) showToast("Markdown copiado");
       else showToast("Não foi possível enviar");
     }
     busy = false;
