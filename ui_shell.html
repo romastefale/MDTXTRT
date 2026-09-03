@@ -26,8 +26,8 @@
 <main><textarea id="editor" class="editor" spellcheck="true" placeholder="Escreva Markdown ou cole um documento…"></textarea><div id="preview" class="preview"></div></main>
 <footer><button id="btnMd">exportar .md</button><button id="btnPub">Telegraph</button><button id="btnChat" class="primary">enviar ao chat</button></footer>
 <div id="popover" class="popover" aria-hidden="true"><div class="popover-head"><strong id="popoverTitle"></strong><button id="popoverClose" class="icon">×</button></div><div id="popoverBody"></div></div>
-<div id="optionsBackdrop" class="sheetback" aria-hidden="true"><section class="sheet"><div class="sheethead"><strong>Documento</strong><button data-close-sheet class="icon">×</button></div><div class="sheetbody"><div class="form"><label>Título<input id="inpTitle" type="text" placeholder="Opcional"></label><button id="btnOpen" type="button">Abrir Markdown</button></div></div></section></div>
-<input id="file" type="file" accept=".md,.markdown,.mdown,.txt,text/markdown,text/plain" hidden><input id="mediaFile" type="file" hidden>
+<div id="optionsBackdrop" class="sheetback" aria-hidden="true"><section class="sheet"><div class="sheethead"><strong>Documento</strong><button data-close-sheet class="icon">×</button></div><div class="sheetbody"><div class="form"><button id="btnOpen" type="button">Abrir Markdown</button></div></div></section></div>
+<input id="inpTitle" type="hidden" value=""><input id="file" type="file" accept=".md,.markdown,.mdown,.txt,text/markdown,text/plain" hidden><input id="mediaFile" type="file" hidden>
 <script>
 /*__JS__*/
 </script>

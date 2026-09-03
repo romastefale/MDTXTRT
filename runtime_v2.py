@@ -9,8 +9,10 @@ from collections import defaultdict, deque
 from pathlib import Path
 
 from aiohttp import web
+from aiogram.exceptions import TelegramAPIError
 from aiogram.types import (
     BufferedInputFile,
+    InlineQueryResultArticle,
     InputMediaAnimation,
     InputMediaAudio,
     InputMediaDocument,
@@ -18,6 +20,7 @@ from aiogram.types import (
     InputMediaVideo,
     InputRichMessage,
     InputRichMessageMedia,
+    InputTextMessageContent,
 )
 from telegraph import Telegraph
 from telegraph.exceptions import TelegraphException
@@ -124,6 +127,56 @@ async def api_publish(request: web.Request):
         return web.json_response({"ok": False, "error": str(exc)}, status=502)
     except Exception as exc:
         _BASE.log.exception("api_publish")
+        return web.json_response({"ok": False, "error": str(exc)}, status=500)
+
+
+async def api_share_telegraph(request: web.Request):
+    """Prepara a mensagem que o cliente Telegram compartilhará pela UI nativa."""
+    try:
+        data = await request.json()
+    except Exception:
+        return web.json_response({"ok": False, "error": "JSON inválido"}, status=400)
+
+    raw = _BASE.init_data_from_request(data, request)
+    user = _BASE.validate_init_data(raw)
+    if not user or not user.get("id"):
+        return _BASE.session_error(raw)
+
+    url = str(data.get("url") or "").strip()
+    if not re.fullmatch(r"https://telegra\.ph/[^\s]+", url):
+        return web.json_response({"ok": False, "error": "URL do Telegraph inválida"}, status=400)
+    title = str(data.get("title") or "Publicação no Telegraph").strip()[:256] or "Publicação no Telegraph"
+
+    bot_runtime = request.app.get("bot")
+    if not bot_runtime:
+        return web.json_response({"ok": False, "error": "Bot não inicializado."}, status=503)
+
+    result = InlineQueryResultArticle(
+        id="telegraph-share",
+        title=title,
+        description="Compartilhar publicação do Telegraph",
+        input_message_content=InputTextMessageContent(
+            message_text=f"Acabei de publicar este artigo no Telegraph\n{url}"
+        ),
+    )
+    try:
+        prepared = await bot_runtime.bot.save_prepared_inline_message(
+            user_id=int(user["id"]),
+            result=result,
+            allow_user_chats=True,
+            allow_bot_chats=True,
+            allow_group_chats=True,
+            allow_channel_chats=True,
+        )
+        return web.json_response({"ok": True, "prepared_message_id": prepared.id})
+    except TelegramAPIError:
+        _BASE.log.exception("api_share_telegraph telegram")
+        return web.json_response(
+            {"ok": False, "error": "Não foi possível preparar o compartilhamento no Telegram."},
+            status=502,
+        )
+    except Exception as exc:
+        _BASE.log.exception("api_share_telegraph")
         return web.json_response({"ok": False, "error": str(exc)}, status=500)
 
 
