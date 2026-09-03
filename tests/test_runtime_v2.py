@@ -119,16 +119,74 @@ class RuntimeV2Tests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn('# Título"', index)
         self.assertNotIn('==texto marcado==', index)
 
+
+    async def test_installed_health_delegates_to_original_once(self):
+        original_health = main.health
+        original_surfaces = {
+            "build_rich_message": main.build_rich_message,
+            "publish_page": main.publish_page,
+            "publish_page_async": main.publish_page_async,
+            "api_publish": main.api_publish,
+            "api_media": main.api_media,
+            "serve_index": main.serve_index,
+            "health": main.health,
+            "max_photo_bytes": main.MAX_PHOTO_BYTES,
+        }
+        runtime_v2._ORIGINAL_HEALTH = None
+        try:
+            runtime_v2.install(main)
+            self.assertIs(runtime_v2._ORIGINAL_HEALTH, original_health)
+            response = await runtime_v2.health(None)
+            payload = json.loads(response.text)
+            self.assertTrue(payload["ok"])
+            self.assertEqual(payload["document_model"], "canonical")
+            self.assertEqual(payload["telegram_rich"], "10.3")
+            self.assertEqual(payload["media_model"], "typed")
+        finally:
+            main.build_rich_message = original_surfaces["build_rich_message"]
+            main.publish_page = original_surfaces["publish_page"]
+            main.publish_page_async = original_surfaces["publish_page_async"]
+            main.api_publish = original_surfaces["api_publish"]
+            main.api_media = original_surfaces["api_media"]
+            main.serve_index = original_surfaces["serve_index"]
+            main.health = original_surfaces["health"]
+            main.MAX_PHOTO_BYTES = original_surfaces["max_photo_bytes"]
+            runtime_v2._ORIGINAL_HEALTH = None
+
     def test_install_replaces_only_semantic_runtime_surfaces(self):
         original_start = main.start
         original_dispatcher = main.build_dispatcher
-        runtime_v2.install(main)
-        self.assertIs(main.start, original_start)
-        self.assertIs(main.build_dispatcher, original_dispatcher)
-        self.assertIs(main.build_rich_message, runtime_v2.build_rich_message)
-        self.assertIs(main.api_publish, runtime_v2.api_publish)
-        self.assertIs(main.api_media, runtime_v2.api_media)
-        self.assertIs(main.serve_index, runtime_v2.serve_index)
+        original_surfaces = {
+            "build_rich_message": main.build_rich_message,
+            "publish_page": main.publish_page,
+            "publish_page_async": main.publish_page_async,
+            "api_publish": main.api_publish,
+            "api_media": main.api_media,
+            "serve_index": main.serve_index,
+            "health": main.health,
+            "max_photo_bytes": main.MAX_PHOTO_BYTES,
+        }
+        runtime_v2._ORIGINAL_HEALTH = None
+        try:
+            runtime_v2.install(main)
+            self.assertIs(main.start, original_start)
+            self.assertIs(main.build_dispatcher, original_dispatcher)
+            self.assertIs(main.build_rich_message, runtime_v2.build_rich_message)
+            self.assertIs(main.api_publish, runtime_v2.api_publish)
+            self.assertIs(main.api_media, runtime_v2.api_media)
+            self.assertIs(main.serve_index, runtime_v2.serve_index)
+            self.assertIs(main.health, runtime_v2.health)
+            self.assertIsNot(runtime_v2._ORIGINAL_HEALTH, runtime_v2.health)
+        finally:
+            main.build_rich_message = original_surfaces["build_rich_message"]
+            main.publish_page = original_surfaces["publish_page"]
+            main.publish_page_async = original_surfaces["publish_page_async"]
+            main.api_publish = original_surfaces["api_publish"]
+            main.api_media = original_surfaces["api_media"]
+            main.serve_index = original_surfaces["serve_index"]
+            main.health = original_surfaces["health"]
+            main.MAX_PHOTO_BYTES = original_surfaces["max_photo_bytes"]
+            runtime_v2._ORIGINAL_HEALTH = None
 
 
 if __name__ == "__main__":
