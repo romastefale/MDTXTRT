@@ -9,7 +9,7 @@ O bot usa aiogram 3.31.0, com suporte nativo ao Telegram Bot API 10.3.
 | Comando | Função |
 |---|---|
 | `/start` | Abre o Mini App e resume as funções |
-| `/helo` | Lista os comandos e explica chat vs Mini App (`/help` é alias) |
+| `/help` | Lista os comandos e explica chat vs Mini App |
 | `/tgrich` | Markdown → rich text do Telegram. Responda a um arquivo `.md`, ou envie o comando seguido do texto. Anexos e encaminhamentos `.md` disparam isto automaticamente |
 | `/mdrich` | Responda a uma mensagem para exportar `.md` compatível e otimizado |
 
@@ -32,18 +32,13 @@ Start command: `python main.py`
 |---|---|---|
 | `TELEGRAM_TOKEN` | sim | token do BotFather |
 | `WEB_APP_URL` | recomendada | URL pública HTTPS, hoje `https://mdmtrt.up.railway.app` |
-| `TELEGRAPH_ACCESS_TOKEN` | recomendada | persiste a conta Telegraph entre deploys |
-| `TELEGRAPH_AUTHOR` | não | autor das páginas (padrão `MDTXTRT`) |
 | `PORT` | automática | Railway preenche |
 
-Os comandos `/start` `/helo` `/tgrich` `/mdrich` são registados no menu do bot no arranque. O botão de menu Mini App também é definido no arranque se `WEB_APP_URL` existir.
+Os comandos `/start` `/help` `/tgrich` `/mdrich` são registados no menu do bot no arranque. O botão de menu Mini App também é definido no arranque se `WEB_APP_URL` existir.
 
-### Telegraph persistente
+### Telegraph anônimo por publicação
 
-1. Publique uma página uma vez pelo Mini App (o bot cria a conta).
-2. Abra os logs do Railway e procure a linha `TELEGRAPH_ACCESS_TOKEN com este valor:`.
-3. Variables → New variable → nome `TELEGRAPH_ACCESS_TOKEN`, valor copiado → Save.
-4. Redeploy.
+Cada publicação cria uma conta Telegraph anônima nova, publica uma única página e descarta o cliente e o token em seguida. Nenhuma variável de conta ou autor é usada.
 
 ### BotFather
 

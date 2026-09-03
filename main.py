@@ -1,4 +1,4 @@
-"""Servidor aiohttp e Bot Telegram. Comandos: /start /helo /tgrich /mdrich."""
+"""Servidor aiohttp e Bot Telegram. Comandos: /start /help /tgrich /mdrich."""
 
 import asyncio
 import hashlib
@@ -42,7 +42,7 @@ from telegraph.exceptions import TelegraphException
 
 TOKEN_RE = re.compile(r"bot\d+:[A-Za-z0-9_-]+")
 SECRET_RE = re.compile(
-    r"(TELEGRAM_TOKEN|BOT_TOKEN|TELEGRAPH_ACCESS_TOKEN|access_token)=([^\s]+)"
+    r"(TELEGRAM_TOKEN|BOT_TOKEN|access_token)=([^\s]+)"
 )
 MD_EXTS = {".md", ".markdown", ".mdown", ".txt"}
 MD_MIMES = {"text/markdown", "text/x-markdown", "text/plain"}
@@ -111,10 +111,7 @@ def _clean_token(raw: str) -> str:
 TOKEN = _clean_token(os.environ.get("TELEGRAM_TOKEN", ""))
 WEB_APP_URL = os.environ.get("WEB_APP_URL", "https://mdmtrt.up.railway.app").strip()
 PORT = int(os.environ.get("PORT", "8080"))
-TELEGRAPH_TOKEN = os.environ.get("TELEGRAPH_ACCESS_TOKEN", "").strip()
-AUTHOR_NAME = os.environ.get("TELEGRAPH_AUTHOR", "MDTXTRT")
 INDEX_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "index.html")
-_telegraph: Optional[Telegraph] = None
 INIT_MAX_AGE = 48 * 3600
 STASH: dict[str, dict] = {}
 MEDIA: dict[str, dict] = {}
@@ -246,25 +243,6 @@ def public_web_app_url(request: Optional[web.Request] = None) -> str:
     return ""
 
 
-def get_telegraph() -> Telegraph:
-    global _telegraph
-    if _telegraph is None:
-        client = Telegraph(access_token=TELEGRAPH_TOKEN or None)
-        if not TELEGRAPH_TOKEN:
-            acc = client.create_account(short_name="MDTXTRT", author_name=AUTHOR_NAME)
-            token = acc.get("access_token", "")
-            if token:
-                client = Telegraph(access_token=token)
-                log.warning(
-                    "Telegraph sem token persistente. Cole no Railway a variável "
-                    "TELEGRAPH_ACCESS_TOKEN com este valor: %s",
-                    token,
-                )
-        _telegraph = client
-    return _telegraph
-
-
-
 from convert import (
     entities_to_markdown,
     extract_rich_media,
@@ -356,9 +334,11 @@ def publish_page(title: str, content_md: str, path_hint: str = "") -> dict:
     body = markdown_to_telegraph_html(content_md)
     if hint and hint != title:
         body = f"<p><strong>{html.escape(title)}</strong></p>" + body
-    page = get_telegraph().create_page(
-        title=api_title, html_content=body, author_name=AUTHOR_NAME
-    )
+    # Cada publicação usa uma conta anônima nova. O cliente e o token ficam
+    # restritos a esta chamada e são descartados assim que a página é criada.
+    telegraph = Telegraph()
+    telegraph.create_account(short_name="MDTXTRT")
+    page = telegraph.create_page(title=api_title, html_content=body)
     return {"url": page.get("url"), "path": page.get("path"), "title": api_title}
 
 
@@ -516,7 +496,7 @@ async def start(message: Message, bot: Bot, command: CommandObject):
         "• Arquivo .md anexado ou encaminhado — vira mensagem formatada (tgrich)\n"
         "• /tgrich — a mesma conversão, respondendo a um arquivo compatível\n"
         "• /mdrich — responde a uma mensagem e exporta .md otimizado\n"
-        "• /helo — comandos e a diferença entre chat e Mini App"
+        "• /help — comandos e a diferença entre chat e Mini App"
     )
     await reply_text(
         message,
@@ -525,11 +505,11 @@ async def start(message: Message, bot: Bot, command: CommandObject):
     )
 
 
-HELO_TEXT = (
+HELP_TEXT = (
     "<b>MDTXTRT</b> — Markdown e Telegram\n\n"
     "<b>Comandos</b>\n"
     "/start — abre o Mini App e resume as funções\n"
-    "/helo — este texto\n"
+    "/help — este texto\n"
     "/tgrich — Markdown para rich text do Telegram\n"
     "    responda a um .md (anexo ou encaminhado)\n"
     "    ou envie /tgrich seguido do texto\n"
@@ -544,11 +524,11 @@ HELO_TEXT = (
 )
 
 
-async def helo_cmd(message: Message, bot: Bot):
+async def help_cmd(message: Message, bot: Bot):
     await reply_text(
         message,
         bot,
-        HELO_TEXT, reply_markup=mini_app_markup(), parse_mode=ParseMode.HTML
+        HELP_TEXT, reply_markup=mini_app_markup(), parse_mode=ParseMode.HTML
     )
 
 
@@ -662,7 +642,7 @@ async def handle_document(message: Message, bot: Bot):
     if not message.document:
         return
     cmd = _caption_command(message)
-    if cmd in {"/start", "/helo", "/help"}:
+    if cmd in {"/start", "/help"}:
         return
     if cmd == "/mdrich":
         await mdrich(message, bot)
@@ -726,7 +706,7 @@ async def health(_request: web.Request):
             "app": "mdtxtrt",
             "bot": bool(TOKEN),
             "web_app_url": public_web_app_url() or None,
-            "telegraph_token": bool(TELEGRAPH_TOKEN),
+            "telegraph_mode": "anonymous_per_publication",
         }
     )
 
@@ -929,7 +909,7 @@ def _polling_finished(task: asyncio.Task) -> None:
 def build_dispatcher() -> Dispatcher:
     dispatcher = Dispatcher()
     dispatcher.message.register(start, Command("start"))
-    dispatcher.message.register(helo_cmd, Command("helo", "help"))
+    dispatcher.message.register(help_cmd, Command("help"))
     dispatcher.message.register(tgrich, Command("tgrich"))
     dispatcher.message.register(mdrich, Command("mdrich"))
     dispatcher.message.register(handle_webapp_data, F.web_app_data)
@@ -954,7 +934,7 @@ async def on_startup(app: web.Application):
         await bot.set_my_commands(
             [
                 BotCommand("start", "Abre o Mini App e resume as funções"),
-                BotCommand("helo", "Comandos e chat vs Mini App"),
+                BotCommand("help", "Comandos e chat vs Mini App"),
                 BotCommand("tgrich", "Markdown para rich text do Telegram"),
                 BotCommand("mdrich", "Exporta a mensagem respondida em .md"),
             ]

@@ -71,7 +71,7 @@
       <button type="button" data-view="edit" class="on">editar</button>
       <button type="button" data-view="preview">pré-ver</button>
       <button type="button" data-view="tgrich">tgrich</button>
-      <button type="button" data-view="helo">helo</button>
+      <button type="button" data-view="help">help</button>
     </nav>
   </header>
   <div class="meta" id="meta">
@@ -83,12 +83,12 @@
     <textarea id="editor" placeholder="# Título&#10;&#10;Escreva em **Markdown**."></textarea>
     <div id="preview" class="pane"></div>
     <div id="tgrich" class="pane"></div>
-    <div id="helo" class="pane help">
+    <div id="help" class="pane help">
       <p>MDTXTRT converte Markdown em rich text do Telegram e exporta mensagens em .md otimizado.</p>
       <h2>Comandos</h2>
       <ul>
         <li><code>/start</code> — abre o Mini App e resume o que o bot faz.</li>
-        <li><code>/helo</code> — este texto: comandos e a diferença entre chat e Mini App.</li>
+        <li><code>/help</code> — este texto: comandos e a diferença entre chat e Mini App.</li>
         <li><code>/tgrich</code> — converte Markdown em rich text do Telegram. Responda a um arquivo .md compatível, ou envie o comando seguido do texto. Anexos e encaminhamentos .md disparam isto sozinhos.</li>
         <li><code>/mdrich</code> — responda a uma mensagem para exportar .md compatível e otimizado.</li>
       </ul>
@@ -121,7 +121,7 @@
   var editor = document.getElementById("editor");
   var preview = document.getElementById("preview");
   var tgrich = document.getElementById("tgrich");
-  var helo = document.getElementById("helo");
+  var helpPane = document.getElementById("help");
   var meta = document.getElementById("meta");
   var tools = document.getElementById("tools");
   var inpTitle = document.getElementById("inpTitle");
@@ -295,8 +295,8 @@
     editor.classList.toggle("on", v === "edit");
     preview.classList.toggle("on", v === "preview");
     tgrich.classList.toggle("on", v === "tgrich");
-    helo.classList.toggle("on", v === "helo");
-    meta.style.display = v === "helo" ? "none" : "";
+    helpPane.classList.toggle("on", v === "help");
+    meta.style.display = v === "help" ? "none" : "";
     tools.style.display = v === "edit" ? "" : "none";
     if (v === "preview") {
       preview.innerHTML = editor.value.trim()

@@ -1,5 +1,6 @@
 import unittest
 from datetime import datetime, timezone
+from unittest.mock import patch
 
 from aiogram.exceptions import TelegramNetworkError
 from aiogram.methods import DeleteWebhook
@@ -43,6 +44,33 @@ def make_message(chat_type: str) -> Message:
 
 
 class MigrationTests(unittest.IsolatedAsyncioTestCase):
+    def test_each_telegraph_publication_uses_a_fresh_anonymous_account(self):
+        clients = []
+
+        class FakeTelegraph:
+            def __init__(self):
+                self.account_calls = []
+                self.page_calls = []
+                clients.append(self)
+
+            def create_account(self, **kwargs):
+                self.account_calls.append(kwargs)
+                return {"access_token": "discarded"}
+
+            def create_page(self, **kwargs):
+                self.page_calls.append(kwargs)
+                return {"url": "https://telegra.ph/page", "path": "page"}
+
+        with patch.object(main, "Telegraph", FakeTelegraph):
+            main.publish_page("Primeira", "texto")
+            main.publish_page("Segunda", "texto")
+
+        self.assertEqual(len(clients), 2)
+        self.assertIsNot(clients[0], clients[1])
+        for client in clients:
+            self.assertEqual(client.account_calls, [{"short_name": "MDTXTRT"}])
+            self.assertNotIn("author_name", client.page_calls[0])
+
     def test_polling_preserves_sequential_and_legacy_update_selection(self):
         self.assertIs(main.POLLING_OPTIONS["handle_as_tasks"], False)
         self.assertIsNone(main.POLLING_OPTIONS["allowed_updates"])

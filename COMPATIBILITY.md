@@ -14,7 +14,8 @@ Atualização executada a partir do projeto original, sem usar a migração ante
 
 ## Contratos preservados
 
-- Mesmos comandos, aliases, handlers de documento e Web App.
+- Mesmos handlers de documento e Web App; o comando de ajuda canônico é `/help`.
+- Cada publicação Telegraph usa uma conta anônima nova e descarta o token após criar a página.
 - Mesmos limites de documento e foto, rotas HTTP, variáveis de ambiente e comando de início.
 - Processamento de updates sequencial (`handle_as_tasks=False`).
 - `allowed_updates=None`, como no polling anterior, sem inferência baseada apenas nos handlers.
