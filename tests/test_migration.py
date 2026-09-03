@@ -1,5 +1,11 @@
+import hashlib
+import hmac
+import json
+import os
+import time
 import unittest
 from datetime import datetime, timezone
+from urllib.parse import urlencode
 from unittest.mock import patch
 
 from aiogram.exceptions import TelegramNetworkError
@@ -43,6 +49,27 @@ def make_message(chat_type: str) -> Message:
     )
 
 
+def signed_init_data(token: str, auth_date: int | None = None) -> str:
+    fields = {
+        "auth_date": str(auth_date or int(time.time())),
+        "query_id": "AAE-regression",
+        "signature": "third-party-signature-is-part-of-the-data-check-string",
+        "user": json.dumps(
+            {"id": 42, "first_name": "Teste"},
+            separators=(",", ":"),
+            ensure_ascii=False,
+        ),
+    }
+    data_check_string = "\n".join(f"{key}={fields[key]}" for key in sorted(fields))
+    secret_key = hmac.new(
+        b"WebAppData", token.encode("utf-8"), hashlib.sha256
+    ).digest()
+    fields["hash"] = hmac.new(
+        secret_key, data_check_string.encode("utf-8"), hashlib.sha256
+    ).hexdigest()
+    return urlencode(fields)
+
+
 class MigrationTests(unittest.IsolatedAsyncioTestCase):
     def test_each_telegraph_publication_uses_a_fresh_anonymous_account(self):
         clients = []
@@ -78,6 +105,35 @@ class MigrationTests(unittest.IsolatedAsyncioTestCase):
             ["start", "help", "tgrich", "mdrich"],
         )
         self.assertTrue(all(item.description for item in commands))
+
+    def test_mini_app_markup_uses_aiogram_keyword_only_models(self):
+        with patch.object(main, "WEB_APP_URL", "https://example.com"):
+            markup = main.mini_app_markup()
+        button = markup.inline_keyboard[0][0]
+        self.assertEqual(button.text, "Abrir Mini App")
+        self.assertEqual(button.web_app.url, "https://example.com")
+
+    def test_webapp_signature_field_is_included_in_native_validation(self):
+        token = "123456:ABCDEF_123456"
+        raw = signed_init_data(token)
+        with patch.object(main, "TOKEN", token):
+            user = main.validate_init_data(raw)
+        self.assertIsNotNone(user)
+        self.assertEqual(user["id"], 42)
+
+    def test_webapp_init_data_expiry_is_preserved(self):
+        token = "123456:ABCDEF_123456"
+        raw = signed_init_data(token, int(time.time()) - main.INIT_MAX_AGE - 5)
+        with patch.object(main, "TOKEN", token):
+            self.assertIsNone(main.validate_init_data(raw))
+
+    def test_web_app_url_falls_back_to_railway_public_domain(self):
+        with patch.object(main, "WEB_APP_URL", ""), patch.dict(
+            os.environ,
+            {"RAILWAY_PUBLIC_DOMAIN": "current.example"},
+            clear=False,
+        ):
+            self.assertEqual(main.public_web_app_url(), "https://current.example")
 
     def test_polling_preserves_sequential_and_legacy_update_selection(self):
         self.assertIs(main.POLLING_OPTIONS["handle_as_tasks"], False)

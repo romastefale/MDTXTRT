@@ -37,6 +37,7 @@ from aiogram.types import (
     ReplyParameters,
     WebAppInfo,
 )
+from aiogram.utils.web_app import safe_parse_webapp_init_data
 from telegraph import Telegraph
 from telegraph.exceptions import TelegraphException
 
@@ -109,7 +110,7 @@ def _clean_token(raw: str) -> str:
 
 
 TOKEN = _clean_token(os.environ.get("TELEGRAM_TOKEN", ""))
-WEB_APP_URL = os.environ.get("WEB_APP_URL", "https://mdmtrt.up.railway.app").strip()
+WEB_APP_URL = os.environ.get("WEB_APP_URL", "").strip()
 PORT = int(os.environ.get("PORT", "8080"))
 INDEX_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "index.html")
 INIT_MAX_AGE = 48 * 3600
@@ -173,29 +174,22 @@ def validate_init_data(init_data: str) -> Optional[dict]:
     if not raw:
         return None
     try:
-        decoded_pairs = parse_qsl(raw, keep_blank_values=True)
-        raw_pairs = [
-            tuple(piece.split("=", 1)) for piece in raw.split("&") if "=" in piece
-        ]
-        fields = _checked_fields(decoded_pairs) or _checked_fields(raw_pairs)
-        if not fields:
-            log.warning("sessão Telegram: assinatura inválida")
-            return None
-        user_obj = _user_from_fields(fields)
-        if not user_obj:
-            log.warning("sessão Telegram: utilizador ausente")
-            return None
-        try:
-            auth_date = int(fields.get("auth_date") or 0)
-        except ValueError:
-            auth_date = 0
-        if auth_date and abs(time.time() - auth_date) > INIT_MAX_AGE:
-            log.warning("sessão Telegram: expirada")
-            return None
-        return user_obj
+        parsed = safe_parse_webapp_init_data(token=TOKEN, init_data=raw)
+    except ValueError:
+        log.warning("sessão Telegram: assinatura inválida")
+        return None
     except Exception:
         log.exception("validate_init_data")
-    return None
+        return None
+    user = parsed.user
+    if not user:
+        log.warning("sessão Telegram: utilizador ausente")
+        return None
+    auth_date = parsed.auth_date
+    if auth_date and abs(time.time() - auth_date.timestamp()) > INIT_MAX_AGE:
+        log.warning("sessão Telegram: expirada")
+        return None
+    return user.model_dump()
 
 
 def init_data_from_request(data: dict, request: web.Request) -> str:
@@ -459,7 +453,14 @@ def mini_app_markup():
     if not app_url:
         return None
     return InlineKeyboardMarkup(
-        [[InlineKeyboardButton("Abrir Mini App", web_app=WebAppInfo(url=app_url))]]
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="Abrir Mini App",
+                    web_app=WebAppInfo(url=app_url),
+                )
+            ]
+        ]
     )
 
 
