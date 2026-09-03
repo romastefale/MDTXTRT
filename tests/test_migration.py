@@ -71,6 +71,14 @@ class MigrationTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(client.account_calls, [{"short_name": "MDTXTRT"}])
             self.assertNotIn("author_name", client.page_calls[0])
 
+    def test_registered_bot_commands_use_aiogram_keyword_models(self):
+        commands = main.bot_commands()
+        self.assertEqual(
+            [item.command for item in commands],
+            ["start", "help", "tgrich", "mdrich"],
+        )
+        self.assertTrue(all(item.description for item in commands))
+
     def test_polling_preserves_sequential_and_legacy_update_selection(self):
         self.assertIs(main.POLLING_OPTIONS["handle_as_tasks"], False)
         self.assertIsNone(main.POLLING_OPTIONS["allowed_updates"])

@@ -917,6 +917,27 @@ def build_dispatcher() -> Dispatcher:
     return dispatcher
 
 
+def bot_commands() -> list[BotCommand]:
+    return [
+        BotCommand(
+            command="start",
+            description="Abre o Mini App e resume as funções",
+        ),
+        BotCommand(
+            command="help",
+            description="Comandos e chat vs Mini App",
+        ),
+        BotCommand(
+            command="tgrich",
+            description="Markdown para rich text do Telegram",
+        ),
+        BotCommand(
+            command="mdrich",
+            description="Exporta a mensagem respondida em .md",
+        ),
+    ]
+
+
 async def on_startup(app: web.Application):
     app["bot_username"] = ""
     if not TOKEN:
@@ -931,14 +952,7 @@ async def on_startup(app: web.Application):
         raise
     app["bot_username"] = me.username or ""
     try:
-        await bot.set_my_commands(
-            [
-                BotCommand("start", "Abre o Mini App e resume as funções"),
-                BotCommand("help", "Comandos e chat vs Mini App"),
-                BotCommand("tgrich", "Markdown para rich text do Telegram"),
-                BotCommand("mdrich", "Exporta a mensagem respondida em .md"),
-            ]
-        )
+        await bot.set_my_commands(bot_commands())
         app_url = public_web_app_url()
         if app_url:
             await bot.set_chat_menu_button(
