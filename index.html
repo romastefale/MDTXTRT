@@ -19,25 +19,20 @@
     * { box-sizing: border-box; }
     html, body { height: var(--app-height, 100dvh); min-height: 100dvh; margin: 0; background: var(--bg); color: var(--fg); font-family: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif; -webkit-font-smoothing: antialiased; overflow: hidden; }
     body { display: flex; flex-direction: column; }
-    header, .meta, .tools, footer { flex-shrink: 0; }
+    header, footer { flex-shrink: 0; }
     button { border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; border-radius: 0; box-shadow: none; }
     button:disabled { opacity: 0.4; cursor: default; }
-    header { border-bottom: 1px solid var(--line); padding: max(0.6rem, env(safe-area-inset-top)) 16px 0; }
+    header { border-bottom: 1px solid var(--line); padding: max(0.45rem, env(safe-area-inset-top)) 12px 0; }
     .brand { display: flex; align-items: center; justify-content: space-between; height: 40px; }
     h1 { font-size: 14px; font-weight: 600; letter-spacing: 0.14em; margin: 0; }
-    .tag { font-size: 12px; color: var(--muted); }
-    nav { display: flex; gap: 4px; margin-bottom: -1px; }
-    nav button { height: 44px; padding: 0 12px; font-size: 14px; color: var(--muted); border-bottom: 2px solid transparent; }
+    .brand-actions { display: flex; align-items: center; gap: 4px; }
+    .tag { font-size: 11px; color: var(--muted); }
+    .icon-button { width: 36px; height: 36px; font-size: 20px; }
+    nav { display: grid; grid-template-columns: 1fr 1fr; margin: 0 -12px -1px; }
+    nav button { height: 40px; padding: 0 12px; font-size: 13px; color: var(--muted); border-bottom: 2px solid transparent; }
     nav button.on { color: var(--fg); border-bottom-color: var(--fg); }
-    .meta { display: flex; flex-direction: column; gap: 4px; padding: 8px 16px; border-bottom: 1px solid var(--line); }
-    .meta input { border: 0; background: transparent; color: var(--fg); outline: none; font: inherit; }
-    .meta input:first-child { height: 36px; font-size: 14px; }
-    .meta input:last-child { height: 32px; font-size: 12px; color: var(--muted); }
-    .tools { display: flex; gap: 2px; overflow-x: auto; padding: 4px 8px; border-bottom: 1px solid var(--line); }
-    .tools button { height: 36px; min-width: 36px; padding: 0 10px; font-size: 12px; font-family: "IBM Plex Mono", ui-monospace, monospace; color: var(--muted); flex-shrink: 0; }
-    .tools button:hover { color: var(--fg); background: var(--surface); }
     main { flex: 1; position: relative; min-height: 0; }
-    textarea, .pane { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; outline: none; resize: none; padding: 12px 16px; background: transparent; color: var(--fg); font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 14px; line-height: 1.55; display: none; overflow: auto; }
+    textarea, .pane { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; outline: none; resize: none; padding: 16px 16px 76px; background: transparent; color: var(--fg); font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 16px; line-height: 1.55; display: none; overflow: auto; }
     textarea.on, .pane.on { display: block; }
     .pane { font-family: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif; white-space: pre-wrap; word-break: break-word; }
     .help { white-space: normal; }
@@ -55,75 +50,99 @@
     .pane summary { cursor: pointer; font-weight: 500; }
     .spoiler { background: var(--fg); color: var(--fg); cursor: pointer; padding: 0 2px; }
     .spoiler.revealed { background: var(--surface); color: inherit; }
-    footer { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom); }
-    footer button { height: 48px; font-size: 12px; }
+    .preview-note { margin: -4px 0 16px; padding: 8px 10px; border: 1px solid var(--line); color: var(--muted); font-size: 12px; }
+    .selection-tools { position: absolute; z-index: 4; left: 8px; right: 8px; bottom: 8px; display: none; grid-template-columns: repeat(7, 1fr); background: var(--surface); border: 1px solid var(--line); }
+    .selection-tools.on { display: grid; }
+    .selection-tools button { height: 42px; font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 12px; }
+    footer { display: grid; grid-template-columns: 1fr 1.35fr; gap: 1px; border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom); background: var(--line); }
+    footer button { height: 46px; font-size: 13px; background: var(--bg); }
     footer button.solid { background: var(--accent); color: var(--accent-fg); }
     .toast { position: fixed; left: 50%; bottom: 64px; transform: translateX(-50%); background: var(--accent); color: var(--accent-fg); padding: 8px 16px; font-size: 12px; opacity: 0; pointer-events: none; transition: opacity 150ms; }
     .toast.on { opacity: 1; }
     .drop { display: none; position: absolute; inset: 0; align-items: center; justify-content: center; font-size: 14px; background: var(--bg); }
     .drop.on { display: flex; }
+    .sheet-backdrop { position: fixed; z-index: 20; inset: 0; display: none; background: rgba(0,0,0,.42); }
+    .sheet-backdrop.on { display: block; }
+    .sheet { position: absolute; left: 0; right: 0; bottom: 0; max-height: min(78vh, 620px); display: flex; flex-direction: column; background: var(--bg); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom); }
+    .sheet-head { display: flex; align-items: center; justify-content: space-between; min-height: 52px; padding: 0 14px; border-bottom: 1px solid var(--line); }
+    .sheet-head strong { font-size: 14px; }
+    .sheet-body { overflow: auto; padding: 12px; }
+    .sheet h2 { margin: 14px 4px 7px; color: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
+    .sheet h2:first-child { margin-top: 0; }
+    .generator-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+    .generator-grid button { min-height: 44px; padding: 7px 5px; background: var(--surface); font-size: 12px; }
+    .sheet button.solid { background: var(--accent); color: var(--accent-fg); }
+    .settings-grid { display: grid; gap: 8px; }
+    .settings-grid label { color: var(--muted); font-size: 11px; }
+    .settings-grid input { width: 100%; height: 42px; margin-top: 4px; padding: 0 10px; border: 1px solid var(--line); border-radius: 0; outline: none; background: var(--surface); color: var(--fg); font: inherit; }
+    tg-button-row { display: flex; gap: 6px; margin: 8px 0; }
+    tg-button { display: inline-flex; padding: 7px 11px; border: 1px solid var(--line); background: var(--surface); font-size: 13px; }
+    tg-map, tg-document { display: block; margin: 8px 0; padding: 18px; border: 1px solid var(--line); color: var(--muted); }
+    tg-map::before { content: "Mapa do Telegram"; }
+    tg-document::before { content: "Documento do Telegram"; }
+    body.typing header { display: none; }
+    body.typing textarea { padding-top: 12px; }
+    @media (max-height: 520px) {
+      footer button { height: 42px; }
+      .selection-tools button { height: 38px; }
+    }
   </style>
 </head>
 <body>
   <header>
-    <div class="brand"><h1>MDTXTRT</h1><span class="tag">Markdown para Telegram</span></div>
+    <div class="brand"><h1>MDTXTRT</h1><div class="brand-actions"><span class="tag">Rich 10.3</span><button type="button" id="btnOptions" class="icon-button" aria-label="Opções">⋯</button></div></div>
     <nav>
       <button type="button" data-view="edit" class="on">editar</button>
-      <button type="button" data-view="preview">pré-ver</button>
-      <button type="button" data-view="tgrich">tgrich</button>
-      <button type="button" data-view="help">help</button>
+      <button type="button" data-view="preview">prévia Telegram</button>
     </nav>
   </header>
-  <div class="meta" id="meta">
-    <input id="inpTitle" type="text" placeholder="Título do documento">
-    <input id="inpPath" type="text" placeholder="Slug opcional para o Telegraph">
-  </div>
-  <div class="tools" id="tools"></div>
   <main>
     <textarea id="editor" placeholder="# Título&#10;&#10;Escreva em **Markdown**."></textarea>
     <div id="preview" class="pane"></div>
-    <div id="tgrich" class="pane"></div>
-    <div id="help" class="pane help">
-      <p>MDTXTRT converte Markdown em rich text do Telegram e exporta mensagens em .md otimizado.</p>
-      <h2>Comandos</h2>
-      <ul>
-        <li><code>/start</code> — abre o Mini App e resume o que o bot faz.</li>
-        <li><code>/help</code> — este texto: comandos e a diferença entre chat e Mini App.</li>
-        <li><code>/tgrich</code> — converte Markdown em rich text do Telegram. Responda a um arquivo .md compatível, ou envie o comando seguido do texto. Anexos e encaminhamentos .md disparam isto sozinhos.</li>
-        <li><code>/mdrich</code> — responda a uma mensagem para exportar .md compatível e otimizado.</li>
-      </ul>
-      <h2>Chat vs Mini App</h2>
-      <p>Mini App (botão de /start ou menu): redigir, pré-visualizar, formatar, enviar ao chat e publicar no Telegraph. Use quando for escrever.</p>
-      <p>Comandos no chat: use quando o texto já está no Telegram — um arquivo, um encaminhamento ou uma mensagem para converter ou exportar.</p>
-      <h2>Nesta interface</h2>
-      <ul>
-        <li><code>abrir</code> — carrega .md e mostra o tgrich.</li>
-        <li><code>mdrich</code> — envia o .md otimizado para o teu chat.</li>
-        <li><code>chat</code> — envia o Markdown como rich text no chat.</li>
-        <li><code>telegraph</code> — publica a página (no Mini App).</li>
-        <li><code>img</code> — fotografia da galeria. <code>link</code> é só hiperligação.</li>
-      </ul>
-    </div>
+    <div id="selectionTools" class="selection-tools" aria-label="Formatação da seleção"></div>
     <div id="drop" class="drop">Solte o arquivo .md</div>
   </main>
   <footer>
-    <button type="button" id="btnOpen">abrir</button>
-    <button type="button" id="btnMd">mdrich</button>
-    <button type="button" id="btnChat">chat</button>
-    <button type="button" class="solid" id="btnPub">telegraph</button>
+    <button type="button" id="btnInsert">＋ inserir</button>
+    <button type="button" class="solid" id="btnChat">enviar ao chat</button>
   </footer>
   <input id="file" type="file" accept=".md,.markdown,.txt,.mdown,text/markdown,text/plain" hidden>
   <input id="photo" type="file" accept="image/jpeg,image/png,image/webp,image/gif" hidden>
   <div id="toast" class="toast"></div>
+  <div id="insertBackdrop" class="sheet-backdrop" aria-hidden="true">
+    <section class="sheet" role="dialog" aria-modal="true" aria-label="Inserir conteúdo Rich">
+      <div class="sheet-head"><strong>Inserir Rich 10.3</strong><button type="button" data-close-sheet class="icon-button" aria-label="Fechar">×</button></div>
+      <div id="generatorBody" class="sheet-body"></div>
+    </section>
+  </div>
+  <div id="optionsBackdrop" class="sheet-backdrop" aria-hidden="true">
+    <section class="sheet" role="dialog" aria-modal="true" aria-label="Opções do documento">
+      <div class="sheet-head"><strong>Documento</strong><button type="button" data-close-sheet class="icon-button" aria-label="Fechar">×</button></div>
+      <div class="sheet-body">
+        <div class="settings-grid">
+          <label>Título<input id="inpTitle" type="text" placeholder="Título do documento"></label>
+          <label>Slug do Telegraph<input id="inpPath" type="text" placeholder="Opcional"></label>
+        </div>
+        <h2>Ações</h2>
+        <div class="generator-grid">
+          <button type="button" id="btnOpen">Abrir .md</button>
+          <button type="button" id="btnMd">Exportar .md</button>
+          <button type="button" id="btnPub">Telegraph</button>
+        </div>
+        <h2>Comandos no chat</h2>
+        <p class="tag"><code>/tgrich</code> converte Markdown · <code>/mdrich</code> exporta uma mensagem · <code>/help</code> mostra a ajuda.</p>
+      </div>
+    </section>
+  </div>
 <script>
 (function () {
   var tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
   var editor = document.getElementById("editor");
   var preview = document.getElementById("preview");
-  var tgrich = document.getElementById("tgrich");
-  var helpPane = document.getElementById("help");
-  var meta = document.getElementById("meta");
-  var tools = document.getElementById("tools");
+  var selectionTools = document.getElementById("selectionTools");
+  var generatorBody = document.getElementById("generatorBody");
+  var insertBackdrop = document.getElementById("insertBackdrop");
+  var optionsBackdrop = document.getElementById("optionsBackdrop");
   var inpTitle = document.getElementById("inpTitle");
   var inpPath = document.getElementById("inpPath");
   var toastEl = document.getElementById("toast");
@@ -147,14 +166,17 @@
   var lastAppHeight = 0;
   function applyViewport() {
     var h = 0;
+    var top = 0;
     if (window.visualViewport && window.visualViewport.height > 0) {
       h = window.visualViewport.height;
+      top = window.visualViewport.offsetTop || 0;
     }
     if (!(h > 0)) h = window.innerHeight || 0;
     if (!(h > 0) && lastAppHeight > 0) h = lastAppHeight;
     if (h > 0) {
       lastAppHeight = h;
       document.documentElement.style.setProperty("--app-height", h + "px");
+      document.documentElement.style.setProperty("--app-top", top + "px");
     } else {
       document.documentElement.style.removeProperty("--app-height");
     }
@@ -166,6 +188,10 @@
     tg.onEvent("viewportChanged", applyViewport);
   }
   window.addEventListener("resize", applyViewport);
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener("resize", applyViewport);
+    window.visualViewport.addEventListener("scroll", applyViewport);
+  }
   matchMedia("(prefers-color-scheme: dark)").addEventListener("change", function () {
     if (!(tg && tg.colorScheme)) applyTheme();
   });
@@ -201,7 +227,9 @@
     { l: "H3", p: "### ", s: "", line: 1 },
     { l: "hr", p: "---\n", s: "", line: 1 }
   ];
-  TOOLS.forEach(function (t) {
+  TOOLS.filter(function (t) {
+    return ["B", "I", "U", "S", "||", "code", "link"].indexOf(t.l) >= 0;
+  }).forEach(function (t) {
     var b = document.createElement("button");
     b.type = "button";
     b.textContent = t.l;
@@ -213,7 +241,8 @@
         editor.setSelectionRange(at, at);
       }
     });
-    tools.appendChild(b);
+    b.addEventListener("pointerdown", function (e) { e.preventDefault(); });
+    selectionTools.appendChild(b);
   });
   function insert(prefix, suffix, asLine) {
     var start = editor.selectionStart, end = editor.selectionEnd, v = editor.value;
@@ -230,7 +259,246 @@
       editor.setSelectionRange(pos, pos);
     }
     save();
+    updateSelectionTools();
   }
+
+  function insertBlock(content) {
+    var start = editor.selectionStart;
+    var end = editor.selectionEnd;
+    var value = editor.value;
+    var before = start > 0 && value.charAt(start - 1) !== "\n" ? "\n\n" : "";
+    var after = end < value.length && value.charAt(end) !== "\n" ? "\n\n" : "\n";
+    editor.value = value.slice(0, start) + before + content + after + value.slice(end);
+    var position = start + before.length + content.length;
+    editor.focus();
+    editor.setSelectionRange(position, position);
+    save();
+    closeSheets();
+  }
+
+  var GENERATORS = [
+    { title: "Texto", items: [
+      { l: "H1", v: "# Título" }, { l: "H2", v: "## Título" },
+      { l: "H3", v: "### Título" }, { l: "H4", v: "#### Título" },
+      { l: "H5", v: "##### Título" }, { l: "H6", v: "###### Título" },
+      { l: "Marcado", v: "==texto marcado==" },
+      { l: "Subscrito", v: "<sub>texto</sub>" },
+      { l: "Sobrescrito", v: "<sup>texto</sup>" },
+      { l: "Rodapé", v: "<footer>Rodapé</footer>" }
+    ]},
+    { title: "Estrutura", items: [
+      { l: "Lista", v: "- item um\n- item dois" },
+      { l: "Numerada", v: "1. primeiro\n2. segundo" },
+      { l: "Tarefas", v: "- [ ] pendente\n- [x] concluída" },
+      { l: "Divisor", v: "---" },
+      { l: "Citação", v: "> Citação" },
+      { l: "Expansível", v: "<blockquote expandable>\nCitação expansível\n</blockquote>" },
+      { l: "Pull quote", v: "<aside>Citação em destaque<cite>Autor</cite></aside>" },
+      { l: "Detalhes", v: "<details><summary>Título</summary>\nConteúdo recolhível\n</details>" },
+      { l: "Código", v: "```python\nprint(\"Olá\")\n```" }
+    ]},
+    { title: "Conteúdo", items: [
+      { l: "Tabela", v: "| Coluna A | Coluna B |\n|:--|--:|\n| valor | valor |" },
+      { l: "Fórmula", v: "$x^2 + y^2$" },
+      { l: "Fórmula bloco", v: "$$E = mc^2$$" },
+      { l: "Âncora", v: "<a name=\"secao\"></a>" },
+      { l: "Referência", v: "Texto com nota[^nota].\n\n[^nota]: Conteúdo da referência." },
+      { l: "Mapa", action: "map" }
+    ]},
+    { title: "Mídia", items: [
+      { l: "Foto", action: "photo" },
+      { l: "Vídeo URL", action: "media", kind: "vídeo" },
+      { l: "Áudio URL", action: "media", kind: "áudio" },
+      { l: "Documento URL", action: "media", kind: "documento" },
+      { l: "Collage", action: "collection", tag: "tg-collage" },
+      { l: "Slideshow", action: "collection", tag: "tg-slideshow" }
+    ]},
+    { title: "Interação", items: [
+      { l: "Botão URL", action: "urlButton" },
+      { l: "Copiar texto", action: "copyButton" },
+      { l: "Mini App", action: "appButton" }
+    ]}
+  ];
+
+  var GENERATOR_FIELDS = {
+    media: [
+      { key: "url", label: "URL HTTPS", placeholder: "https://..." },
+      { key: "caption", label: "Legenda", placeholder: "Opcional" }
+    ],
+    collection: [
+      { key: "first", label: "Primeira URL HTTPS", placeholder: "https://..." },
+      { key: "second", label: "Segunda URL HTTPS", placeholder: "https://..." }
+    ],
+    map: [
+      { key: "lat", label: "Latitude", placeholder: "-23.5505" },
+      { key: "long", label: "Longitude", placeholder: "-46.6333" }
+    ],
+    urlButton: [
+      { key: "url", label: "URL HTTPS", placeholder: "https://..." },
+      { key: "label", label: "Texto do botão", placeholder: "Abrir" }
+    ],
+    appButton: [
+      { key: "url", label: "URL HTTPS do Mini App", placeholder: "https://..." },
+      { key: "label", label: "Texto do botão", placeholder: "Abrir Mini App" }
+    ],
+    copyButton: [
+      { key: "text", label: "Texto que será copiado", placeholder: "Conteúdo" },
+      { key: "label", label: "Texto do botão", placeholder: "Copiar" }
+    ]
+  };
+
+  function escaped(value) {
+    return String(value || "").replace(/&/g, "&amp;").replace(/"/g, "&quot;")
+      .replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+  function isHttps(value) { return /^https:\/\//i.test(String(value || "").trim()); }
+
+  function generatorValue(item, values) {
+    if (!item.action) return item.v;
+    if (item.action === "media") {
+      if (!isHttps(values.url)) { showToast("A mídia precisa de URL HTTPS"); return ""; }
+      var caption = escaped(values.caption || item.kind);
+      return '![](' + values.url.trim() + ' "' + caption + '")';
+    }
+    if (item.action === "collection") {
+      if (!isHttps(values.first) || !isHttps(values.second)) {
+        showToast("As duas mídias precisam de URL HTTPS");
+        return "";
+      }
+      return "<" + item.tag + ">\n\n![](" + values.first.trim() + ")\n![](" + values.second.trim() + ")\n\n</" + item.tag + ">";
+    }
+    if (item.action === "map") {
+      if (!values.lat || !values.long) { showToast("Preencha latitude e longitude"); return ""; }
+      return '<tg-map lat="' + escaped(values.lat) + '" long="' + escaped(values.long) + '" zoom="14"/>';
+    }
+    if (item.action === "urlButton" || item.action === "appButton") {
+      if (!isHttps(values.url)) { showToast("O botão precisa de URL HTTPS"); return ""; }
+      var type = item.action === "appButton" ? "web_app" : "url";
+      var label = escaped(values.label || (type === "web_app" ? "Abrir Mini App" : "Abrir"));
+      return '<tg-button-row align="center">\n<tg-button type="' + type + '" style="primary" url="' + escaped(values.url.trim()) + '">' + label + '</tg-button>\n</tg-button-row>';
+    }
+    if (item.action === "copyButton") {
+      if (!values.text) { showToast("Informe o texto que será copiado"); return ""; }
+      return '<tg-button-row align="center">\n<tg-button type="copy_text" text="' + escaped(values.text) + '">' + escaped(values.label || "Copiar") + '</tg-button>\n</tg-button-row>';
+    }
+    return "";
+  }
+
+  function renderGeneratorMenu() {
+    generatorBody.innerHTML = "";
+    GENERATORS.forEach(function (group) {
+      var title = document.createElement("h2");
+      title.textContent = group.title;
+      generatorBody.appendChild(title);
+      var grid = document.createElement("div");
+      grid.className = "generator-grid";
+      group.items.forEach(function (item) {
+        var button = document.createElement("button");
+        button.type = "button";
+        button.textContent = item.l;
+        button.addEventListener("click", function () {
+          if (item.action === "photo") {
+            closeSheets();
+            document.getElementById("photo").click();
+          } else if (item.action) {
+            showGeneratorForm(item);
+          } else {
+            insertBlock(item.v);
+          }
+        });
+        grid.appendChild(button);
+      });
+      generatorBody.appendChild(grid);
+    });
+  }
+
+  function showGeneratorForm(item) {
+    var fields = GENERATOR_FIELDS[item.action] || [];
+    generatorBody.innerHTML = "";
+    var back = document.createElement("button");
+    back.type = "button";
+    back.textContent = "← todos os blocos";
+    back.onclick = renderGeneratorMenu;
+    generatorBody.appendChild(back);
+    var heading = document.createElement("h2");
+    heading.textContent = item.l;
+    generatorBody.appendChild(heading);
+    var form = document.createElement("form");
+    form.className = "settings-grid";
+    fields.forEach(function (field) {
+      var label = document.createElement("label");
+      label.textContent = field.label;
+      var input = document.createElement("input");
+      input.name = field.key;
+      input.placeholder = field.placeholder || "";
+      input.autocomplete = "off";
+      label.appendChild(input);
+      form.appendChild(label);
+    });
+    var submit = document.createElement("button");
+    submit.type = "submit";
+    submit.className = "solid";
+    submit.textContent = "Inserir no texto";
+    submit.style.minHeight = "46px";
+    form.appendChild(submit);
+    form.onsubmit = function (event) {
+      event.preventDefault();
+      var values = {};
+      fields.forEach(function (field) {
+        values[field.key] = form.elements[field.key].value.trim();
+      });
+      var value = generatorValue(item, values);
+      if (value) insertBlock(value);
+    };
+    generatorBody.appendChild(form);
+    var first = form.querySelector("input");
+    if (first) first.focus();
+  }
+  renderGeneratorMenu();
+
+  function openSheet(backdrop) {
+    document.activeElement.blur();
+    backdrop.classList.add("on");
+    backdrop.setAttribute("aria-hidden", "false");
+  }
+  function closeSheets() {
+    [insertBackdrop, optionsBackdrop].forEach(function (backdrop) {
+      backdrop.classList.remove("on");
+      backdrop.setAttribute("aria-hidden", "true");
+    });
+  }
+  document.getElementById("btnInsert").onclick = function () {
+    renderGeneratorMenu();
+    openSheet(insertBackdrop);
+  };
+  document.getElementById("btnOptions").onclick = function () { openSheet(optionsBackdrop); };
+  document.querySelectorAll("[data-close-sheet]").forEach(function (button) {
+    button.onclick = closeSheets;
+  });
+  [insertBackdrop, optionsBackdrop].forEach(function (backdrop) {
+    backdrop.addEventListener("click", function (event) {
+      if (event.target === backdrop) closeSheets();
+    });
+  });
+
+  function updateSelectionTools() {
+    var selected = document.activeElement === editor && editor.selectionEnd > editor.selectionStart;
+    selectionTools.classList.toggle("on", selected && view === "edit");
+  }
+  editor.addEventListener("select", updateSelectionTools);
+  editor.addEventListener("keyup", updateSelectionTools);
+  editor.addEventListener("focus", function () {
+    document.body.classList.add("typing");
+    updateSelectionTools();
+  });
+  editor.addEventListener("blur", function () {
+    window.setTimeout(function () {
+      if (document.activeElement !== editor) {
+        document.body.classList.remove("typing");
+        selectionTools.classList.remove("on");
+      }
+    }, 120);
+  });
 
   function markdownForRichApi(src) {
     var lines = String(src || "").replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
@@ -251,7 +519,7 @@
           i += 1;
         }
         var body = quote.join("\n").replace(/^\s+|\s+$/g, "");
-        out.push("<details>\n" + body + "\n</details>");
+        out.push("<blockquote expandable>\n" + body + "\n</blockquote>");
         continue;
       }
       out.push(lines[i]);
@@ -294,20 +562,12 @@
     });
     editor.classList.toggle("on", v === "edit");
     preview.classList.toggle("on", v === "preview");
-    tgrich.classList.toggle("on", v === "tgrich");
-    helpPane.classList.toggle("on", v === "help");
-    meta.style.display = v === "help" ? "none" : "";
-    tools.style.display = v === "edit" ? "" : "none";
     if (v === "preview") {
       preview.innerHTML = editor.value.trim()
-        ? renderGfm(editor.value)
+        ? '<div class="preview-note">Prévia local aproximada. O resultado definitivo é renderizado pelo Telegram ao enviar.</div>' + renderGfm(editor.value)
         : "<p style=\"color:var(--muted)\">Nada para pré-visualizar.</p>";
     }
-    if (v === "tgrich") {
-      tgrich.innerHTML = editor.value.trim()
-        ? renderGfm(editor.value)
-        : "<p style=\"color:var(--muted)\">Abra um .md ou escreva Markdown.</p>";
-    }
+    selectionTools.classList.toggle("on", false);
   }
   setView("edit");
   document.querySelectorAll("nav button").forEach(function (b) {
@@ -333,12 +593,15 @@
       editor.value = optimize(String(reader.result || ""));
       if (!inpTitle.value) inpTitle.value = file.name.replace(/\.[^.]+$/, "");
       save();
-      setView("tgrich");
-      showToast("Arquivo aberto em tgrich");
+      setView("edit");
+      showToast("Arquivo aberto");
     };
     reader.readAsText(file);
   }
-  document.getElementById("btnOpen").onclick = function () { document.getElementById("file").click(); };
+  document.getElementById("btnOpen").onclick = function () {
+    closeSheets();
+    document.getElementById("file").click();
+  };
   document.getElementById("file").onchange = function (e) {
     if (e.target.files[0]) loadFile(e.target.files[0]);
     e.target.value = "";
@@ -385,6 +648,7 @@
   });
 
   document.getElementById("btnMd").onclick = async function () {
+    closeSheets();
     var md = optimize(editor.value);
     if (!md.trim()) { showToast("Documento vazio"); return; }
     if (busy) return;
@@ -454,7 +718,7 @@
     if (!editor.value.trim()) { showToast("Documento vazio"); return; }
     var bad = badPhotoMarks(editor.value);
     if (bad.length) {
-      showToast("Foto com URL inválido. Use o botão img.");
+      showToast("Mídia com URL inválida. Use Inserir.");
       return;
     }
     busy = true;
@@ -471,6 +735,7 @@
 
   document.getElementById("btnChat").onclick = sendChat;
   document.getElementById("btnPub").onclick = async function () {
+    closeSheets();
     if (busy) return;
     if (!editor.value.trim()) { showToast("Documento vazio"); return; }
     if (!telegramInitData()) {
@@ -490,17 +755,10 @@
     }
     busy = false;
   };
-  if (tg && tg.MainButton) {
-    tg.MainButton.setText("ENVIAR AO CHAT");
-    tg.MainButton.onClick(sendChat);
-    if (editor.value.trim()) tg.MainButton.show();
-  }
+  if (tg && tg.MainButton) tg.MainButton.hide();
   editor.addEventListener("input", function () {
     save();
-    if (tg && tg.MainButton) {
-      if (editor.value.trim()) { tg.MainButton.show(); tg.MainButton.enable(); }
-      else tg.MainButton.hide();
-    }
+    updateSelectionTools();
   });
   inpTitle.addEventListener("input", save);
   inpPath.addEventListener("input", save);

@@ -16,8 +16,13 @@ O bot usa aiogram 3.31.0, com suporte nativo ao Telegram Bot API 10.3.
 ## Mini App
 
 - Escrever Markdown com pré-visualização
-- Vista **tgrich**: como a mensagem fica no Telegram
-- Spoilers `||texto||`, títulos, listas, código, imagens, ligações
+- Uma única **prévia Telegram**, identificada como aproximação local
+- Editor mobile que prioriza o texto enquanto o teclado está aberto
+- Formatação contextual para seleção, sem carrossel horizontal permanente
+- Gerador de blocos Rich 10.3 por categorias: H1-H6, listas, citações
+  expansíveis, detalhes, tabelas, fórmulas, referências, mapas, mídia,
+  collages, slideshows e botões
+- Spoilers `||texto||`, títulos, listas, código, imagens e ligações
 - Publicar no Telegraph (`POST /api/publish`)
 - Enviar ao bot (`POST /api/send-chat`)
 - Exportar `.md` (mdrich) e abrir anexos

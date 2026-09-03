@@ -33,6 +33,12 @@ Atualização executada a partir do projeto original, sem usar a migração ante
 - Objetos rich recebidos usam a serialização pública do aiogram; wrappers antigos ou objetos desconhecidos são rejeitados explicitamente.
 - Botões e blocos de botões do Bot API 10.3, listas, checkboxes e expressões matemáticas são preservados na representação Markdown.
 - O nome multipart das fotos é alinhado ao MIME já validado, pois `BufferedInputFile` documenta o nome do arquivo, mas não oferece parâmetro público de MIME.
+- O Mini App expõe a gramática Rich 10.3 por geradores categorizados, incluindo H1-H6,
+  tabelas, fórmulas, referências, mapas, documentos, collages, slideshows e botões.
+- A sintaxe legada `**>` é normalizada para o bloco oficial
+  `<blockquote expandable>`, sem confundi-lo com `<details>`.
+- A prévia duplicada foi removida. A única prévia restante se identifica como local
+  e aproximada, porque o resultado definitivo depende do renderizador do Telegram.
 
 ## Evidência e restrições consideradas
 
