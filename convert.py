@@ -100,12 +100,14 @@ def entities_to_markdown(text: str, entities) -> str:
             prefixes[start].append("![")
             suffixes[end].insert(0, f"](tg://emoji?id={eid})")
         elif etype in ("blockquote", "expandable_blockquote"):
-            marker = "**> " if etype == "expandable_blockquote" else "> "
-            prefixes[start].append(marker)
+            expandable = etype == "expandable_blockquote"
+            prefixes[start].append("**> " if expandable else "> ")
             inner = text[start:end]
             for i, ch in enumerate(inner):
                 if ch == "\n" and start + i + 1 < end:
-                    prefixes[start + i + 1].append(marker)
+                    prefixes[start + i + 1].append("> ")
+            if expandable:
+                suffixes[end].insert(0, "||")
     out: list[str] = []
     for i in range(n + 1):
         out.extend(suffixes[i])
@@ -220,47 +222,29 @@ def markdown_to_telegraph_html(source: str) -> str:
 
 
 RICH_CHAR_LIMIT = 32768
-_EXPANDABLE_LINE = re.compile(r"^\*\*>\s?(.*)$")
+_EXPANDABLE_HTML = re.compile(
+    r"<blockquote\s+expandable\s*>(.*?)</blockquote\s*>",
+    re.IGNORECASE | re.DOTALL,
+)
 _LOCAL_IMG = re.compile(
     r"!\[([^\]]*)\]\(mdtxtrt://media/([A-Za-z0-9_-]+)\)"
 )
 _OTHER_IMG = re.compile(r"!\[([^\]]*)\]\((?!tg://photo\?id=)([^)]*)\)")
 
 
-def markdown_for_rich_api(source: str) -> str:
-    """Pré-passo só do dialecto que o GFM da API não cobre."""
-    text = (source or "").replace("\r\n", "\n").replace("\r", "\n")
-    lines = text.split("\n")
-    out: list[str] = []
-    i = 0
-    n = len(lines)
-    while i < n:
-        stripped = lines[i].strip()
-        expandable = bool(_EXPANDABLE_LINE.match(stripped)) or (
-            stripped.startswith(">") and stripped.endswith("||")
-        )
-        if expandable:
-            quote: list[str] = []
-            while i < n:
-                s = lines[i].strip()
-                m_exp = _EXPANDABLE_LINE.match(s)
-                if not (m_exp or s.startswith(">")):
-                    break
-                piece = m_exp.group(1) if m_exp else s[1:].lstrip(" ")
-                if piece.endswith("||"):
-                    piece = piece[:-2].rstrip()
-                quote.append(piece)
-                i += 1
-            body = "\n".join(quote).strip()
-            out.append(
-                f"<blockquote expandable>\n{body}\n</blockquote>"
-                if body
-                else "<blockquote expandable></blockquote>"
-            )
-            continue
-        out.append(lines[i])
-        i += 1
+def _expandable_html_to_markdown(match: re.Match) -> str:
+    body = (match.group(1) or "").strip("\n")
+    lines = body.split("\n") if body else [""]
+    out = [f"**> {lines[0]}" if lines[0] else "**>"]
+    out.extend(f"> {line}" if line else ">" for line in lines[1:])
+    out[-1] = f"{out[-1]}||"
     return "\n".join(out)
+
+
+def markdown_for_rich_api(source: str) -> str:
+    """Preserva Rich Markdown nativo e normaliza o HTML expansível do editor."""
+    text = (source or "").replace("\r\n", "\n").replace("\r", "\n")
+    return _EXPANDABLE_HTML.sub(_expandable_html_to_markdown, text)
 
 
 def extract_rich_media(markdown: str) -> tuple[str, list[str]]:
@@ -489,11 +473,12 @@ def rich_block_to_md(block) -> str:
         else:
             inner = _text()
         lines = inner.split("\n")
-        if not lines:
+        if not lines or (len(lines) == 1 and not lines[0]):
             return ""
-        first = f"**> {lines[0]}" if not lines[0].startswith("**>") else lines[0]
-        rest = [f"> {ln}" if ln else ">" for ln in lines[1:]]
-        return "\n".join([first] + rest)
+        out = [f"**> {lines[0]}" if lines[0] else "**>"]
+        out.extend(f"> {ln}" if ln else ">" for ln in lines[1:])
+        out[-1] = f"{out[-1]}||"
+        return "\n".join(out)
     if typ == "details":
         summary = rich_text_to_md(block.get("summary") or "")
         inner = "\n".join(rich_block_to_md(b) for b in (block.get("blocks") or []))
