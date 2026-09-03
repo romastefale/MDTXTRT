@@ -5,6 +5,10 @@ from __future__ import annotations
 import html
 import os
 import re
+from enum import Enum
+
+from aiogram.types import TelegramObject
+from aiogram.utils.serialization import deserialize_telegram_object_to_python
 
 MD_EXTS = {".md", ".markdown", ".mdown", ".txt"}
 MD_MIMES = {"text/markdown", "text/x-markdown", "text/plain"}
@@ -300,35 +304,31 @@ def split_markdown_chunks(text: str, limit: int = RICH_CHAR_LIMIT) -> list[str]:
 
 
 def _to_plain(obj):
+    if isinstance(obj, Enum):
+        return obj.value
     if obj is None or isinstance(obj, (str, int, float, bool)):
         return obj
     if isinstance(obj, (list, tuple)):
         return [_to_plain(x) for x in obj]
     if isinstance(obj, dict):
         return {k: _to_plain(v) for k, v in obj.items()}
-    if hasattr(obj, "to_dict"):
-        try:
-            return _to_plain(obj.to_dict())
-        except Exception:
-            pass
-    data = {}
-    for key in dir(obj):
-        if key.startswith("_"):
-            continue
-        if key in {"to_dict", "to_json", "de_json", "de_list", "api_kwargs"}:
-            continue
-        try:
-            val = getattr(obj, key)
-        except Exception:
-            continue
-        if callable(val):
-            continue
-        data[key] = _to_plain(val)
-    kwargs = getattr(obj, "api_kwargs", None)
-    if isinstance(kwargs, dict):
-        for key, val in kwargs.items():
-            data.setdefault(key, _to_plain(val))
-    return data
+    if isinstance(obj, TelegramObject):
+        return _to_plain(
+            deserialize_telegram_object_to_python(
+                obj, include_api_method_name=False
+            )
+        )
+    raise TypeError(f"Objeto rich não suportado: {type(obj).__name__}")
+
+
+def _button_md(button) -> str:
+    button = _to_plain(button) if not isinstance(button, dict) else button
+    label = rich_text_to_md(button.get("text") or "") or "botão"
+    url = button.get("url")
+    web_app = button.get("web_app") or {}
+    login_url = button.get("login_url") or {}
+    target = url or web_app.get("url") or login_url.get("url")
+    return f"[{label}]({target})" if target else label
 
 
 def rich_text_to_md(node) -> str:
@@ -389,6 +389,11 @@ def rich_text_to_md(node) -> str:
         eid = node.get("custom_emoji_id") or ""
         alt = inner_md or node.get("alternative_text") or ""
         return f"![{alt}](tg://emoji?id={eid})" if eid else alt
+    if typ == "mathematical_expression":
+        expression = node.get("expression") or ""
+        return f"${expression}$" if expression else ""
+    if typ == "button":
+        return _button_md(node.get("button") or {})
     if typ == "anchor_link":
         name = node.get("anchor_name") or node.get("name") or ""
         return f"[{inner_md}](#{name})" if name else inner_md
@@ -400,7 +405,7 @@ def _heading_md(text: str, level: int) -> str:
     return f"{'#' * level} {text}".rstrip()
 
 
-def _list_item_md(item, ordered: bool, index: int) -> str:
+def _list_item_md(item, index: int) -> str:
     if isinstance(item, str):
         body = item
     elif isinstance(item, dict):
@@ -410,14 +415,15 @@ def _list_item_md(item, ordered: bool, index: int) -> str:
             )
         else:
             body = rich_text_to_md(item.get("text") or item.get("content") or item)
-        if item.get("task") or "checked" in item or item.get("is_checked") is not None:
-            mark = "x" if item.get("checked") or item.get("is_checked") else " "
+        if item.get("has_checkbox"):
+            mark = "x" if item.get("is_checked") else " "
             prefix = f"- [{mark}] "
             lines = (body or "").split("\n")
             return prefix + lines[0] + (("\n  " + "\n  ".join(lines[1:])) if len(lines) > 1 else "")
     else:
         body = rich_text_to_md(item)
-    prefix = f"{index}. " if ordered else "- "
+    value = item.get("value") if isinstance(item, dict) else None
+    prefix = f"{value}. " if value is not None else "- "
     lines = (body or "").split("\n")
     return prefix + lines[0] + (("\n  " + "\n  ".join(lines[1:])) if len(lines) > 1 else "")
 
@@ -488,13 +494,16 @@ def rich_block_to_md(block) -> str:
         summary = rich_text_to_md(block.get("summary") or "")
         inner = "\n".join(rich_block_to_md(b) for b in (block.get("blocks") or []))
         return f"<details>\n<summary>{summary}</summary>\n{inner}\n</details>"
+    if typ == "buttons":
+        return " | ".join(
+            piece for piece in (_button_md(b) for b in block.get("buttons") or []) if piece
+        )
     if typ == "list":
         src = nested if isinstance(nested, dict) else block
         items = src.get("items") or []
-        ordered = bool(src.get("is_ordered") or src.get("ordered") or src.get("type") == "ordered")
         out = []
         for idx, item in enumerate(items, 1):
-            out.append(_list_item_md(item, ordered, idx))
+            out.append(_list_item_md(item, idx))
         return "\n".join(out)
     if typ == "table":
         src = nested if isinstance(nested, dict) else block
@@ -527,6 +536,22 @@ def rich_block_to_md(block) -> str:
         for row in md_rows[1:]:
             lines.append("| " + " | ".join(row) + " |")
         return "\n".join(lines)
+    if typ in {"collage", "slideshow"}:
+        inner = "\n\n".join(
+            rich_block_to_md(b) for b in block.get("blocks") or []
+        )
+        caption = block.get("caption") or {}
+        caption_md = rich_text_to_md(caption.get("text") or "")
+        return "\n\n".join(piece for piece in (inner, caption_md) if piece)
+    if typ == "map":
+        location = block.get("location") or {}
+        latitude = location.get("latitude")
+        longitude = location.get("longitude")
+        caption = block.get("caption") or {}
+        label = rich_text_to_md(caption.get("text") or "") or "Mapa"
+        if latitude is None or longitude is None:
+            return label
+        return f"[{label}](https://maps.google.com/?q={latitude},{longitude})"
     if typ in {"photo", "video", "animation", "audio", "document", "voice_note"}:
         caption = block.get("caption")
         if isinstance(caption, dict):
@@ -548,7 +573,7 @@ def rich_block_to_md(block) -> str:
     if typ == "mathematical_expression":
         expr = block.get("expression") or _text()
         return f"$${expr}$$"
-    if typ == "pull_quotation":
+    if typ in {"pull_quotation", "pullquote"}:
         return f"<aside>{_text()}</aside>"
     if block.get("blocks"):
         return "\n\n".join(rich_block_to_md(b) for b in block["blocks"])

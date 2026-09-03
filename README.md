@@ -2,6 +2,8 @@
 
 Editor Markdown para Telegram Mini App. Converte `.md` em rich text do Telegram e exporta mensagens em Markdown otimizado.
 
+O bot usa aiogram 3.31.0, com suporte nativo ao Telegram Bot API 10.3.
+
 ## Comandos
 
 | Comando | Função |
@@ -62,3 +64,11 @@ python main.py
 ```
 
 Abrir `http://localhost:8080`. Publicar Telegraph e enviar ao chat só autenticam dentro do Telegram (initData).
+
+## Testes da migração
+
+```bash
+python -m unittest discover -s tests -v
+```
+
+A matriz de versões, evidências, decisões e limites da atualização está em `COMPATIBILITY.md`.
