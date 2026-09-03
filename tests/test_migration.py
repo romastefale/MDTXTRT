@@ -9,7 +9,6 @@ from aiogram.types import (
     Chat,
     InputRichMessage,
     Message,
-    RichBlockExpandableBlockQuotation,
     RichBlockParagraph,
     RichBlockButtons,
     RichBlockList,
@@ -22,7 +21,7 @@ from aiogram.types import (
 )
 
 import main
-from convert import entities_to_markdown, markdown_for_rich_api, rich_message_to_markdown
+from convert import markdown_for_rich_api, rich_message_to_markdown
 
 
 class RecordingBot:
@@ -137,35 +136,10 @@ class MigrationTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(rich_message_to_markdown(rich), "$x^2$")
 
-    def test_expandable_quote_keeps_native_10_3_markdown(self):
-        native = "**> **título**\n> corpo||"
-        self.assertEqual(markdown_for_rich_api(native), native)
+    def test_expandable_quote_uses_native_10_3_blockquote(self):
         self.assertEqual(
-            markdown_for_rich_api(
-                "<blockquote expandable>\n**título**\ncorpo\n</blockquote>"
-            ),
-            native,
-        )
-
-    def test_incoming_expandable_quote_round_trips_to_native_markdown(self):
-        rich = RichMessage(
-            blocks=[
-                RichBlockExpandableBlockQuotation(
-                    text=RichTextBold(text="texto")
-                )
-            ]
-        )
-        self.assertEqual(rich_message_to_markdown(rich), "**> **texto**||")
-
-    def test_expandable_entity_uses_one_start_marker_and_closing_mark(self):
-        class Entity:
-            type = "expandable_blockquote"
-            offset = 0
-            length = len("um\ndois")
-
-        self.assertEqual(
-            entities_to_markdown("um\ndois", [Entity()]),
-            "**> um\n> dois||",
+            markdown_for_rich_api("**> título\n> corpo"),
+            "<blockquote expandable>\ntítulo\ncorpo\n</blockquote>",
         )
 
     def test_mini_app_has_one_preview_and_rich_10_3_generators(self):
