@@ -27,6 +27,7 @@ from canonical import CanonicalDocument
 MAX_MEDIA_BYTES = 50 * 1024 * 1024
 _PUBLISH_RATE: dict[str, deque[float]] = defaultdict(deque)
 _BASE = None
+_ORIGINAL_HEALTH = None
 _ROOT = Path(__file__).resolve().parent
 
 
@@ -165,15 +166,20 @@ async def serve_index(_request: web.Request):
 
 
 async def health(request: web.Request):
-    base = await _BASE.health(request)
+    if _ORIGINAL_HEALTH is None:
+        raise RuntimeError("runtime_v2.install() não capturou o health original")
+    base = await _ORIGINAL_HEALTH(request)
     payload = json.loads(base.text)
     payload.update({"document_model": "canonical", "telegram_rich": "10.3", "media_model": "typed"})
     return web.json_response(payload)
 
 
 def install(base_module) -> None:
-    global _BASE
+    global _BASE, _ORIGINAL_HEALTH
     _BASE = base_module
+    # Capture before patching. Reinstall is idempotent and must never capture our wrapper.
+    if _ORIGINAL_HEALTH is None and base_module.health is not health:
+        _ORIGINAL_HEALTH = base_module.health
     # Explicit transition bridge: keep proven bot handlers, replace only semantic/runtime layers.
     base_module.MAX_PHOTO_BYTES = MAX_MEDIA_BYTES
     base_module.build_rich_message = build_rich_message
