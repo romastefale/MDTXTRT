@@ -252,7 +252,11 @@ def markdown_for_rich_api(source: str) -> str:
                 quote.append(piece)
                 i += 1
             body = "\n".join(quote).strip()
-            out.append(f"<details>\n{body}\n</details>" if body else "<details></details>")
+            out.append(
+                f"<blockquote expandable>\n{body}\n</blockquote>"
+                if body
+                else "<blockquote expandable></blockquote>"
+            )
             continue
         out.append(lines[i])
         i += 1

@@ -5,6 +5,7 @@ import os
 import time
 import unittest
 from datetime import datetime, timezone
+from pathlib import Path
 from urllib.parse import urlencode
 from unittest.mock import patch
 
@@ -26,7 +27,7 @@ from aiogram.types import (
 )
 
 import main
-from convert import rich_message_to_markdown
+from convert import markdown_for_rich_api, rich_message_to_markdown
 
 
 class RecordingBot:
@@ -190,6 +191,29 @@ class MigrationTests(unittest.IsolatedAsyncioTestCase):
             ]
         )
         self.assertEqual(rich_message_to_markdown(rich), "$x^2$")
+
+    def test_expandable_quote_uses_native_10_3_blockquote(self):
+        self.assertEqual(
+            markdown_for_rich_api("**> título\n> corpo"),
+            "<blockquote expandable>\ntítulo\ncorpo\n</blockquote>",
+        )
+
+    def test_mini_app_has_one_preview_and_rich_10_3_generators(self):
+        index = Path(main.INDEX_PATH).read_text(encoding="utf-8")
+        self.assertEqual(index.count('data-view="preview"'), 1)
+        self.assertNotIn('data-view="tgrich"', index)
+        self.assertNotIn("window.prompt", index)
+        for required in (
+            '{ l: "H6"',
+            'blockquote expandable',
+            'tg-button-row',
+            'tg-collage',
+            'tg-slideshow',
+            'tg-map',
+            'Fórmula bloco',
+            'Documento URL',
+        ):
+            self.assertIn(required, index)
 
     def test_legacy_wrapper_fallback_is_rejected(self):
         class LegacyWrapper:
