@@ -1,9 +1,22 @@
 """Active MDTXTRT entrypoint for the canonical Rich 10.3 runtime."""
 from aiohttp import web
+
+from canonical import CanonicalDocument
 import main
 import runtime_v2
 
 runtime_v2.install(main)
+
+
+def _canonical_markdown_export(source: str) -> str:
+    """Exporta o documento canônico sem otimização destrutiva de Markdown."""
+    return CanonicalDocument.from_markdown(source).markdown
+
+
+# deliver_payload() resolve este nome no módulo main em tempo de execução.
+# Assim o .md usa a mesma fonte canônica do Telegram/Telegraph, sem strip,
+# remoção de escapes, compactação de linhas vazias ou alteração de espaços finais.
+main.optimize_markdown = _canonical_markdown_export
 
 
 def build_web_app() -> web.Application:
