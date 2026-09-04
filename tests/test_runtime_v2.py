@@ -1,8 +1,12 @@
 import json
 import time
 import unittest
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
+from aiogram import Bot
+from aiogram.client.session.aiohttp import AiohttpSession
+from aiogram.methods import SendRichMessage
 from aiogram.types import InputMediaVideo, InputRichMessage
 
 import main
@@ -25,10 +29,12 @@ class RuntimeV2Tests(unittest.IsolatedAsyncioTestCase):
         runtime_v2._BASE = main
         runtime_v2._PUBLISH_RATE.clear()
         main.MEDIA.clear()
+        main.STASH.clear()
 
     def tearDown(self):
         runtime_v2._PUBLISH_RATE.clear()
         main.MEDIA.clear()
+        main.STASH.clear()
 
     def test_http_media_stays_native_rich_markdown(self):
         md, refs = CanonicalDocument.from_markdown(
@@ -52,6 +58,67 @@ class RuntimeV2Tests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("tg://video?id=abc123", rich.markdown)
         self.assertEqual(len(rich.media), 1)
         self.assertIsInstance(rich.media[0].media, InputMediaVideo)
+
+    async def test_local_video_uses_aiogram_multipart_serialization(self):
+        main.MEDIA["typed-video"] = {
+            "data": b"video",
+            "name": "clip.mp4",
+            "mime": "video/mp4",
+            "kind": "video",
+            "exp": time.time() + 60,
+        }
+        rich = runtime_v2.build_rich_message(
+            '![](mdtxtrt://video/typed-video "clip")'
+        )
+        bot = Bot("123456:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghi")
+        session = AiohttpSession()
+        try:
+            form = session.build_form_data(
+                bot,
+                SendRichMessage(chat_id=42, rich_message=rich),
+            )
+            fields = {
+                headers["name"]: value
+                for headers, _headers, value in form._fields
+            }
+            payload = json.loads(fields["rich_message"])
+            attachment = payload["media"][0]["media"]["media"].removeprefix(
+                "attach://"
+            )
+            self.assertEqual(payload["media"][0]["id"], "typed-video")
+            self.assertEqual(payload["media"][0]["media"]["type"], "video")
+            self.assertIn(attachment, fields)
+        finally:
+            await bot.session.close()
+            await session.close()
+
+    async def test_start_reports_expired_local_media_without_crashing(self):
+        main.MEDIA["expired-media"] = {
+            "data": b"photo",
+            "name": "photo.jpg",
+            "mime": "image/jpeg",
+            "kind": "photo",
+            "exp": time.time() - 1,
+        }
+        main.STASH["expired-payload"] = {
+            "action": "chat",
+            "title": "Sem título",
+            "content": '![](mdtxtrt://photo/expired-media "foto")',
+            "exp": time.time() + 60,
+        }
+        message = SimpleNamespace(chat=SimpleNamespace(id=42))
+        command = SimpleNamespace(args="cexpired-payload")
+        bot = SimpleNamespace(send_rich_message=AsyncMock())
+
+        with (
+            patch.object(main, "build_rich_message", runtime_v2.build_rich_message),
+            patch.object(main, "reply_text", AsyncMock()) as reply_text,
+        ):
+            await main.start(message, bot, command)
+
+        reply_text.assert_awaited_once()
+        self.assertIn("Mídia local expired-media expirou", reply_text.await_args.args[2])
+        bot.send_rich_message.assert_not_awaited()
 
     def test_telegraph_uses_fresh_account_and_reports_degradation(self):
         clients = []
