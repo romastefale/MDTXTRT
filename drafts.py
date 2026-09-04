@@ -78,6 +78,7 @@ class DraftStore:
             )
             """
         )
+        connection.commit()
         return connection
 
     def load(self, telegram_user_id: int) -> dict | None:
@@ -278,13 +279,13 @@ async def api_media(request: web.Request):
         if not user or not user.get("id") or not item:
             raise RuntimeError("upload validado sem estado de mídia correspondente")
         STORE.save_media(int(user["id"]), media_id, item)
-    except Exception as exc:
+    except Exception:
         media_id = locals().get("media_id") or ""
         if media_id:
             _BASE.MEDIA.pop(media_id, None)
         _BASE.log.exception("persistência de mídia do rascunho")
         return web.json_response(
-            {"ok": False, "error": f"Não foi possível persistir a mídia do rascunho: {exc}"},
+            {"ok": False, "error": "Não foi possível persistir a mídia do rascunho."},
             status=500,
         )
     return response
