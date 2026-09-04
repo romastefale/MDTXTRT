@@ -6,6 +6,7 @@ import os
 import re
 import sqlite3
 import time
+from contextlib import closing
 from pathlib import Path
 
 from aiohttp import web
@@ -47,7 +48,7 @@ class DraftStore:
         return connection
 
     def load(self, telegram_user_id: int) -> dict | None:
-        with self._connect() as connection:
+        with closing(self._connect()) as connection:
             row = connection.execute(
                 "SELECT content, updated_at FROM drafts WHERE telegram_user_id = ?",
                 (int(telegram_user_id),),
@@ -61,17 +62,18 @@ class DraftStore:
         if len(durable.encode("utf-8")) > MAX_DRAFT_BYTES:
             raise ValueError("Rascunho acima de 1 MB.")
         updated_at = int(time.time())
-        with self._connect() as connection:
-            connection.execute(
-                """
-                INSERT INTO drafts (telegram_user_id, content, updated_at)
-                VALUES (?, ?, ?)
-                ON CONFLICT(telegram_user_id) DO UPDATE SET
-                    content = excluded.content,
-                    updated_at = excluded.updated_at
-                """,
-                (int(telegram_user_id), durable, updated_at),
-            )
+        with closing(self._connect()) as connection:
+            with connection:
+                connection.execute(
+                    """
+                    INSERT INTO drafts (telegram_user_id, content, updated_at)
+                    VALUES (?, ?, ?)
+                    ON CONFLICT(telegram_user_id) DO UPDATE SET
+                        content = excluded.content,
+                        updated_at = excluded.updated_at
+                    """,
+                    (int(telegram_user_id), durable, updated_at),
+                )
         return {"content": durable, "updated_at": updated_at}
 
 
