@@ -2,10 +2,12 @@
 from aiohttp import web
 
 from canonical import CanonicalDocument
+import drafts
 import main
 import runtime_v2
 
 runtime_v2.install(main)
+drafts.install(main)
 
 
 def _canonical_markdown_export(source: str) -> str:
@@ -22,6 +24,8 @@ main.optimize_markdown = _canonical_markdown_export
 def build_web_app() -> web.Application:
     app = main.build_web_app()
     app.router.add_post("/api/share-telegraph", runtime_v2.api_share_telegraph)
+    app.router.add_post("/api/draft/load", drafts.api_draft_load)
+    app.router.add_post("/api/draft/save", drafts.api_draft_save)
     return app
 
 
