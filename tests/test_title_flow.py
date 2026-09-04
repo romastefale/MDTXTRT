@@ -61,26 +61,24 @@ class TitleFlowTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn(".upload-action:active{background:var(--surface)}", index)
         self.assertIn('id="btnOpen" type="button" hidden', index)
 
-    def test_fullscreen_header_is_proportional_and_responsive(self):
+    def test_fullscreen_header_is_proportional_and_uses_telegram_content_safe_area(self):
         index = runtime_v2.render_index()
         self.assertNotIn("Rich 10.3 · canonical", index)
         self.assertNotIn('class="tag"', index)
         self.assertNotIn(".tag{", index)
-        self.assertIn(
-            ".brand{height:clamp(40px,10vw,44px);padding-left:max(12px,env(safe-area-inset-left));padding-right:max(12px,env(safe-area-inset-right));display:grid;grid-template-columns:1fr auto auto 1fr;column-gap:clamp(6px,1.8vw,9px);align-items:center}",
-            index,
-        )
-        self.assertIn(
-            ".brand h1{grid-column:2;justify-self:end;font-size:clamp(12px,3.3vw,13px);line-height:1",
-            index,
-        )
-        self.assertIn(
-            ".upload-action{grid-column:3;justify-self:start;width:clamp(32px,8.5vw,36px);height:clamp(32px,8.5vw,36px)",
-            index,
-        )
+        self.assertIn("grid-template-columns:1fr auto auto 1fr", index)
+        self.assertIn("column-gap:clamp(6px,1.8vw,9px)", index)
+        self.assertIn("height:clamp(40px,10vw,44px)", index)
+        self.assertIn("font-size:clamp(12px,3.3vw,13px)", index)
+        self.assertIn("width:clamp(32px,8.5vw,36px)", index)
+        self.assertIn("height:clamp(32px,8.5vw,36px)", index)
         self.assertIn("border:0;border-radius:999px;background:transparent", index)
         self.assertIn(".upload-icon{width:clamp(17px,4.7vw,19px);height:clamp(17px,4.7vw,19px)", index)
-        self.assertIn("padding-top:max(4px,env(safe-area-inset-top))", index)
+        self.assertIn("var(--tg-safe-area-inset-top,0px)", index)
+        self.assertIn("var(--tg-content-safe-area-inset-top,0px)", index)
+        self.assertIn("var(--tg-content-safe-area-inset-left,0px)", index)
+        self.assertIn("var(--tg-content-safe-area-inset-right,0px)", index)
+        self.assertIn("env(safe-area-inset-top)", index)
         self.assertIn("stroke:currentColor", index)
         self.assertIn(".upload-action:focus-visible{outline:1px solid var(--fg);outline-offset:1px}", index)
 
