@@ -49,12 +49,33 @@ class TitleFlowTests(unittest.IsolatedAsyncioTestCase):
 
     def test_import_markdown_is_direct_secondary_action(self):
         index = runtime_v2.render_index()
-        self.assertIn('id="btnOptions" class="import-action"', index)
-        self.assertIn('>Importar Markdown</button>', index)
+        self.assertIn(
+            'id="btnOptions" class="upload-action" type="button" aria-label="Importar Markdown" title="Importar Markdown"',
+            index,
+        )
+        self.assertIn('<svg class="upload-icon"', index)
+        self.assertNotIn('>Importar Markdown</button>', index)
         self.assertIn("document.getElementById('btnOptions').onclick=()=>fileInput.click()", index)
-        self.assertIn(".import-action{", index)
+        self.assertIn(".upload-action{", index)
         self.assertIn("background:var(--surface);color:var(--muted)", index)
         self.assertIn('id="btnOpen" type="button" hidden', index)
+
+    def test_fullscreen_header_centers_title_and_removes_technical_tag(self):
+        index = runtime_v2.render_index()
+        self.assertNotIn("Rich 10.3 · canonical", index)
+        self.assertNotIn('class="tag"', index)
+        self.assertNotIn(".tag{", index)
+        self.assertIn(
+            ".brand{height:38px;padding:0 10px;display:grid;grid-template-columns:1fr auto 1fr;align-items:center}",
+            index,
+        )
+        self.assertIn(".brand h1{grid-column:2;justify-self:center", index)
+        self.assertIn(
+            ".upload-action{grid-column:3;justify-self:start;margin-left:6px;width:34px;height:34px",
+            index,
+        )
+        self.assertIn("padding-top:max(4px,env(safe-area-inset-top))", index)
+        self.assertIn("stroke:currentColor", index)
 
     def test_telegraph_success_exposes_copy_open_and_native_share(self):
         index = runtime_v2.render_index()
