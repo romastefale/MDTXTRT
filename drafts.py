@@ -25,6 +25,7 @@ MEDIA_SESSION_COOKIE = "mdtxtrt_media_session"
 
 _BASE = None
 _ORIGINAL_API_MEDIA = None
+_ORIGINAL_API_STASH = None
 _ORIGINAL_BUILD_RICH_MESSAGE = None
 _ORIGINAL_DISPATCH_USER_ARTIFACTS = None
 _ORIGINAL_START = None
@@ -267,17 +268,6 @@ class DraftStore:
             "created_at": created_at,
         }
 
-    def media_owner(self, media_id: str) -> int | None:
-        media_id = str(media_id or "").strip()
-        if not MEDIA_ID_RE.fullmatch(media_id):
-            return None
-        with closing(self._connect()) as connection:
-            row = connection.execute(
-                "SELECT telegram_user_id FROM draft_media WHERE media_id = ?",
-                (media_id,),
-            ).fetchone()
-        return int(row[0]) if row else None
-
     def load_media(self, media_id: str, telegram_user_id: int) -> dict | None:
         media_id = str(media_id or "").strip()
         if not MEDIA_ID_RE.fullmatch(media_id):
@@ -325,11 +315,13 @@ STORE = DraftStore(_DB_PATH, _MEDIA_DIR)
 
 
 def install(base_module) -> None:
-    global _BASE, _ORIGINAL_API_MEDIA, _ORIGINAL_BUILD_RICH_MESSAGE
-    global _ORIGINAL_DISPATCH_USER_ARTIFACTS, _ORIGINAL_START
+    global _BASE, _ORIGINAL_API_MEDIA, _ORIGINAL_API_STASH
+    global _ORIGINAL_BUILD_RICH_MESSAGE, _ORIGINAL_DISPATCH_USER_ARTIFACTS, _ORIGINAL_START
     _BASE = base_module
     if _ORIGINAL_API_MEDIA is None and base_module.api_media is not api_media:
         _ORIGINAL_API_MEDIA = base_module.api_media
+    if _ORIGINAL_API_STASH is None and base_module.api_stash is not api_stash:
+        _ORIGINAL_API_STASH = base_module.api_stash
     if (
         _ORIGINAL_BUILD_RICH_MESSAGE is None
         and base_module.build_rich_message is not build_rich_message
@@ -344,10 +336,10 @@ def install(base_module) -> None:
         _ORIGINAL_START = base_module.start
 
     base_module.api_media = api_media
+    base_module.api_stash = api_stash
     base_module.build_rich_message = build_rich_message
     base_module.serve_media = serve_media
     base_module.dispatch_user_artifacts = dispatch_user_artifacts
-    base_module.api_stash = api_stash
     base_module.start = start
 
 
@@ -378,7 +370,7 @@ def _media_cookie_value(telegram_user_id: int) -> str:
 def _media_cookie_user(request: web.Request) -> int | None:
     raw = str(request.cookies.get(MEDIA_SESSION_COOKIE) or "")
     try:
-        user_text, signature = raw.split(".", 1)
+        user_text, _signature = raw.split(".", 1)
         user_id = int(user_text)
     except (ValueError, TypeError):
         return None
@@ -484,6 +476,35 @@ async def api_media(request: web.Request):
     return response
 
 
+async def api_stash(request: web.Request):
+    if _ORIGINAL_API_STASH is None:
+        raise RuntimeError("api_stash persistente não instalada")
+    owner_id = _media_cookie_user(request)
+    if owner_id is None:
+        return web.json_response(
+            {"ok": False, "error": "Sessão do Telegram inválida. Reabra o Mini App."},
+            status=401,
+        )
+    response = await _ORIGINAL_API_STASH(request)
+    if response.status >= 400:
+        return response
+    try:
+        payload = json.loads(response.text)
+        start_param = str(payload.get("start") or "")
+        code = start_param[1:] if len(start_param) > 1 else ""
+        item = _BASE.STASH.get(code)
+        if not code or item is None:
+            raise RuntimeError("stash criado sem estado correspondente")
+        item["telegram_user_id"] = int(owner_id)
+    except Exception:
+        _BASE.log.exception("vínculo do stash ao usuário")
+        return web.json_response(
+            {"ok": False, "error": "Não foi possível vincular o envio ao usuário."},
+            status=500,
+        )
+    return response
+
+
 async def serve_media(request: web.Request):
     if _BASE is None:
         raise RuntimeError("serve_media persistente não instalado")
@@ -578,85 +599,6 @@ async def api_draft_save(request: web.Request):
     response = web.json_response({"ok": True, **draft})
     _set_media_cookie(response, user_id)
     return response
-
-
-async def api_stash(request: web.Request):
-    try:
-        data = await request.json()
-    except Exception:
-        return web.json_response({"ok": False, "error": "JSON inválido"}, status=400)
-
-    content = (data.get("content") or "").strip()
-    if not content:
-        return web.json_response({"ok": False, "error": "Documento vazio"}, status=400)
-    if len(content.encode("utf-8")) > _BASE.MAX_DOC_BYTES:
-        return web.json_response(
-            {"ok": False, "error": "Documento acima de 1 MB"}, status=413
-        )
-
-    session_owner = _media_cookie_user(request)
-    owner_id = session_owner
-    refs = local_media_ids(content)
-    if refs:
-        owners = [STORE.media_owner(media_id) for media_id in refs]
-        if any(owner is None for owner in owners):
-            return web.json_response(
-                {
-                    "ok": False,
-                    "error": "O documento contém mídia local indisponível.",
-                },
-                status=409,
-            )
-        unique_owners = set(owners)
-        if len(unique_owners) != 1:
-            return web.json_response(
-                {
-                    "ok": False,
-                    "error": "O documento mistura mídias de usuários diferentes.",
-                },
-                status=403,
-            )
-        media_owner = int(next(iter(unique_owners)))
-        if session_owner is not None and int(session_owner) != media_owner:
-            return web.json_response(
-                {
-                    "ok": False,
-                    "error": "A mídia local não pertence ao usuário desta sessão.",
-                },
-                status=403,
-            )
-        owner_id = media_owner
-
-    action = (data.get("action") or "chat").strip().lower()
-    if action not in {"chat", "mdrich", "tgrich", "markdown"}:
-        action = "chat"
-    if action in {"tgrich", "markdown"}:
-        action = "chat"
-
-    username = request.app.get("bot_username") or ""
-    if not username:
-        return web.json_response(
-            {
-                "ok": False,
-                "error": "Bot ainda a arrancar. Toca outra vez dentro de instantes.",
-            },
-            status=503,
-        )
-
-    code = _BASE.new_stash_code()
-    _BASE.STASH[code] = {
-        "action": action,
-        "title": (data.get("title") or "Sem título").strip() or "Sem título",
-        "content": content,
-        "telegram_user_id": owner_id,
-        "exp": time.time() + _BASE.STASH_TTL,
-    }
-    prefix = "m" if action == "mdrich" else "c"
-    start_param = f"{prefix}{code}"
-    url = f"https://t.me/{username}?start={start_param}"
-    return web.json_response(
-        {"ok": True, "start": start_param, "url": url, "bot": username}
-    )
 
 
 async def start(message, bot, command):
