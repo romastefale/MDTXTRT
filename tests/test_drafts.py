@@ -1,3 +1,4 @@
+import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
@@ -23,6 +24,32 @@ class DraftPersistenceTests(unittest.TestCase):
             self.assertIsNotNone(loaded)
             self.assertEqual(loaded["content"], "# Rascunho\n\ncontinua amanhã")
             self.assertEqual(loaded["title"], "Documento importante")
+
+    def test_existing_text_only_schema_migrates_without_losing_draft(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = str(Path(tmp) / "drafts.sqlite3")
+            connection = sqlite3.connect(path)
+            connection.execute(
+                """
+                CREATE TABLE drafts (
+                    telegram_user_id INTEGER PRIMARY KEY,
+                    content TEXT NOT NULL,
+                    updated_at INTEGER NOT NULL
+                )
+                """
+            )
+            connection.execute(
+                "INSERT INTO drafts (telegram_user_id, content, updated_at) VALUES (?, ?, ?)",
+                (77, "rascunho existente", 123),
+            )
+            connection.commit()
+            connection.close()
+
+            migrated = DraftStore(path).load(77)
+            self.assertIsNotNone(migrated)
+            self.assertEqual(migrated["content"], "rascunho existente")
+            self.assertEqual(migrated["title"], "")
+            self.assertEqual(migrated["updated_at"], 123)
 
     def test_users_are_isolated_by_telegram_id(self):
         with tempfile.TemporaryDirectory() as tmp:
