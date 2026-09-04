@@ -482,6 +482,13 @@ async def start(message: Message, bot: Bot, command: CommandObject):
                 )
             except TelegramAPIError as exc:
                 await reply_text(message, bot, telegram_error_text(exc))
+            except ValueError as exc:
+                await reply_text(
+                    message,
+                    bot,
+                    str(exc),
+                    reply_markup=mini_app_markup(),
+                )
             return
         await reply_text(
             message,
