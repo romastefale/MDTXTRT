@@ -34,8 +34,27 @@ class TitleFlowTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("find(item=>item.trim())", index)
         self.assertIn("input.placeholder=suggestion", index)
         self.assertIn("deliver('chat','Sem título')", index)
-        self.assertIn("titleForm('md')", index)
-        self.assertIn("titleForm('telegraph')", index)
+        self.assertIn("titleSheet('md')", index)
+        self.assertIn("titleSheet('telegraph')", index)
+
+    def test_title_confirmation_uses_bottom_sheet_without_autofocus(self):
+        index = runtime_v2.render_index()
+        self.assertIn('class="sheet title-sheet"', index)
+        self.assertIn("prepareTitleSheet(isMd?'Exportar Markdown':'Publicar no Telegraph')", index)
+        self.assertIn("sheet.classList.add('on')", index)
+        self.assertIn("cancel.textContent='Cancelar'", index)
+        segment = index.split("function titleSheet", 1)[1].split("async function copyText", 1)[0]
+        self.assertNotIn("input.focus()", segment)
+        self.assertIn(".title-sheet .form input{font-size:16px}", index)
+
+    def test_import_markdown_is_direct_secondary_action(self):
+        index = runtime_v2.render_index()
+        self.assertIn('id="btnOptions" class="import-action"', index)
+        self.assertIn('>Importar Markdown</button>', index)
+        self.assertIn("document.getElementById('btnOptions').onclick=()=>fileInput.click()", index)
+        self.assertIn(".import-action{", index)
+        self.assertIn("background:var(--surface);color:var(--muted)", index)
+        self.assertIn('id="btnOpen" type="button" hidden', index)
 
     def test_telegraph_success_exposes_copy_open_and_native_share(self):
         index = runtime_v2.render_index()
