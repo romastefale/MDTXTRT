@@ -33,6 +33,7 @@ class DraftPersistenceTests(unittest.TestCase):
             "meio\n\n"
             "![](https://example.com/permanente.png)\n\n"
             "![](mdtxtrt://video/xyz789)\n\n"
+            "![](mdtxtrt://media/legacy123)\n\n"
             "depois"
         )
         durable = durable_draft_content(source)
