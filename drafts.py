@@ -12,7 +12,7 @@ from aiohttp import web
 
 MAX_DRAFT_BYTES = 1_048_576
 LOCAL_MEDIA_RE = re.compile(
-    r'!\[[^\]\r\n]*\]\(\s*mdtxtrt://(?:photo|video|audio|voice|animation|document)/'
+    r'!\[[^\]\r\n]*\]\(\s*mdtxtrt://(?:media|photo|video|audio|voice|animation|document)/'
     r'[A-Za-z0-9_-]+(?:\s+"[^"\r\n]*")?\s*\)',
     re.IGNORECASE,
 )
