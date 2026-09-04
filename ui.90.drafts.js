@@ -3,7 +3,7 @@ const tg=window.Telegram&&window.Telegram.WebApp?window.Telegram.WebApp:null;
 const editor=document.getElementById('editor');
 if(!editor)return;
 const CACHE_KEY='mdtxtrt_draft';
-const LOCAL_MEDIA=/!\[[^\]\r\n]*\]\(\s*mdtxtrt:\/\/(?:photo|video|audio|voice|animation|document)\/[A-Za-z0-9_-]+(?:\s+"[^"\r\n]*")?\s*\)/gi;
+const LOCAL_MEDIA=/!\[[^\]\r\n]*\]\(\s*mdtxtrt:\/\/(?:media|photo|video|audio|voice|animation|document)\/[A-Za-z0-9_-]+(?:\s+"[^"\r\n]*")?\s*\)/gi;
 let lastSent=null,saveTimer=null;
 function durable(value){return String(value||'').replace(LOCAL_MEDIA,'')}
 function initData(){return tg?String(tg.initData||'').trim():''}
