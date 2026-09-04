@@ -1,8 +1,11 @@
 import re
 import unittest
+from pathlib import Path
 
-import app
 from canonical import CanonicalDocument
+
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 class BridgeContractTests(unittest.TestCase):
@@ -97,7 +100,11 @@ $$
 
     def test_markdown_export_preserves_the_canonical_document(self):
         source = "\\*literal\\*  \n\n\nline with two spaces  \n<tg-map lat=\"1\" long=\"2\" zoom=\"14\"/>\n"
-        self.assertEqual(app.main.optimize_markdown(source), source)
+        self.assertEqual(CanonicalDocument.from_markdown(source).markdown, source)
+
+        entrypoint = (ROOT / "app.py").read_text(encoding="utf-8")
+        self.assertIn("main.optimize_markdown = _canonical_markdown_export", entrypoint)
+        self.assertIn("return CanonicalDocument.from_markdown(source).markdown", entrypoint)
 
     def test_telegraph_projection_has_no_telegram_markup_residue(self):
         source = """==mark== ||secret|| H<sub>2</sub>O <sup>2</sup> [A & B](https://example.com/?a=1&b=2)
