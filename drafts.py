@@ -594,7 +594,8 @@ async def api_stash(request: web.Request):
             {"ok": False, "error": "Documento acima de 1 MB"}, status=413
         )
 
-    owner_id = None
+    session_owner = _media_cookie_user(request)
+    owner_id = session_owner
     refs = local_media_ids(content)
     if refs:
         owners = [STORE.media_owner(media_id) for media_id in refs]
@@ -615,7 +616,16 @@ async def api_stash(request: web.Request):
                 },
                 status=403,
             )
-        owner_id = int(next(iter(unique_owners)))
+        media_owner = int(next(iter(unique_owners)))
+        if session_owner is not None and int(session_owner) != media_owner:
+            return web.json_response(
+                {
+                    "ok": False,
+                    "error": "A mídia local não pertence ao usuário desta sessão.",
+                },
+                status=403,
+            )
+        owner_id = media_owner
 
     action = (data.get("action") or "chat").strip().lower()
     if action not in {"chat", "mdrich", "tgrich", "markdown"}:
