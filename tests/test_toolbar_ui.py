@@ -45,7 +45,7 @@ class ToolbarUiTests(unittest.TestCase):
         self.assertIn("const fn=directActions[b.dataset.direct]", index)
         self.assertNotIn('legacyButton', index)
         self.assertNotIn("dispatchEvent(new Event('select'))", index)
-        self.assertIn('event.preventDefault()', index)
+        self.assertIn('e.preventDefault()', index)
 
     def test_pressed_state_is_visual_and_derived_from_current_selection(self):
         index = runtime_v2.render_index()
