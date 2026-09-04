@@ -106,10 +106,17 @@ class RuntimeV2Tests(unittest.IsolatedAsyncioTestCase):
     def test_active_editor_has_persistent_contextual_toolbar(self):
         index = runtime_v2.render_index()
         self.assertNotIn('id="btnInsert"', index)
+        self.assertIn('id="toolbar" class="toolbar"', index)
+        self.assertNotIn('legacy-toolbar', index)
+        self.assertNotIn('quickToolbar', index)
+        self.assertNotIn('data-menu="text"', index)
         self.assertIn("replaceSelection('<u>','</u>')", index)
         self.assertNotIn("replaceSelection('__','__')", index)
         for required in (
-            'data-menu="text"', 'data-menu="heading"', 'data-menu="quote"',
+            'data-direct="Negrito"', 'data-direct="Itálico"',
+            'data-direct="Sublinhado"', 'data-direct="Riscado"',
+            'data-menu="text-extra"', 'data-direct="Link"',
+            'data-menu="heading"', 'data-menu="quote"',
             'data-menu="code"', 'data-menu="math"', 'data-menu="list"',
             'data-menu="media"', 'data-menu="structure"', "['H'+n",
             'blockquote expandable', 'tg-button-row', 'tg-collage',
