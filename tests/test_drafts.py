@@ -94,7 +94,7 @@ class DraftPersistenceTests(unittest.TestCase):
             )
 
             reopened = DraftStore(path, media_dir)
-            loaded = reopened.load_media("mediaABC123")
+            loaded = reopened.load_media("mediaABC123", 123)
             self.assertIsNotNone(loaded)
             self.assertEqual(loaded["data"], b"persistent-media-bytes")
             self.assertEqual(loaded["name"], "foto.png")

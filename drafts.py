@@ -1,13 +1,16 @@
-"""Rascunhos persistentes integrais, isolados por Telegram user.id."""
+"""Rascunhos persistentes integrais, com revisão e mídia vinculada ao Telegram user.id."""
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import json
 import os
 import re
 import sqlite3
 import time
 from contextlib import closing
+from contextvars import ContextVar
 from pathlib import Path
 
 from aiohttp import web
@@ -18,11 +21,21 @@ LOCAL_MEDIA_ID_RE = re.compile(
     r"mdtxtrt://(?:media|photo|video|audio|voice|animation|document)/([A-Za-z0-9_-]+)",
     re.IGNORECASE,
 )
+MEDIA_SESSION_COOKIE = "mdtxtrt_media_session"
 
 _BASE = None
 _ORIGINAL_API_MEDIA = None
+_ORIGINAL_API_STASH = None
 _ORIGINAL_BUILD_RICH_MESSAGE = None
-_ORIGINAL_SERVE_MEDIA = None
+_ORIGINAL_DISPATCH_USER_ARTIFACTS = None
+_ORIGINAL_START = None
+_MEDIA_OWNER: ContextVar[int | None] = ContextVar("mdtxtrt_media_owner", default=None)
+
+
+class DraftConflict(RuntimeError):
+    def __init__(self, current: dict):
+        super().__init__("Rascunho desatualizado.")
+        self.current = current
 
 
 def durable_draft_content(content: str) -> str:
@@ -52,7 +65,9 @@ class DraftStore:
                 telegram_user_id INTEGER PRIMARY KEY,
                 content TEXT NOT NULL,
                 title TEXT NOT NULL DEFAULT '',
-                updated_at INTEGER NOT NULL
+                updated_at INTEGER NOT NULL,
+                updated_at_ms INTEGER NOT NULL DEFAULT 0,
+                revision INTEGER NOT NULL DEFAULT 0
             )
             """
         )
@@ -64,6 +79,17 @@ class DraftStore:
             connection.execute(
                 "ALTER TABLE drafts ADD COLUMN title TEXT NOT NULL DEFAULT ''"
             )
+        if "updated_at_ms" not in columns:
+            connection.execute(
+                "ALTER TABLE drafts ADD COLUMN updated_at_ms INTEGER NOT NULL DEFAULT 0"
+            )
+        if "revision" not in columns:
+            connection.execute(
+                "ALTER TABLE drafts ADD COLUMN revision INTEGER NOT NULL DEFAULT 0"
+            )
+        connection.execute(
+            "UPDATE drafts SET updated_at_ms = updated_at * 1000 WHERE updated_at_ms = 0"
+        )
         connection.execute(
             """
             CREATE TABLE IF NOT EXISTS draft_media (
@@ -81,36 +107,99 @@ class DraftStore:
         connection.commit()
         return connection
 
+    @staticmethod
+    def _draft_from_row(row) -> dict:
+        if not row:
+            return {
+                "content": "",
+                "title": "",
+                "updated_at": None,
+                "updated_at_ms": None,
+                "revision": 0,
+            }
+        return {
+            "content": row[0],
+            "title": row[1],
+            "updated_at": int(row[2]),
+            "updated_at_ms": int(row[3]),
+            "revision": int(row[4]),
+        }
+
     def load(self, telegram_user_id: int) -> dict | None:
         with closing(self._connect()) as connection:
             row = connection.execute(
-                "SELECT content, title, updated_at FROM drafts WHERE telegram_user_id = ?",
+                """
+                SELECT content, title, updated_at, updated_at_ms, revision
+                FROM drafts WHERE telegram_user_id = ?
+                """,
                 (int(telegram_user_id),),
             ).fetchone()
         if not row:
             return None
-        return {"content": row[0], "title": row[1], "updated_at": int(row[2])}
+        return self._draft_from_row(row)
 
-    def save(self, telegram_user_id: int, content: str, title: str = "") -> dict:
+    def save(
+        self,
+        telegram_user_id: int,
+        content: str,
+        title: str = "",
+        *,
+        base_revision: int | None = None,
+    ) -> dict:
         durable = durable_draft_content(content)
         if len(durable.encode("utf-8")) > MAX_DRAFT_BYTES:
             raise ValueError("Rascunho acima de 1 MB.")
         clean_title = str(title or "")[:512]
-        updated_at = int(time.time())
+        user_id = int(telegram_user_id)
+
         with closing(self._connect()) as connection:
-            with connection:
-                connection.execute(
-                    """
-                    INSERT INTO drafts (telegram_user_id, content, title, updated_at)
-                    VALUES (?, ?, ?, ?)
-                    ON CONFLICT(telegram_user_id) DO UPDATE SET
-                        content = excluded.content,
-                        title = excluded.title,
-                        updated_at = excluded.updated_at
-                    """,
-                    (int(telegram_user_id), durable, clean_title, updated_at),
-                )
-        return {"content": durable, "title": clean_title, "updated_at": updated_at}
+            connection.execute("BEGIN IMMEDIATE")
+            row = connection.execute(
+                """
+                SELECT content, title, updated_at, updated_at_ms, revision
+                FROM drafts WHERE telegram_user_id = ?
+                """,
+                (user_id,),
+            ).fetchone()
+            current = self._draft_from_row(row)
+            current_revision = int(current["revision"])
+            if base_revision is not None and int(base_revision) != current_revision:
+                connection.rollback()
+                raise DraftConflict(current)
+
+            revision = current_revision + 1
+            updated_at_ms = int(time.time_ns() // 1_000_000)
+            updated_at = updated_at_ms // 1000
+            connection.execute(
+                """
+                INSERT INTO drafts
+                    (telegram_user_id, content, title, updated_at, updated_at_ms, revision)
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(telegram_user_id) DO UPDATE SET
+                    content = excluded.content,
+                    title = excluded.title,
+                    updated_at = excluded.updated_at,
+                    updated_at_ms = excluded.updated_at_ms,
+                    revision = excluded.revision
+                """,
+                (
+                    user_id,
+                    durable,
+                    clean_title,
+                    updated_at,
+                    updated_at_ms,
+                    revision,
+                ),
+            )
+            connection.commit()
+
+        return {
+            "content": durable,
+            "title": clean_title,
+            "updated_at": updated_at,
+            "updated_at_ms": updated_at_ms,
+            "revision": revision,
+        }
 
     def save_media(self, telegram_user_id: int, media_id: str, item: dict) -> dict:
         media_id = str(media_id or "").strip()
@@ -179,17 +268,19 @@ class DraftStore:
             "created_at": created_at,
         }
 
-    def load_media(self, media_id: str) -> dict | None:
+    def load_media(self, media_id: str, telegram_user_id: int) -> dict | None:
         media_id = str(media_id or "").strip()
         if not MEDIA_ID_RE.fullmatch(media_id):
             return None
+        user_id = int(telegram_user_id)
         with closing(self._connect()) as connection:
             row = connection.execute(
                 """
                 SELECT telegram_user_id, name, mime, kind, relative_path, size, created_at
-                FROM draft_media WHERE media_id = ?
+                FROM draft_media
+                WHERE media_id = ? AND telegram_user_id = ?
                 """,
-                (media_id,),
+                (media_id, user_id),
             ).fetchone()
         if not row:
             return None
@@ -217,22 +308,39 @@ class DraftStore:
 
 
 _DB_PATH = os.environ.get("DRAFT_DB_PATH", "/data/mdtxtrt-drafts.sqlite3")
-_MEDIA_DIR = os.environ.get("DRAFT_MEDIA_DIR") or str(Path(_DB_PATH).parent / "mdtxtrt-media")
+_MEDIA_DIR = os.environ.get("DRAFT_MEDIA_DIR") or str(
+    Path(_DB_PATH).parent / "mdtxtrt-media"
+)
 STORE = DraftStore(_DB_PATH, _MEDIA_DIR)
 
 
 def install(base_module) -> None:
-    global _BASE, _ORIGINAL_API_MEDIA, _ORIGINAL_BUILD_RICH_MESSAGE, _ORIGINAL_SERVE_MEDIA
+    global _BASE, _ORIGINAL_API_MEDIA, _ORIGINAL_API_STASH
+    global _ORIGINAL_BUILD_RICH_MESSAGE, _ORIGINAL_DISPATCH_USER_ARTIFACTS, _ORIGINAL_START
     _BASE = base_module
     if _ORIGINAL_API_MEDIA is None and base_module.api_media is not api_media:
         _ORIGINAL_API_MEDIA = base_module.api_media
-    if _ORIGINAL_BUILD_RICH_MESSAGE is None and base_module.build_rich_message is not build_rich_message:
+    if _ORIGINAL_API_STASH is None and base_module.api_stash is not api_stash:
+        _ORIGINAL_API_STASH = base_module.api_stash
+    if (
+        _ORIGINAL_BUILD_RICH_MESSAGE is None
+        and base_module.build_rich_message is not build_rich_message
+    ):
         _ORIGINAL_BUILD_RICH_MESSAGE = base_module.build_rich_message
-    if _ORIGINAL_SERVE_MEDIA is None and base_module.serve_media is not serve_media:
-        _ORIGINAL_SERVE_MEDIA = base_module.serve_media
+    if (
+        _ORIGINAL_DISPATCH_USER_ARTIFACTS is None
+        and base_module.dispatch_user_artifacts is not dispatch_user_artifacts
+    ):
+        _ORIGINAL_DISPATCH_USER_ARTIFACTS = base_module.dispatch_user_artifacts
+    if _ORIGINAL_START is None and base_module.start is not start:
+        _ORIGINAL_START = base_module.start
+
     base_module.api_media = api_media
+    base_module.api_stash = api_stash
     base_module.build_rich_message = build_rich_message
     base_module.serve_media = serve_media
+    base_module.dispatch_user_artifacts = dispatch_user_artifacts
+    base_module.start = start
 
 
 def _validated_user(data: dict, request: web.Request):
@@ -243,17 +351,74 @@ def _validated_user(data: dict, request: web.Request):
     return raw, user
 
 
+def _cookie_secret() -> bytes:
+    if _BASE is None:
+        return b""
+    return str(getattr(_BASE, "TOKEN", "") or "").encode("utf-8")
+
+
+def _media_cookie_value(telegram_user_id: int) -> str:
+    user_id = int(telegram_user_id)
+    signature = hmac.new(
+        _cookie_secret(),
+        f"media:{user_id}".encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+    return f"{user_id}.{signature}"
+
+
+def _media_cookie_user(request: web.Request) -> int | None:
+    raw = str(request.cookies.get(MEDIA_SESSION_COOKIE) or "")
+    try:
+        user_text, _signature = raw.split(".", 1)
+        user_id = int(user_text)
+    except (ValueError, TypeError):
+        return None
+    expected = _media_cookie_value(user_id)
+    if not expected or not hmac.compare_digest(expected, raw):
+        return None
+    return user_id
+
+
+def _set_media_cookie(response: web.StreamResponse, telegram_user_id: int) -> None:
+    if not _cookie_secret():
+        return
+    response.set_cookie(
+        MEDIA_SESSION_COOKIE,
+        _media_cookie_value(int(telegram_user_id)),
+        max_age=48 * 3600,
+        httponly=True,
+        secure=True,
+        samesite="Strict",
+        path="/",
+    )
+
+
 def _rehydrate_media(content: str) -> None:
     if _BASE is None:
         return
+    refs = local_media_ids(content)
+    if not refs:
+        return
+    owner_id = _MEDIA_OWNER.get()
+    if owner_id is None:
+        raise ValueError("Mídia local sem usuário autenticado.")
+
     now = time.time()
-    for media_id in local_media_ids(content):
+    for media_id in refs:
         current = _BASE.MEDIA.get(media_id)
-        if current and current.get("exp", 0) >= now:
+        if (
+            current
+            and current.get("exp", 0) >= now
+            and int(current.get("telegram_user_id") or 0) == int(owner_id)
+        ):
             continue
-        persisted = STORE.load_media(media_id)
-        if persisted:
-            _BASE.MEDIA[media_id] = persisted
+        persisted = STORE.load_media(media_id, int(owner_id))
+        if not persisted:
+            raise ValueError(
+                f"Mídia local {media_id} indisponível para este usuário."
+            )
+        _BASE.MEDIA[media_id] = persisted
 
 
 def build_rich_message(content: str):
@@ -261,6 +426,23 @@ def build_rich_message(content: str):
         raise RuntimeError("build_rich_message persistente não instalado")
     _rehydrate_media(content)
     return _ORIGINAL_BUILD_RICH_MESSAGE(content)
+
+
+async def dispatch_user_artifacts(bot, chat_id, title: str, content: str):
+    if _ORIGINAL_DISPATCH_USER_ARTIFACTS is None:
+        raise RuntimeError("dispatch_user_artifacts persistente não instalado")
+    existing_owner = _MEDIA_OWNER.get()
+    token = None
+    if existing_owner is None:
+        try:
+            token = _MEDIA_OWNER.set(int(chat_id))
+        except (TypeError, ValueError):
+            token = None
+    try:
+        return await _ORIGINAL_DISPATCH_USER_ARTIFACTS(bot, chat_id, title, content)
+    finally:
+        if token is not None:
+            _MEDIA_OWNER.reset(token)
 
 
 async def api_media(request: web.Request):
@@ -273,12 +455,15 @@ async def api_media(request: web.Request):
         payload = json.loads(response.text)
         media_id = str(payload.get("id") or "")
         post = await request.post()
-        raw_init = str(post.get("init_data") or "").strip()
-        user = _BASE.validate_init_data(raw_init)
+        raw = _BASE.init_data_from_request(post, request)
+        user = _BASE.validate_init_data(raw)
         item = _BASE.MEDIA.get(media_id)
         if not user or not user.get("id") or not item:
             raise RuntimeError("upload validado sem estado de mídia correspondente")
-        STORE.save_media(int(user["id"]), media_id, item)
+        user_id = int(user["id"])
+        item["telegram_user_id"] = user_id
+        STORE.save_media(user_id, media_id, item)
+        _set_media_cookie(response, user_id)
     except Exception:
         media_id = locals().get("media_id") or ""
         if media_id:
@@ -291,16 +476,61 @@ async def api_media(request: web.Request):
     return response
 
 
+async def api_stash(request: web.Request):
+    if _ORIGINAL_API_STASH is None:
+        raise RuntimeError("api_stash persistente não instalada")
+    owner_id = _media_cookie_user(request)
+    if owner_id is None:
+        return web.json_response(
+            {"ok": False, "error": "Sessão do Telegram inválida. Reabra o Mini App."},
+            status=401,
+        )
+    response = await _ORIGINAL_API_STASH(request)
+    if response.status >= 400:
+        return response
+    try:
+        payload = json.loads(response.text)
+        start_param = str(payload.get("start") or "")
+        code = start_param[1:] if len(start_param) > 1 else ""
+        item = _BASE.STASH.get(code)
+        if not code or item is None:
+            raise RuntimeError("stash criado sem estado correspondente")
+        item["telegram_user_id"] = int(owner_id)
+    except Exception:
+        _BASE.log.exception("vínculo do stash ao usuário")
+        return web.json_response(
+            {"ok": False, "error": "Não foi possível vincular o envio ao usuário."},
+            status=500,
+        )
+    return response
+
+
 async def serve_media(request: web.Request):
-    if _ORIGINAL_SERVE_MEDIA is None:
+    if _BASE is None:
         raise RuntimeError("serve_media persistente não instalado")
+    user_id = _media_cookie_user(request)
+    if user_id is None:
+        return web.Response(text="Mídia não autorizada", status=401)
+
+    _BASE.purge_stash()
     media_id = (request.match_info.get("mid") or "").strip()
     current = _BASE.MEDIA.get(media_id)
-    if not current or current.get("exp", 0) < time.time():
-        persisted = STORE.load_media(media_id)
-        if persisted:
-            _BASE.MEDIA[media_id] = persisted
-    return await _ORIGINAL_SERVE_MEDIA(request)
+    if not (
+        current
+        and current.get("exp", 0) >= time.time()
+        and int(current.get("telegram_user_id") or 0) == user_id
+    ):
+        persisted = STORE.load_media(media_id, user_id)
+        if not persisted:
+            return web.Response(text="Mídia indisponível", status=404)
+        _BASE.MEDIA[media_id] = persisted
+        current = persisted
+
+    return web.Response(
+        body=current["data"],
+        content_type=current.get("mime") or "application/octet-stream",
+        headers={"Cache-Control": "private, max-age=60"},
+    )
 
 
 async def api_draft_load(request: web.Request):
@@ -311,10 +541,22 @@ async def api_draft_load(request: web.Request):
     raw, user = _validated_user(data, request)
     if not user or not user.get("id"):
         return _BASE.session_error(raw)
-    draft = STORE.load(int(user["id"]))
-    if not draft:
-        return web.json_response({"ok": True, "content": "", "title": "", "updated_at": None})
-    return web.json_response({"ok": True, **draft})
+    user_id = int(user["id"])
+    draft = STORE.load(user_id)
+    payload = (
+        draft
+        if draft
+        else {
+            "content": "",
+            "title": "",
+            "updated_at": None,
+            "updated_at_ms": None,
+            "revision": 0,
+        }
+    )
+    response = web.json_response({"ok": True, **payload})
+    _set_media_cookie(response, user_id)
+    return response
 
 
 async def api_draft_save(request: web.Request):
@@ -325,12 +567,102 @@ async def api_draft_save(request: web.Request):
     raw, user = _validated_user(data, request)
     if not user or not user.get("id"):
         return _BASE.session_error(raw)
+
+    user_id = int(user["id"])
+    try:
+        base_revision = int(data.get("base_revision"))
+    except (TypeError, ValueError):
+        base_revision = -1
+
     try:
         draft = STORE.save(
-            int(user["id"]),
+            user_id,
             data.get("content") or "",
             data.get("title") or "",
+            base_revision=base_revision,
         )
+    except DraftConflict as exc:
+        response = web.json_response(
+            {
+                "ok": False,
+                "error": "Rascunho desatualizado.",
+                "conflict": True,
+                "current": exc.current,
+            },
+            status=409,
+        )
+        _set_media_cookie(response, user_id)
+        return response
     except ValueError as exc:
         return web.json_response({"ok": False, "error": str(exc)}, status=413)
-    return web.json_response({"ok": True, **draft})
+
+    response = web.json_response({"ok": True, **draft})
+    _set_media_cookie(response, user_id)
+    return response
+
+
+async def start(message, bot, command):
+    if _ORIGINAL_START is None:
+        raise RuntimeError("start persistente não instalado")
+
+    arg = ((command.args or "").split()[0] if command.args else "").strip()
+    if not arg:
+        return await _ORIGINAL_START(message, bot, command)
+
+    kind = arg[0]
+    code = arg[1:]
+    item = _BASE.STASH.get(code)
+    if not item or item.get("exp", 0) < time.time():
+        _BASE.STASH.pop(code, None)
+        await _BASE.reply_text(
+            message,
+            bot,
+            "Este envio já foi usado ou expirou. Abre o Mini App e toca outra vez.",
+            reply_markup=_BASE.mini_app_markup(),
+        )
+        return
+
+    expected_owner = item.get("telegram_user_id")
+    opener = getattr(getattr(message, "from_user", None), "id", None)
+    if expected_owner is not None and int(opener or 0) != int(expected_owner):
+        await _BASE.reply_text(
+            message,
+            bot,
+            "Este envio pertence a outro usuário.",
+            reply_markup=_BASE.mini_app_markup(),
+        )
+        return
+
+    action = (
+        "mdrich"
+        if kind == "m" or item.get("action") == "mdrich"
+        else "chat"
+    )
+    token = _MEDIA_OWNER.set(
+        int(expected_owner)
+        if expected_owner is not None
+        else int(opener or message.chat.id)
+    )
+    try:
+        await _BASE.deliver_payload(
+            bot,
+            message.chat.id,
+            action,
+            item.get("title") or "Sem título",
+            item.get("content") or "",
+        )
+    except _BASE.TelegramAPIError as exc:
+        await _BASE.reply_text(message, bot, _BASE.telegram_error_text(exc))
+        return
+    except ValueError as exc:
+        await _BASE.reply_text(
+            message,
+            bot,
+            str(exc),
+            reply_markup=_BASE.mini_app_markup(),
+        )
+        return
+    finally:
+        _MEDIA_OWNER.reset(token)
+
+    _BASE.STASH.pop(code, None)
