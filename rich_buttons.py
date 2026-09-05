@@ -1,10 +1,15 @@
 """RichMessageButton 10.3: editor completo, estilo verde e callback funcional."""
 from __future__ import annotations
 
+import re
+
 from aiohttp import web
 from aiogram.types import CallbackQuery
 
 _MARKER = "mdtxtrt-rich-buttons-green"
+_BUTTON_TAG_RE = re.compile(r"<tg-button(?!-row)\b([^>]*)>", re.IGNORECASE)
+_STYLE_RE = re.compile(r"\s+style\s*=\s*(['\"])[^'\"]*\1", re.IGNORECASE)
+_CODE_RE = re.compile(r"(```.*?```|`[^`\n]*`)", re.DOTALL)
 
 _UI = r'''<style id="mdtxtrt-rich-buttons-green-style">
 tg-button[style="success"]{background:#31b545!important;color:#fff!important;border-color:#31b545!important}
@@ -52,10 +57,9 @@ tg-button[style="success"]{background:#31b545!important;color:#fff!important;bor
     var backdrop=document.getElementById('insertBackdrop');
     if(backdrop){backdrop.classList.remove('on');backdrop.setAttribute('aria-hidden','true')}
   }
-  function inputField(form,key,labelText,placeholder,type){
+  function inputField(form,key,labelText,placeholder){
     var label=document.createElement('label');label.textContent=labelText;
     var input=document.createElement('input');input.name=key;input.placeholder=placeholder||'';input.autocomplete='off';
-    if(type)input.type=type;
     label.appendChild(input);form.appendChild(label);return input;
   }
   function checkbox(form,key,text,checked){
@@ -138,6 +142,19 @@ tg-button[style="success"]{background:#31b545!important;color:#fff!important;bor
 </script>'''
 
 
+def _green_tag(match: re.Match) -> str:
+    attrs = _STYLE_RE.sub("", match.group(1))
+    return f'<tg-button{attrs} style="success">'
+
+
+def green_button_markup(content: str) -> str:
+    """Força success apenas em tags reais; exemplos dentro de código ficam intactos."""
+    parts = _CODE_RE.split(str(content or ""))
+    for index in range(0, len(parts), 2):
+        parts[index] = _BUTTON_TAG_RE.sub(_green_tag, parts[index])
+    return "".join(parts)
+
+
 def inject_ui(document: str) -> str:
     text = str(document or "")
     if _MARKER in text:
@@ -188,6 +205,13 @@ def install(base_module, roundtrip_module) -> None:
         return original_button_html(parsed)
 
     roundtrip_module._button_html = green_button_html
+
+    original_build_rich_message = base_module.build_rich_message
+
+    def build_rich_message(content: str):
+        return original_build_rich_message(green_button_markup(content))
+
+    base_module.build_rich_message = build_rich_message
 
     original_build_dispatcher = base_module.build_dispatcher
 
