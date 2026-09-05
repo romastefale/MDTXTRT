@@ -13,6 +13,12 @@ from rich_delivery import media_for_chunk, split_structural_chunks
 
 class ProgressiveCorrectionTest(unittest.TestCase):
     def test_corrected_failures_do_not_survive_the_real_paths(self):
+        served = asyncio.run(main.serve_index(None))
+        self.assertEqual(served.status, 200)
+        self.assertIn('id="mdtxtrt-preview-sanitizer"', served.text)
+        self.assertIn("Object.defineProperty(preview,'innerHTML'", served.text)
+        self.assertIn("safeClasses=new Set(['preview-note','spoiler','revealed'])", served.text)
+
         calls = []
 
         class FakeBot:
@@ -208,6 +214,60 @@ class ProgressiveCorrectionTest(unittest.TestCase):
         self.assertIn("<td", (outgoing.markdown or "").replace("<th", "<td"))
         self.assertIn("<b>cell &amp; value</b>", outgoing.markdown or "")
         self.assertNotIn("**cell & value**", outgoing.markdown or "")
+
+        collage_plain = {
+            "blocks": [
+                {
+                    "type": "collage",
+                    "blocks": [
+                        {
+                            "type": "photo",
+                            "photo": [
+                                {
+                                    "file_id": "AgAC_COLLAGE_FILE_ID",
+                                    "file_unique_id": "collection",
+                                    "width": 10,
+                                    "height": 10,
+                                }
+                            ],
+                            "caption": {"text": 'legenda "exata"'},
+                        }
+                    ],
+                }
+            ]
+        }
+        collage_editable = main.rich_message_to_markdown(collage_plain)
+        self.assertIn('\\"exata\\"', collage_editable)
+        collage_outgoing = main.build_rich_message(collage_editable)
+        self.assertEqual(len(collage_outgoing.media or []), 1)
+        self.assertEqual(collage_outgoing.media[0].media.media, "AgAC_COLLAGE_FILE_ID")
+        self.assertNotIn("&file=", collage_outgoing.markdown or "")
+
+        collage_rich_caption = {
+            "blocks": [
+                {
+                    "type": "collage",
+                    "blocks": [
+                        {
+                            "type": "photo",
+                            "photo": [
+                                {
+                                    "file_id": "AgAC_COLLAGE_RICH",
+                                    "file_unique_id": "collection-rich",
+                                    "width": 10,
+                                    "height": 10,
+                                }
+                            ],
+                            "caption": {
+                                "text": {"type": "bold", "text": "não achatar"}
+                            },
+                        }
+                    ],
+                }
+            ]
+        }
+        with self.assertRaisesRegex(ValueError, "Legenda Rich"):
+            main.rich_message_to_markdown(collage_rich_caption)
 
 
 if __name__ == "__main__":
