@@ -15,7 +15,7 @@ def _rich_app_button(base_module) -> str:
         '\n\n<tg-button-row align="center">\n'
         '<tg-button type="web_app" style="success" url="'
         + html.escape(url, quote=True)
-        + '">Abrir Mini App</tg-button>\n'
+        + '">MDTXTRT</tg-button>\n'
         '</tg-button-row>'
     )
 
