@@ -26,7 +26,7 @@ def _frame(command: str, subtitle: str, body: str) -> str:
     parts = [
         "<h1>MDTXTRT</h1>",
         f"<h3>{html.escape(subtitle)}</h3>",
-        f"<p>{html.escape(command)}</p>",
+        html.escape(command),
     ]
     rendered_body = _paragraphs(body)
     if rendered_body:
