@@ -10,6 +10,7 @@ import message_buttons
 class FakeMessage:
     def __init__(self, chat_type):
         self.chat = SimpleNamespace(id=12345, type=chat_type)
+        self.message_id = 1
         self.direct_messages_topic = None
         self.business_connection_id = None
         self.message_thread_id = None
