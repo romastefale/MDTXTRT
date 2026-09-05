@@ -32,6 +32,64 @@ def _attr(value) -> str:
     return html.escape(str(value or ""), quote=True)
 
 
+def _button_html(value) -> str:
+    button = _plain(value)
+    if not isinstance(button, dict):
+        return _text(button)
+    label = _text(button.get("text")) or "botão"
+    attrs: list[str] = []
+    style = button.get("style")
+    if style:
+        attrs.append(f'style="{_attr(style)}"')
+
+    if button.get("url") is not None:
+        attrs[:0] = [f'type="url"', f'url="{_attr(button.get("url"))}"']
+    elif button.get("callback_data") is not None:
+        attrs[:0] = [f'type="callback_data"', f'data="{_attr(button.get("callback_data"))}"']
+    elif button.get("web_app") is not None:
+        web_app = button.get("web_app") or {}
+        attrs[:0] = [f'type="web_app"', f'url="{_attr(web_app.get("url"))}"']
+    elif button.get("login_url") is not None:
+        login = button.get("login_url") or {}
+        attrs[:0] = [f'type="login_url"', f'url="{_attr(login.get("url"))}"']
+        if login.get("forward_text"):
+            attrs.append(f'forward-text="{_attr(login.get("forward_text"))}"')
+        if login.get("request_write_access"):
+            attrs.append("request-write-access")
+    elif button.get("switch_inline_query") is not None:
+        attrs[:0] = [
+            'type="switch_inline_query"',
+            f'query="{_attr(button.get("switch_inline_query"))}"',
+        ]
+    elif button.get("switch_inline_query_current_chat") is not None:
+        attrs[:0] = [
+            'type="switch_inline_query_current_chat"',
+            f'query="{_attr(button.get("switch_inline_query_current_chat"))}"',
+        ]
+    elif button.get("switch_inline_query_chosen_chat") is not None:
+        chosen = button.get("switch_inline_query_chosen_chat") or {}
+        attrs[:0] = [
+            'type="switch_inline_query_chosen_chat"',
+            f'query="{_attr(chosen.get("query") or "")}"',
+        ]
+        for field, html_name in (
+            ("allow_user_chats", "allow-user-chats"),
+            ("allow_bot_chats", "allow-bot-chats"),
+            ("allow_group_chats", "allow-group-chats"),
+            ("allow_channel_chats", "allow-channel-chats"),
+        ):
+            if chosen.get(field):
+                attrs.append(html_name)
+    elif button.get("copy_text") is not None:
+        copy = button.get("copy_text") or {}
+        attrs[:0] = ['type="copy_text"', f'text="{_attr(copy.get("text"))}"']
+    elif button.get("disabled") is not None:
+        attrs[:0] = ['type="disabled"']
+    else:
+        return label
+    return f"<tg-button {' '.join(attrs)}>{label}</tg-button>"
+
+
 def _text(node) -> str:
     node = _plain(node)
     if node is None:
@@ -106,7 +164,7 @@ def _text(node) -> str:
         name = node.get("reference_name") or ""
         return f'<a href="#{_attr(name)}">{inner}</a>' if name else inner
     if typ == "button":
-        return convert.rich_text_to_md(node)
+        return _button_html(node.get("button"))
     return inner or str(node.get("value") or node.get("bank_card_number") or "")
 
 
@@ -215,7 +273,10 @@ def _block(value) -> str:
         cite = f"<cite>{credit}</cite>" if credit else ""
         return f"<figure>{map_html}<figcaption>{caption}{cite}</figcaption></figure>"
     if typ == "buttons":
-        return convert.rich_block_to_md(block)
+        align = block.get("align")
+        attr = f' align="{_attr(align)}"' if align else ""
+        buttons = "\n".join(_button_html(item) for item in block.get("buttons") or [])
+        return f"<tg-button-row{attr}>\n{buttons}\n</tg-button-row>"
     if typ in {"photo", "video", "animation", "audio", "document", "voice_note", "collage", "slideshow"}:
         return convert.rich_block_to_md(block)
     if block.get("blocks"):
