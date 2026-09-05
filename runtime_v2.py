@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import asyncio
+from functools import partial
+import hashlib
 import json
 import re
 import time
@@ -11,16 +13,9 @@ from pathlib import Path
 from aiohttp import web
 from aiogram.exceptions import TelegramAPIError
 from aiogram.types import (
-    BufferedInputFile,
-    InlineQueryResultArticle,
-    InputMediaAnimation,
-    InputMediaAudio,
-    InputMediaDocument,
-    InputMediaPhoto,
-    InputMediaVideo,
-    InputRichMessage,
-    InputRichMessageMedia,
-    InputTextMessageContent,
+    BufferedInputFile, InlineQueryResultArticle, InputMediaAnimation, InputMediaAudio,
+    InputMediaDocument, InputMediaPhoto, InputMediaVideo, InputRichMessage,
+    InputRichMessageMedia, InputTextMessageContent,
 )
 from telegraph import Telegraph
 from telegraph.exceptions import TelegraphException
@@ -34,211 +29,145 @@ _ORIGINAL_HEALTH = None
 _ROOT = Path(__file__).resolve().parent
 
 
+class TelegraphPreflightRequired(ValueError):
+    def __init__(self, report: dict):
+        super().__init__("A projeção Telegraph exige confirmação prévia de compatibilidade.")
+        self.report = report
+
+
 def _media_kind(filename: str, mime: str, requested: str) -> str:
     requested = (requested or "auto").lower()
-    if requested in {"photo", "video", "animation", "audio", "document"}:
-        return requested
+    if requested in {"photo", "video", "animation", "audio", "document"}: return requested
     name, mime = (filename or "").lower(), (mime or "").lower()
-    if mime == "image/gif" or name.endswith(".gif"):
-        return "animation"
-    if mime.startswith("image/"):
-        return "photo"
-    if mime.startswith("video/"):
-        return "video"
-    if mime.startswith("audio/"):
-        return "audio"
+    if mime == "image/gif" or name.endswith(".gif"): return "animation"
+    if mime.startswith("image/"): return "photo"
+    if mime.startswith("video/"): return "video"
+    if mime.startswith("audio/"): return "audio"
     return "document"
 
 
 def _input_media(item: dict):
-    upload = BufferedInputFile(item["data"], filename=item["name"])
-    kind = item["kind"]
-    if kind == "photo":
-        return InputMediaPhoto(media=upload)
-    if kind == "video":
-        return InputMediaVideo(media=upload)
-    if kind == "animation":
-        return InputMediaAnimation(media=upload)
-    if kind == "audio":
-        return InputMediaAudio(media=upload)
+    upload = BufferedInputFile(item["data"], filename=item["name"]); kind = item["kind"]
+    if kind == "photo": return InputMediaPhoto(media=upload)
+    if kind == "video": return InputMediaVideo(media=upload)
+    if kind == "animation": return InputMediaAnimation(media=upload)
+    if kind == "audio": return InputMediaAudio(media=upload)
     return InputMediaDocument(media=upload)
 
 
 def build_rich_message(content: str) -> InputRichMessage:
-    markdown, refs = CanonicalDocument.from_markdown(content).telegram_markdown()
-    media: list[InputRichMessageMedia] = []
-    now = time.time()
+    markdown, refs = CanonicalDocument.from_markdown(content).telegram_markdown(); media=[]; now=time.time()
     for ref in refs:
         item = _BASE.MEDIA.get(ref.media_id)
-        if not item or item.get("exp", 0) < now:
-            raise ValueError(f"Mídia local {ref.media_id} expirou; faça o upload novamente.")
+        if not item or item.get("exp",0) < now: raise ValueError(f"Mídia local {ref.media_id} expirou; faça o upload novamente.")
         media.append(InputRichMessageMedia(id=ref.media_id, media=_input_media(item)))
     return InputRichMessage(markdown=markdown, media=media or None)
 
 
-def publish_page(title: str, content_md: str, _path_hint: str = "") -> dict:
-    title = (title or "Sem título").strip()[:256] or "Sem título"
-    projection = CanonicalDocument.from_markdown(content_md).telegraph()
-    telegraph = Telegraph()
-    telegraph.create_account(short_name="MDTXTRT")
-    page = telegraph.create_page(title=title, html_content=projection.html)
-    return {
-        "url": page.get("url"),
-        "path": page.get("path"),
-        "title": title,
-        "degradations": list(projection.degradations),
-    }
+def telegraph_preflight(content_md: str) -> dict:
+    projection=CanonicalDocument.from_markdown(content_md).telegraph(); adaptations=list(projection.adaptations); unsupported=list(projection.unsupported)
+    source=json.dumps({"content":CanonicalDocument.from_markdown(content_md).markdown,"adaptations":adaptations,"unsupported":unsupported,"html":projection.html},ensure_ascii=False,sort_keys=True,separators=(",",":"))
+    fingerprint=hashlib.sha256(source.encode("utf-8")).hexdigest()
+    return {"compatible":not unsupported,"adaptations":adaptations,"unsupported":unsupported,"fingerprint":fingerprint,"projection":projection}
 
 
-async def publish_page_async(title: str, content_md: str, path_hint: str = "") -> dict:
-    return await asyncio.get_running_loop().run_in_executor(None, publish_page, title, content_md, path_hint)
+def _public_preflight(report: dict) -> dict:
+    return {"compatible":bool(report["compatible"]),"adaptations":list(report["adaptations"]),"unsupported":list(report["unsupported"]),"fingerprint":report["fingerprint"],"requires_confirmation":bool(report["adaptations"] or report["unsupported"])}
+
+
+def publish_page(title: str, content_md: str, _path_hint: str = "", *, allow_adaptations: bool = False, allow_unsupported: bool = False, preflight_fingerprint: str | None = None) -> dict:
+    title=(title or "Sem título").strip()[:256] or "Sem título"; report=telegraph_preflight(content_md)
+    if preflight_fingerprint and preflight_fingerprint != report["fingerprint"]: raise TelegraphPreflightRequired(report)
+    if report["adaptations"] and not allow_adaptations: raise TelegraphPreflightRequired(report)
+    if report["unsupported"] and not allow_unsupported: raise TelegraphPreflightRequired(report)
+    projection=report["projection"]; telegraph=Telegraph(); telegraph.create_account(short_name="MDTXTRT"); page=telegraph.create_page(title=title,html_content=projection.html)
+    return {"url":page.get("url"),"path":page.get("path"),"title":title,"compatible":report["compatible"],"adaptations":list(report["adaptations"]),"unsupported":list(report["unsupported"]),"degradations":list(report["adaptations"]),"preflight_fingerprint":report["fingerprint"]}
+
+
+async def publish_page_async(title: str, content_md: str, path_hint: str = "", **kwargs) -> dict:
+    return await asyncio.get_running_loop().run_in_executor(None, partial(publish_page,title,content_md,path_hint,**kwargs))
 
 
 def _publish_allowed(request: web.Request) -> bool:
-    forwarded = (request.headers.get("X-Forwarded-For") or "").split(",")[0].strip()
-    key = forwarded or request.remote or "unknown"
-    now = time.time()
-    queue = _PUBLISH_RATE[key]
-    while queue and queue[0] < now - 60:
-        queue.popleft()
-    if len(queue) >= 6:
-        return False
-    queue.append(now)
-    return True
+    forwarded=(request.headers.get("X-Forwarded-For") or "").split(",")[0].strip(); key=forwarded or request.remote or "unknown"; now=time.time(); queue=_PUBLISH_RATE[key]
+    while queue and queue[0] < now-60: queue.popleft()
+    if len(queue)>=6: return False
+    queue.append(now); return True
 
 
 async def api_publish(request: web.Request):
-    if not _publish_allowed(request):
-        return web.json_response({"ok": False, "error": "Muitas publicações em sequência; tente novamente em um minuto."}, status=429)
+    try: data=await request.json()
+    except Exception: return web.json_response({"ok":False,"error":"JSON inválido"},status=400)
+    raw=_BASE.init_data_from_request(data,request)
+    if raw and not _BASE.validate_init_data(raw): return _BASE.session_error(raw)
+    content=(data.get("content") or "").strip()
+    if not content: return web.json_response({"ok":False,"error":"Documento vazio"},status=400)
+    report=telegraph_preflight(content); public=_public_preflight(report)
+    if data.get("preflight_only") is True: return web.json_response({"ok":True,"published":False,**public})
+    has_adaptations=bool(report["adaptations"]); has_unsupported=bool(report["unsupported"])
+    if has_adaptations or has_unsupported:
+        supplied=str(data.get("preflight_fingerprint") or ""); confirmed_adaptations=data.get("confirm_adaptations") is True; confirmed_unsupported=data.get("confirm_unsupported") is True
+        if supplied != report["fingerprint"] or (has_adaptations and not confirmed_adaptations) or (has_unsupported and not confirmed_unsupported):
+            return web.json_response({"ok":False,"error":"A publicação exige confirmação das adaptações/incompatibilidades detectadas no preflight.",**public},status=409)
+    if not _publish_allowed(request): return web.json_response({"ok":False,"error":"Muitas publicações em sequência; tente novamente em um minuto."},status=429)
     try:
-        data = await request.json()
-    except Exception:
-        return web.json_response({"ok": False, "error": "JSON inválido"}, status=400)
-    raw = _BASE.init_data_from_request(data, request)
-    if raw and not _BASE.validate_init_data(raw):
-        return _BASE.session_error(raw)
-    content = (data.get("content") or "").strip()
-    if not content:
-        return web.json_response({"ok": False, "error": "Documento vazio"}, status=400)
-    try:
-        page = await publish_page_async(data.get("title") or "Sem título", content)
-        return web.json_response({"ok": True, **page})
-    except TelegraphException as exc:
-        return web.json_response({"ok": False, "error": str(exc)}, status=502)
+        page=await publish_page_async(data.get("title") or "Sem título",content,allow_adaptations=has_adaptations,allow_unsupported=has_unsupported,preflight_fingerprint=report["fingerprint"] if (has_adaptations or has_unsupported) else None)
+        return web.json_response({"ok":True,**page})
+    except TelegraphPreflightRequired as exc: return web.json_response({"ok":False,"error":str(exc),**_public_preflight(exc.report)},status=409)
+    except TelegraphException as exc: return web.json_response({"ok":False,"error":str(exc)},status=502)
     except Exception as exc:
-        _BASE.log.exception("api_publish")
-        return web.json_response({"ok": False, "error": str(exc)}, status=500)
+        _BASE.log.exception("api_publish"); return web.json_response({"ok":False,"error":str(exc)},status=500)
 
 
 async def api_share_telegraph(request: web.Request):
-    """Prepara a mensagem que o cliente Telegram compartilhará pela UI nativa."""
+    try: data=await request.json()
+    except Exception: return web.json_response({"ok":False,"error":"JSON inválido"},status=400)
+    raw=_BASE.init_data_from_request(data,request); user=_BASE.validate_init_data(raw)
+    if not user or not user.get("id"): return _BASE.session_error(raw)
+    url=str(data.get("url") or "").strip()
+    if not re.fullmatch(r"https://telegra\.ph/[^\s]+",url): return web.json_response({"ok":False,"error":"URL do Telegraph inválida"},status=400)
+    title=str(data.get("title") or "Publicação no Telegraph").strip()[:256] or "Publicação no Telegraph"; bot_runtime=request.app.get("bot")
+    if not bot_runtime: return web.json_response({"ok":False,"error":"Bot não inicializado."},status=503)
+    result=InlineQueryResultArticle(id="telegraph-share",title=title,description="Compartilhar publicação do Telegraph",input_message_content=InputTextMessageContent(message_text=f"Acabei de publicar este artigo no Telegraph\n{url}"))
     try:
-        data = await request.json()
-    except Exception:
-        return web.json_response({"ok": False, "error": "JSON inválido"}, status=400)
-
-    raw = _BASE.init_data_from_request(data, request)
-    user = _BASE.validate_init_data(raw)
-    if not user or not user.get("id"):
-        return _BASE.session_error(raw)
-
-    url = str(data.get("url") or "").strip()
-    if not re.fullmatch(r"https://telegra\.ph/[^\s]+", url):
-        return web.json_response({"ok": False, "error": "URL do Telegraph inválida"}, status=400)
-    title = str(data.get("title") or "Publicação no Telegraph").strip()[:256] or "Publicação no Telegraph"
-
-    bot_runtime = request.app.get("bot")
-    if not bot_runtime:
-        return web.json_response({"ok": False, "error": "Bot não inicializado."}, status=503)
-
-    result = InlineQueryResultArticle(
-        id="telegraph-share",
-        title=title,
-        description="Compartilhar publicação do Telegraph",
-        input_message_content=InputTextMessageContent(
-            message_text=f"Acabei de publicar este artigo no Telegraph\n{url}"
-        ),
-    )
-    try:
-        prepared = await bot_runtime.bot.save_prepared_inline_message(
-            user_id=int(user["id"]),
-            result=result,
-            allow_user_chats=True,
-            allow_bot_chats=True,
-            allow_group_chats=True,
-            allow_channel_chats=True,
-        )
-        return web.json_response({"ok": True, "prepared_message_id": prepared.id})
+        prepared=await bot_runtime.bot.save_prepared_inline_message(user_id=int(user["id"]),result=result,allow_user_chats=True,allow_bot_chats=True,allow_group_chats=True,allow_channel_chats=True)
+        return web.json_response({"ok":True,"prepared_message_id":prepared.id})
     except TelegramAPIError:
-        _BASE.log.exception("api_share_telegraph telegram")
-        return web.json_response(
-            {"ok": False, "error": "Não foi possível preparar o compartilhamento no Telegram."},
-            status=502,
-        )
+        _BASE.log.exception("api_share_telegraph telegram"); return web.json_response({"ok":False,"error":"Não foi possível preparar o compartilhamento no Telegram."},status=502)
     except Exception as exc:
-        _BASE.log.exception("api_share_telegraph")
-        return web.json_response({"ok": False, "error": str(exc)}, status=500)
+        _BASE.log.exception("api_share_telegraph"); return web.json_response({"ok":False,"error":str(exc)},status=500)
 
 
 async def api_media(request: web.Request):
     _BASE.purge_stash()
-    try:
-        post = await request.post()
-    except Exception:
-        return web.json_response({"ok": False, "error": "Envio inválido"}, status=400)
-    raw_init = str(post.get("init_data") or "").strip()
-    if not _BASE.validate_init_data(raw_init):
-        return _BASE.session_error(raw_init)
-    upload = post.get("file")
-    if upload is None or not hasattr(upload, "file"):
-        return web.json_response({"ok": False, "error": "Falta o arquivo"}, status=400)
-    raw = upload.file.read()
-    if not raw:
-        return web.json_response({"ok": False, "error": "Arquivo vazio"}, status=400)
-    if len(raw) > MAX_MEDIA_BYTES:
-        return web.json_response({"ok": False, "error": "Mídia acima de 50 MB"}, status=413)
-    filename = getattr(upload, "filename", None) or "media.bin"
-    mime = (getattr(upload, "content_type", None) or "application/octet-stream").lower()
-    kind = _media_kind(filename, mime, str(post.get("kind") or "auto"))
-    if kind == "photo" and len(raw) > 10 * 1024 * 1024:
-        return web.json_response({"ok": False, "error": "Foto acima de 10 MB"}, status=413)
-    mid = _BASE.new_stash_code()
-    _BASE.MEDIA[mid] = {"data": raw, "name": filename, "mime": mime, "kind": kind, "exp": time.time() + _BASE.STASH_TTL}
-    return web.json_response({"ok": True, "id": mid, "kind": kind})
+    try: post=await request.post()
+    except Exception: return web.json_response({"ok":False,"error":"Envio inválido"},status=400)
+    raw_init=str(post.get("init_data") or "").strip()
+    if not _BASE.validate_init_data(raw_init): return _BASE.session_error(raw_init)
+    upload=post.get("file")
+    if upload is None or not hasattr(upload,"file"): return web.json_response({"ok":False,"error":"Falta o arquivo"},status=400)
+    raw=upload.file.read()
+    if not raw: return web.json_response({"ok":False,"error":"Arquivo vazio"},status=400)
+    if len(raw)>MAX_MEDIA_BYTES: return web.json_response({"ok":False,"error":"Mídia acima de 50 MB"},status=413)
+    filename=getattr(upload,"filename",None) or "media.bin"; mime=(getattr(upload,"content_type",None) or "application/octet-stream").lower(); kind=_media_kind(filename,mime,str(post.get("kind") or "auto"))
+    if kind=="photo" and len(raw)>10*1024*1024: return web.json_response({"ok":False,"error":"Foto acima de 10 MB"},status=413)
+    mid=_BASE.new_stash_code(); _BASE.MEDIA[mid]={"data":raw,"name":filename,"mime":mime,"kind":kind,"exp":time.time()+_BASE.STASH_TTL}; return web.json_response({"ok":True,"id":mid,"kind":kind})
 
 
 def render_index() -> str:
-    shell = (_ROOT / "ui_shell.html").read_text(encoding="utf-8")
-    css = (_ROOT / "ui.css").read_text(encoding="utf-8")
-    js = "".join(path.read_text(encoding="utf-8") for path in sorted(_ROOT.glob("ui.*.js")))
-    return shell.replace("/*__CSS__*/", css).replace("/*__JS__*/", js)
+    shell=(_ROOT/"ui_shell.html").read_text(encoding="utf-8"); css=(_ROOT/"ui.css").read_text(encoding="utf-8"); js="".join(path.read_text(encoding="utf-8") for path in sorted(_ROOT.glob("ui.*.js"))); return shell.replace("/*__CSS__*/",css).replace("/*__JS__*/",js)
 
 
-async def serve_index(_request: web.Request):
-    return web.Response(text=render_index(), content_type="text/html", charset="utf-8")
+async def serve_index(_request:web.Request): return web.Response(text=render_index(),content_type="text/html",charset="utf-8")
 
 
-async def health(request: web.Request):
-    if _ORIGINAL_HEALTH is None:
-        raise RuntimeError("runtime_v2.install() não capturou o health original")
-    base = await _ORIGINAL_HEALTH(request)
-    payload = json.loads(base.text)
-    payload.update({"document_model": "canonical", "telegram_rich": "10.3", "media_model": "typed"})
-    return web.json_response(payload)
+async def health(request:web.Request):
+    if _ORIGINAL_HEALTH is None: raise RuntimeError("runtime_v2.install() não capturou o health original")
+    base=await _ORIGINAL_HEALTH(request); payload=json.loads(base.text); payload.update({"document_model":"canonical","telegram_rich":"10.3","media_model":"typed","telegraph_preflight":True}); return web.json_response(payload)
 
 
-def install(base_module) -> None:
-    global _BASE, _ORIGINAL_HEALTH
-    _BASE = base_module
-    # Capture before patching. Reinstall is idempotent and must never capture our wrapper.
-    if _ORIGINAL_HEALTH is None and base_module.health is not health:
-        _ORIGINAL_HEALTH = base_module.health
-    # Explicit transition bridge: keep proven bot handlers, replace only semantic/runtime layers.
-    base_module.MAX_PHOTO_BYTES = MAX_MEDIA_BYTES
-    base_module.build_rich_message = build_rich_message
-    base_module.publish_page = publish_page
-    base_module.publish_page_async = publish_page_async
-    base_module.api_publish = api_publish
-    base_module.api_media = api_media
-    base_module.serve_index = serve_index
-    base_module.health = health
+def install(base_module)->None:
+    global _BASE,_ORIGINAL_HEALTH
+    _BASE=base_module
+    if _ORIGINAL_HEALTH is None and base_module.health is not health: _ORIGINAL_HEALTH=base_module.health
+    base_module.MAX_PHOTO_BYTES=MAX_MEDIA_BYTES; base_module.build_rich_message=build_rich_message; base_module.publish_page=publish_page; base_module.publish_page_async=publish_page_async; base_module.api_publish=api_publish; base_module.api_media=api_media; base_module.serve_index=serve_index; base_module.health=health
