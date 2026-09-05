@@ -31,7 +31,7 @@ O bot usa aiogram 3.31.0, com suporte nativo ao Telegram Bot API 10.3. O deploy 
 
 ## Configuração (Railway + BotFather)
 
-Start command: `python main.py`
+Start command: `python app.py`
 
 | Variável | Obrigatória | Função |
 |---|---|---|

@@ -18,8 +18,20 @@
 <header id="header">
  <div class="brand"><h1>MDTXTRT</h1><button id="btnOptions" class="upload-action" type="button" aria-label="Importar Markdown" title="Importar Markdown"><svg class="upload-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 16V4M7.5 8.5 12 4l4.5 4.5M5 15.5V19a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3.5"/></svg></button></div>
  <nav><button data-view="edit" class="on">editar</button><button data-view="preview">prévia</button></nav>
- <div id="toolbar" class="toolbar">
-  <button class="tool" data-menu="text">Texto ▾</button><button class="tool" data-menu="heading">Título ▾</button><button class="tool" data-menu="quote">Citação ▾</button><button class="tool" data-menu="code">Código ▾</button><button class="tool" data-menu="math">Matemática ▾</button><button class="tool" data-menu="list">Lista ▾</button><button class="tool" data-menu="media">Mídia ▾</button><button class="tool" data-menu="structure">Estrutura ▾</button>
+ <div id="toolbar" class="toolbar" role="toolbar" aria-label="Ferramentas de formatação">
+  <button class="tool typographic bold-tool" type="button" data-direct="Negrito" data-format="bold" aria-label="Negrito" title="Negrito" aria-pressed="false"><span aria-hidden="true">B</span></button>
+  <button class="tool typographic italic-tool" type="button" data-direct="Itálico" data-format="italic" aria-label="Itálico" title="Itálico" aria-pressed="false"><span aria-hidden="true">I</span></button>
+  <button class="tool typographic underline-tool" type="button" data-direct="Sublinhado" data-format="underline" aria-label="Sublinhado" title="Sublinhado" aria-pressed="false"><span aria-hidden="true">U</span></button>
+  <button class="tool typographic strike-tool" type="button" data-direct="Riscado" data-format="strike" aria-label="Riscado" title="Riscado" aria-pressed="false"><span aria-hidden="true">S</span></button>
+  <button class="tool typographic extras-tool" type="button" data-menu="text-extra" aria-label="Mais formatação de texto" title="Mais formatação de texto" aria-expanded="false"><span aria-hidden="true">Aa</span></button>
+  <button class="tool" type="button" data-direct="Link" aria-label="Link" title="Link"><svg class="tool-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 14.5 14.5 9.5M7.2 16.8l-1 1a3.5 3.5 0 0 1-5-5l3.2-3.2a3.5 3.5 0 0 1 5 0M16.8 7.2l1-1a3.5 3.5 0 1 1 5 5l-3.2 3.2a3.5 3.5 0 0 1-5 0"/></svg></button>
+  <button class="tool typographic heading-tool" type="button" data-menu="heading" aria-label="Título" title="Título" aria-expanded="false"><span aria-hidden="true">H</span></button>
+  <button class="tool quote-tool" type="button" data-menu="quote" aria-label="Citação" title="Citação" aria-expanded="false"><svg class="tool-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h5v5H7.5A3.5 3.5 0 0 1 4 8.5V7h1Zm9 0h5v5h-2.5A3.5 3.5 0 0 1 13 8.5V7h1Z"/></svg></button>
+  <button class="tool typographic code-tool" type="button" data-menu="code" aria-label="Código" title="Código" aria-expanded="false"><span aria-hidden="true">&lt;/&gt;</span></button>
+  <button class="tool typographic math-tool" type="button" data-menu="math" aria-label="Matemática" title="Matemática" aria-expanded="false"><span aria-hidden="true">Σ</span></button>
+  <button class="tool" type="button" data-menu="list" aria-label="Lista" title="Lista" aria-expanded="false"><svg class="tool-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 7h12M8 12h12M8 17h12"/><circle cx="4" cy="7" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="17" r="1"/></svg></button>
+  <button class="tool" type="button" data-menu="media" aria-label="Mídia" title="Mídia" aria-expanded="false"><svg class="tool-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="1.5"/><path d="m5 17 4.5-4 3 2.5 2.5-2 4 3.5"/></svg></button>
+  <button class="tool" type="button" data-menu="structure" aria-label="Estrutura" title="Estrutura" aria-expanded="false"><svg class="tool-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="6" height="6"/><rect x="14" y="4" width="6" height="6"/><rect x="4" y="14" width="6" height="6"/><rect x="14" y="14" width="6" height="6"/></svg></button>
  </div>
  <div id="status" class="status" aria-live="polite"></div>
 </header>

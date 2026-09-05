@@ -1,8 +1,12 @@
 import json
 import time
 import unittest
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
+from aiogram import Bot
+from aiogram.client.session.aiohttp import AiohttpSession
+from aiogram.methods import SendRichMessage
 from aiogram.types import InputMediaVideo, InputRichMessage
 
 import main
@@ -25,10 +29,12 @@ class RuntimeV2Tests(unittest.IsolatedAsyncioTestCase):
         runtime_v2._BASE = main
         runtime_v2._PUBLISH_RATE.clear()
         main.MEDIA.clear()
+        main.STASH.clear()
 
     def tearDown(self):
         runtime_v2._PUBLISH_RATE.clear()
         main.MEDIA.clear()
+        main.STASH.clear()
 
     def test_http_media_stays_native_rich_markdown(self):
         md, refs = CanonicalDocument.from_markdown(
@@ -53,7 +59,68 @@ class RuntimeV2Tests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(rich.media), 1)
         self.assertIsInstance(rich.media[0].media, InputMediaVideo)
 
-    def test_telegraph_uses_fresh_account_and_reports_degradation(self):
+    async def test_local_video_uses_aiogram_multipart_serialization(self):
+        main.MEDIA["typed-video"] = {
+            "data": b"video",
+            "name": "clip.mp4",
+            "mime": "video/mp4",
+            "kind": "video",
+            "exp": time.time() + 60,
+        }
+        rich = runtime_v2.build_rich_message(
+            '![](mdtxtrt://video/typed-video "clip")'
+        )
+        bot = Bot("123456:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghi")
+        session = AiohttpSession()
+        try:
+            form = session.build_form_data(
+                bot,
+                SendRichMessage(chat_id=42, rich_message=rich),
+            )
+            fields = {
+                headers["name"]: value
+                for headers, _headers, value in form._fields
+            }
+            payload = json.loads(fields["rich_message"])
+            attachment = payload["media"][0]["media"]["media"].removeprefix(
+                "attach://"
+            )
+            self.assertEqual(payload["media"][0]["id"], "typed-video")
+            self.assertEqual(payload["media"][0]["media"]["type"], "video")
+            self.assertIn(attachment, fields)
+        finally:
+            await bot.session.close()
+            await session.close()
+
+    async def test_start_reports_expired_local_media_without_crashing(self):
+        main.MEDIA["expired-media"] = {
+            "data": b"photo",
+            "name": "photo.jpg",
+            "mime": "image/jpeg",
+            "kind": "photo",
+            "exp": time.time() - 1,
+        }
+        main.STASH["expired-payload"] = {
+            "action": "chat",
+            "title": "Sem título",
+            "content": '![](mdtxtrt://photo/expired-media "foto")',
+            "exp": time.time() + 60,
+        }
+        message = SimpleNamespace(chat=SimpleNamespace(id=42))
+        command = SimpleNamespace(args="cexpired-payload")
+        bot = SimpleNamespace(send_rich_message=AsyncMock())
+
+        with (
+            patch.object(main, "build_rich_message", runtime_v2.build_rich_message),
+            patch.object(main, "reply_text", AsyncMock()) as reply_text,
+        ):
+            await main.start(message, bot, command)
+
+        reply_text.assert_awaited_once()
+        self.assertIn("Mídia local expired-media expirou", reply_text.await_args.args[2])
+        bot.send_rich_message.assert_not_awaited()
+
+    def test_telegraph_uses_fresh_account_only_after_explicit_adaptation_confirmation(self):
         clients = []
 
         class FakeTelegraph:
@@ -71,7 +138,12 @@ class RuntimeV2Tests(unittest.IsolatedAsyncioTestCase):
                 return {"url": "https://telegra.ph/page", "path": "page"}
 
         with patch.object(runtime_v2, "Telegraph", FakeTelegraph):
-            first = runtime_v2.publish_page("Primeira", "# H1\n\n$$x^2$$")
+            with self.assertRaises(runtime_v2.TelegraphPreflightRequired):
+                runtime_v2.publish_page("Primeira", "# H1\n\n$$x^2$$")
+            self.assertEqual(clients, [])
+            first = runtime_v2.publish_page(
+                "Primeira", "# H1\n\n$$x^2$$", allow_adaptations=True
+            )
             second = runtime_v2.publish_page("Segunda", "texto")
 
         self.assertEqual(len(clients), 2)
@@ -106,10 +178,17 @@ class RuntimeV2Tests(unittest.IsolatedAsyncioTestCase):
     def test_active_editor_has_persistent_contextual_toolbar(self):
         index = runtime_v2.render_index()
         self.assertNotIn('id="btnInsert"', index)
+        self.assertIn('id="toolbar" class="toolbar"', index)
+        self.assertNotIn('legacy-toolbar', index)
+        self.assertNotIn('quickToolbar', index)
+        self.assertNotIn('data-menu="text"', index)
         self.assertIn("replaceSelection('<u>','</u>')", index)
         self.assertNotIn("replaceSelection('__','__')", index)
         for required in (
-            'data-menu="text"', 'data-menu="heading"', 'data-menu="quote"',
+            'data-direct="Negrito"', 'data-direct="Itálico"',
+            'data-direct="Sublinhado"', 'data-direct="Riscado"',
+            'data-menu="text-extra"', 'data-direct="Link"',
+            'data-menu="heading"', 'data-menu="quote"',
             'data-menu="code"', 'data-menu="math"', 'data-menu="list"',
             'data-menu="media"', 'data-menu="structure"', "['H'+n",
             'blockquote expandable', 'tg-button-row', 'tg-collage',
@@ -118,7 +197,6 @@ class RuntimeV2Tests(unittest.IsolatedAsyncioTestCase):
             self.assertIn(required, index)
         self.assertNotIn('# Título"', index)
         self.assertNotIn('==texto marcado==', index)
-
 
     async def test_installed_health_delegates_to_original_once(self):
         original_health = main.health
@@ -142,6 +220,7 @@ class RuntimeV2Tests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(payload["document_model"], "canonical")
             self.assertEqual(payload["telegram_rich"], "10.3")
             self.assertEqual(payload["media_model"], "typed")
+            self.assertTrue(payload["telegraph_preflight"])
         finally:
             main.build_rich_message = original_surfaces["build_rich_message"]
             main.publish_page = original_surfaces["publish_page"]

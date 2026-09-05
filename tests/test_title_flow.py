@@ -57,25 +57,28 @@ class TitleFlowTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn('>Importar Markdown</button>', index)
         self.assertIn("document.getElementById('btnOptions').onclick=()=>fileInput.click()", index)
         self.assertIn(".upload-action{", index)
-        self.assertIn("background:var(--surface);color:var(--muted)", index)
+        self.assertIn("background:transparent;color:var(--muted)", index)
+        self.assertIn(".upload-action:active{background:var(--surface)}", index)
         self.assertIn('id="btnOpen" type="button" hidden', index)
 
-    def test_fullscreen_header_centers_title_and_removes_technical_tag(self):
+    def test_fullscreen_header_is_proportional_and_uses_telegram_content_safe_area(self):
         index = runtime_v2.render_index()
         self.assertNotIn("Rich 10.3 · canonical", index)
         self.assertNotIn('class="tag"', index)
         self.assertNotIn(".tag{", index)
-        self.assertIn(
-            ".brand{height:38px;padding:0 10px;display:grid;grid-template-columns:1fr auto 1fr;align-items:center}",
-            index,
-        )
-        self.assertIn(".brand h1{grid-column:2;justify-self:center", index)
-        self.assertIn(
-            ".upload-action{grid-column:3;justify-self:start;margin-left:6px;width:34px;height:34px",
-            index,
-        )
-        self.assertIn("padding-top:max(4px,env(safe-area-inset-top))", index)
+        self.assertIn("grid-template-columns:1fr auto auto 1fr", index)
+        self.assertIn("column-gap:clamp(6px,1.8vw,9px)", index)
+        self.assertIn("height:clamp(40px,10vw,44px)", index)
+        self.assertIn("font-size:clamp(12px,3.3vw,13px)", index)
+        self.assertIn("width:clamp(32px,8.5vw,36px)", index)
+        self.assertIn("height:clamp(32px,8.5vw,36px)", index)
+        self.assertIn("border:0;border-radius:999px;background:transparent", index)
+        self.assertIn(".upload-icon{width:clamp(17px,4.7vw,19px);height:clamp(17px,4.7vw,19px)", index)
+        self.assertIn("padding-top:max(4px,env(safe-area-inset-top),var(--tg-safe-area-inset-top,0px),var(--tg-content-safe-area-inset-top,0px))", index)
+        self.assertIn("padding-left:max(12px,env(safe-area-inset-left),var(--tg-safe-area-inset-left,0px),var(--tg-content-safe-area-inset-left,0px))", index)
+        self.assertIn("padding-right:max(12px,env(safe-area-inset-right),var(--tg-safe-area-inset-right,0px),var(--tg-content-safe-area-inset-right,0px))", index)
         self.assertIn("stroke:currentColor", index)
+        self.assertIn(".upload-action:focus-visible{outline:1px solid var(--fg);outline-offset:1px}", index)
 
     def test_telegraph_success_exposes_copy_open_and_native_share(self):
         index = runtime_v2.render_index()
