@@ -1,8 +1,11 @@
 import json
 import unittest
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
+from aiogram.types import InputRichMessage
+
+import rich_delivery
 import rich_integrity
 import rich_media
 import rich_roundtrip
@@ -22,8 +25,10 @@ class FakeJsonRequest:
 
 class RemainingCompatibilityTests(unittest.IsolatedAsyncioTestCase):
     async def test_canonical_whitespace_changes_preflight_fingerprint(self):
-        first = await runtime_v2.api_publish(FakeJsonRequest({"content": "  texto\n", "preflight_only": True}))
-        second = await runtime_v2.api_publish(FakeJsonRequest({"content": "texto", "preflight_only": True}))
+        base = SimpleNamespace(init_data_from_request=lambda _data, _request: "")
+        with patch.object(runtime_v2, "_BASE", base):
+            first = await runtime_v2.api_publish(FakeJsonRequest({"content": "  texto\n", "preflight_only": True}))
+            second = await runtime_v2.api_publish(FakeJsonRequest({"content": "texto", "preflight_only": True}))
         self.assertNotEqual(json.loads(first.text)["fingerprint"], json.loads(second.text)["fingerprint"])
 
     def test_telegraph_limit_blocks_before_client_creation_even_if_confirmed(self):
@@ -77,15 +82,29 @@ class RemainingCompatibilityTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaisesRegex(ValueError, "profundidade"):
             validate_rich_structure(source)
 
-    def test_media_must_be_a_separate_rich_block(self):
-        with self.assertRaisesRegex(ValueError, "bloco separado"):
-            validate_rich_structure('<p>antes<img src="https://example.com/a.jpg">depois</p>')
+    async def _assert_send_rejected_before_api(self, source, message):
+        surface = SimpleNamespace(
+            build_rich_message=lambda _content: InputRichMessage(markdown=source)
+        )
+        rich_delivery.install(surface)
+        bot = SimpleNamespace(send_rich_message=AsyncMock())
+        with self.assertRaisesRegex(ValueError, message):
+            await surface.send_rich_message(bot, 42, source)
+        bot.send_rich_message.assert_not_awaited()
+
+    async def test_media_must_be_a_separate_rich_block(self):
+        await self._assert_send_rejected_before_api(
+            '<p>antes<img src="https://example.com/a.jpg">depois</p>',
+            "bloco separado",
+        )
         with self.assertRaisesRegex(ValueError, "bloco separado"):
             validate_rich_structure('texto ![](https://example.com/a.jpg)')
 
-    def test_table_cells_reject_block_content_without_reduction(self):
-        with self.assertRaisesRegex(ValueError, "Célula"):
-            validate_rich_structure("<table><tr><td><blockquote>não</blockquote></td></tr></table>")
+    async def test_table_cells_reject_block_content_without_reduction(self):
+        await self._assert_send_rejected_before_api(
+            "<table><tr><td><blockquote>não</blockquote></td></tr></table>",
+            "Célula",
+        )
 
     def test_semantic_rich_types_round_trip_with_exact_parameters(self):
         expected = [
