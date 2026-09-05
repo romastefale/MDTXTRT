@@ -81,6 +81,26 @@ class RichButtonsGreenTest(unittest.TestCase):
         outgoing = main.build_rich_message(editable)
         self.assertEqual((outgoing.markdown or "").count('style="success"'), 9)
 
+        manual = (
+            '<tg-button-row><tg-button type="url" style="danger" '
+            'url="https://example.com">manual</tg-button></tg-button-row>\n'
+            '<tg-button type="copy_text" text="x">sem estilo</tg-button>\n'
+            '```html\n<tg-button type="url" style="danger" url="https://example.com">exemplo</tg-button>\n```'
+        )
+        normalized = main.build_rich_message(manual).markdown or ""
+        self.assertIn(
+            '<tg-button type="url" url="https://example.com" style="success">manual</tg-button>',
+            normalized,
+        )
+        self.assertIn(
+            '<tg-button type="copy_text" text="x" style="success">sem estilo</tg-button>',
+            normalized,
+        )
+        self.assertIn(
+            '<tg-button type="url" style="danger" url="https://example.com">exemplo</tg-button>',
+            normalized,
+        )
+
         calls = []
 
         class FakeQuery:
