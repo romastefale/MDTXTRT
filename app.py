@@ -4,10 +4,12 @@ from aiohttp import web
 from canonical import CanonicalDocument
 import drafts
 import main
+import rich_delivery
 import runtime_v2
 
 runtime_v2.install(main)
 drafts.install(main)
+rich_delivery.install(main)
 
 
 def _canonical_markdown_export(source: str) -> str:
