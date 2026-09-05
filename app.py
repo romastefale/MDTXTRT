@@ -6,6 +6,7 @@ import drafts
 import main
 import rich_delivery
 import rich_media
+import rich_media_roundtrip
 import rich_roundtrip
 import runtime_v2
 
@@ -14,6 +15,7 @@ rich_media.install(main, runtime_v2)
 drafts.install(main)
 rich_delivery.install(main)
 rich_roundtrip.install(main)
+rich_media_roundtrip.install(rich_roundtrip)
 
 
 def _canonical_markdown_export(source: str) -> str:
