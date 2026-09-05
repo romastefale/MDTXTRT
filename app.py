@@ -5,6 +5,7 @@ from canonical import CanonicalDocument
 import drafts
 import main
 import rich_delivery
+import rich_integrity
 import rich_media
 import rich_media_roundtrip
 import rich_roundtrip
@@ -16,6 +17,7 @@ drafts.install(main)
 rich_delivery.install(main)
 rich_roundtrip.install(main)
 rich_media_roundtrip.install(rich_roundtrip)
+rich_integrity.install(main, rich_roundtrip)
 
 
 def _canonical_markdown_export(source: str) -> str:
