@@ -5,10 +5,12 @@ from canonical import CanonicalDocument
 import drafts
 import main
 import rich_delivery
+import rich_media
 import rich_roundtrip
 import runtime_v2
 
 runtime_v2.install(main)
+rich_media.install(main, runtime_v2)
 drafts.install(main)
 rich_delivery.install(main)
 rich_roundtrip.install(main)
