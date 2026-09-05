@@ -31,7 +31,7 @@ def _frame(command: str, subtitle: str, body: str) -> str:
     rendered_body = _paragraphs(body)
     if rendered_body:
         parts.append(rendered_body)
-    return "\n".join(parts)
+    return "\n\n".join(parts)
 
 
 _START_BODY = (
