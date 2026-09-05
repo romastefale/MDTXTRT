@@ -62,31 +62,38 @@ class DmCommandRichLayoutTest(unittest.TestCase):
         self.assertNotIn("InlineKeyboardMarkup", markdown)
         return markdown
 
-    def test_start_and_help_use_native_rich_layout(self):
+    def assert_command_table(self, markdown):
+        self.assertIn("<table bordered striped compact>", markdown)
+        self.assertIn("<tr><th>Comando</th><th>Descrição</th></tr>", markdown)
+        self.assertIn("<tr><td>/start</td><td>Abre o Mini App e resume as funções.</td></tr>", markdown)
+        self.assertIn("<tr><td>/help</td><td>Mostra os comandos e como usar o bot.</td></tr>", markdown)
+        self.assertIn("<tr><td>/tgrich</td><td>Converte Markdown em Rich Text do Telegram.</td></tr>", markdown)
+        self.assertIn("<tr><td>/mdrich</td><td>Exporta a mensagem respondida em .md.</td></tr>", markdown)
+        self.assertEqual(markdown.count("<table bordered striped compact>"), 1)
+
+    def test_start_and_help_use_native_rich_command_table(self):
         start_bot = FakeBot()
         asyncio.run(main.start(FakeMessage("/start"), start_bot, SimpleNamespace(args=None)))
         start_md = self.assert_layout(start_bot, "/start", "Início")
-        self.assertIn("</p>\n<p>", start_md)
-        self.assertIn("<br>", start_md)
+        self.assert_command_table(start_md)
 
         help_bot = FakeBot()
         asyncio.run(main.help_cmd(FakeMessage("/help"), help_bot))
         help_md = self.assert_layout(help_bot, "/help", "Comandos")
-        self.assertIn("/start", help_md)
-        self.assertIn("/tgrich", help_md)
-        self.assertIn("/mdrich", help_md)
-        self.assertIn("<br>", help_md)
+        self.assert_command_table(help_md)
 
-    def test_tgrich_and_mdrich_control_messages_use_same_layout(self):
+    def test_tgrich_and_mdrich_control_messages_do_not_gain_command_table(self):
         tgrich_bot = FakeBot()
         asyncio.run(main.tgrich(FakeMessage("/tgrich"), tgrich_bot))
         tgrich_md = self.assert_layout(tgrich_bot, "/tgrich", "Markdown → Rich Text")
         self.assertIn("Responda a um arquivo", tgrich_md)
+        self.assertNotIn("<table", tgrich_md)
 
         mdrich_bot = FakeBot()
         asyncio.run(main.mdrich(FakeMessage("/mdrich"), mdrich_bot))
         mdrich_md = self.assert_layout(mdrich_bot, "/mdrich", "Telegram → Markdown")
         self.assertIn("Responda a uma mensagem", mdrich_md)
+        self.assertNotIn("<table", mdrich_md)
 
 
 if __name__ == "__main__":
