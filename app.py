@@ -12,7 +12,7 @@ import rich_roundtrip
 import runtime_v2
 
 runtime_v2.install(main)
-rich_media.install(main, runtime_v2)
+rich_media.install(main)
 drafts.install(main)
 rich_delivery.install(main)
 rich_roundtrip.install(main)
