@@ -4,10 +4,22 @@ from aiohttp import web
 from canonical import CanonicalDocument
 import drafts
 import main
+import preview_security
+import rich_delivery
+import rich_integrity
+import rich_media
+import rich_media_roundtrip
+import rich_roundtrip
 import runtime_v2
 
 runtime_v2.install(main)
+rich_media.install(main)
 drafts.install(main)
+preview_security.install(main)
+rich_delivery.install(main)
+rich_roundtrip.install(main)
+rich_media_roundtrip.install(rich_roundtrip)
+rich_integrity.install(main, rich_roundtrip)
 
 
 def _canonical_markdown_export(source: str) -> str:

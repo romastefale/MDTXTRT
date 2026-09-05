@@ -16,6 +16,8 @@ from pathlib import Path
 from aiohttp import web
 
 MAX_DRAFT_BYTES = 1_048_576
+MAX_USER_MEDIA_BYTES = 512 * 1024 * 1024
+MEDIA_ORPHAN_GRACE_SECONDS = 7 * 24 * 3600
 MEDIA_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
 LOCAL_MEDIA_ID_RE = re.compile(
     r"mdtxtrt://(?:media|photo|video|audio|voice|animation|document)/([A-Za-z0-9_-]+)",
@@ -100,10 +102,17 @@ class DraftStore:
                 kind TEXT NOT NULL,
                 relative_path TEXT NOT NULL,
                 size INTEGER NOT NULL,
-                created_at INTEGER NOT NULL
+                created_at INTEGER NOT NULL,
+                orphaned_at INTEGER
             )
             """
         )
+        media_columns = {
+            row[1]
+            for row in connection.execute("PRAGMA table_info(draft_media)").fetchall()
+        }
+        if "orphaned_at" not in media_columns:
+            connection.execute("ALTER TABLE draft_media ADD COLUMN orphaned_at INTEGER")
         connection.commit()
         return connection
 
@@ -124,6 +133,29 @@ class DraftStore:
             "updated_at_ms": int(row[3]),
             "revision": int(row[4]),
         }
+
+    @staticmethod
+    def _sync_media_references(
+        connection: sqlite3.Connection,
+        user_id: int,
+        refs: set[str],
+        now: int,
+    ) -> None:
+        if refs:
+            placeholders = ",".join("?" for _ in refs)
+            connection.execute(
+                f"UPDATE draft_media SET orphaned_at = NULL WHERE telegram_user_id = ? AND media_id IN ({placeholders})",
+                (user_id, *refs),
+            )
+            connection.execute(
+                f"UPDATE draft_media SET orphaned_at = COALESCE(orphaned_at, ?) WHERE telegram_user_id = ? AND media_id NOT IN ({placeholders})",
+                (now, user_id, *refs),
+            )
+        else:
+            connection.execute(
+                "UPDATE draft_media SET orphaned_at = COALESCE(orphaned_at, ?) WHERE telegram_user_id = ?",
+                (now, user_id),
+            )
 
     def load(self, telegram_user_id: int) -> dict | None:
         with closing(self._connect()) as connection:
@@ -167,6 +199,7 @@ class DraftStore:
                 connection.rollback()
                 raise DraftConflict(current)
 
+            refs = set(local_media_ids(durable))
             revision = current_revision + 1
             updated_at_ms = int(time.time_ns() // 1_000_000)
             updated_at = updated_at_ms // 1000
@@ -191,6 +224,7 @@ class DraftStore:
                     revision,
                 ),
             )
+            self._sync_media_references(connection, user_id, refs, updated_at)
             connection.commit()
 
         return {
@@ -200,6 +234,59 @@ class DraftStore:
             "updated_at_ms": updated_at_ms,
             "revision": revision,
         }
+
+    def media_usage(self, telegram_user_id: int) -> int:
+        with closing(self._connect()) as connection:
+            row = connection.execute(
+                "SELECT COALESCE(SUM(size), 0) FROM draft_media WHERE telegram_user_id = ?",
+                (int(telegram_user_id),),
+            ).fetchone()
+        return int(row[0] or 0)
+
+    def gc_media(
+        self,
+        telegram_user_id: int,
+        *,
+        now: int | None = None,
+        grace_seconds: int = MEDIA_ORPHAN_GRACE_SECONDS,
+    ) -> list[str]:
+        user_id = int(telegram_user_id)
+        cutoff = int(time.time() if now is None else now) - int(grace_seconds)
+        removed: list[str] = []
+        with closing(self._connect()) as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            rows = connection.execute(
+                """
+                SELECT media_id, relative_path
+                FROM draft_media
+                WHERE telegram_user_id = ?
+                  AND orphaned_at IS NOT NULL
+                  AND orphaned_at <= ?
+                """,
+                (user_id, cutoff),
+            ).fetchall()
+            root = self.media_dir.resolve()
+            for media_id, relative_path in rows:
+                target = (self.media_dir / str(relative_path)).resolve()
+                try:
+                    target.relative_to(root)
+                except ValueError:
+                    continue
+                try:
+                    target.unlink()
+                except FileNotFoundError:
+                    pass
+                except OSError:
+                    continue
+                removed.append(str(media_id))
+            if removed:
+                placeholders = ",".join("?" for _ in removed)
+                connection.execute(
+                    f"DELETE FROM draft_media WHERE telegram_user_id = ? AND media_id IN ({placeholders})",
+                    (user_id, *removed),
+                )
+            connection.commit()
+        return removed
 
     def save_media(self, telegram_user_id: int, media_id: str, item: dict) -> dict:
         media_id = str(media_id or "").strip()
@@ -213,51 +300,66 @@ class DraftStore:
         name = str(item.get("name") or f"{media_id}.bin")[:512]
         mime = str(item.get("mime") or "application/octet-stream")[:255]
         kind = str(item.get("kind") or "document")[:32]
+        created_at = int(time.time())
+        relative_path = f"{user_id}/{media_id}.bin"
+        user_dir = self.media_dir / str(user_id)
+        target = user_dir / f"{media_id}.bin"
+        temporary = user_dir / f".{media_id}.tmp"
 
         with closing(self._connect()) as connection:
+            connection.execute("BEGIN IMMEDIATE")
             existing = connection.execute(
                 "SELECT 1 FROM draft_media WHERE media_id = ?", (media_id,)
             ).fetchone()
-        if existing:
-            raise ValueError("Identificador de mídia já existe; refaça o upload.")
+            if existing:
+                connection.rollback()
+                raise ValueError("Identificador de mídia já existe; refaça o upload.")
+            usage = connection.execute(
+                "SELECT COALESCE(SUM(size), 0) FROM draft_media WHERE telegram_user_id = ?",
+                (user_id,),
+            ).fetchone()
+            if int(usage[0] or 0) + len(raw) > MAX_USER_MEDIA_BYTES:
+                connection.rollback()
+                raise ValueError("Limite de 512 MB de mídia persistente por usuário excedido.")
 
-        user_dir = self.media_dir / str(user_id)
-        user_dir.mkdir(parents=True, exist_ok=True)
-        target = user_dir / f"{media_id}.bin"
-        temporary = user_dir / f".{media_id}.tmp"
-        with open(temporary, "wb") as handle:
-            handle.write(raw)
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(temporary, target)
-        relative_path = f"{user_id}/{media_id}.bin"
-        created_at = int(time.time())
-        try:
-            with closing(self._connect()) as connection:
-                with connection:
-                    connection.execute(
-                        """
-                        INSERT INTO draft_media
-                            (media_id, telegram_user_id, name, mime, kind, relative_path, size, created_at)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                        """,
-                        (
-                            media_id,
-                            user_id,
-                            name,
-                            mime,
-                            kind,
-                            relative_path,
-                            len(raw),
-                            created_at,
-                        ),
-                    )
-        except Exception:
+            user_dir.mkdir(parents=True, exist_ok=True)
             try:
-                target.unlink()
-            except FileNotFoundError:
-                pass
-            raise
+                with open(temporary, "wb") as handle:
+                    handle.write(raw)
+                    handle.flush()
+                    os.fsync(handle.fileno())
+                os.replace(temporary, target)
+                connection.execute(
+                    """
+                    INSERT INTO draft_media
+                        (media_id, telegram_user_id, name, mime, kind, relative_path, size, created_at, orphaned_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        media_id,
+                        user_id,
+                        name,
+                        mime,
+                        kind,
+                        relative_path,
+                        len(raw),
+                        created_at,
+                        created_at,
+                    ),
+                )
+                connection.commit()
+            except Exception:
+                connection.rollback()
+                try:
+                    temporary.unlink()
+                except FileNotFoundError:
+                    pass
+                try:
+                    target.unlink()
+                except FileNotFoundError:
+                    pass
+                raise
+
         return {
             "id": media_id,
             "telegram_user_id": user_id,
@@ -451,6 +553,7 @@ async def api_media(request: web.Request):
     response = await _ORIGINAL_API_MEDIA(request)
     if response.status >= 400:
         return response
+    media_id = ""
     try:
         payload = json.loads(response.text)
         media_id = str(payload.get("id") or "")
@@ -462,10 +565,15 @@ async def api_media(request: web.Request):
             raise RuntimeError("upload validado sem estado de mídia correspondente")
         user_id = int(user["id"])
         item["telegram_user_id"] = user_id
+        for removed_id in STORE.gc_media(user_id):
+            _BASE.MEDIA.pop(removed_id, None)
         STORE.save_media(user_id, media_id, item)
         _set_media_cookie(response, user_id)
+    except ValueError as exc:
+        if media_id:
+            _BASE.MEDIA.pop(media_id, None)
+        return web.json_response({"ok": False, "error": str(exc)}, status=413)
     except Exception:
-        media_id = locals().get("media_id") or ""
         if media_id:
             _BASE.MEDIA.pop(media_id, None)
         _BASE.log.exception("persistência de mídia do rascunho")
@@ -581,6 +689,8 @@ async def api_draft_save(request: web.Request):
             data.get("title") or "",
             base_revision=base_revision,
         )
+        for removed_id in STORE.gc_media(user_id):
+            _BASE.MEDIA.pop(removed_id, None)
     except DraftConflict as exc:
         response = web.json_response(
             {

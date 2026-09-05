@@ -885,7 +885,7 @@ async def delete_webhook_with_retry(bot: Bot, sleep=asyncio.sleep) -> None:
     delay = 1.0
     while True:
         try:
-            await bot.delete_webhook(drop_pending_updates=True, request_timeout=60)
+            await bot.delete_webhook(drop_pending_updates=False, request_timeout=60)
             return
         except TelegramRetryAfter as exc:
             delay = max(float(exc.retry_after), 1.0)
