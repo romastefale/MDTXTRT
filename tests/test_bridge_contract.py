@@ -147,6 +147,8 @@ expand **bold**
         self.assertIn("Copy: <code>copy &amp; keep</code>", rendered)
         self.assertIn("Mapa: 1, 2", rendered)
         self.assertIn("<p><em>footer</em></p>", rendered)
+        self.assertTrue(projection.compatible)
+        self.assertFalse(projection.unsupported)
 
         for residue in (
             "<tg-", "&lt;tg-", "&lt;blockquote", "&lt;aside",
@@ -162,10 +164,10 @@ expand **bold**
         tags = set(re.findall(r"</?([a-zA-Z0-9]+)", rendered))
         self.assertTrue(tags <= allowed, tags - allowed)
 
-        joined = "\n".join(projection.degradations)
+        joined = "\n".join(projection.adaptations)
         for expected in (
             "Spoiler", "marcado", "Subscrito/sobrescrito", "Citação expandível",
-            "Âncoras", "Referências", "Estruturas exclusivas", "Rodapé",
+            "Âncoras", "Referências", "Botões Rich", "Mapa Rich", "Rodapé",
         ):
             self.assertIn(expected, joined)
 
