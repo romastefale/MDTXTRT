@@ -53,7 +53,8 @@ class DmCommandRichLayoutTest(unittest.TestCase):
         markdown = bot.rich[0]["rich_message"].markdown or ""
         self.assertIn("<h1>MDTXTRT</h1>", markdown)
         self.assertIn(f"<h3>{subtitle}</h3>", markdown)
-        self.assertIn(f"<p>{command}</p>", markdown)
+        self.assertIn(f"\n{command}\n", markdown)
+        self.assertNotIn(f"<code>{command}</code>", markdown)
         self.assertIn("<p>", markdown)
         self.assertIn('type="web_app"', markdown)
         self.assertIn('style="success"', markdown)
