@@ -19,6 +19,7 @@ from aiogram.types import (
 
 import canonical
 
+_RTL_MARKER = "<!--mdtxtrt:rtl-->"
 _REMOTE_RE = re.compile(
     r"tg://(photo|video|document|audio)\?id=([A-Za-z0-9_-]{1,64})"
     r"(?:&amp;|&)file=([^&\s\"'>)]+)"
@@ -83,7 +84,11 @@ def install(base_module, runtime_module) -> None:
     runtime_module._media_kind = media_kind
 
     def build_rich_message(content: str) -> InputRichMessage:
-        markdown, refs = canonical.CanonicalDocument.from_markdown(content).telegram_markdown()
+        source = str(content or "")
+        is_rtl = source == _RTL_MARKER or source.startswith(_RTL_MARKER + "\n")
+        if is_rtl:
+            source = source[len(_RTL_MARKER):].lstrip("\n")
+        markdown, refs = canonical.CanonicalDocument.from_markdown(source).telegram_markdown()
         media: list[InputRichMessageMedia] = []
         media_ids: set[str] = set()
 
@@ -131,6 +136,10 @@ def install(base_module, runtime_module) -> None:
             raise ValueError(
                 "O documento contém referência tg:// de mídia sem arquivo associado."
             )
-        return InputRichMessage(markdown=markdown, media=media or None)
+        return InputRichMessage(
+            markdown=markdown,
+            media=media or None,
+            is_rtl=True if is_rtl else None,
+        )
 
     base_module.build_rich_message = build_rich_message
