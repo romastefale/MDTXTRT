@@ -1,8 +1,8 @@
 """Mídia Rich 10.3: upload local e reutilização de file_id no round-trip."""
 from __future__ import annotations
 
-import hashlib
 import re
+import secrets
 from urllib.parse import quote, unquote
 
 from aiogram.types import (
@@ -46,8 +46,13 @@ def remote_uri(kind: str, file_id: str) -> str:
         scheme, marker = "video", ""
     else:
         scheme, marker = "audio", ""
-    short = "r_" + hashlib.sha256(f"{kind}:{file_id}".encode()).hexdigest()[:24]
-    return f"tg://{scheme}?id={short}&file={quote(str(file_id), safe='')}{marker}"
+    # O id é da referência Rich, não do arquivo. Ele precisa ser único por ocorrência,
+    # inclusive quando o mesmo file_id aparece duas vezes no mesmo documento.
+    reference_id = "r_" + secrets.token_hex(8)
+    return (
+        f"tg://{scheme}?id={reference_id}"
+        f"&file={quote(str(file_id), safe='')}{marker}"
+    )
 
 
 def _input_media(kind: str, media):
@@ -72,17 +77,7 @@ def _local_input_media(item: dict):
     return _input_media(str(item.get("kind") or "document"), upload)
 
 
-def install(base_module, runtime_module) -> None:
-    original_kind = runtime_module._media_kind
-
-    def media_kind(filename: str, mime: str, requested: str) -> str:
-        requested = (requested or "auto").lower()
-        if requested == "voice":
-            return "voice"
-        return original_kind(filename, mime, requested)
-
-    runtime_module._media_kind = media_kind
-
+def install(base_module) -> None:
     def build_rich_message(content: str) -> InputRichMessage:
         source = str(content or "")
         is_rtl = source == _RTL_MARKER or source.startswith(_RTL_MARKER + "\n")
