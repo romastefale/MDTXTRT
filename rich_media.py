@@ -72,10 +72,6 @@ def _local_input_media(item: dict):
 
 
 def install(base_module, runtime_module) -> None:
-    canonical.LOCAL_MEDIA_RE = re.compile(
-        r'!\[([^\]]*)\]\(mdtxtrt://(photo|video|animation|audio|voice|document)/([A-Za-z0-9_-]+)(?:\s+"([^"]*)")?\)'
-    )
-
     original_kind = runtime_module._media_kind
 
     def media_kind(filename: str, mime: str, requested: str) -> str:
@@ -85,7 +81,6 @@ def install(base_module, runtime_module) -> None:
         return original_kind(filename, mime, requested)
 
     runtime_module._media_kind = media_kind
-    runtime_module._input_media = _local_input_media
 
     def build_rich_message(content: str) -> InputRichMessage:
         markdown, refs = canonical.CanonicalDocument.from_markdown(content).telegram_markdown()
