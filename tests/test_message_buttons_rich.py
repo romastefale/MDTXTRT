@@ -46,6 +46,8 @@ class MessageButtonsRichTest(unittest.TestCase):
         self.assertIn('type="web_app"', markdown)
         self.assertIn('style="success"', markdown)
         self.assertIn('url="https://example.com/app"', markdown)
+        self.assertIn(">MDTXTRT</tg-button>", markdown)
+        self.assertNotIn("Abrir Mini App", markdown)
         self.assertNotIn("reply_markup", bot.rich[0])
 
     def test_start_help_and_expired_link_use_rich_green_button(self):
