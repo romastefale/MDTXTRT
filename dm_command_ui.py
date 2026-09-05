@@ -22,12 +22,26 @@ def _paragraphs(text: str) -> str:
     return "\n".join(blocks)
 
 
-def _frame(command: str, subtitle: str, body: str) -> str:
+def _command_table() -> str:
+    return (
+        "<table bordered striped compact>\n"
+        "<tr><th>Comando</th><th>Descrição</th></tr>\n"
+        "<tr><td>/start</td><td>Abre o Mini App e resume as funções.</td></tr>\n"
+        "<tr><td>/help</td><td>Mostra os comandos e como usar o bot.</td></tr>\n"
+        "<tr><td>/tgrich</td><td>Converte Markdown em Rich Text do Telegram.</td></tr>\n"
+        "<tr><td>/mdrich</td><td>Exporta a mensagem respondida em .md.</td></tr>\n"
+        "</table>"
+    )
+
+
+def _frame(command: str, subtitle: str, body: str, *, command_table: bool = False) -> str:
     parts = [
         "<h1>MDTXTRT</h1>",
         f"<h3>{html.escape(subtitle)}</h3>",
         html.escape(command),
     ]
+    if command_table:
+        parts.append(_command_table())
     rendered_body = _paragraphs(body)
     if rendered_body:
         parts.append(rendered_body)
@@ -36,18 +50,11 @@ def _frame(command: str, subtitle: str, body: str) -> str:
 
 _START_BODY = (
     "Converte Markdown em Rich Text do Telegram e exporta mensagens em .md.\n\n"
-    "Mini App: redija, pré-visualize, envie ao chat e publique no Telegraph.\n\n"
-    "/tgrich — converte Markdown em Rich Text do Telegram.\n"
-    "/mdrich — exporta uma mensagem em .md.\n"
-    "/help — mostra a ajuda do bot."
+    "Use o Mini App para redigir, pré-visualizar, enviar ao chat e publicar no Telegraph."
 )
 
 _HELP_BODY = (
-    "/start — abre o Mini App e resume as funções.\n"
-    "/help — mostra esta ajuda.\n"
-    "/tgrich — converte Markdown em Rich Text do Telegram. Responda a um arquivo compatível, anexe um .md ou escreva o texto após o comando.\n"
-    "/mdrich — responda a uma mensagem para exportá-la em .md.\n\n"
-    "Formatos: .md, .markdown e .txt.\n\n"
+    "Formatos aceitos: .md, .markdown e .txt.\n\n"
     "Use o Mini App para redigir, pré-visualizar, enviar ao chat e publicar no Telegraph."
 )
 
@@ -68,11 +75,19 @@ def install(base_module) -> None:
     def is_private(message) -> bool:
         return message.chat.type == base_module.ChatType.PRIVATE
 
-    async def send_frame(message, bot, command: str, subtitle: str, body: str):
+    async def send_frame(
+        message,
+        bot,
+        command: str,
+        subtitle: str,
+        body: str,
+        *,
+        command_table: bool = False,
+    ):
         return await previous_reply_text(
             message,
             bot,
-            _frame(command, subtitle, body),
+            _frame(command, subtitle, body, command_table=command_table),
             reply_markup=base_module.mini_app_markup(),
         )
 
@@ -95,7 +110,14 @@ def install(base_module) -> None:
             return await previous_start(message, bot, command)
         arg = ((command.args or "").split()[0] if command.args else "").strip()
         if not arg:
-            return await send_frame(message, bot, "/start", _META["/start"], _START_BODY)
+            return await send_frame(
+                message,
+                bot,
+                "/start",
+                _META["/start"],
+                _START_BODY,
+                command_table=True,
+            )
         token = _COMMAND_CONTEXT.set(("/start", _META["/start"]))
         try:
             return await previous_start(message, bot, command)
@@ -105,7 +127,14 @@ def install(base_module) -> None:
     async def help_cmd(message, bot):
         if not is_private(message):
             return await base_module._dm_command_ui_original_help(message, bot)
-        return await send_frame(message, bot, "/help", _META["/help"], _HELP_BODY)
+        return await send_frame(
+            message,
+            bot,
+            "/help",
+            _META["/help"],
+            _HELP_BODY,
+            command_table=True,
+        )
 
     async def tgrich(message, bot):
         if not is_private(message):
