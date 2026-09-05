@@ -1,4 +1,4 @@
-"""Migra botões de mensagem legados para RichMessageButton 10.3 verde."""
+"""Mensagens do bot usam RichMessageButton 10.3 verde, sem fallback para teclado inline legado."""
 from __future__ import annotations
 
 import html
