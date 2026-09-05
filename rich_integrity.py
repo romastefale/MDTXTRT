@@ -5,6 +5,7 @@ import html
 
 _RTL_MARKER = "<!--mdtxtrt:rtl-->"
 _ORIGINAL_BLOCK = None
+_ORIGINAL_TEXT = None
 
 
 def _list_block(roundtrip_module, block: dict) -> str:
@@ -36,9 +37,41 @@ def _list_block(roundtrip_module, block: dict) -> str:
 
 
 def install(base_module, roundtrip_module) -> None:
-    global _ORIGINAL_BLOCK
+    global _ORIGINAL_BLOCK, _ORIGINAL_TEXT
     if _ORIGINAL_BLOCK is None:
         _ORIGINAL_BLOCK = roundtrip_module._block
+    if _ORIGINAL_TEXT is None:
+        _ORIGINAL_TEXT = roundtrip_module._text
+
+    def text(value) -> str:
+        parsed = roundtrip_module._plain(value)
+        if isinstance(parsed, dict):
+            typ = str(parsed.get("type") or "")
+            if typ == "custom_emoji":
+                emoji_id = str(parsed.get("custom_emoji_id") or "")
+                alternative = html.escape(
+                    str(parsed.get("alternative_text") or ""), quote=False
+                )
+                if emoji_id:
+                    return (
+                        f'<tg-emoji emoji-id="{html.escape(emoji_id, quote=True)}">'
+                        f"{alternative}</tg-emoji>"
+                    )
+                return alternative
+            if typ == "date_time":
+                unix_time = parsed.get("unix_time")
+                fmt = str(parsed.get("date_time_format") or "")
+                body = text(parsed.get("text"))
+                if unix_time is not None:
+                    format_attr = (
+                        f' format="{html.escape(fmt, quote=True)}"' if fmt else ""
+                    )
+                    return (
+                        f'<tg-time unix="{int(unix_time)}"{format_attr}>'
+                        f"{body}</tg-time>"
+                    )
+                return body
+        return _ORIGINAL_TEXT(parsed)
 
     def block(value) -> str:
         parsed = roundtrip_module._plain(value)
@@ -46,6 +79,7 @@ def install(base_module, roundtrip_module) -> None:
             return _list_block(roundtrip_module, parsed)
         return _ORIGINAL_BLOCK(parsed)
 
+    roundtrip_module._text = text
     roundtrip_module._block = block
     original_reverse = roundtrip_module.rich_message_to_markdown
 
