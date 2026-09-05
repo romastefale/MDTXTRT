@@ -7,7 +7,7 @@ import re
 from urllib.parse import urlparse
 
 LOCAL_MEDIA_RE = re.compile(
-    r'!\[([^\]]*)\]\(mdtxtrt://(photo|video|animation|audio|voice|document)/([A-Za-z0-9_-]+)(?:\s+"([^"]*)")?\)'
+    r'!\[([^\]]*)\]\(mdtxtrt://(photo|video|animation|audio|document)/([A-Za-z0-9_-]+)(?:\s+"([^"]*)")?\)'
 )
 HTTP_MEDIA_RE = re.compile(
     r'^!\[([^\]]*)\]\((https?://[^\s)]+)(?:\s+"([^"]*)")?\)\s*$'
