@@ -259,6 +259,19 @@ def _inline_telegraph(
         placeholders[key] = value
         return key
 
+    def semantic_entity(match: re.Match) -> str:
+        attrs = _attrs(match.group(1))
+        body = _inline_telegraph(match.group(2), adaptations, unsupported)
+        typ = str(attrs.get("type") or "entity")
+        metadata = "; ".join(
+            f"{name}={value}" for name, value in attrs.items() if name != "type"
+        )
+        adaptations.append("Tipo e parâmetros de entidade Rich sem equivalente explícito no Telegraph são preservados textualmente.")
+        suffix = f"; {metadata}" if metadata else ""
+        return hold(body + f" <code>[rich:{html.escape(typ + suffix)}]</code>")
+
+    text = re.sub(r"<tg-entity\b([^>]*)>(.*?)</tg-entity>", semantic_entity, text, flags=re.I | re.S)
+
     def anchor(match: re.Match) -> str:
         name = match.group(1)
         adaptations.append("Âncoras internas não navegam no Telegraph; o identificador é preservado textualmente.")
@@ -430,6 +443,16 @@ def _telegraph_button_row(
     adaptations: list[str],
     unsupported: list[str],
 ) -> str:
+    opening = re.search(r"<tg-button-row\b([^>]*)>", blob, re.I)
+    row_attrs = _attrs(opening.group(1)) if opening else {}
+    row_meta: list[str] = []
+    if row_attrs.get("align") not in (None, False, ""):
+        row_meta.append(f"align={row_attrs['align']}")
+        adaptations.append("Alinhamento da linha de botões não existe no Telegraph; o valor é preservado textualmente.")
+    for name, value in row_attrs.items():
+        if name != "align" and value not in (None, False, ""):
+            row_meta.append(f"{name}={value}")
+            adaptations.append("Atributos visuais ou estruturais da linha de botões sem equivalente no Telegraph são preservados textualmente.")
     buttons = re.findall(r"<tg-button\s+([^>]*)>(.*?)</tg-button>", blob, re.I | re.S)
     rendered: list[str] = []
     for attrs_text, raw_label in buttons:
@@ -478,6 +501,8 @@ def _telegraph_button_row(
         if metadata:
             body += " <code>[" + html.escape("; ".join(str(x) for x in metadata)) + "]</code>"
         rendered.append(body)
+    if row_meta:
+        rendered.insert(0, "<code>[button-row: " + html.escape("; ".join(row_meta)) + "]</code>")
     return "<p>" + "<br>".join(rendered) + "</p>" if rendered else ""
 
 
@@ -488,6 +513,20 @@ def _telegraph_html_table(
 ) -> str:
     rows: list[str] = []
     structural_attrs = False
+    opening = re.search(r"<table\b([^>]*)>", blob, re.I)
+    table_attrs = _attrs(opening.group(1)) if opening else {}
+    table_meta = [
+        name if value is True else f"{name}={value}"
+        for name, value in table_attrs.items()
+        if value not in (None, False, "")
+    ]
+    if table_meta:
+        adaptations.append("Atributos visuais ou estruturais da tabela sem equivalente no Telegraph são preservados textualmente.")
+    caption_match = re.search(r"<caption\b[^>]*>(.*?)</caption>", blob, re.I | re.S)
+    caption = ""
+    if caption_match:
+        caption = re.sub(r"<[^>]+>", "", _inline_telegraph(caption_match.group(1), adaptations, unsupported))
+        caption = html.unescape(caption).strip()
     for row in re.findall(r"<tr\b[^>]*>(.*?)</tr>", blob, re.I | re.S):
         cells: list[str] = []
         for match in re.finditer(r"<(th|td)\b([^>]*)>(.*?)</\1>", row, re.I | re.S):
@@ -511,7 +550,12 @@ def _telegraph_html_table(
     adaptations.append("Tabela é representada de forma preformatada no Telegraph preservando linhas, colunas e células.")
     if structural_attrs:
         adaptations.append("Atributos estruturais da tabela sem equivalente nativo são preservados textualmente.")
-    return f"<pre>{html.escape(chr(10).join(rows))}</pre>"
+    preface: list[str] = []
+    if caption:
+        preface.append(f"Legenda: {caption}")
+    if table_meta:
+        preface.append("[table: " + "; ".join(table_meta) + "]")
+    return f"<pre>{html.escape(chr(10).join(preface + rows))}</pre>"
 
 
 def _telegraph_media_element(
@@ -519,6 +563,7 @@ def _telegraph_media_element(
     adaptations: list[str],
     unsupported: list[str],
     caption: str = "",
+    credit: str = "",
 ) -> str:
     src_match = re.search(r'\bsrc=["\']([^"\']+)["\']', blob, re.I)
     if not src_match:
@@ -532,8 +577,9 @@ def _telegraph_media_element(
         unsupported.append("Mídia baseada em file_id/arquivo do Telegram não possui URL pública persistível no Telegraph.")
         info = f"mídia Telegram {tag}: {src}"
         body = f"<code>{html.escape(info)}</code>"
-        if caption:
-            body = f"<em>{html.escape(caption)}</em><br>{body}"
+        legend = " — ".join(piece for piece in (caption, credit) if piece)
+        if legend:
+            body = f"<em>{html.escape(legend)}</em><br>{body}"
         return f"<p>{body}</p>"
 
     if not src.startswith(("http://", "https://")):
@@ -548,10 +594,53 @@ def _telegraph_media_element(
     else:
         adaptations.append("Áudio/documento por URL é representado como link no Telegraph.")
         label = html.escape(caption or "Abrir mídia")
-        return f'<p><a href="{safe}">{label}</a></p>'
-    if caption:
-        return f"<figure>{node}<figcaption>{html.escape(caption)}</figcaption></figure>"
+        suffix = f" <em>— {html.escape(credit)}</em>" if credit else ""
+        return f'<p><a href="{safe}">{label}</a>{suffix}</p>'
+    if caption or credit:
+        legend = html.escape(caption)
+        if credit:
+            legend += (" " if legend else "") + f"<em>— {html.escape(credit)}</em>"
+        return f"<figure>{node}<figcaption>{legend}</figcaption></figure>"
     return node
+
+
+def _telegraph_map_element(
+    blob: str,
+    adaptations: list[str],
+    unsupported: list[str],
+    caption: str = "",
+    credit: str = "",
+) -> str:
+    match = re.search(r"<tg-map\b([^>]*)/?>", blob, re.I | re.S)
+    if not match:
+        return ""
+    attrs = _attrs(match.group(1))
+    lat = attrs.get("lat", attrs.get("latitude"))
+    lon = attrs.get("long", attrs.get("longitude"))
+    if lat in (None, False, "") or lon in (None, False, ""):
+        unsupported.append("Mapa Rich sem latitude/longitude não pode ser projetado para o Telegraph.")
+        return "<p><code>[mapa sem coordenadas]</code></p>"
+    adaptations.append("Mapa Rich é representado por link de coordenadas no Telegraph.")
+    url = f"https://maps.google.com/?q={lat},{lon}"
+    zoom = attrs.get("zoom")
+    if zoom not in (None, False, ""):
+        url += f"&z={zoom}"
+        adaptations.append("Zoom do mapa é preservado semanticamente no link e textualmente no Telegraph.")
+    metadata: list[str] = []
+    for name in ("zoom", "width", "height"):
+        value = attrs.get(name)
+        if value not in (None, False, ""):
+            metadata.append(f"{name}={value}")
+    if attrs.get("width") not in (None, False, "") or attrs.get("height") not in (None, False, ""):
+        adaptations.append("Dimensões do mapa não são reproduzíveis no Telegraph; width/height são preservados textualmente.")
+    label = caption or f"Mapa: {lat}, {lon}"
+    body = f'<a href="{html.escape(url, quote=True)}">{_inline_telegraph(label, adaptations, unsupported)}</a>'
+    if credit:
+        body += f" <em>— {_inline_telegraph(credit, adaptations, unsupported)}</em>"
+        adaptations.append("Crédito do mapa é preservado textualmente porque o Telegraph não possui campo equivalente.")
+    if metadata:
+        body += " <code>[" + html.escape("; ".join(metadata)) + "]</code>"
+    return f"<p>{body}</p>"
 
 
 def markdown_to_telegraph(source: str) -> TelegraphProjection:
@@ -761,16 +850,24 @@ def markdown_to_telegraph(source: str) -> TelegraphProjection:
             blob, i = _collect_tag_block(lines, i, "</figure>")
             caption_match = re.search(r"<figcaption>(.*?)</figcaption>", blob, re.I | re.S)
             caption_raw = caption_match.group(1) if caption_match else ""
-            caption_raw = re.sub(r"<cite>.*?</cite>", "", caption_raw, flags=re.I | re.S)
-            caption = re.sub(r"<[^>]+>", "", caption_raw).strip()
+            credit_match = re.search(r"<cite>(.*?)</cite>", caption_raw, re.I | re.S)
+            credit_raw = credit_match.group(1) if credit_match else ""
+            caption_body = re.sub(r"<cite>.*?</cite>", "", caption_raw, flags=re.I | re.S)
+            caption = re.sub(r"<[^>]+>", "", caption_body).strip()
+            credit = re.sub(r"<[^>]+>", "", credit_raw).strip()
+            if credit:
+                adaptations.append("Crédito de mídia é preservado textualmente porque o Telegraph não possui campo equivalente.")
+            map_match = re.search(r"<tg-map\b[^>]*/?>", blob, re.I | re.S)
             media_match = re.search(
                 r"(<(?:img|video|audio|tg-document)\b.*?(?:/>|</(?:video|audio|tg-document)>))",
                 blob,
                 re.I | re.S,
             )
-            if media_match:
-                parts.append(_telegraph_media_element(media_match.group(1), adaptations, unsupported, caption))
-            elif caption:
+            if map_match:
+                parts.append(_telegraph_map_element(map_match.group(0), adaptations, unsupported, caption, credit))
+            elif media_match:
+                parts.append(_telegraph_media_element(media_match.group(1), adaptations, unsupported, caption, credit))
+            elif caption or credit:
                 parts.append(f"<p>{_inline_telegraph(caption_raw, adaptations, unsupported)}</p>")
             continue
 
@@ -788,19 +885,10 @@ def markdown_to_telegraph(source: str) -> TelegraphProjection:
             parts.append(_telegraph_media_element(blob, adaptations, unsupported))
             continue
 
-        map_match = re.search(
-            r'<tg-map\s+[^>]*lat=["\']([^"\']+)["\'][^>]*long=["\']([^"\']+)["\'][^>]*/?>',
-            stripped,
-            re.I,
-        )
+        map_match = re.search(r"<tg-map\b[^>]*/?>", stripped, re.I | re.S)
         if map_match:
             flush_para()
-            lat, lon = map_match.groups()
-            url = f"https://maps.google.com/?q={lat},{lon}"
-            adaptations.append("Mapa Rich é representado por link de coordenadas no Telegraph.")
-            parts.append(
-                f'<p><a href="{html.escape(url, quote=True)}">Mapa: {html.escape(lat)}, {html.escape(lon)}</a></p>'
-            )
+            parts.append(_telegraph_map_element(map_match.group(0), adaptations, unsupported))
             i += 1
             continue
 

@@ -18,6 +18,7 @@ from aiogram.types import (
 )
 
 import canonical
+import rich_explicit
 
 _RTL_MARKER = "<!--mdtxtrt:rtl-->"
 _REMOTE_RE = re.compile(
@@ -130,6 +131,16 @@ def install(base_module) -> None:
         if missing:
             raise ValueError(
                 "O documento contém referência tg:// de mídia sem arquivo associado."
+            )
+        if rich_explicit.contains_semantic_entities(markdown):
+            blocks = rich_explicit.compile_semantic_blocks(
+                markdown,
+                {item.id: item.media for item in media},
+            )
+            return InputRichMessage(
+                blocks=blocks,
+                is_rtl=True if is_rtl else None,
+                skip_entity_detection=True,
             )
         return InputRichMessage(
             markdown=markdown,

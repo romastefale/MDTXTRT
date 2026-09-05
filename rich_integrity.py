@@ -108,13 +108,27 @@ def _inline_html(roundtrip_module, value) -> str:
         number = value.get("phone_number") or _plain_text(roundtrip_module, value)
         label = inner or html.escape(str(number), quote=False)
         return f'<a href="tel:{_attr(number)}">{label}</a>'
-    if typ in {"text_mention", "mention"}:
+    if typ == "text_mention":
         user = value.get("user") or {}
         user_id = user.get("id") if isinstance(user, dict) else None
         user_id = user_id or value.get("user_id")
         if user_id and inner:
             return f'<a href="tg://user?id={_attr(user_id)}">{inner}</a>'
         return inner or html.escape(_plain_text(roundtrip_module, value), quote=False)
+    semantic_fields = {
+        "mention": "username",
+        "hashtag": "hashtag",
+        "cashtag": "cashtag",
+        "bot_command": "bot_command",
+        "bank_card_number": "bank_card_number",
+    }
+    if typ in semantic_fields:
+        field = semantic_fields[typ]
+        parameter = value.get(field)
+        visible = inner or html.escape(str(parameter or ""), quote=False)
+        if parameter in (None, ""):
+            return visible
+        return f'<tg-entity type="{typ}" {field}="{_attr(parameter)}">{visible}</tg-entity>'
     if typ == "anchor":
         name = value.get("name") or ""
         return f'<a name="{_attr(name)}"></a>' if name else ""

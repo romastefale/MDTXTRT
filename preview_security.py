@@ -21,7 +21,7 @@ _GUARD = r'''<script id="mdtxtrt-preview-sanitizer">
   function sanitize(raw){
     var template=document.createElement('template');
     template.innerHTML=String(raw||'');
-    var allowed=new Set(['a','aside','audio','b','blockquote','br','code','del','details','div','em','figcaption','figure','footer','h1','h2','h3','h4','h5','h6','hr','i','img','input','li','mark','ol','p','pre','s','span','strong','sub','summary','sup','table','tbody','td','tfoot','th','thead','tr','u','ul','video','tg-button-row','tg-button','tg-collage','tg-document','tg-emoji','tg-map','tg-math','tg-math-block','tg-reference','tg-slideshow','tg-time']);
+    var allowed=new Set(['a','aside','audio','b','blockquote','br','code','del','details','div','em','figcaption','figure','footer','h1','h2','h3','h4','h5','h6','hr','i','img','input','li','mark','ol','p','pre','s','span','strong','sub','summary','sup','table','tbody','td','tfoot','th','thead','tr','u','ul','video','tg-button-row','tg-button','tg-collage','tg-document','tg-emoji','tg-entity','tg-map','tg-math','tg-math-block','tg-reference','tg-slideshow','tg-time']);
     var attrs={
       a:new Set(['href','title','name']),div:new Set(['class']),span:new Set(['class']),
       img:new Set(['src','alt','title','tg-spoiler']),
@@ -31,7 +31,8 @@ _GUARD = r'''<script id="mdtxtrt-preview-sanitizer">
       input:new Set(['type','checked']),
       'tg-button-row':new Set(['align']),'tg-button':new Set(['type','url','text','style','data','query','forward-text','request-write-access','allow-user-chats','allow-bot-chats','allow-group-chats','allow-channel-chats']),
       'tg-map':new Set(['lat','long','zoom','width','height']),'tg-emoji':new Set(['emoji-id']),
-      'tg-time':new Set(['unix','format']),'tg-reference':new Set(['name'])
+      'tg-time':new Set(['unix','format']),'tg-reference':new Set(['name']),
+      'tg-entity':new Set(['type','username','hashtag','cashtag','bot_command','bank_card_number','value'])
     };
     var safeClasses=new Set(['preview-note','spoiler','revealed']);
     var nodes=[],walker=document.createTreeWalker(template.content,NodeFilter.SHOW_ELEMENT);

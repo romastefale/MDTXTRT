@@ -106,7 +106,9 @@ class RuntimeV2Tests(unittest.IsolatedAsyncioTestCase):
             "content": '![](mdtxtrt://photo/expired-media "foto")',
             "exp": time.time() + 60,
         }
-        message = SimpleNamespace(chat=SimpleNamespace(id=42))
+        message = SimpleNamespace(
+            chat=SimpleNamespace(id=42, type=main.ChatType.PRIVATE)
+        )
         command = SimpleNamespace(args="cexpired-payload")
         bot = SimpleNamespace(send_rich_message=AsyncMock())
 
@@ -199,7 +201,6 @@ class RuntimeV2Tests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn('==texto marcado==', index)
 
     async def test_installed_health_delegates_to_original_once(self):
-        original_health = main.health
         original_surfaces = {
             "build_rich_message": main.build_rich_message,
             "publish_page": main.publish_page,
@@ -210,6 +211,10 @@ class RuntimeV2Tests(unittest.IsolatedAsyncioTestCase):
             "health": main.health,
             "max_photo_bytes": main.MAX_PHOTO_BYTES,
         }
+        async def original_health(_request):
+            return main.web.json_response({"ok": True})
+
+        main.health = original_health
         runtime_v2._ORIGINAL_HEALTH = None
         try:
             runtime_v2.install(main)

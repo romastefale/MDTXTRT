@@ -19,10 +19,12 @@ from aiogram.types import (
 )
 from telegraph import Telegraph
 from telegraph.exceptions import TelegraphException
+from telegraph.utils import html_to_nodes, json_dumps
 
 from canonical import CanonicalDocument
 
 MAX_MEDIA_BYTES = 50 * 1024 * 1024
+TELEGRAPH_CONTENT_LIMIT_BYTES = 64 * 1024
 _PUBLISH_RATE: dict[str, deque[float]] = defaultdict(deque)
 _BASE = None
 _ORIGINAL_HEALTH = None
@@ -66,17 +68,21 @@ def build_rich_message(content: str) -> InputRichMessage:
 
 def telegraph_preflight(content_md: str) -> dict:
     projection=CanonicalDocument.from_markdown(content_md).telegraph(); adaptations=list(projection.adaptations); unsupported=list(projection.unsupported)
-    source=json.dumps({"content":CanonicalDocument.from_markdown(content_md).markdown,"adaptations":adaptations,"unsupported":unsupported,"html":projection.html},ensure_ascii=False,sort_keys=True,separators=(",",":"))
+    content_bytes=len(json_dumps(html_to_nodes(projection.html)).encode("utf-8"))
+    blocking=[]
+    if content_bytes>TELEGRAPH_CONTENT_LIMIT_BYTES: blocking.append(f"Conteúdo Telegraph serializado excede o limite de {TELEGRAPH_CONTENT_LIMIT_BYTES} bytes ({content_bytes} bytes).")
+    source=json.dumps({"content":CanonicalDocument.from_markdown(content_md).markdown,"adaptations":adaptations,"unsupported":unsupported,"blocking":blocking,"html":projection.html,"content_bytes":content_bytes},ensure_ascii=False,sort_keys=True,separators=(",",":"))
     fingerprint=hashlib.sha256(source.encode("utf-8")).hexdigest()
-    return {"compatible":not unsupported,"adaptations":adaptations,"unsupported":unsupported,"fingerprint":fingerprint,"projection":projection}
+    return {"compatible":not unsupported and not blocking,"publishable":not blocking,"adaptations":adaptations,"unsupported":unsupported,"blocking":blocking,"content_bytes":content_bytes,"content_limit_bytes":TELEGRAPH_CONTENT_LIMIT_BYTES,"fingerprint":fingerprint,"projection":projection}
 
 
 def _public_preflight(report: dict) -> dict:
-    return {"compatible":bool(report["compatible"]),"adaptations":list(report["adaptations"]),"unsupported":list(report["unsupported"]),"fingerprint":report["fingerprint"],"requires_confirmation":bool(report["adaptations"] or report["unsupported"])}
+    return {"compatible":bool(report["compatible"]),"publishable":bool(report["publishable"]),"adaptations":list(report["adaptations"]),"unsupported":list(report["unsupported"]),"blocking":list(report["blocking"]),"content_bytes":report["content_bytes"],"content_limit_bytes":report["content_limit_bytes"],"fingerprint":report["fingerprint"],"requires_confirmation":bool(report["adaptations"] or report["unsupported"]) and report["publishable"]}
 
 
 def publish_page(title: str, content_md: str, _path_hint: str = "", *, allow_adaptations: bool = False, allow_unsupported: bool = False, preflight_fingerprint: str | None = None) -> dict:
     title=(title or "Sem título").strip()[:256] or "Sem título"; report=telegraph_preflight(content_md)
+    if not report["publishable"]: raise TelegraphPreflightRequired(report)
     if preflight_fingerprint and preflight_fingerprint != report["fingerprint"]: raise TelegraphPreflightRequired(report)
     if report["adaptations"] and not allow_adaptations: raise TelegraphPreflightRequired(report)
     if report["unsupported"] and not allow_unsupported: raise TelegraphPreflightRequired(report)
@@ -100,10 +106,12 @@ async def api_publish(request: web.Request):
     except Exception: return web.json_response({"ok":False,"error":"JSON inválido"},status=400)
     raw=_BASE.init_data_from_request(data,request)
     if raw and not _BASE.validate_init_data(raw): return _BASE.session_error(raw)
-    content=(data.get("content") or "").strip()
-    if not content: return web.json_response({"ok":False,"error":"Documento vazio"},status=400)
+    content=data.get("content") or ""
+    if not str(content).strip(): return web.json_response({"ok":False,"error":"Documento vazio"},status=400)
+    content=str(content)
     report=telegraph_preflight(content); public=_public_preflight(report)
     if data.get("preflight_only") is True: return web.json_response({"ok":True,"published":False,**public})
+    if not report["publishable"]: return web.json_response({"ok":False,"error":"A projeção excede o limite técnico do Telegraph.",**public},status=413)
     has_adaptations=bool(report["adaptations"]); has_unsupported=bool(report["unsupported"])
     if has_adaptations or has_unsupported:
         supplied=str(data.get("preflight_fingerprint") or ""); confirmed_adaptations=data.get("confirm_adaptations") is True; confirmed_unsupported=data.get("confirm_unsupported") is True
