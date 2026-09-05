@@ -120,7 +120,7 @@ class RuntimeV2Tests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Mídia local expired-media expirou", reply_text.await_args.args[2])
         bot.send_rich_message.assert_not_awaited()
 
-    def test_telegraph_uses_fresh_account_and_reports_degradation(self):
+    def test_telegraph_uses_fresh_account_only_after_explicit_adaptation_confirmation(self):
         clients = []
 
         class FakeTelegraph:
@@ -138,7 +138,12 @@ class RuntimeV2Tests(unittest.IsolatedAsyncioTestCase):
                 return {"url": "https://telegra.ph/page", "path": "page"}
 
         with patch.object(runtime_v2, "Telegraph", FakeTelegraph):
-            first = runtime_v2.publish_page("Primeira", "# H1\n\n$$x^2$$")
+            with self.assertRaises(runtime_v2.TelegraphPreflightRequired):
+                runtime_v2.publish_page("Primeira", "# H1\n\n$$x^2$$")
+            self.assertEqual(clients, [])
+            first = runtime_v2.publish_page(
+                "Primeira", "# H1\n\n$$x^2$$", allow_adaptations=True
+            )
             second = runtime_v2.publish_page("Segunda", "texto")
 
         self.assertEqual(len(clients), 2)
@@ -193,7 +198,6 @@ class RuntimeV2Tests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn('# Título"', index)
         self.assertNotIn('==texto marcado==', index)
 
-
     async def test_installed_health_delegates_to_original_once(self):
         original_health = main.health
         original_surfaces = {
@@ -216,6 +220,7 @@ class RuntimeV2Tests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(payload["document_model"], "canonical")
             self.assertEqual(payload["telegram_rich"], "10.3")
             self.assertEqual(payload["media_model"], "typed")
+            self.assertTrue(payload["telegraph_preflight"])
         finally:
             main.build_rich_message = original_surfaces["build_rich_message"]
             main.publish_page = original_surfaces["publish_page"]
