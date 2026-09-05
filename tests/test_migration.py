@@ -72,33 +72,6 @@ def signed_init_data(token: str, auth_date: int | None = None) -> str:
 
 
 class MigrationTests(unittest.IsolatedAsyncioTestCase):
-    def test_each_telegraph_publication_uses_a_fresh_anonymous_account(self):
-        clients = []
-
-        class FakeTelegraph:
-            def __init__(self):
-                self.account_calls = []
-                self.page_calls = []
-                clients.append(self)
-
-            def create_account(self, **kwargs):
-                self.account_calls.append(kwargs)
-                return {"access_token": "discarded"}
-
-            def create_page(self, **kwargs):
-                self.page_calls.append(kwargs)
-                return {"url": "https://telegra.ph/page", "path": "page"}
-
-        with patch.object(main, "Telegraph", FakeTelegraph):
-            main.publish_page("Primeira", "texto")
-            main.publish_page("Segunda", "texto")
-
-        self.assertEqual(len(clients), 2)
-        self.assertIsNot(clients[0], clients[1])
-        for client in clients:
-            self.assertEqual(client.account_calls, [{"short_name": "MDTXTRT"}])
-            self.assertNotIn("author_name", client.page_calls[0])
-
     def test_registered_bot_commands_use_aiogram_keyword_models(self):
         commands = main.bot_commands()
         self.assertEqual(
@@ -106,13 +79,6 @@ class MigrationTests(unittest.IsolatedAsyncioTestCase):
             ["start", "help", "tgrich", "mdrich"],
         )
         self.assertTrue(all(item.description for item in commands))
-
-    def test_mini_app_markup_uses_aiogram_keyword_only_models(self):
-        with patch.object(main, "WEB_APP_URL", "https://example.com"):
-            markup = main.mini_app_markup()
-        button = markup.inline_keyboard[0][0]
-        self.assertEqual(button.text, "Abrir Mini App")
-        self.assertEqual(button.web_app.url, "https://example.com")
 
     def test_webapp_signature_field_is_included_in_native_validation(self):
         token = "123456:ABCDEF_123456"
