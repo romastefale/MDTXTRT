@@ -31,6 +31,59 @@ def _caption(block: dict) -> tuple[str, str]:
     return _RT._caption(value)
 
 
+def _plain_rich_text(value) -> str | None:
+    value = _RT._plain(value)
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, (int, float)):
+        return str(value)
+    if isinstance(value, list):
+        out: list[str] = []
+        for item in value:
+            part = _plain_rich_text(item)
+            if part is None:
+                return None
+            out.append(part)
+        return "".join(out)
+    if not isinstance(value, dict):
+        return None
+    typ = str(value.get("type") or "")
+    if typ not in {"", "plain", "text", "regular", "concat", "rich_text"}:
+        return None
+    source = value.get("text") if "text" in value else value.get("texts")
+    return _plain_rich_text(source)
+
+
+def _collection_child_caption(block: dict) -> str:
+    caption = _RT._plain(block.get("caption"))
+    if not caption:
+        return ""
+    if not isinstance(caption, dict):
+        plain = _plain_rich_text(caption)
+        if plain is None:
+            raise ValueError(
+                "Legenda Rich de mídia interna de collage/slideshow não possui representação sem perda."
+            )
+        return plain
+    credit = _plain_rich_text(caption.get("credit"))
+    if credit not in (None, ""):
+        raise ValueError(
+            "Crédito de mídia interna de collage/slideshow não possui representação sem perda."
+        )
+    if credit is None:
+        raise ValueError(
+            "Crédito Rich de mídia interna de collage/slideshow não possui representação sem perda."
+        )
+    plain = _plain_rich_text(caption.get("text"))
+    if plain is None:
+        raise ValueError(
+            "Legenda Rich de mídia interna de collage/slideshow não possui representação sem perda."
+        )
+    return plain
+
+
 def _element(block: dict) -> str:
     kind = str(block.get("type") or "")
     file_id = _file_id(block)
@@ -62,14 +115,15 @@ def _collection(block: dict) -> str:
     for child in block.get("blocks") or []:
         child = _RT._plain(child)
         if isinstance(child, dict) and child.get("type") in _MEDIA_TYPES:
-            caption, credit = _caption(child)
-            if credit:
-                raise ValueError(
-                    "Mídia interna de collage/slideshow possui crédito que o Rich Markdown não representa sem perda."
-                )
+            caption = _collection_child_caption(child)
             if caption:
-                uri = rich_media.remote_uri(str(child.get("type")), _file_id(child))
-                safe_caption = str(caption).replace('"', "")
+                file_id = _file_id(child)
+                if not file_id:
+                    raise ValueError(
+                        f"Bloco de mídia {child.get('type')} recebido sem file_id reutilizável."
+                    )
+                uri = rich_media.remote_uri(str(child.get("type")), file_id)
+                safe_caption = caption.replace("\\", "\\\\").replace('"', '\\"')
                 parts.append(f'![]({uri} "{safe_caption}")')
             else:
                 parts.append(_element(child))
