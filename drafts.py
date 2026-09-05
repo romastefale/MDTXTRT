@@ -135,24 +135,6 @@ class DraftStore:
         }
 
     @staticmethod
-    def _validate_media_refs(connection: sqlite3.Connection, user_id: int, content: str) -> set[str]:
-        refs = set(local_media_ids(content))
-        if not refs:
-            return refs
-        placeholders = ",".join("?" for _ in refs)
-        rows = connection.execute(
-            f"SELECT media_id FROM draft_media WHERE telegram_user_id = ? AND media_id IN ({placeholders})",
-            (user_id, *refs),
-        ).fetchall()
-        available = {str(row[0]) for row in rows}
-        missing = refs - available
-        if missing:
-            raise ValueError(
-                "Rascunho contém mídia local indisponível; faça o upload novamente."
-            )
-        return refs
-
-    @staticmethod
     def _sync_media_references(
         connection: sqlite3.Connection,
         user_id: int,
@@ -217,12 +199,7 @@ class DraftStore:
                 connection.rollback()
                 raise DraftConflict(current)
 
-            try:
-                refs = self._validate_media_refs(connection, user_id, durable)
-            except ValueError:
-                connection.rollback()
-                raise
-
+            refs = set(local_media_ids(durable))
             revision = current_revision + 1
             updated_at_ms = int(time.time_ns() // 1_000_000)
             updated_at = updated_at_ms // 1000
