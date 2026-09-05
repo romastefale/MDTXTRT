@@ -7,8 +7,6 @@ _MARKER = "mdtxtrt-preview-sanitizer"
 
 _GUARD = r'''<script id="mdtxtrt-preview-sanitizer">
 (function(){
-  if(!window.marked||typeof window.marked.parse!=='function')return;
-  var original=window.marked.parse.bind(window.marked);
   function safeUrl(value,kind){
     var raw=String(value||'').trim();
     if(kind==='href'&&raw.charAt(0)==='#')return raw;
@@ -23,9 +21,9 @@ _GUARD = r'''<script id="mdtxtrt-preview-sanitizer">
   function sanitize(raw){
     var template=document.createElement('template');
     template.innerHTML=String(raw||'');
-    var allowed=new Set(['a','aside','audio','b','blockquote','br','code','del','details','em','figcaption','figure','footer','h1','h2','h3','h4','h5','h6','hr','i','img','input','li','mark','ol','p','pre','s','strong','sub','summary','sup','table','tbody','td','tfoot','th','thead','tr','u','ul','video','tg-button-row','tg-button','tg-collage','tg-document','tg-emoji','tg-map','tg-math','tg-math-block','tg-reference','tg-slideshow','tg-time']);
+    var allowed=new Set(['a','aside','audio','b','blockquote','br','code','del','details','div','em','figcaption','figure','footer','h1','h2','h3','h4','h5','h6','hr','i','img','input','li','mark','ol','p','pre','s','span','strong','sub','summary','sup','table','tbody','td','tfoot','th','thead','tr','u','ul','video','tg-button-row','tg-button','tg-collage','tg-document','tg-emoji','tg-map','tg-math','tg-math-block','tg-reference','tg-slideshow','tg-time']);
     var attrs={
-      a:new Set(['href','title','name']),
+      a:new Set(['href','title','name']),div:new Set(['class']),span:new Set(['class']),
       img:new Set(['src','alt','title','tg-spoiler']),
       video:new Set(['src','controls','tg-spoiler']),audio:new Set(['src','controls']),
       details:new Set(['open']),table:new Set(['bordered','striped','compact']),
@@ -35,6 +33,7 @@ _GUARD = r'''<script id="mdtxtrt-preview-sanitizer">
       'tg-map':new Set(['lat','long','zoom','width','height']),'tg-emoji':new Set(['emoji-id']),
       'tg-time':new Set(['unix','format']),'tg-reference':new Set(['name'])
     };
+    var safeClasses=new Set(['preview-note','spoiler','revealed']);
     var nodes=[],walker=document.createTreeWalker(template.content,NodeFilter.SHOW_ELEMENT);
     while(walker.nextNode())nodes.push(walker.currentNode);
     nodes.forEach(function(el){
@@ -44,6 +43,10 @@ _GUARD = r'''<script id="mdtxtrt-preview-sanitizer">
       Array.from(el.attributes).forEach(function(attr){
         var name=attr.name.toLowerCase();
         if(!keep.has(name)){el.removeAttribute(attr.name);return;}
+        if(name==='class'){
+          var classes=String(attr.value||'').split(/\s+/).filter(function(v){return safeClasses.has(v);});
+          if(classes.length)el.setAttribute('class',classes.join(' '));else el.removeAttribute('class');
+        }
         if(tag==='a'&&name==='href'){
           var href=safeUrl(attr.value,'href');if(href)el.setAttribute('href',href);else el.removeAttribute('href');
         }
@@ -58,7 +61,19 @@ _GUARD = r'''<script id="mdtxtrt-preview-sanitizer">
     });
     return template.innerHTML;
   }
-  window.marked.parse=function(){return sanitize(original.apply(null,arguments));};
+  if(window.marked&&typeof window.marked.parse==='function'){
+    var original=window.marked.parse.bind(window.marked);
+    window.marked.parse=function(){return sanitize(original.apply(null,arguments));};
+  }
+  var preview=document.getElementById('preview');
+  var descriptor=Object.getOwnPropertyDescriptor(Element.prototype,'innerHTML');
+  if(preview&&descriptor&&descriptor.get&&descriptor.set){
+    Object.defineProperty(preview,'innerHTML',{
+      configurable:true,
+      get:function(){return descriptor.get.call(this);},
+      set:function(value){descriptor.set.call(this,sanitize(value));}
+    });
+  }
 })();
 </script>'''
 
