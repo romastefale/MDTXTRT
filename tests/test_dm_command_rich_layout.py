@@ -1,14 +1,34 @@
 import asyncio
+import importlib.util
+from pathlib import Path
 from types import SimpleNamespace
 import unittest
 
-import app  # noqa: F401 - instala o runtime ativo
-import main
+from aiogram.enums import ChatType
+
+import dm_command_ui
+import message_buttons
+
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def _load_ui_runtime():
+    spec = importlib.util.spec_from_file_location(
+        "_mdtxtrt_dm_layout_main", ROOT / "main.py"
+    )
+    if spec is None or spec.loader is None:
+        raise RuntimeError("Não foi possível carregar main.py para o teste isolado")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    message_buttons.install(module)
+    dm_command_ui.install(module)
+    return module
 
 
 class FakeMessage:
     def __init__(self, text="", *, chat_type=None):
-        self.chat = SimpleNamespace(id=12345, type=chat_type or main.ChatType.PRIVATE)
+        self.chat = SimpleNamespace(id=12345, type=chat_type or ChatType.PRIVATE)
         self.message_id = 1
         self.direct_messages_topic = None
         self.business_connection_id = None
@@ -41,11 +61,8 @@ class FakeBot:
 
 class DmCommandRichLayoutTest(unittest.TestCase):
     def setUp(self):
-        self.previous_url = main.WEB_APP_URL
-        main.WEB_APP_URL = "https://example.com/app"
-
-    def tearDown(self):
-        main.WEB_APP_URL = self.previous_url
+        self.runtime = _load_ui_runtime()
+        self.runtime.WEB_APP_URL = "https://example.com/app"
 
     def assert_layout(self, bot, command, subtitle):
         self.assertEqual(len(bot.rich), 1)
@@ -73,25 +90,33 @@ class DmCommandRichLayoutTest(unittest.TestCase):
 
     def test_start_and_help_use_native_rich_command_table(self):
         start_bot = FakeBot()
-        asyncio.run(main.start(FakeMessage("/start"), start_bot, SimpleNamespace(args=None)))
+        asyncio.run(
+            self.runtime.start(
+                FakeMessage("/start"), start_bot, SimpleNamespace(args=None)
+            )
+        )
         start_md = self.assert_layout(start_bot, "/start", "Início")
         self.assert_command_table(start_md)
 
         help_bot = FakeBot()
-        asyncio.run(main.help_cmd(FakeMessage("/help"), help_bot))
+        asyncio.run(self.runtime.help_cmd(FakeMessage("/help"), help_bot))
         help_md = self.assert_layout(help_bot, "/help", "Comandos")
         self.assert_command_table(help_md)
 
     def test_tgrich_and_mdrich_control_messages_do_not_gain_command_table(self):
         tgrich_bot = FakeBot()
-        asyncio.run(main.tgrich(FakeMessage("/tgrich"), tgrich_bot))
-        tgrich_md = self.assert_layout(tgrich_bot, "/tgrich", "Markdown → Rich Text")
+        asyncio.run(self.runtime.tgrich(FakeMessage("/tgrich"), tgrich_bot))
+        tgrich_md = self.assert_layout(
+            tgrich_bot, "/tgrich", "Markdown → Rich Text"
+        )
         self.assertIn("Responda a um arquivo", tgrich_md)
         self.assertNotIn("<table", tgrich_md)
 
         mdrich_bot = FakeBot()
-        asyncio.run(main.mdrich(FakeMessage("/mdrich"), mdrich_bot))
-        mdrich_md = self.assert_layout(mdrich_bot, "/mdrich", "Telegram → Markdown")
+        asyncio.run(self.runtime.mdrich(FakeMessage("/mdrich"), mdrich_bot))
+        mdrich_md = self.assert_layout(
+            mdrich_bot, "/mdrich", "Telegram → Markdown"
+        )
         self.assertIn("Responda a uma mensagem", mdrich_md)
         self.assertNotIn("<table", mdrich_md)
 
