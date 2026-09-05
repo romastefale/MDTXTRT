@@ -64,6 +64,7 @@ class ProgressiveCorrectionTest(unittest.TestCase):
         selected = media_for_chunk("![](tg://photo?id=second)", media)
         self.assertEqual([item.id for item in selected], ["second"])
 
+        same_file_id = "AgAC_REAL_TELEGRAM_FILE_ID"
         incoming = {
             "is_rtl": True,
             "blocks": [
@@ -89,7 +90,12 @@ class ProgressiveCorrectionTest(unittest.TestCase):
                     "items": [
                         {
                             "label": "vii.",
-                            "blocks": [{"type": "paragraph", "text": "item"}],
+                            "blocks": [
+                                {
+                                    "type": "paragraph",
+                                    "text": {"type": "bold", "text": "item"},
+                                }
+                            ],
                             "has_checkbox": True,
                             "is_checked": True,
                             "value": 7,
@@ -98,11 +104,24 @@ class ProgressiveCorrectionTest(unittest.TestCase):
                     ],
                 },
                 {
+                    "type": "blockquote",
+                    "blocks": [
+                        {
+                            "type": "paragraph",
+                            "text": {"type": "bold", "text": "quoted"},
+                        }
+                    ],
+                    "credit": {"type": "italic", "text": "author"},
+                },
+                {
                     "type": "table",
                     "cells": [
                         [
                             {
-                                "text": "cell",
+                                "text": {
+                                    "type": "bold",
+                                    "text": "cell & value",
+                                },
                                 "is_header": True,
                                 "colspan": 2,
                                 "align": "center",
@@ -112,7 +131,7 @@ class ProgressiveCorrectionTest(unittest.TestCase):
                     "is_bordered": True,
                     "is_striped": True,
                     "is_compact": True,
-                    "caption": "table caption",
+                    "caption": {"type": "italic", "text": "table caption"},
                 },
                 {
                     "type": "buttons",
@@ -129,10 +148,21 @@ class ProgressiveCorrectionTest(unittest.TestCase):
                     "type": "photo",
                     "photo": [
                         {
-                            "file_id": "AgAC_REAL_TELEGRAM_FILE_ID",
+                            "file_id": same_file_id,
                             "file_unique_id": "unique",
                             "width": 10,
                             "height": 10,
+                        }
+                    ],
+                },
+                {
+                    "type": "photo",
+                    "photo": [
+                        {
+                            "file_id": same_file_id,
+                            "file_unique_id": "unique",
+                            "width": 20,
+                            "height": 20,
                         }
                     ],
                 },
@@ -148,21 +178,36 @@ class ProgressiveCorrectionTest(unittest.TestCase):
             '<tg-time unix="1647531900" format="wDT">22:45 tomorrow</tg-time>',
             editable,
         )
-        self.assertIn('<li value="7" type="i"><input type="checkbox" checked>', editable)
+        self.assertIn(
+            '<li value="7" type="i"><input type="checkbox" checked><p><b>item</b></p></li>',
+            editable,
+        )
+        self.assertIn(
+            "<blockquote><p><b>quoted</b></p><cite><i>author</i></cite></blockquote>",
+            editable,
+        )
         self.assertIn("<table bordered striped compact>", editable)
+        self.assertIn(
+            '<th colspan="2" align="center"><b>cell &amp; value</b></th>', editable
+        )
+        self.assertIn("<caption><i>table caption</i></caption>", editable)
         self.assertIn('type="callback_data"', editable)
         self.assertIn('style="link"', editable)
-        self.assertIn("file=AgAC_REAL_TELEGRAM_FILE_ID", editable)
+        self.assertEqual(editable.count("file=AgAC_REAL_TELEGRAM_FILE_ID"), 2)
 
         outgoing = main.build_rich_message(editable)
         self.assertIs(outgoing.is_rtl, True)
-        self.assertEqual(len(outgoing.media or []), 1)
+        self.assertEqual(len(outgoing.media or []), 2)
         self.assertEqual(
-            outgoing.media[0].media.media,
-            "AgAC_REAL_TELEGRAM_FILE_ID",
+            [item.media.media for item in outgoing.media],
+            [same_file_id, same_file_id],
         )
+        self.assertEqual(len({item.id for item in outgoing.media}), 2)
         self.assertNotIn("&file=", outgoing.markdown or "")
-        self.assertIn("tg://photo?id=r_", outgoing.markdown or "")
+        self.assertEqual((outgoing.markdown or "").count("tg://photo?id=r_"), 2)
+        self.assertIn("<td", (outgoing.markdown or "").replace("<th", "<td"))
+        self.assertIn("<b>cell &amp; value</b>", outgoing.markdown or "")
+        self.assertNotIn("**cell & value**", outgoing.markdown or "")
 
 
 if __name__ == "__main__":
