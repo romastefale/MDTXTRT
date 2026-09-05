@@ -2,6 +2,7 @@
 from aiohttp import web
 
 from canonical import CanonicalDocument
+import dm_command_ui
 import drafts
 import main
 import message_buttons
@@ -24,6 +25,7 @@ rich_media_roundtrip.install(rich_roundtrip)
 rich_integrity.install(main, rich_roundtrip)
 rich_buttons.install(main, rich_roundtrip)
 message_buttons.install(main)
+dm_command_ui.install(main)
 
 
 def _canonical_markdown_export(source: str) -> str:
