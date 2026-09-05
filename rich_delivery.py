@@ -7,12 +7,12 @@ from aiogram.types import InputRichMessage, ReplyParameters
 
 RICH_CHAR_LIMIT = 32768
 _MEDIA_REF_RE = re.compile(
-    r"tg://(?:photo|video|animation|audio|document|voice)\?id=([A-Za-z0-9_-]+)",
+    r"tg://(?:photo|video|audio|document)\?id=([A-Za-z0-9_-]+)",
     re.IGNORECASE,
 )
 _FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
 _PAIRED_START_RE = re.compile(
-    r"^\s*<(details|blockquote|aside|tg-button-row|tg-collage|tg-slideshow)\b",
+    r"^\s*<(details|blockquote|aside|table|figure|ul|ol|footer|tg-button-row|tg-collage|tg-slideshow)\b",
     re.IGNORECASE,
 )
 
@@ -144,6 +144,7 @@ def install(base_module) -> None:
                 rich_message=InputRichMessage(
                     markdown=chunk,
                     media=chunk_media or None,
+                    is_rtl=rich.is_rtl,
                 ),
                 reply_parameters=reply,
                 message_thread_id=message_thread_id,
