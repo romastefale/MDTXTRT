@@ -1,4 +1,4 @@
-"""Servidor aiohttp e Bot Telegram. Comandos: /start /helo /tgrich /mdrich."""
+"""Servidor aiohttp e Bot Telegram. Comandos: /start /help /tgrich /mdrich."""
 
 import asyncio
 import hashlib
@@ -14,29 +14,36 @@ import time
 from typing import Optional
 from urllib.parse import parse_qsl, unquote
 
-from aiohttp import ClientSession, ClientTimeout, FormData, web
-from telegram import (
+from aiohttp import web
+from aiogram import Bot, Dispatcher, F
+from aiogram.enums import ChatType, ParseMode
+from aiogram.exceptions import (
+    TelegramAPIError,
+    TelegramNetworkError,
+    TelegramRetryAfter,
+    TelegramServerError,
+)
+from aiogram.filters import Command, CommandObject
+from aiogram.types import (
     BotCommand,
+    BufferedInputFile,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
+    InputMediaPhoto,
+    InputRichMessage,
+    InputRichMessageMedia,
     MenuButtonWebApp,
-    Update,
+    Message,
+    ReplyParameters,
     WebAppInfo,
 )
-from telegram.constants import ParseMode
-from telegram.ext import (
-    Application,
-    CommandHandler,
-    ContextTypes,
-    MessageHandler,
-    filters,
-)
+from aiogram.utils.web_app import safe_parse_webapp_init_data
 from telegraph import Telegraph
 from telegraph.exceptions import TelegraphException
 
 TOKEN_RE = re.compile(r"bot\d+:[A-Za-z0-9_-]+")
 SECRET_RE = re.compile(
-    r"(TELEGRAM_TOKEN|BOT_TOKEN|TELEGRAPH_ACCESS_TOKEN|access_token)=([^\s]+)"
+    r"(TELEGRAM_TOKEN|BOT_TOKEN|access_token)=([^\s]+)"
 )
 MD_EXTS = {".md", ".markdown", ".mdown", ".txt"}
 MD_MIMES = {"text/markdown", "text/x-markdown", "text/plain"}
@@ -48,6 +55,13 @@ PHOTO_MIMES = {
     "image/png",
     "image/webp",
     "image/gif",
+}
+PHOTO_EXTENSIONS = {
+    "image/jpeg": ".jpg",
+    "image/jpg": ".jpg",
+    "image/png": ".png",
+    "image/webp": ".webp",
+    "image/gif": ".gif",
 }
 MDV2_ESC = re.compile(r"\\([_*\[\]()~`>#+\-=|{}.!\\])")
 
@@ -84,7 +98,6 @@ for _handler in logging.getLogger().handlers:
 logging.getLogger().addFilter(_secret_filter)
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("httpcore").setLevel(logging.WARNING)
-logging.getLogger("telegram.ext._updater").setLevel(logging.WARNING)
 log = logging.getLogger("mdtxtrt")
 log.addFilter(_secret_filter)
 
@@ -97,17 +110,21 @@ def _clean_token(raw: str) -> str:
 
 
 TOKEN = _clean_token(os.environ.get("TELEGRAM_TOKEN", ""))
-WEB_APP_URL = os.environ.get("WEB_APP_URL", "https://mdmtrt.up.railway.app").strip()
+WEB_APP_URL = os.environ.get("WEB_APP_URL", "").strip()
 PORT = int(os.environ.get("PORT", "8080"))
-TELEGRAPH_TOKEN = os.environ.get("TELEGRAPH_ACCESS_TOKEN", "").strip()
-AUTHOR_NAME = os.environ.get("TELEGRAPH_AUTHOR", "MDTXTRT")
 INDEX_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "index.html")
-_telegraph: Optional[Telegraph] = None
 INIT_MAX_AGE = 48 * 3600
 STASH: dict[str, dict] = {}
 MEDIA: dict[str, dict] = {}
 STASH_TTL = 10 * 60
 CODE_ALPHABET = "abcdefghijkmnpqrstuvwxyz23456789"
+POLLING_OPTIONS = {
+    "polling_timeout": 10,
+    "handle_as_tasks": False,
+    "allowed_updates": None,
+    "handle_signals": False,
+    "close_bot_session": False,
+}
 
 
 def _hmac_hex(data_check_string: str) -> str:
@@ -157,29 +174,22 @@ def validate_init_data(init_data: str) -> Optional[dict]:
     if not raw:
         return None
     try:
-        decoded_pairs = parse_qsl(raw, keep_blank_values=True)
-        raw_pairs = [
-            tuple(piece.split("=", 1)) for piece in raw.split("&") if "=" in piece
-        ]
-        fields = _checked_fields(decoded_pairs) or _checked_fields(raw_pairs)
-        if not fields:
-            log.warning("sessão Telegram: assinatura inválida")
-            return None
-        user_obj = _user_from_fields(fields)
-        if not user_obj:
-            log.warning("sessão Telegram: utilizador ausente")
-            return None
-        try:
-            auth_date = int(fields.get("auth_date") or 0)
-        except ValueError:
-            auth_date = 0
-        if auth_date and abs(time.time() - auth_date) > INIT_MAX_AGE:
-            log.warning("sessão Telegram: expirada")
-            return None
-        return user_obj
+        parsed = safe_parse_webapp_init_data(token=TOKEN, init_data=raw)
+    except ValueError:
+        log.warning("sessão Telegram: assinatura inválida")
+        return None
     except Exception:
         log.exception("validate_init_data")
-    return None
+        return None
+    user = parsed.user
+    if not user:
+        log.warning("sessão Telegram: utilizador ausente")
+        return None
+    auth_date = parsed.auth_date
+    if auth_date and abs(time.time() - auth_date.timestamp()) > INIT_MAX_AGE:
+        log.warning("sessão Telegram: expirada")
+        return None
+    return user.model_dump()
 
 
 def init_data_from_request(data: dict, request: web.Request) -> str:
@@ -227,25 +237,6 @@ def public_web_app_url(request: Optional[web.Request] = None) -> str:
     return ""
 
 
-def get_telegraph() -> Telegraph:
-    global _telegraph
-    if _telegraph is None:
-        client = Telegraph(access_token=TELEGRAPH_TOKEN or None)
-        if not TELEGRAPH_TOKEN:
-            acc = client.create_account(short_name="MDTXTRT", author_name=AUTHOR_NAME)
-            token = acc.get("access_token", "")
-            if token:
-                client = Telegraph(access_token=token)
-                log.warning(
-                    "Telegraph sem token persistente. Cole no Railway a variável "
-                    "TELEGRAPH_ACCESS_TOKEN com este valor: %s",
-                    token,
-                )
-        _telegraph = client
-    return _telegraph
-
-
-
 from convert import (
     entities_to_markdown,
     extract_rich_media,
@@ -259,115 +250,75 @@ from convert import (
 )
 
 
-class TelegramApiError(Exception):
-    def __init__(self, status: int, description: str, data=None):
-        self.status = status
-        self.description = description
-        self.data = data or {}
-        super().__init__(f"{status}: {description}")
-
-
-async def telegram_api(method: str, payload: dict, files: Optional[dict] = None) -> dict:
-    if not TOKEN:
-        raise TelegramApiError(503, "TELEGRAM_TOKEN ausente")
-    url = f"https://api.telegram.org/bot{TOKEN}/{method}"
-    timeout = ClientTimeout(total=60)
-    async with ClientSession(timeout=timeout) as session:
-        if files:
-            form = FormData()
-            for key, value in payload.items():
-                if isinstance(value, (dict, list)):
-                    form.add_field(key, json.dumps(value, ensure_ascii=False))
-                else:
-                    form.add_field(key, str(value))
-            for name, (filename, data, mime) in files.items():
-                form.add_field(
-                    name,
-                    data,
-                    filename=filename,
-                    content_type=mime or "application/octet-stream",
-                )
-            post_cm = session.post(url, data=form)
-        else:
-            post_cm = session.post(url, json=payload)
-        async with post_cm as resp:
-            try:
-                data = await resp.json(content_type=None)
-            except Exception:
-                body = await resp.text()
-                log.error("Telegram %s %s: %s", method, resp.status, body[:500])
-                raise TelegramApiError(resp.status, body[:300] or (resp.reason or "erro"))
-            if resp.status >= 400 or not (isinstance(data, dict) and data.get("ok")):
-                description = ""
-                if isinstance(data, dict):
-                    description = str(data.get("description") or "")
-                log.error("Telegram %s %s: %s", method, resp.status, data)
-                raise TelegramApiError(
-                    resp.status, description or (resp.reason or "erro"), data
-                )
-            return data
-
-
-def build_rich_message_payload(content: str) -> tuple[dict, dict]:
+def build_rich_message(content: str) -> InputRichMessage:
     md = markdown_for_rich_api(content)
     md, local_ids = extract_rich_media(md)
-    files: dict = {}
-    media: list[dict] = []
+    media: list[InputRichMessageMedia] = []
     now = time.time()
     for mid in local_ids:
         item = MEDIA.get(mid)
         if not item or item.get("exp", 0) < now:
             continue
-        attach = f"file_{mid}"
         media.append(
-            {"id": mid, "media": {"type": "photo", "media": f"attach://{attach}"}}
+            InputRichMessageMedia(
+                id=mid,
+                media=InputMediaPhoto(
+                    media=BufferedInputFile(
+                        item["data"],
+                        filename=media_filename(item, mid),
+                    )
+                ),
+            )
         )
-        files[attach] = (
-            item.get("name") or f"{mid}.jpg",
-            item["data"],
-            item.get("mime") or "image/jpeg",
-        )
-    rich: dict = {"markdown": md}
-    if media:
-        rich["media"] = media
-    return rich, files
+    return InputRichMessage(markdown=md, media=media or None)
 
 
-async def send_rich_message(chat_id, content: str, reply_to_message_id=None):
-    rich, files = build_rich_message_payload(content)
-    chunks = split_markdown_chunks(rich["markdown"])
-    media = rich.get("media") or []
+def media_filename(item: dict, media_id: str) -> str:
+    name = item.get("name") or media_id
+    stem, suffix = os.path.splitext(name)
+    expected = PHOTO_EXTENSIONS.get(item.get("mime") or "", ".jpg")
+    if suffix.lower() == expected:
+        return name
+    return f"{stem or media_id}{expected}"
+
+
+async def send_rich_message(
+    bot: Bot,
+    chat_id,
+    content: str,
+    reply_to_message_id=None,
+    *,
+    message_thread_id=None,
+    direct_messages_topic_id=None,
+    business_connection_id=None,
+    ephemeral_message_parameters=None,
+):
+    rich = build_rich_message(content)
+    chunks = split_markdown_chunks(rich.markdown or "")
+    media = rich.media or []
     for idx, chunk in enumerate(chunks):
-        body = {"markdown": chunk}
-        use_files = None
-        if idx == 0 and media:
-            body["media"] = media
-            use_files = files
-        payload = {"chat_id": chat_id, "rich_message": body}
+        reply = None
         if idx == 0 and reply_to_message_id:
-            payload["reply_parameters"] = {"message_id": reply_to_message_id}
-        await telegram_api("sendRichMessage", payload, files=use_files)
+            reply = ReplyParameters(message_id=reply_to_message_id)
+        await bot.send_rich_message(
+            chat_id=chat_id,
+            rich_message=InputRichMessage(
+                markdown=chunk,
+                media=media if idx == 0 and media else None,
+            ),
+            reply_parameters=reply,
+            message_thread_id=message_thread_id,
+            direct_messages_topic_id=direct_messages_topic_id,
+            business_connection_id=business_connection_id,
+            ephemeral_message_parameters=ephemeral_message_parameters,
+            request_timeout=60,
+        )
 
 
 def message_rich_payload(message):
     if message is None:
         return None
-    rm = getattr(message, "rich_message", None)
-    if rm:
-        return rm
-    for attr in ("api_kwargs", "_api_kwargs"):
-        kwargs = getattr(message, attr, None)
-        if isinstance(kwargs, dict) and kwargs.get("rich_message"):
-            return kwargs["rich_message"]
-    to_dict = getattr(message, "to_dict", None)
-    if callable(to_dict):
-        try:
-            data = to_dict()
-        except Exception:
-            data = None
-        if isinstance(data, dict) and data.get("rich_message"):
-            return data["rich_message"]
-    return None
+    return message.rich_message
 
 
 def publish_page(title: str, content_md: str, path_hint: str = "") -> dict:
@@ -377,9 +328,11 @@ def publish_page(title: str, content_md: str, path_hint: str = "") -> dict:
     body = markdown_to_telegraph_html(content_md)
     if hint and hint != title:
         body = f"<p><strong>{html.escape(title)}</strong></p>" + body
-    page = get_telegraph().create_page(
-        title=api_title, html_content=body, author_name=AUTHOR_NAME
-    )
+    # Cada publicação usa uma conta anônima nova. O cliente e o token ficam
+    # restritos a esta chamada e são descartados assim que a página é criada.
+    telegraph = Telegraph()
+    telegraph.create_account(short_name="MDTXTRT")
+    page = telegraph.create_page(title=api_title, html_content=body)
     return {"url": page.get("url"), "path": page.get("path"), "title": api_title}
 
 
@@ -392,9 +345,8 @@ async def read_document_text(bot, document) -> str:
     size = getattr(document, "file_size", None) or 0
     if size > MAX_DOC_BYTES:
         raise ValueError("Arquivo acima de 1 MB.")
-    file = await bot.get_file(document.file_id)
     buf = io.BytesIO()
-    await file.download_to_memory(buf)
+    await bot.download(document, destination=buf, timeout=30)
     raw = buf.getvalue()
     if len(raw) > MAX_DOC_BYTES:
         raise ValueError("Arquivo acima de 1 MB.")
@@ -403,11 +355,56 @@ async def read_document_text(bot, document) -> str:
     return raw.decode("utf-8", errors="replace")
 
 
+def _message_context(message: Message) -> dict:
+    direct_topic = message.direct_messages_topic
+    return {
+        "business_connection_id": message.business_connection_id,
+        "message_thread_id": message.message_thread_id,
+        "direct_messages_topic_id": direct_topic.topic_id if direct_topic else None,
+        "ephemeral_message_parameters": message.as_ephemeral_message_parameters(),
+    }
+
+
+def _default_reply_parameters(message: Message) -> Optional[ReplyParameters]:
+    # python-telegram-bot replied by default in group chats, but not in private chats.
+    if message.chat.type == ChatType.PRIVATE:
+        return None
+    return ReplyParameters(message_id=message.message_id)
+
+
+async def reply_text(message: Message, bot: Bot, text: str, **kwargs):
+    await bot.send_message(
+        chat_id=message.chat.id,
+        text=text,
+        reply_parameters=_default_reply_parameters(message),
+        **_message_context(message),
+        **kwargs,
+    )
+
+
+async def reply_document(message: Message, bot: Bot, data: bytes, filename: str):
+    await bot.send_document(
+        chat_id=message.chat.id,
+        document=BufferedInputFile(data, filename=filename),
+        caption=filename,
+        reply_parameters=_default_reply_parameters(message),
+        **_message_context(message),
+    )
+
+
+def telegram_error_text(exc: TelegramAPIError) -> str:
+    if isinstance(exc, TelegramRetryAfter):
+        return f"Telegram pediu para aguardar {exc.retry_after} segundos."
+    if isinstance(exc, TelegramNetworkError):
+        return "Falha de rede ao contactar Telegram. Tenta novamente."
+    return f"Telegram recusou sendRichMessage: {exc.message}"
+
+
 async def dispatch_user_artifacts(bot, chat_id: int | str, title: str, content: str):
     body = content
     if title and title != "Sem título":
         body = f"**{title}**\n\n{content}"
-    await send_rich_message(chat_id, body)
+    await send_rich_message(bot, chat_id, body)
 
 
 def purge_stash() -> None:
@@ -441,9 +438,12 @@ async def deliver_payload(bot, chat_id, action: str, title: str, content: str) -
             safe = re.sub(r'[\\/*?:"<>|]', "", title).strip()[:60]
             if safe:
                 name = safe
-        buf = io.BytesIO(md_text.encode("utf-8"))
-        buf.name = f"{name}.md"
-        await bot.send_document(chat_id=chat_id, document=buf, caption=f"{name}.md")
+        filename = f"{name}.md"
+        await bot.send_document(
+            chat_id=chat_id,
+            document=BufferedInputFile(md_text.encode("utf-8"), filename=filename),
+            caption=filename,
+        )
         return
     await dispatch_user_artifacts(bot, chat_id, title, content)
 
@@ -453,14 +453,19 @@ def mini_app_markup():
     if not app_url:
         return None
     return InlineKeyboardMarkup(
-        [[InlineKeyboardButton("Abrir Mini App", web_app=WebAppInfo(url=app_url))]]
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="Abrir Mini App",
+                    web_app=WebAppInfo(url=app_url),
+                )
+            ]
+        ]
     )
 
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not update.message:
-        return
-    arg = (context.args[0] if context.args else "").strip()
+async def start(message: Message, bot: Bot, command: CommandObject):
+    arg = ((command.args or "").split()[0] if command.args else "").strip()
     if arg:
         kind = arg[0]
         code = arg[1:]
@@ -469,18 +474,25 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             action = "mdrich" if kind == "m" or item.get("action") == "mdrich" else "chat"
             try:
                 await deliver_payload(
-                    context.bot,
-                    update.effective_chat.id,
+                    bot,
+                    message.chat.id,
                     action,
                     item.get("title") or "Sem título",
                     item.get("content") or "",
                 )
-            except TelegramApiError as exc:
-                await update.message.reply_text(
-                    f"Telegram recusou sendRichMessage: {exc.description}"
+            except TelegramAPIError as exc:
+                await reply_text(message, bot, telegram_error_text(exc))
+            except ValueError as exc:
+                await reply_text(
+                    message,
+                    bot,
+                    str(exc),
+                    reply_markup=mini_app_markup(),
                 )
             return
-        await update.message.reply_text(
+        await reply_text(
+            message,
+            bot,
             "Este envio já foi usado ou expirou. Abre o Mini App e toca outra vez.",
             reply_markup=mini_app_markup(),
         )
@@ -492,18 +504,20 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "• Arquivo .md anexado ou encaminhado — vira mensagem formatada (tgrich)\n"
         "• /tgrich — a mesma conversão, respondendo a um arquivo compatível\n"
         "• /mdrich — responde a uma mensagem e exporta .md otimizado\n"
-        "• /helo — comandos e a diferença entre chat e Mini App"
+        "• /help — comandos e a diferença entre chat e Mini App"
     )
-    await update.message.reply_text(
+    await reply_text(
+        message,
+        bot,
         text, reply_markup=mini_app_markup(), parse_mode=ParseMode.HTML
     )
 
 
-HELO_TEXT = (
+HELP_TEXT = (
     "<b>MDTXTRT</b> — Markdown e Telegram\n\n"
     "<b>Comandos</b>\n"
     "/start — abre o Mini App e resume as funções\n"
-    "/helo — este texto\n"
+    "/help — este texto\n"
     "/tgrich — Markdown para rich text do Telegram\n"
     "    responda a um .md (anexo ou encaminhado)\n"
     "    ou envie /tgrich seguido do texto\n"
@@ -518,11 +532,11 @@ HELO_TEXT = (
 )
 
 
-async def helo_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not update.message:
-        return
-    await update.message.reply_text(
-        HELO_TEXT, reply_markup=mini_app_markup(), parse_mode=ParseMode.HTML
+async def help_cmd(message: Message, bot: Bot):
+    await reply_text(
+        message,
+        bot,
+        HELP_TEXT, reply_markup=mini_app_markup(), parse_mode=ParseMode.HTML
     )
 
 
@@ -536,13 +550,13 @@ def _command_arg_text(message) -> str:
     return text
 
 
-async def source_for_tgrich(message, context) -> str:
+async def source_for_tgrich(message, bot: Bot) -> str:
     if is_markdown_document(message.document):
-        return await read_document_text(context.bot, message.document)
+        return await read_document_text(bot, message.document)
     target = message.reply_to_message
     if target:
         if is_markdown_document(target.document):
-            return await read_document_text(context.bot, target.document)
+            return await read_document_text(bot, target.document)
         rm = message_rich_payload(target)
         if rm:
             md = rich_message_to_markdown(rm)
@@ -552,7 +566,7 @@ async def source_for_tgrich(message, context) -> str:
         if raw:
             return raw
         if target.document:
-            return await read_document_text(context.bot, target.document)
+            return await read_document_text(bot, target.document)
     arg = _command_arg_text(message)
     if arg:
         return arg
@@ -561,11 +575,11 @@ async def source_for_tgrich(message, context) -> str:
     )
 
 
-async def source_for_mdrich(message, context) -> str:
+async def source_for_mdrich(message, bot: Bot) -> str:
     target = message.reply_to_message
     if not target:
         if is_markdown_document(message.document):
-            return optimize_markdown(await read_document_text(context.bot, message.document))
+            return optimize_markdown(await read_document_text(bot, message.document))
         raise ValueError("Responda a uma mensagem com /mdrich.")
     rm = message_rich_payload(target)
     if rm:
@@ -573,7 +587,7 @@ async def source_for_mdrich(message, context) -> str:
         if str(md).strip():
             return optimize_markdown(md)
     if target.document:
-        text = await read_document_text(context.bot, target.document)
+        text = await read_document_text(bot, target.document)
         if is_markdown_document(target.document):
             return optimize_markdown(text)
         caption = target.caption or ""
@@ -588,45 +602,41 @@ async def source_for_mdrich(message, context) -> str:
     return optimize_markdown(entities_to_markdown(raw, ents))
 
 
-async def tgrich(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    message = update.message
-    if not message:
-        return
+async def tgrich(message: Message, bot: Bot):
     try:
-        source = await source_for_tgrich(message, context)
+        source = await source_for_tgrich(message, bot)
         if not source.strip():
-            await message.reply_text("Documento vazio.")
+            await reply_text(message, bot, "Documento vazio.")
             return
         await send_rich_message(
-            message.chat_id, source, reply_to_message_id=message.message_id
+            bot,
+            message.chat.id,
+            source,
+            reply_to_message_id=message.message_id,
+            **_message_context(message),
         )
-    except TelegramApiError as exc:
-        await message.reply_text(f"Telegram recusou sendRichMessage: {exc.description}")
+    except TelegramAPIError as exc:
+        await reply_text(message, bot, telegram_error_text(exc))
     except ValueError as exc:
-        await message.reply_text(str(exc))
+        await reply_text(message, bot, str(exc))
     except Exception:
         log.exception("tgrich")
-        await message.reply_text("Não foi possível converter o arquivo.")
+        await reply_text(message, bot, "Não foi possível converter o arquivo.")
 
 
-async def mdrich(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    message = update.message
-    if not message:
-        return
+async def mdrich(message: Message, bot: Bot):
     try:
-        md_text = await source_for_mdrich(message, context)
+        md_text = await source_for_mdrich(message, bot)
         if not md_text.strip():
-            await message.reply_text("Nada para exportar.")
+            await reply_text(message, bot, "Nada para exportar.")
             return
         name = filename_from_markdown(md_text)
-        buf = io.BytesIO(md_text.encode("utf-8"))
-        buf.name = f"{name}.md"
-        await message.reply_document(document=buf, caption=f"{name}.md")
+        await reply_document(message, bot, md_text.encode("utf-8"), f"{name}.md")
     except ValueError as exc:
-        await message.reply_text(str(exc))
+        await reply_text(message, bot, str(exc))
     except Exception:
         log.exception("mdrich")
-        await message.reply_text("Não foi possível exportar o .md.")
+        await reply_text(message, bot, "Não foi possível exportar o .md.")
 
 
 def _caption_command(message) -> str:
@@ -636,18 +646,17 @@ def _caption_command(message) -> str:
     return caption.split()[0].split("@")[0].lower()
 
 
-async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    message = update.message
-    if not message or not message.document:
+async def handle_document(message: Message, bot: Bot):
+    if not message.document:
         return
     cmd = _caption_command(message)
-    if cmd in {"/start", "/helo", "/help"}:
+    if cmd in {"/start", "/help"}:
         return
     if cmd == "/mdrich":
-        await mdrich(update, context)
+        await mdrich(message, bot)
         return
     if cmd == "/tgrich" or is_markdown_document(message.document):
-        await tgrich(update, context)
+        await tgrich(message, bot)
 
 
 def _payload_from_webapp(raw: str) -> dict:
@@ -663,33 +672,31 @@ def _payload_from_webapp(raw: str) -> dict:
     }
 
 
-async def handle_webapp_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def handle_webapp_data(message: Message, bot: Bot):
     try:
-        payload = _payload_from_webapp(update.message.web_app_data.data)
+        payload = _payload_from_webapp(message.web_app_data.data)
         content = payload["content"]
         if not str(content).strip():
-            await update.message.reply_text("Documento vazio.")
+            await reply_text(message, bot, "Documento vazio.")
             return
         if payload["action"] in {"publish_telegraph", "telegraph"}:
             page = await publish_page_async(payload["title"], content, payload["path"])
-            await update.message.reply_text(f"Publicado: {page['url']}")
+            await reply_text(message, bot, f"Publicado: {page['url']}")
             return
         await deliver_payload(
-            context.bot,
-            update.effective_chat.id,
+            bot,
+            message.chat.id,
             "mdrich" if payload["action"] == "mdrich" else "chat",
             payload["title"],
             content,
         )
-    except TelegramApiError as exc:
-        await update.message.reply_text(
-            f"Telegram recusou sendRichMessage: {exc.description}"
-        )
+    except TelegramAPIError as exc:
+        await reply_text(message, bot, telegram_error_text(exc))
     except TelegraphException as exc:
-        await update.message.reply_text(f"Telegraph recusou o HTML: {exc}")
+        await reply_text(message, bot, f"Telegraph recusou o HTML: {exc}")
     except Exception as exc:
         log.exception("web_app_data")
-        await update.message.reply_text(f"Erro no processamento: {exc}")
+        await reply_text(message, bot, f"Erro no processamento: {exc}")
 
 
 async def serve_index(_request: web.Request):
@@ -707,7 +714,7 @@ async def health(_request: web.Request):
             "app": "mdtxtrt",
             "bot": bool(TOKEN),
             "web_app_url": public_web_app_url() or None,
-            "telegraph_token": bool(TELEGRAPH_TOKEN),
+            "telegraph_mode": "anonymous_per_publication",
         }
     )
 
@@ -735,10 +742,11 @@ async def api_send_chat(request: web.Request):
             content=content,
         )
         return web.json_response({"ok": True})
-    except TelegramApiError as exc:
-        log.error("api_send_chat recusou: %s", exc.description)
+    except TelegramAPIError as exc:
+        detail = telegram_error_text(exc)
+        log.error("api_send_chat recusou: %s", detail)
         return web.json_response(
-            {"ok": False, "error": f"Telegram recusou sendRichMessage: {exc.description}"},
+            {"ok": False, "error": detail},
             status=502,
         )
     except Exception as exc:
@@ -866,59 +874,133 @@ async def serve_media(request: web.Request):
     )
 
 
+class BotRuntime:
+    def __init__(self, bot: Bot, dispatcher: Dispatcher, polling_task: asyncio.Task):
+        self.bot = bot
+        self.dispatcher = dispatcher
+        self.polling_task = polling_task
+
+
+async def delete_webhook_with_retry(bot: Bot, sleep=asyncio.sleep) -> None:
+    delay = 1.0
+    while True:
+        try:
+            await bot.delete_webhook(drop_pending_updates=False, request_timeout=60)
+            return
+        except TelegramRetryAfter as exc:
+            delay = max(float(exc.retry_after), 1.0)
+            log.warning(
+                "Telegram limitou o bootstrap; nova tentativa em %.1fs", delay
+            )
+            await sleep(delay)
+        except (TelegramNetworkError, TelegramServerError) as exc:
+            log.warning(
+                "Falha transitória ao preparar polling; nova tentativa em %.1fs: %s",
+                delay,
+                exc,
+            )
+            await sleep(delay)
+            delay = min(delay * 1.5, 30.0)
+
+
+def _polling_finished(task: asyncio.Task) -> None:
+    if task.cancelled():
+        return
+    exc = task.exception()
+    if exc:
+        log.error(
+            "Polling terminou inesperadamente",
+            exc_info=(type(exc), exc, exc.__traceback__),
+        )
+
+
+def build_dispatcher() -> Dispatcher:
+    dispatcher = Dispatcher()
+    dispatcher.message.register(start, Command("start"))
+    dispatcher.message.register(help_cmd, Command("help"))
+    dispatcher.message.register(tgrich, Command("tgrich"))
+    dispatcher.message.register(mdrich, Command("mdrich"))
+    dispatcher.message.register(handle_webapp_data, F.web_app_data)
+    dispatcher.message.register(handle_document, F.document)
+    return dispatcher
+
+
+def bot_commands() -> list[BotCommand]:
+    return [
+        BotCommand(
+            command="start",
+            description="Abre o Mini App e resume as funções",
+        ),
+        BotCommand(
+            command="help",
+            description="Comandos e chat vs Mini App",
+        ),
+        BotCommand(
+            command="tgrich",
+            description="Markdown para rich text do Telegram",
+        ),
+        BotCommand(
+            command="mdrich",
+            description="Exporta a mensagem respondida em .md",
+        ),
+    ]
+
+
 async def on_startup(app: web.Application):
     app["bot_username"] = ""
     if not TOKEN:
         log.warning("TELEGRAM_TOKEN ausente. Mini App no ar; bot desligado.")
         return
-    application = Application.builder().token(TOKEN).build()
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("helo", helo_cmd))
-    application.add_handler(CommandHandler("help", helo_cmd))
-    application.add_handler(CommandHandler("tgrich", tgrich))
-    application.add_handler(CommandHandler("mdrich", mdrich))
-    application.add_handler(
-        MessageHandler(filters.StatusUpdate.WEB_APP_DATA, handle_webapp_data)
-    )
-    application.add_handler(MessageHandler(filters.Document.ALL, handle_document))
-    await application.initialize()
-    await application.start()
+    bot = Bot(TOKEN)
+    dispatcher = build_dispatcher()
     try:
-        await application.bot.set_my_commands(
-            [
-                BotCommand("start", "Abre o Mini App e resume as funções"),
-                BotCommand("helo", "Comandos e chat vs Mini App"),
-                BotCommand("tgrich", "Markdown para rich text do Telegram"),
-                BotCommand("mdrich", "Exporta a mensagem respondida em .md"),
-            ]
-        )
+        me = await bot.get_me(request_timeout=60)
+    except Exception:
+        await bot.session.close()
+        raise
+    app["bot_username"] = me.username or ""
+    try:
+        await bot.set_my_commands(bot_commands())
         app_url = public_web_app_url()
         if app_url:
-            await application.bot.set_chat_menu_button(
+            await bot.set_chat_menu_button(
                 menu_button=MenuButtonWebApp(
                     text="Editor", web_app=WebAppInfo(url=app_url)
                 )
             )
     except Exception:
         log.exception("set_my_commands")
-    await application.updater.start_polling(drop_pending_updates=True)
-    app["bot"] = application
-    try:
-        me = await application.bot.get_me()
-        app["bot_username"] = me.username or ""
-        log.info("Bot em escuta @%s", app["bot_username"])
-    except Exception:
-        log.exception("get_me")
-        log.info("Bot em escuta (polling).")
+    await delete_webhook_with_retry(bot)
+
+    polling_started = asyncio.Event()
+
+    async def mark_polling_started(**_kwargs):
+        polling_started.set()
+
+    dispatcher.startup.register(mark_polling_started)
+    polling_task = asyncio.create_task(
+        dispatcher.start_polling(
+            bot,
+            **POLLING_OPTIONS,
+        ),
+        name="telegram-polling",
+    )
+    polling_task.add_done_callback(_polling_finished)
+    await polling_started.wait()
+    app["bot"] = BotRuntime(bot, dispatcher, polling_task)
+    log.info("Bot em escuta @%s", app["bot_username"])
 
 
 async def on_cleanup(app: web.Application):
-    application = app.get("bot")
-    if not application:
+    runtime = app.get("bot")
+    if not runtime:
         return
-    await application.updater.stop()
-    await application.stop()
-    await application.shutdown()
+    try:
+        if not runtime.polling_task.done():
+            await runtime.dispatcher.stop_polling()
+        await runtime.polling_task
+    finally:
+        await runtime.bot.session.close()
 
 
 def build_web_app() -> web.Application:

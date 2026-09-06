@@ -1,0 +1,147 @@
+import json
+import unittest
+from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, patch
+
+from aiogram.types import InlineQueryResultArticle
+
+import main
+import runtime_v2
+
+
+class FakeJsonRequest:
+    def __init__(self, payload, *, app=None, headers=None, remote="127.0.0.1"):
+        self.payload = payload
+        self.app = app or {}
+        self.headers = headers or {}
+        self.remote = remote
+
+    async def json(self):
+        return self.payload
+
+
+class TitleFlowTests(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        runtime_v2._BASE = main
+
+    def test_editor_moves_title_to_export_and_telegraph_actions(self):
+        index = runtime_v2.render_index()
+        self.assertNotIn('<label>Título<input id="inpTitle"', index)
+        self.assertIn('id="inpTitle" type="hidden"', index)
+        self.assertIn("legacyTitle.remove()", index)
+        self.assertIn("localStorage.removeItem('mdtxtrt_title')", index)
+        self.assertIn("find(item=>item.trim())", index)
+        self.assertIn("input.placeholder=suggestion", index)
+        self.assertIn("deliver('chat','Sem título')", index)
+        self.assertIn("titleSheet('md')", index)
+        self.assertIn("titleSheet('telegraph')", index)
+
+    def test_title_confirmation_uses_bottom_sheet_without_autofocus(self):
+        index = runtime_v2.render_index()
+        self.assertIn('class="sheet title-sheet"', index)
+        self.assertIn("prepareTitleSheet(isMd?'Exportar Markdown':'Publicar no Telegraph')", index)
+        self.assertIn("sheet.classList.add('on')", index)
+        self.assertIn("cancel.textContent='Cancelar'", index)
+        segment = index.split("function titleSheet", 1)[1].split("async function copyText", 1)[0]
+        self.assertNotIn("input.focus()", segment)
+        self.assertIn(".title-sheet .form input{font-size:16px}", index)
+
+    def test_import_markdown_is_direct_secondary_action(self):
+        index = runtime_v2.render_index()
+        self.assertIn(
+            'id="btnOptions" class="upload-action" type="button" aria-label="Importar Markdown" title="Importar Markdown"',
+            index,
+        )
+        self.assertIn('<svg class="upload-icon"', index)
+        self.assertNotIn('>Importar Markdown</button>', index)
+        self.assertIn("document.getElementById('btnOptions').onclick=()=>fileInput.click()", index)
+        self.assertIn(".upload-action{", index)
+        self.assertIn("background:transparent;color:var(--muted)", index)
+        self.assertIn(".upload-action:active{background:var(--surface)}", index)
+        self.assertIn('id="btnOpen" type="button" hidden', index)
+
+    def test_fullscreen_header_is_proportional_and_uses_telegram_content_safe_area(self):
+        index = runtime_v2.render_index()
+        self.assertNotIn("Rich 10.3 · canonical", index)
+        self.assertNotIn('class="tag"', index)
+        self.assertNotIn(".tag{", index)
+        self.assertIn("grid-template-columns:1fr auto auto 1fr", index)
+        self.assertIn("column-gap:clamp(6px,1.8vw,9px)", index)
+        self.assertIn("height:clamp(40px,10vw,44px)", index)
+        self.assertIn("font-size:clamp(12px,3.3vw,13px)", index)
+        self.assertIn("width:clamp(32px,8.5vw,36px)", index)
+        self.assertIn("height:clamp(32px,8.5vw,36px)", index)
+        self.assertIn("border:0;border-radius:999px;background:transparent", index)
+        self.assertIn(".upload-icon{width:clamp(17px,4.7vw,19px);height:clamp(17px,4.7vw,19px)", index)
+        self.assertIn("padding-top:max(4px,env(safe-area-inset-top),var(--tg-safe-area-inset-top,0px),var(--tg-content-safe-area-inset-top,0px))", index)
+        self.assertIn("padding-left:max(12px,env(safe-area-inset-left),var(--tg-safe-area-inset-left,0px),var(--tg-content-safe-area-inset-left,0px))", index)
+        self.assertIn("padding-right:max(12px,env(safe-area-inset-right),var(--tg-safe-area-inset-right,0px),var(--tg-content-safe-area-inset-right,0px))", index)
+        self.assertIn("stroke:currentColor", index)
+        self.assertIn(".upload-action:focus-visible{outline:1px solid var(--fg);outline-offset:1px}", index)
+
+    def test_telegraph_success_exposes_copy_open_and_native_share(self):
+        index = runtime_v2.render_index()
+        self.assertIn("Publicação criada", index)
+        self.assertIn("Copiar link", index)
+        self.assertIn("Abrir publicação", index)
+        self.assertIn("Compartilhar no Telegram", index)
+        self.assertIn("tg.shareMessage(prepared.prepared_message_id", index)
+        self.assertNotIn("?start=", index.split("function renderTelegraphSuccess", 1)[-1])
+
+    def test_entrypoint_registers_native_share_endpoint(self):
+        entrypoint = Path("app.py").read_text(encoding="utf-8")
+        self.assertIn('app.router.add_post("/api/share-telegraph", runtime_v2.api_share_telegraph)', entrypoint)
+
+    async def test_native_share_requires_valid_telegram_session(self):
+        request = FakeJsonRequest(
+            {"title": "Artigo", "url": "https://telegra.ph/artigo-01"}
+        )
+        with patch.object(main, "init_data_from_request", return_value=""), patch.object(
+            main, "validate_init_data", return_value=None
+        ):
+            response = await runtime_v2.api_share_telegraph(request)
+        self.assertEqual(response.status, 401)
+        self.assertFalse(json.loads(response.text)["ok"])
+
+    async def test_native_share_prepares_message_for_all_chat_types(self):
+        save_prepared = AsyncMock(return_value=SimpleNamespace(id="prepared-123"))
+        bot_runtime = SimpleNamespace(bot=SimpleNamespace(save_prepared_inline_message=save_prepared))
+        request = FakeJsonRequest(
+            {"title": "Artigo", "url": "https://telegra.ph/artigo-01"},
+            app={"bot": bot_runtime},
+        )
+        with patch.object(main, "init_data_from_request", return_value="signed"), patch.object(
+            main, "validate_init_data", return_value={"id": 123456}
+        ):
+            response = await runtime_v2.api_share_telegraph(request)
+
+        payload = json.loads(response.text)
+        self.assertEqual(response.status, 200)
+        self.assertEqual(payload["prepared_message_id"], "prepared-123")
+        kwargs = save_prepared.await_args.kwargs
+        self.assertEqual(kwargs["user_id"], 123456)
+        self.assertTrue(kwargs["allow_user_chats"])
+        self.assertTrue(kwargs["allow_bot_chats"])
+        self.assertTrue(kwargs["allow_group_chats"])
+        self.assertTrue(kwargs["allow_channel_chats"])
+        self.assertIsInstance(kwargs["result"], InlineQueryResultArticle)
+        self.assertEqual(
+            kwargs["result"].input_message_content.message_text,
+            "Acabei de publicar este artigo no Telegraph\nhttps://telegra.ph/artigo-01",
+        )
+
+    async def test_native_share_rejects_non_telegraph_url(self):
+        request = FakeJsonRequest(
+            {"title": "Artigo", "url": "https://example.com/not-telegraph"}
+        )
+        with patch.object(main, "init_data_from_request", return_value="signed"), patch.object(
+            main, "validate_init_data", return_value={"id": 123456}
+        ):
+            response = await runtime_v2.api_share_telegraph(request)
+        self.assertEqual(response.status, 400)
+        self.assertIn("Telegraph", json.loads(response.text)["error"])
+
+
+if __name__ == "__main__":
+    unittest.main()
