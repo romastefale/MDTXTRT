@@ -482,6 +482,13 @@ async def start(message: Message, bot: Bot, command: CommandObject):
                 )
             except TelegramAPIError as exc:
                 await reply_text(message, bot, telegram_error_text(exc))
+            except ValueError as exc:
+                await reply_text(
+                    message,
+                    bot,
+                    str(exc),
+                    reply_markup=mini_app_markup(),
+                )
             return
         await reply_text(
             message,
@@ -878,7 +885,7 @@ async def delete_webhook_with_retry(bot: Bot, sleep=asyncio.sleep) -> None:
     delay = 1.0
     while True:
         try:
-            await bot.delete_webhook(drop_pending_updates=True, request_timeout=60)
+            await bot.delete_webhook(drop_pending_updates=False, request_timeout=60)
             return
         except TelegramRetryAfter as exc:
             delay = max(float(exc.retry_after), 1.0)

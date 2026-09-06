@@ -34,8 +34,51 @@ class TitleFlowTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("find(item=>item.trim())", index)
         self.assertIn("input.placeholder=suggestion", index)
         self.assertIn("deliver('chat','Sem título')", index)
-        self.assertIn("titleForm('md')", index)
-        self.assertIn("titleForm('telegraph')", index)
+        self.assertIn("titleSheet('md')", index)
+        self.assertIn("titleSheet('telegraph')", index)
+
+    def test_title_confirmation_uses_bottom_sheet_without_autofocus(self):
+        index = runtime_v2.render_index()
+        self.assertIn('class="sheet title-sheet"', index)
+        self.assertIn("prepareTitleSheet(isMd?'Exportar Markdown':'Publicar no Telegraph')", index)
+        self.assertIn("sheet.classList.add('on')", index)
+        self.assertIn("cancel.textContent='Cancelar'", index)
+        segment = index.split("function titleSheet", 1)[1].split("async function copyText", 1)[0]
+        self.assertNotIn("input.focus()", segment)
+        self.assertIn(".title-sheet .form input{font-size:16px}", index)
+
+    def test_import_markdown_is_direct_secondary_action(self):
+        index = runtime_v2.render_index()
+        self.assertIn(
+            'id="btnOptions" class="upload-action" type="button" aria-label="Importar Markdown" title="Importar Markdown"',
+            index,
+        )
+        self.assertIn('<svg class="upload-icon"', index)
+        self.assertNotIn('>Importar Markdown</button>', index)
+        self.assertIn("document.getElementById('btnOptions').onclick=()=>fileInput.click()", index)
+        self.assertIn(".upload-action{", index)
+        self.assertIn("background:transparent;color:var(--muted)", index)
+        self.assertIn(".upload-action:active{background:var(--surface)}", index)
+        self.assertIn('id="btnOpen" type="button" hidden', index)
+
+    def test_fullscreen_header_is_proportional_and_uses_telegram_content_safe_area(self):
+        index = runtime_v2.render_index()
+        self.assertNotIn("Rich 10.3 · canonical", index)
+        self.assertNotIn('class="tag"', index)
+        self.assertNotIn(".tag{", index)
+        self.assertIn("grid-template-columns:1fr auto auto 1fr", index)
+        self.assertIn("column-gap:clamp(6px,1.8vw,9px)", index)
+        self.assertIn("height:clamp(40px,10vw,44px)", index)
+        self.assertIn("font-size:clamp(12px,3.3vw,13px)", index)
+        self.assertIn("width:clamp(32px,8.5vw,36px)", index)
+        self.assertIn("height:clamp(32px,8.5vw,36px)", index)
+        self.assertIn("border:0;border-radius:999px;background:transparent", index)
+        self.assertIn(".upload-icon{width:clamp(17px,4.7vw,19px);height:clamp(17px,4.7vw,19px)", index)
+        self.assertIn("padding-top:max(4px,env(safe-area-inset-top),var(--tg-safe-area-inset-top,0px),var(--tg-content-safe-area-inset-top,0px))", index)
+        self.assertIn("padding-left:max(12px,env(safe-area-inset-left),var(--tg-safe-area-inset-left,0px),var(--tg-content-safe-area-inset-left,0px))", index)
+        self.assertIn("padding-right:max(12px,env(safe-area-inset-right),var(--tg-safe-area-inset-right,0px),var(--tg-content-safe-area-inset-right,0px))", index)
+        self.assertIn("stroke:currentColor", index)
+        self.assertIn(".upload-action:focus-visible{outline:1px solid var(--fg);outline-offset:1px}", index)
 
     def test_telegraph_success_exposes_copy_open_and_native_share(self):
         index = runtime_v2.render_index()
