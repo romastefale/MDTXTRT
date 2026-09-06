@@ -5,6 +5,7 @@ from canonical import CanonicalDocument
 import dm_command_ui
 import drafts
 import main
+import map_location
 import message_buttons
 import preview_security
 import rich_buttons
@@ -26,6 +27,7 @@ rich_integrity.install(main, rich_roundtrip)
 rich_buttons.install(main, rich_roundtrip)
 message_buttons.install(main)
 dm_command_ui.install(main)
+map_location.install(main)
 
 
 def _canonical_markdown_export(source: str) -> str:
@@ -44,6 +46,9 @@ def build_web_app() -> web.Application:
     app.router.add_post("/api/share-telegraph", runtime_v2.api_share_telegraph)
     app.router.add_post("/api/draft/load", drafts.api_draft_load)
     app.router.add_post("/api/draft/save", drafts.api_draft_save)
+    app.router.add_post("/api/map/request", map_location.api_map_request)
+    app.router.add_post("/api/map/status", map_location.api_map_status)
+    app.router.add_post("/api/map/send-location", map_location.api_map_send_location)
     return app
 
 
