@@ -15,6 +15,10 @@
     #editor [data-node-kind="heading"] { font-size: 1.45rem; font-weight: 700; }
     #editor [data-node-kind="blockquote"] { border-inline-start: 3px solid currentColor; padding-inline-start: 10px; opacity: .86; }
     #editor [data-node-kind="code_block"] { font-family: ui-monospace, monospace; white-space: pre-wrap; }
+    dialog { width: min(92vw, 760px); }
+    .versions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .versions pre { max-height: 38vh; overflow: auto; white-space: pre-wrap; border: 1px solid currentColor; padding: 8px; }
+    .dialog-actions { display: flex; gap: 8px; justify-content: flex-end; }
     .hidden { display: none; }
   </style>
 </head>
@@ -30,6 +34,30 @@
     <label>Importar<input id="importFile" class="hidden" type="file" accept=".md,.txt,text/markdown,text/plain"></label>
   </div>
   <main id="editor" contenteditable="true" spellcheck="true" aria-label="Editor visual"></main>
+
+  <dialog id="divergenceDialog">
+    <h2>Há duas versões do trabalho</h2>
+    <p>Escolha qual versão abrir. Nenhuma mesclagem será feita automaticamente.</p>
+    <div class="versions">
+      <section><h3>Servidor</h3><pre id="serverVersion"></pre></section>
+      <section><h3>Espelho local</h3><pre id="localVersion"></pre></section>
+    </div>
+    <div class="dialog-actions">
+      <button type="button" id="chooseServer">Usar servidor</button>
+      <button type="button" id="chooseLocal">Usar local</button>
+    </div>
+  </dialog>
+
+  <dialog id="encodingDialog">
+    <h2>Escolha o encoding</h2>
+    <p>O arquivo não é UTF-8. Informe explicitamente o encoding para tentar novamente.</p>
+    <input id="encodingValue" autocomplete="off" placeholder="ex.: windows-1252">
+    <div class="dialog-actions">
+      <button type="button" id="cancelEncoding">Cancelar</button>
+      <button type="button" id="retryEncoding">Tentar novamente</button>
+    </div>
+  </dialog>
+
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <script type="module" src="/static/app.js"></script>
 </body>
