@@ -209,6 +209,8 @@ def _plain(value) -> str:
     if isinstance(value, list):
         return "".join(_plain(item) for item in value)
     if isinstance(value, dict):
+        if value.get("type") == "button":
+            return _plain((value.get("button") or {}).get("text") or "")
         return _plain(value.get("text") or value.get("alternative_text") or value.get("expression") or "")
     return str(value or "")
 
