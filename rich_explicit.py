@@ -80,6 +80,48 @@ def _inline_children(node: _Node):
     return result
 
 
+def _inline_button(node: _Node) -> dict:
+    """Compila <tg-button> para RichMessageButton sem alterar o caminho de blocos."""
+    attrs = node.attrs
+    item = {"text": _inline_children(node)}
+    if attrs.get("style") not in (None, False, ""):
+        item["style"] = str(attrs["style"])
+    typ = str(attrs.get("type") or "")
+    if typ == "url":
+        item["url"] = str(attrs.get("url") or "")
+    elif typ == "callback_data":
+        item["callback_data"] = str(attrs.get("data") or "")
+    elif typ == "web_app":
+        item["web_app"] = {"url": str(attrs.get("url") or "")}
+    elif typ == "login_url":
+        item["login_url"] = {
+            "url": str(attrs.get("url") or ""),
+            "forward_text": attrs.get("forward-text")
+            if attrs.get("forward-text") not in (None, False)
+            else None,
+            "request_write_access": True if "request-write-access" in attrs else None,
+        }
+    elif typ == "switch_inline_query":
+        item["switch_inline_query"] = str(attrs.get("query") or "")
+    elif typ == "switch_inline_query_current_chat":
+        item["switch_inline_query_current_chat"] = str(attrs.get("query") or "")
+    elif typ == "switch_inline_query_chosen_chat":
+        item["switch_inline_query_chosen_chat"] = {
+            "query": str(attrs.get("query") or ""),
+            "allow_user_chats": True if "allow-user-chats" in attrs else None,
+            "allow_bot_chats": True if "allow-bot-chats" in attrs else None,
+            "allow_group_chats": True if "allow-group-chats" in attrs else None,
+            "allow_channel_chats": True if "allow-channel-chats" in attrs else None,
+        }
+    elif typ == "copy_text":
+        item["copy_text"] = {"text": str(attrs.get("text") or "")}
+    elif typ == "disabled":
+        item["disabled"] = {}
+    else:
+        raise ValueError(f"Tipo de botão Rich explícito desconhecido: {typ or '(vazio)' }.")
+    return item
+
+
 def _inline(value: _Node | str):
     if isinstance(value, str):
         return value
@@ -104,6 +146,8 @@ def _inline(value: _Node | str):
         return {"type": "mathematical_expression", "expression": _plain(inner)}
     if tag == "tg-reference":
         return {"type": "reference", "text": inner, "name": str(value.attrs.get("name") or "")}
+    if tag == "tg-button":
+        return {"type": "button", "button": _inline_button(value)}
     if tag == "tg-entity":
         typ = str(value.attrs.get("type") or "")
         fields = {
@@ -202,7 +246,7 @@ def _child_blocks(node: _Node, media_by_id: dict[str, object]) -> list[dict]:
             continue
         if child.tag == "input" and child.attrs.get("type") == "checkbox":
             continue
-        if child.tag in {"b","strong","i","em","u","ins","s","strike","del","code","mark","sub","sup","a","tg-spoiler","tg-emoji","tg-time","tg-reference","tg-entity","span"}:
+        if child.tag in {"b","strong","i","em","u","ins","s","strike","del","code","mark","sub","sup","a","tg-spoiler","tg-emoji","tg-time","tg-reference","tg-entity","tg-button","span"}:
             loose.append(child)
             continue
         flush()
