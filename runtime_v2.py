@@ -26,8 +26,6 @@ from canonical import CanonicalDocument
 MAX_MEDIA_BYTES = 50 * 1024 * 1024
 TELEGRAPH_CONTENT_LIMIT_BYTES = 64 * 1024
 _PUBLISH_RATE: dict[str, deque[float]] = defaultdict(deque)
-_BASE = None
-_ORIGINAL_HEALTH = None
 _ROOT = Path(__file__).resolve().parent
 
 
@@ -57,10 +55,10 @@ def _input_media(item: dict):
     return InputMediaDocument(media=upload)
 
 
-def build_rich_message(content: str) -> InputRichMessage:
+def build_rich_message(deps, content: str) -> InputRichMessage:
     markdown, refs = CanonicalDocument.from_markdown(content).telegram_markdown(); media=[]; now=time.time()
     for ref in refs:
-        item = _BASE.MEDIA.get(ref.media_id)
+        item = deps.MEDIA.get(ref.media_id)
         if not item or item.get("exp",0) < now: raise ValueError(f"Mídia local {ref.media_id} expirou; faça o upload novamente.")
         media.append(InputRichMessageMedia(id=ref.media_id, media=_input_media(item)))
     return InputRichMessage(markdown=markdown, media=media or None)
@@ -101,11 +99,11 @@ def _publish_allowed(request: web.Request) -> bool:
     queue.append(now); return True
 
 
-async def api_publish(request: web.Request):
+async def api_publish(deps, request: web.Request):
     try: data=await request.json()
     except Exception: return web.json_response({"ok":False,"error":"JSON inválido"},status=400)
-    raw=_BASE.init_data_from_request(data,request)
-    if raw and not _BASE.validate_init_data(raw): return _BASE.session_error(raw)
+    raw=deps.init_data_from_request(data,request)
+    if raw and not deps.validate_init_data(raw): return deps.session_error(raw)
     content=data.get("content") or ""
     if not str(content).strip(): return web.json_response({"ok":False,"error":"Documento vazio"},status=400)
     content=str(content)
@@ -124,14 +122,14 @@ async def api_publish(request: web.Request):
     except TelegraphPreflightRequired as exc: return web.json_response({"ok":False,"error":str(exc),**_public_preflight(exc.report)},status=409)
     except TelegraphException as exc: return web.json_response({"ok":False,"error":str(exc)},status=502)
     except Exception as exc:
-        _BASE.log.exception("api_publish"); return web.json_response({"ok":False,"error":str(exc)},status=500)
+        deps.log.exception("api_publish"); return web.json_response({"ok":False,"error":str(exc)},status=500)
 
 
-async def api_share_telegraph(request: web.Request):
+async def api_share_telegraph(deps, request: web.Request):
     try: data=await request.json()
     except Exception: return web.json_response({"ok":False,"error":"JSON inválido"},status=400)
-    raw=_BASE.init_data_from_request(data,request); user=_BASE.validate_init_data(raw)
-    if not user or not user.get("id"): return _BASE.session_error(raw)
+    raw=deps.init_data_from_request(data,request); user=deps.validate_init_data(raw)
+    if not user or not user.get("id"): return deps.session_error(raw)
     url=str(data.get("url") or "").strip()
     if not re.fullmatch(r"https://telegra\.ph/[^\s]+",url): return web.json_response({"ok":False,"error":"URL do Telegraph inválida"},status=400)
     title=str(data.get("title") or "Publicação no Telegraph").strip()[:256] or "Publicação no Telegraph"; bot_runtime=request.app.get("bot")
@@ -141,17 +139,17 @@ async def api_share_telegraph(request: web.Request):
         prepared=await bot_runtime.bot.save_prepared_inline_message(user_id=int(user["id"]),result=result,allow_user_chats=True,allow_bot_chats=True,allow_group_chats=True,allow_channel_chats=True)
         return web.json_response({"ok":True,"prepared_message_id":prepared.id})
     except TelegramAPIError:
-        _BASE.log.exception("api_share_telegraph telegram"); return web.json_response({"ok":False,"error":"Não foi possível preparar o compartilhamento no Telegram."},status=502)
+        deps.log.exception("api_share_telegraph telegram"); return web.json_response({"ok":False,"error":"Não foi possível preparar o compartilhamento no Telegram."},status=502)
     except Exception as exc:
-        _BASE.log.exception("api_share_telegraph"); return web.json_response({"ok":False,"error":str(exc)},status=500)
+        deps.log.exception("api_share_telegraph"); return web.json_response({"ok":False,"error":str(exc)},status=500)
 
 
-async def api_media(request: web.Request):
-    _BASE.purge_stash()
+async def api_media(deps, request: web.Request):
+    deps.purge_stash()
     try: post=await request.post()
     except Exception: return web.json_response({"ok":False,"error":"Envio inválido"},status=400)
     raw_init=str(post.get("init_data") or "").strip()
-    if not _BASE.validate_init_data(raw_init): return _BASE.session_error(raw_init)
+    if not deps.validate_init_data(raw_init): return deps.session_error(raw_init)
     upload=post.get("file")
     if upload is None or not hasattr(upload,"file"): return web.json_response({"ok":False,"error":"Falta o arquivo"},status=400)
     raw=upload.file.read()
@@ -159,7 +157,7 @@ async def api_media(request: web.Request):
     if len(raw)>MAX_MEDIA_BYTES: return web.json_response({"ok":False,"error":"Mídia acima de 50 MB"},status=413)
     filename=getattr(upload,"filename",None) or "media.bin"; mime=(getattr(upload,"content_type",None) or "application/octet-stream").lower(); kind=_media_kind(filename,mime,str(post.get("kind") or "auto"))
     if kind=="photo" and len(raw)>10*1024*1024: return web.json_response({"ok":False,"error":"Foto acima de 10 MB"},status=413)
-    mid=_BASE.new_stash_code(); _BASE.MEDIA[mid]={"data":raw,"name":filename,"mime":mime,"kind":kind,"exp":time.time()+_BASE.STASH_TTL}; return web.json_response({"ok":True,"id":mid,"kind":kind})
+    mid=deps.new_stash_code(); deps.MEDIA[mid]={"data":raw,"name":filename,"mime":mime,"kind":kind,"exp":time.time()+deps.STASH_TTL}; return web.json_response({"ok":True,"id":mid,"kind":kind})
 
 
 def render_index() -> str:
@@ -169,13 +167,5 @@ def render_index() -> str:
 async def serve_index(_request:web.Request): return web.Response(text=render_index(),content_type="text/html",charset="utf-8")
 
 
-async def health(request:web.Request):
-    if _ORIGINAL_HEALTH is None: raise RuntimeError("runtime_v2.install() não capturou o health original")
-    base=await _ORIGINAL_HEALTH(request); payload=json.loads(base.text); payload.update({"document_model":"canonical","telegram_rich":"10.3","media_model":"typed","telegraph_preflight":True}); return web.json_response(payload)
-
-
-def install(base_module)->None:
-    global _BASE,_ORIGINAL_HEALTH
-    _BASE=base_module
-    if _ORIGINAL_HEALTH is None and base_module.health is not health: _ORIGINAL_HEALTH=base_module.health
-    base_module.MAX_PHOTO_BYTES=MAX_MEDIA_BYTES; base_module.build_rich_message=build_rich_message; base_module.publish_page=publish_page; base_module.publish_page_async=publish_page_async; base_module.api_publish=api_publish; base_module.api_media=api_media; base_module.serve_index=serve_index; base_module.health=health
+async def health(base_health, request:web.Request):
+    base=await base_health(request); payload=json.loads(base.text); payload.update({"document_model":"canonical","telegram_rich":"10.3","media_model":"typed","telegraph_preflight":True}); return web.json_response(payload)

@@ -7,8 +7,8 @@ import html
 MESSAGE_APP_BUTTON = object()
 
 
-def _rich_app_button(base_module) -> str:
-    url = str(base_module.public_web_app_url() or "").strip()
+def _rich_app_button(public_web_app_url) -> str:
+    url = str(public_web_app_url() or "").strip()
     if not url:
         return ""
     return (
@@ -20,8 +20,10 @@ def _rich_app_button(base_module) -> str:
     )
 
 
-def install(base_module) -> None:
-    original_reply_text = base_module.reply_text
+def create_message_ui(
+    *, original_reply_text, send_rich_message, public_web_app_url,
+    message_context, private_chat_type,
+):
 
     def mini_app_markup():
         # Marcador interno: nunca é enviado como ReplyMarkup.
@@ -35,22 +37,21 @@ def install(base_module) -> None:
             return await original_reply_text(message, bot, text, **kwargs)
 
         # RichMessageButton web_app é válido somente em conversa privada com o bot.
-        if message.chat.type != base_module.ChatType.PRIVATE:
+        if message.chat.type != private_chat_type:
             return await original_reply_text(message, bot, text, **kwargs)
 
-        button = _rich_app_button(base_module)
+        button = _rich_app_button(public_web_app_url)
         if not button:
             return await original_reply_text(message, bot, text, **kwargs)
 
         # parse_mode pertence a sendMessage; o texto HTML suportado é aceito
         # diretamente pelo Rich Markdown do sendRichMessage.
         kwargs.pop("parse_mode", None)
-        return await base_module.send_rich_message(
+        return await send_rich_message(
             bot,
             message.chat.id,
             str(text or "") + button,
-            **base_module._message_context(message),
+            **message_context(message),
         )
 
-    base_module.mini_app_markup = mini_app_markup
-    base_module.reply_text = reply_text
+    return mini_app_markup, reply_text

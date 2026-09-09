@@ -301,5 +301,21 @@ def rich_message_to_markdown(rich) -> str:
     return _text(rich.get("text") or rich)
 
 
-def install(base_module) -> None:
-    base_module.rich_message_to_markdown = rich_message_to_markdown
+def render_with(renderer, rich) -> str:
+    """Converte usando um renderer recebido explicitamente."""
+    rich = renderer._plain(rich)
+    if not rich:
+        return ""
+    if isinstance(rich, str):
+        return rich
+    if not isinstance(rich, dict):
+        return str(rich)
+    if rich.get("markdown"):
+        return str(rich["markdown"])
+    if rich.get("blocks"):
+        return "\n\n".join(
+            part for part in (renderer._block(item) for item in rich["blocks"]) if part
+        )
+    if rich.get("html"):
+        return str(rich["html"])
+    return renderer._text(rich.get("text") or rich)
