@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>MDTXTRT</title>
+  <style>
+    :root { font-family: system-ui, sans-serif; color-scheme: light dark; }
+    body { margin: 0; padding: 16px; }
+    header, .toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    header { justify-content: space-between; margin-bottom: 12px; }
+    button, label { min-height: 36px; }
+    #status { opacity: .72; font-size: 13px; }
+    #editor { min-height: 58vh; border: 1px solid currentColor; border-radius: 10px; padding: 14px; outline: none; }
+    #editor [data-node-kind="heading"] { font-size: 1.45rem; font-weight: 700; }
+    #editor [data-node-kind="blockquote"] { border-inline-start: 3px solid currentColor; padding-inline-start: 10px; opacity: .86; }
+    #editor [data-node-kind="code_block"] { font-family: ui-monospace, monospace; white-space: pre-wrap; }
+    dialog { width: min(92vw, 760px); }
+    .versions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .versions pre { max-height: 38vh; overflow: auto; white-space: pre-wrap; border: 1px solid currentColor; padding: 8px; }
+    .dialog-actions { display: flex; gap: 8px; justify-content: flex-end; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <header><strong>MDTXTRT</strong><span id="status">Inicializando…</span></header>
+  <div class="toolbar" aria-label="Ferramentas do editor">
+    <button type="button" data-kind="paragraph">Texto</button>
+    <button type="button" data-kind="heading">Título</button>
+    <button type="button" data-kind="blockquote">Citação</button>
+    <button type="button" data-kind="code_block">Código</button>
+    <button type="button" id="undo">Desfazer</button>
+    <button type="button" id="redo">Refazer</button>
+    <label>Importar<input id="importFile" class="hidden" type="file" accept=".md,.txt,text/markdown,text/plain"></label>
+  </div>
+  <main id="editor" contenteditable="true" spellcheck="true" aria-label="Editor visual"></main>
+
+  <dialog id="divergenceDialog">
+    <h2>Há duas versões do trabalho</h2>
+    <p>Escolha qual versão abrir. Nenhuma mesclagem será feita automaticamente.</p>
+    <div class="versions">
+      <section><h3>Servidor</h3><pre id="serverVersion"></pre></section>
+      <section><h3>Espelho local</h3><pre id="localVersion"></pre></section>
+    </div>
+    <div class="dialog-actions">
+      <button type="button" id="chooseServer">Usar servidor</button>
+      <button type="button" id="chooseLocal">Usar local</button>
+    </div>
+  </dialog>
+
+  <dialog id="encodingDialog">
+    <h2>Escolha o encoding</h2>
+    <p>O arquivo não é UTF-8. Informe explicitamente o encoding para tentar novamente.</p>
+    <input id="encodingValue" autocomplete="off" placeholder="ex.: windows-1252">
+    <div class="dialog-actions">
+      <button type="button" id="cancelEncoding">Cancelar</button>
+      <button type="button" id="retryEncoding">Tentar novamente</button>
+    </div>
+  </dialog>
+
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script type="module" src="/static/app.js"></script>
+</body>
+</html>
