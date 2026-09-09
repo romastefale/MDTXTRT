@@ -6,8 +6,6 @@ import html
 import rich_media
 
 _MEDIA_TYPES = {"photo", "video", "animation", "audio", "document", "voice_note"}
-_ORIGINAL_BLOCK = None
-_RT = None
 
 
 def _file_id(block: dict) -> str:
@@ -24,15 +22,15 @@ def _file_id(block: dict) -> str:
     return ""
 
 
-def _caption(block: dict) -> tuple[str, str]:
+def _caption(rt, block: dict) -> tuple[str, str]:
     value = block.get("caption")
     if not value:
         return "", ""
-    return _RT._caption(value)
+    return rt._caption(value)
 
 
-def _plain_rich_text(value) -> str | None:
-    value = _RT._plain(value)
+def _plain_rich_text(rt, value) -> str | None:
+    value = rt._plain(value)
     if value is None:
         return ""
     if isinstance(value, str):
@@ -42,7 +40,7 @@ def _plain_rich_text(value) -> str | None:
     if isinstance(value, list):
         out: list[str] = []
         for item in value:
-            part = _plain_rich_text(item)
+            part = _plain_rich_text(rt, item)
             if part is None:
                 return None
             out.append(part)
@@ -53,21 +51,21 @@ def _plain_rich_text(value) -> str | None:
     if typ not in {"", "plain", "text", "regular", "concat", "rich_text"}:
         return None
     source = value.get("text") if "text" in value else value.get("texts")
-    return _plain_rich_text(source)
+    return _plain_rich_text(rt, source)
 
 
-def _collection_child_caption(block: dict) -> str:
-    caption = _RT._plain(block.get("caption"))
+def _collection_child_caption(rt, block: dict) -> str:
+    caption = rt._plain(block.get("caption"))
     if not caption:
         return ""
     if not isinstance(caption, dict):
-        plain = _plain_rich_text(caption)
+        plain = _plain_rich_text(rt, caption)
         if plain is None:
             raise ValueError(
                 "Legenda Rich de mídia interna de collage/slideshow não possui representação sem perda."
             )
         return plain
-    credit = _plain_rich_text(caption.get("credit"))
+    credit = _plain_rich_text(rt, caption.get("credit"))
     if credit not in (None, ""):
         raise ValueError(
             "Crédito de mídia interna de collage/slideshow não possui representação sem perda."
@@ -76,7 +74,7 @@ def _collection_child_caption(block: dict) -> str:
         raise ValueError(
             "Crédito Rich de mídia interna de collage/slideshow não possui representação sem perda."
         )
-    plain = _plain_rich_text(caption.get("text"))
+    plain = _plain_rich_text(rt, caption.get("text"))
     if plain is None:
         raise ValueError(
             "Legenda Rich de mídia interna de collage/slideshow não possui representação sem perda."
@@ -100,22 +98,22 @@ def _element(block: dict) -> str:
     return f'<tg-document src="{src}"></tg-document>'
 
 
-def _media_block(block: dict) -> str:
+def _media_block(rt, block: dict) -> str:
     element = _element(block)
-    caption, credit = _caption(block)
+    caption, credit = _caption(rt, block)
     if not caption and not credit:
         return element
     cite = f"<cite>{credit}</cite>" if credit else ""
     return f"<figure>{element}<figcaption>{caption}{cite}</figcaption></figure>"
 
 
-def _collection(block: dict) -> str:
+def _collection(rt, original_block, block: dict) -> str:
     tag = "tg-collage" if block.get("type") == "collage" else "tg-slideshow"
     parts: list[str] = []
     for child in block.get("blocks") or []:
-        child = _RT._plain(child)
+        child = rt._plain(child)
         if isinstance(child, dict) and child.get("type") in _MEDIA_TYPES:
-            caption = _collection_child_caption(child)
+            caption = _collection_child_caption(rt, child)
             if caption:
                 file_id = _file_id(child)
                 if not file_id:
@@ -128,28 +126,23 @@ def _collection(block: dict) -> str:
             else:
                 parts.append(_element(child))
         else:
-            parts.append(_ORIGINAL_BLOCK(child))
-    caption, credit = _caption(block)
+            parts.append(original_block(child))
+    caption, credit = _caption(rt, block)
     if caption or credit:
         cite = f"<cite>{credit}</cite>" if credit else ""
         parts.append(f"<figcaption>{caption}{cite}</figcaption>")
     return f"<{tag}>\n" + "\n".join(parts) + f"\n</{tag}>"
 
 
-def install(roundtrip_module) -> None:
-    global _ORIGINAL_BLOCK, _RT
-    _RT = roundtrip_module
-    if _ORIGINAL_BLOCK is None:
-        _ORIGINAL_BLOCK = roundtrip_module._block
-
+def decorate_block(roundtrip, original_block):
     def block(value) -> str:
-        parsed = roundtrip_module._plain(value)
+        parsed = roundtrip._plain(value)
         if isinstance(parsed, dict):
             typ = str(parsed.get("type") or "")
             if typ in _MEDIA_TYPES:
-                return _media_block(parsed)
+                return _media_block(roundtrip, parsed)
             if typ in {"collage", "slideshow"}:
-                return _collection(parsed)
-        return _ORIGINAL_BLOCK(parsed)
+                return _collection(roundtrip, original_block, parsed)
+        return original_block(parsed)
 
-    roundtrip_module._block = block
+    return block

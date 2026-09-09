@@ -1,4 +1,4 @@
-"""Mídia Rich 10.3: upload local e reutilização de file_id no round-trip."""
+"""Rich 10.3 media upload, remote file reuse and capability-based projection."""
 from __future__ import annotations
 
 import re
@@ -47,8 +47,6 @@ def remote_uri(kind: str, file_id: str) -> str:
         scheme, marker = "video", ""
     else:
         scheme, marker = "audio", ""
-    # O id é da referência Rich, não do arquivo. Ele precisa ser único por ocorrência,
-    # inclusive quando o mesmo file_id aparece duas vezes no mesmo documento.
     reference_id = "r_" + secrets.token_hex(8)
     return (
         f"tg://{scheme}?id={reference_id}"
@@ -78,18 +76,23 @@ def _local_input_media(item: dict):
     return _input_media(str(item.get("kind") or "document"), upload)
 
 
-def install(base_module) -> None:
+def create_build_rich_message(media_store) -> callable:
+    """Create the Rich builder with media storage as its only state dependency."""
+
     def build_rich_message(content: str) -> InputRichMessage:
         source = str(content or "")
         is_rtl = source == _RTL_MARKER or source.startswith(_RTL_MARKER + "\n")
         if is_rtl:
             source = source[len(_RTL_MARKER):].lstrip("\n")
-        markdown, refs = canonical.CanonicalDocument.from_markdown(source).telegram_markdown()
+
+        markdown, refs = canonical.CanonicalDocument.from_markdown(
+            source
+        ).telegram_markdown()
         media: list[InputRichMessageMedia] = []
         media_ids: set[str] = set()
 
         for ref in refs:
-            item = base_module.MEDIA.get(ref.media_id)
+            item = media_store.get(ref.media_id)
             if not item:
                 raise ValueError(f"Mídia local {ref.media_id} indisponível.")
             media.append(
@@ -132,9 +135,14 @@ def install(base_module) -> None:
             raise ValueError(
                 "O documento contém referência tg:// de mídia sem arquivo associado."
             )
-        if rich_explicit.contains_semantic_entities(markdown):
-            blocks = rich_explicit.compile_semantic_blocks(
-                markdown,
+
+        # One structural analysis determines the delivery strategy and is then
+        # consumed by the compiler itself. No tag-specific detector exists in
+        # this delivery layer.
+        plan = rich_explicit.analyze_explicit_blocks(markdown)
+        if plan.requires_blocks:
+            blocks = rich_explicit.compile_explicit_blocks(
+                plan,
                 {item.id: item.media for item in media},
             )
             return InputRichMessage(
@@ -142,10 +150,11 @@ def install(base_module) -> None:
                 is_rtl=True if is_rtl else None,
                 skip_entity_detection=True,
             )
+
         return InputRichMessage(
             markdown=markdown,
             media=media or None,
             is_rtl=True if is_rtl else None,
         )
 
-    base_module.build_rich_message = build_rich_message
+    return build_rich_message

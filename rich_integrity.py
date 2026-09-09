@@ -4,7 +4,6 @@ from __future__ import annotations
 import html
 
 _RTL_MARKER = "<!--mdtxtrt:rtl-->"
-_ORIGINAL_BLOCK = None
 
 
 def _attr(value) -> str:
@@ -227,7 +226,7 @@ def _table(roundtrip_module, block: dict) -> str:
     return "\n".join(parts)
 
 
-def _block_html(roundtrip_module, value) -> str:
+def _block_html(roundtrip_module, value, fallback_block=None) -> str:
     block = roundtrip_module._plain(value)
     if block is None:
         return ""
@@ -287,7 +286,7 @@ def _block_html(roundtrip_module, value) -> str:
         lat = location.get("latitude")
         lon = location.get("longitude")
         if lat is None or lon is None:
-            return _ORIGINAL_BLOCK(block)
+            return fallback_block(block) if fallback_block else ""
         attrs = [f'lat="{_attr(lat)}"', f'long="{_attr(lon)}"']
         for name in ("zoom", "width", "height"):
             if block.get(name) is not None:
@@ -315,28 +314,15 @@ def _block_html(roundtrip_module, value) -> str:
         "collage",
         "slideshow",
     }:
-        return _ORIGINAL_BLOCK(block)
+        return fallback_block(block) if fallback_block else ""
     if block.get("blocks"):
         return _blocks_html(roundtrip_module, block.get("blocks"))
-    return _ORIGINAL_BLOCK(block)
+    return fallback_block(block) if fallback_block else ""
 
 
-def install(base_module, roundtrip_module) -> None:
-    global _ORIGINAL_BLOCK
-    if _ORIGINAL_BLOCK is None:
-        _ORIGINAL_BLOCK = roundtrip_module._block
-
-    roundtrip_module._text = lambda value: _inline_html(roundtrip_module, value)
-    roundtrip_module._caption = lambda value: _caption_html(roundtrip_module, value)
-    roundtrip_module._block = lambda value: _block_html(roundtrip_module, value)
-
-    original_reverse = roundtrip_module.rich_message_to_markdown
-
-    def rich_message_to_markdown(rich) -> str:
-        parsed = roundtrip_module._plain(rich)
-        body = original_reverse(rich)
-        if isinstance(parsed, dict) and parsed.get("is_rtl"):
-            return _RTL_MARKER + "\n" + body
-        return body
-
-    base_module.rich_message_to_markdown = rich_message_to_markdown
+def preserve_rtl(roundtrip, base_reverse, rich) -> str:
+    parsed = roundtrip._plain(rich)
+    body = base_reverse(rich)
+    if isinstance(parsed, dict) and parsed.get("is_rtl"):
+        return _RTL_MARKER + "\n" + body
+    return body

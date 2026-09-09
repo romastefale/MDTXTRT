@@ -89,11 +89,11 @@ def inject_preview_guard(document: str) -> str:
     return text[:closing] + _GUARD + "\n" + text[closing:]
 
 
-def install(base_module) -> None:
-    original = base_module.serve_index
+def decorate_serve_index(base_serve_index):
+    """Retorna um handler protegido sem alterar o handler recebido."""
 
-    async def serve_index(request: web.Request):
-        response = await original(request)
+    async def protected_serve_index(request: web.Request):
+        response = await base_serve_index(request)
         if response.status != 200:
             return response
         try:
@@ -112,4 +112,4 @@ def install(base_module) -> None:
             },
         )
 
-    base_module.serve_index = serve_index
+    return protected_serve_index
