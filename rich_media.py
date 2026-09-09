@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import re
 import secrets
+from collections.abc import Mapping
 from urllib.parse import quote, unquote
 
 from aiogram.types import (
@@ -47,8 +48,6 @@ def remote_uri(kind: str, file_id: str) -> str:
         scheme, marker = "video", ""
     else:
         scheme, marker = "audio", ""
-    # O id é da referência Rich, não do arquivo. Ele precisa ser único por ocorrência,
-    # inclusive quando o mesmo file_id aparece duas vezes no mesmo documento.
     reference_id = "r_" + secrets.token_hex(8)
     return (
         f"tg://{scheme}?id={reference_id}"
@@ -78,7 +77,14 @@ def _local_input_media(item: dict):
     return _input_media(str(item.get("kind") or "document"), upload)
 
 
-def install(base_module) -> None:
+def create_build_rich_message(media_store: Mapping[str, dict]):
+    """Cria o builder Rich com sua dependência de mídia declarada.
+
+    A decisão ``markdown`` versus ``blocks`` não é feita aqui por regex. O
+    compilador explícito devolve um plano produzido pelo mesmo parser que compila
+    os blocos.
+    """
+
     def build_rich_message(content: str) -> InputRichMessage:
         source = str(content or "")
         is_rtl = source == _RTL_MARKER or source.startswith(_RTL_MARKER + "\n")
@@ -89,7 +95,7 @@ def install(base_module) -> None:
         media_ids: set[str] = set()
 
         for ref in refs:
-            item = base_module.MEDIA.get(ref.media_id)
+            item = media_store.get(ref.media_id)
             if not item:
                 raise ValueError(f"Mídia local {ref.media_id} indisponível.")
             media.append(
@@ -132,13 +138,14 @@ def install(base_module) -> None:
             raise ValueError(
                 "O documento contém referência tg:// de mídia sem arquivo associado."
             )
-        if rich_explicit.contains_semantic_entities(markdown):
-            blocks = rich_explicit.compile_semantic_blocks(
-                markdown,
-                {item.id: item.media for item in media},
-            )
+
+        plan = rich_explicit.plan_explicit_blocks(
+            markdown,
+            {item.id: item.media for item in media},
+        )
+        if plan.required:
             return InputRichMessage(
-                blocks=blocks,
+                blocks=list(plan.blocks),
                 is_rtl=True if is_rtl else None,
                 skip_entity_detection=True,
             )
@@ -148,4 +155,10 @@ def install(base_module) -> None:
             is_rtl=True if is_rtl else None,
         )
 
-    base_module.build_rich_message = build_rich_message
+    return build_rich_message
+
+
+def install(base_module) -> None:
+    """Adaptador legado; novas composições devem usar ``create_build_rich_message``."""
+
+    base_module.build_rich_message = create_build_rich_message(base_module.MEDIA)
