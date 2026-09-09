@@ -80,10 +80,33 @@ def _inline_children(node: _Node):
     return result
 
 
+def _validate_button_text(value) -> None:
+    """Restringe o texto de RichMessageButton ao subconjunto aceito pela Bot API 10.3."""
+    if isinstance(value, str):
+        return
+    if isinstance(value, list):
+        for item in value:
+            _validate_button_text(item)
+        return
+    if isinstance(value, dict):
+        typ = value.get("type")
+        if typ == "custom_emoji":
+            return
+        if typ == "date_time":
+            _validate_button_text(value.get("text") or "")
+            return
+    raise ValueError(
+        "Texto de botão Rich pode conter apenas texto simples, "
+        "emoji personalizado e data/hora."
+    )
+
+
 def _inline_button(node: _Node) -> dict:
     """Compila <tg-button> para RichMessageButton sem alterar o caminho de blocos."""
     attrs = node.attrs
-    item = {"text": _inline_children(node)}
+    text = _inline_children(node)
+    _validate_button_text(text)
+    item = {"text": text}
     if attrs.get("style") not in (None, False, ""):
         item["style"] = str(attrs["style"])
     typ = str(attrs.get("type") or "")
@@ -300,7 +323,7 @@ def _block(node: _Node, media_by_id: dict[str, object]) -> list[dict]:
                 item["switch_inline_query_chosen_chat"] = {"query": str(attrs.get("query") or ""), "allow_user_chats": True if "allow-user-chats" in attrs else None, "allow_bot_chats": True if "allow-bot-chats" in attrs else None, "allow_group_chats": True if "allow-group-chats" in attrs else None, "allow_channel_chats": True if "allow-channel-chats" in attrs else None}
             elif typ == "copy_text": item["copy_text"] = {"text": str(attrs.get("text") or "")}
             elif typ == "disabled": item["disabled"] = {}
-            else: raise ValueError(f"Tipo de botão Rich explícito desconhecido: {typ or '(vazio)'}.")
+            else: raise ValueError(f"Tipo de botão Rich explícito desconhecido: {typ or '(vazio)' }.")
             buttons.append(item)
         return [{"type": "buttons", "buttons": buttons, "align": str(node.attrs.get("align")) if node.attrs.get("align") not in (None, False, "") else None}]
     if tag == "figure":
