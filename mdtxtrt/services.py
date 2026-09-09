@@ -1,0 +1,119 @@
+"""Application services for documents and loss-aware imports."""
+from __future__ import annotations
+
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+from mdtxtrt.conversion import from_markdown, from_text
+from mdtxtrt.domain import CanonicalDocument
+from mdtxtrt.storage import SQLiteRepository
+
+
+@dataclass(frozen=True, slots=True)
+class EncodingChoiceRequired(Exception):
+    filename: str
+
+    def __str__(self) -> str:
+        return f"encoding choice required for {self.filename}"
+
+
+class DocumentService:
+    def __init__(self, repository: SQLiteRepository):
+        self.repository = repository
+
+    def create(self, *, user_id: int, name: str = "Novo rascunho") -> dict[str, Any]:
+        return self.repository.create_draft(
+            user_id=user_id,
+            name=name,
+            document=CanonicalDocument.empty(),
+        )
+
+    def create_with_document(self, *, user_id: int, name: str, document: CanonicalDocument, reason: str) -> dict[str, Any]:
+        return self.repository.create_draft(user_id=user_id, name=name, document=document, reason=reason)
+
+    def get(self, *, user_id: int, draft_id: str) -> dict[str, Any]:
+        result = self.repository.get_draft(draft_id, user_id=user_id)
+        result["session"] = self.repository.get_session(draft_id=draft_id, user_id=user_id)
+        result["redo_candidates"] = self.repository.redo_candidates(draft_id=draft_id, user_id=user_id)
+        return result
+
+    def commit(self, *, user_id: int, draft_id: str, canonical: dict[str, Any], reason: str = "edit") -> dict[str, Any]:
+        document = CanonicalDocument.from_dict(canonical)
+        self.repository.commit_revision(
+            draft_id=draft_id,
+            user_id=user_id,
+            document=document,
+            reason=reason,
+        )
+        return self.get(user_id=user_id, draft_id=draft_id)
+
+    def undo(self, *, user_id: int, draft_id: str) -> dict[str, Any]:
+        self.repository.undo(draft_id=draft_id, user_id=user_id)
+        return self.get(user_id=user_id, draft_id=draft_id)
+
+    def redo(self, *, user_id: int, draft_id: str, revision_id: str) -> dict[str, Any]:
+        self.repository.redo(draft_id=draft_id, user_id=user_id, revision_id=revision_id)
+        return self.get(user_id=user_id, draft_id=draft_id)
+
+    def save_session(self, *, user_id: int, draft_id: str, payload: dict[str, Any]) -> None:
+        self.repository.save_session(draft_id=draft_id, user_id=user_id, payload=payload)
+
+
+class ImportService:
+    def __init__(self, repository: SQLiteRepository, documents: DocumentService):
+        self.repository = repository
+        self.documents = documents
+
+    @staticmethod
+    def _decode(filename: str, data: bytes, encoding: str | None) -> tuple[str, str]:
+        if encoding:
+            return data.decode(encoding), encoding
+        if data.startswith(b"\xef\xbb\xbf"):
+            return data.decode("utf-8-sig"), "utf-8-sig"
+        try:
+            return data.decode("utf-8"), "utf-8"
+        except UnicodeDecodeError as exc:
+            raise EncodingChoiceRequired(filename) from exc
+
+    def import_file(
+        self,
+        *,
+        user_id: int,
+        filename: str,
+        data: bytes,
+        mime_type: str | None = None,
+        encoding: str | None = None,
+    ) -> dict[str, Any]:
+        suffix = Path(filename).suffix.lower()
+        if suffix not in {".md", ".txt"}:
+            raise ValueError("unsupported_import_format")
+
+        text, used_encoding = self._decode(filename, data, encoding)
+        if suffix == ".md":
+            document = from_markdown(text)
+            format_name = "markdown"
+        else:
+            document = from_text(text)
+            format_name = "text"
+
+        title = next(
+            ((block.text or "").strip()[:40] for block in document.blocks if (block.text or "").strip()),
+            filename,
+        )
+        draft = self.documents.create_with_document(
+            user_id=user_id,
+            name=title or filename,
+            document=document,
+            reason=f"import:{format_name}",
+        )
+        draft["import_id"] = self.repository.store_import(
+            user_id=user_id,
+            draft_id=draft["id"],
+            filename=filename,
+            mime_type=mime_type,
+            encoding=used_encoding,
+            original_bytes=data,
+        )
+        draft["import_encoding"] = used_encoding
+        return draft
