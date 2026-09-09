@@ -1,10 +1,9 @@
-"""Composição explícita e sem mutação dos serviços da aplicação."""
-
+"""Explicit application composition with a closed dependency contract."""
 from __future__ import annotations
 
 from dataclasses import dataclass
 from functools import partial
-from typing import Any, Callable
+from typing import Any, Callable, MutableMapping
 
 import dm_command_ui
 import drafts
@@ -18,6 +17,7 @@ import rich_media
 import rich_media_roundtrip
 import rich_roundtrip
 import runtime_v2
+from runtime_ports import CoreRuntime
 
 
 @dataclass(frozen=True)
@@ -76,21 +76,63 @@ class ApplicationServices:
 
 
 @dataclass(frozen=True)
-class _CoreDependencies:
-    """Visão somente-leitura das constantes e utilitários estáveis do núcleo."""
+class CoreDependencies:
+    """Exact legacy capabilities consumed by endpoint/handler adapters.
 
-    _core: Any
+    Unlike the predecessor's ``_CoreDependencies``, this object has no dynamic
+    fallback. A new dependency must be declared here and wired in ``_deps``.
+    """
+
+    MEDIA: MutableMapping[str, dict]
+    STASH: MutableMapping[str, dict]
+    STASH_TTL: int
+    TOKEN: str
+    log: Any
+    ChatType: Any
+    TelegramAPIError: type[Exception]
+    init_data_from_request: Callable
+    validate_init_data: Callable
+    session_error: Callable
+    purge_stash: Callable
+    new_stash_code: Callable
+    telegram_error_text: Callable
     build_rich_message: Callable
     reply_text: Callable
     mini_app_markup: Callable
     deliver_payload: Callable | None = None
 
-    def __getattr__(self, name: str) -> Any:
-        return getattr(self._core, name)
+
+def _deps(
+    core: CoreRuntime,
+    *,
+    build_rich_message: Callable,
+    reply_text: Callable,
+    mini_app_markup: Callable,
+    deliver_payload: Callable | None = None,
+) -> CoreDependencies:
+    return CoreDependencies(
+        MEDIA=core.media,
+        STASH=core.stash,
+        STASH_TTL=core.stash_ttl,
+        TOKEN=core.token,
+        log=core.log,
+        ChatType=core.chat_type,
+        TelegramAPIError=core.telegram_api_error,
+        init_data_from_request=core.init_data_from_request,
+        validate_init_data=core.validate_init_data,
+        session_error=core.session_error,
+        purge_stash=core.purge_stash,
+        new_stash_code=core.new_stash_code,
+        telegram_error_text=core.telegram_error_text,
+        build_rich_message=build_rich_message,
+        reply_text=reply_text,
+        mini_app_markup=mini_app_markup,
+        deliver_payload=deliver_payload,
+    )
 
 
 class _RoundtripPipeline:
-    """Pipeline de projeção cuja delegação é definida por métodos, não patches."""
+    """Projection pipeline whose delegation is explicit and instance-local."""
 
     _plain = staticmethod(rich_roundtrip._plain)
     _button_html = staticmethod(rich_roundtrip._button_html)
@@ -102,35 +144,49 @@ class _RoundtripPipeline:
         return rich_integrity._caption_html(self, value)
 
     def _media_block(self, value):
-        renderer = rich_media_roundtrip.decorate_block(
-            self, rich_roundtrip._block
-        )
+        renderer = rich_media_roundtrip.decorate_block(self, rich_roundtrip._block)
         return renderer(value)
 
     def _block(self, value):
         return rich_integrity._block_html(self, value, self._media_block)
 
     def convert(self, rich):
-        # O conversor base consulta os métodos deste objeto explicitamente.
         body = rich_roundtrip.render_with(self, rich)
         return rich_integrity.preserve_rtl(self, lambda _rich: body, rich)
 
 
-def compose(core, *, markdown_export) -> ApplicationServices:
-    """Constrói serviços por factories; nenhum módulo ou global é substituído."""
+def compose(
+    core: CoreRuntime,
+    *,
+    markdown_export: Callable[[str], str],
+) -> ApplicationServices:
+    """Build the application from a closed set of runtime capabilities."""
 
-    rich_builder = rich_media.create_build_rich_message(core.MEDIA)
-    persistent_builder = partial(drafts.build_rich_message, core, rich_builder)
+    rich_builder = rich_media.create_build_rich_message(core.media)
+
+    # Draft persistence wraps the Rich builder, but receives an explicit closed
+    # capability object rather than the legacy module or a dynamic proxy.
+    initial_deps = _deps(
+        core,
+        build_rich_message=rich_builder,
+        reply_text=core.reply_text,
+        mini_app_markup=lambda: None,
+    )
+    persistent_builder = partial(
+        drafts.build_rich_message,
+        initial_deps,
+        rich_builder,
+    )
     send_rich = rich_delivery.create_send_rich_message(persistent_builder)
 
     mini_app_markup, button_reply = message_buttons.create_message_ui(
         original_reply_text=core.reply_text,
         send_rich_message=send_rich,
         public_web_app_url=core.public_web_app_url,
-        message_context=core._message_context,
-        private_chat_type=core.ChatType.PRIVATE,
+        message_context=core.message_context,
+        private_chat_type=core.chat_type.PRIVATE,
     )
-    deps = _CoreDependencies(
+    deps = _deps(
         core,
         build_rich_message=persistent_builder,
         reply_text=button_reply,
@@ -138,7 +194,11 @@ def compose(core, *, markdown_export) -> ApplicationServices:
     )
 
     async def base_dispatch(bot, chat_id, title, content):
-        body = f"**{title}**\n\n{content}" if title and title != "Sem título" else content
+        body = (
+            f"**{title}**\n\n{content}"
+            if title and title != "Sem título"
+            else content
+        )
         await send_rich(bot, chat_id, body)
 
     dispatch = partial(drafts.dispatch_user_artifacts, base_dispatch)
@@ -150,41 +210,64 @@ def compose(core, *, markdown_export) -> ApplicationServices:
             name = core.filename_from_markdown(md_text)
             if title and title != "Sem título":
                 import re
+
                 safe = re.sub(r'[\\/*?:"<>|]', "", title).strip()[:60]
                 if safe:
                     name = safe
             await bot.send_document(
                 chat_id=chat_id,
-                document=core.BufferedInputFile(
-                    md_text.encode("utf-8"), filename=f"{name}.md"
+                document=core.buffered_input_file(
+                    md_text.encode("utf-8"),
+                    filename=f"{name}.md",
                 ),
                 caption=f"{name}.md",
             )
             return
         await dispatch(bot, chat_id, title, content)
 
-    # Dependências recursivas dos handlers são resolvidas por chamadas explícitas
-    # às referências locais, nunca por substituição do namespace de um módulo.
+    # Recursive command references are closed over local callables; no module
+    # namespace is mutated and no dependency can be looked up dynamically.
     command_handlers = None
 
     core_tgrich = partial(
-        core.tgrich, button_reply, send_rich, roundtrip.convert
+        core.tgrich,
+        button_reply,
+        send_rich,
+        roundtrip.convert,
     )
     core_mdrich = partial(
-        core.mdrich, button_reply, roundtrip.convert, markdown_export
+        core.mdrich,
+        button_reply,
+        roundtrip.convert,
+        markdown_export,
     )
-    core_start = partial(core.start, button_reply, mini_app_markup, deliver)
-    core_help = partial(core.help_cmd, button_reply, mini_app_markup)
+    core_start = partial(
+        core.start,
+        button_reply,
+        mini_app_markup,
+        deliver,
+    )
+    core_help = partial(
+        core.help_cmd,
+        button_reply,
+        mini_app_markup,
+    )
 
     async def draft_start(message, bot, command):
-        command_deps = _CoreDependencies(
+        command_deps = _deps(
             core,
             build_rich_message=persistent_builder,
             reply_text=command_handlers["reply_text"],
             mini_app_markup=mini_app_markup,
             deliver_payload=deliver,
         )
-        return await drafts.start(command_deps, core_start, message, bot, command)
+        return await drafts.start(
+            command_deps,
+            core_start,
+            message,
+            bot,
+            command,
+        )
 
     command_handlers = dm_command_ui.create_command_handlers(
         previous_reply_text=button_reply,
@@ -193,14 +276,16 @@ def compose(core, *, markdown_export) -> ApplicationServices:
         previous_tgrich=core_tgrich,
         previous_mdrich=core_mdrich,
         mini_app_markup=mini_app_markup,
-        private_chat_type=core.ChatType.PRIVATE,
+        private_chat_type=core.chat_type.PRIVATE,
     )
 
     base_media_api = partial(runtime_v2.api_media, deps)
     media_api = partial(drafts.api_media, deps, base_media_api)
     stash_api = partial(drafts.api_stash, deps, core.api_stash)
     document_handler = partial(
-        core.handle_document, command_handlers["tgrich"], command_handlers["mdrich"]
+        core.handle_document,
+        command_handlers["tgrich"],
+        command_handlers["mdrich"],
     )
     webapp_handler = partial(
         core.handle_webapp_data,
@@ -226,7 +311,7 @@ def compose(core, *, markdown_export) -> ApplicationServices:
         rich_buttons.register_handlers(dispatcher)
         dispatcher.message.register(
             partial(map_location.handle_location, deps),
-            core.F.location | core.F.venue,
+            core.filters.location | core.filters.venue,
         )
         return dispatcher
 
