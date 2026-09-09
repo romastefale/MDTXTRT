@@ -50,6 +50,26 @@ class RichTextButtonInlineTests(unittest.TestCase):
         self.assertEqual(button["button"]["style"], "success")
         self.assertEqual(button["button"]["callback_data"], "confirmar")
 
+    def test_root_inline_button_is_preserved_as_paragraph(self):
+        source = (
+            '<tg-button type="callback_data" data="solto">Solto</tg-button>'
+            '<p>'
+            '<tg-entity type="hashtag" hashtag="#teste">#teste</tg-entity>'
+            '</p>'
+        )
+
+        blocks = rich_explicit.compile_semantic_blocks(source, {})
+        data = self._python(blocks)
+
+        self.assertEqual(len(data), 2)
+        self.assertEqual(data[0]["type"], "paragraph")
+        button = data[0]["text"]
+        self.assertIsInstance(button, dict)
+        self.assertEqual(button["type"], "button")
+        self.assertEqual(button["button"]["text"], "Solto")
+        self.assertEqual(button["button"]["callback_data"], "solto")
+        self.assertEqual(data[1]["type"], "paragraph")
+
     def test_inline_button_rejects_rich_text_not_allowed_by_bot_api(self):
         source = (
             '<p>'
