@@ -127,6 +127,29 @@ POLLING_OPTIONS = {
 }
 
 
+def bind_runtime(contract) -> None:
+    """Liga uma composição validada aos pontos de extensão do núcleo.
+
+    A ligação acontece uma vez, no entrypoint, e substitui o antigo protocolo
+    implícito em que módulos arbitrários escreviam diretamente neste módulo.
+    """
+    bindings = contract.bindings()
+    unknown = set(bindings) - {
+        "MAX_PHOTO_BYTES", "api_media", "api_publish", "api_stash",
+        "build_dispatcher", "build_rich_message", "dispatch_user_artifacts",
+        "health", "help_cmd", "mdrich", "mini_app_markup",
+        "optimize_markdown", "reply_text",
+        "rich_message_to_markdown", "send_rich_message", "serve_index",
+        "serve_media", "start", "tgrich",
+    }
+    if unknown:
+        raise RuntimeError(
+            "O runtime tentou ligar capacidades desconhecidas: "
+            + ", ".join(sorted(unknown))
+        )
+    globals().update(bindings)
+
+
 def _hmac_hex(data_check_string: str) -> str:
     secret_key = hmac.new(b"WebAppData", TOKEN.encode("utf-8"), hashlib.sha256).digest()
     return hmac.new(
