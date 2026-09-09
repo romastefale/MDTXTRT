@@ -130,7 +130,9 @@ async def import_file(request: web.Request) -> web.Response:
 
 
 def create_web_app(settings: Settings, documents: DocumentService, imports: ImportService) -> web.Application:
-    app = web.Application(middlewares=[error_boundary], client_max_size=32 * 1024 * 1024)
+    # Do not invent a product upload limit here. Destination/API-specific limits
+    # belong to their own validation boundaries.
+    app = web.Application(middlewares=[error_boundary], client_max_size=0)
     app["settings"] = settings
     app["documents"] = documents
     app["imports"] = imports
