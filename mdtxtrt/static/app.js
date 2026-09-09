@@ -5,6 +5,11 @@ tg?.expand();
 const editor = document.querySelector("#editor");
 const status = document.querySelector("#status");
 const importFile = document.querySelector("#importFile");
+const divergenceDialog = document.querySelector("#divergenceDialog");
+const serverVersion = document.querySelector("#serverVersion");
+const localVersion = document.querySelector("#localVersion");
+const encodingDialog = document.querySelector("#encodingDialog");
+const encodingValue = document.querySelector("#encodingValue");
 const ACTIVE_KEY = "mdtxtrt:rebuild:active-draft";
 const EMERGENCY_KEY = "mdtxtrt:rebuild:emergency";
 
@@ -81,6 +86,42 @@ function setBlockKind(kind) {
   markDirty();
 }
 
+function chooseDivergence(serverDocument, localDocument) {
+  serverVersion.textContent = JSON.stringify(serverDocument, null, 2);
+  localVersion.textContent = JSON.stringify(localDocument, null, 2);
+  divergenceDialog.showModal();
+  return new Promise((resolve) => {
+    const finish = (choice) => {
+      document.querySelector("#chooseServer").removeEventListener("click", onServer);
+      document.querySelector("#chooseLocal").removeEventListener("click", onLocal);
+      divergenceDialog.close();
+      resolve(choice);
+    };
+    const onServer = () => finish("server");
+    const onLocal = () => finish("local");
+    document.querySelector("#chooseServer").addEventListener("click", onServer);
+    document.querySelector("#chooseLocal").addEventListener("click", onLocal);
+  });
+}
+
+function chooseEncoding() {
+  encodingValue.value = "";
+  encodingDialog.showModal();
+  encodingValue.focus();
+  return new Promise((resolve) => {
+    const finish = (value) => {
+      document.querySelector("#cancelEncoding").removeEventListener("click", onCancel);
+      document.querySelector("#retryEncoding").removeEventListener("click", onRetry);
+      encodingDialog.close();
+      resolve(value);
+    };
+    const onCancel = () => finish(null);
+    const onRetry = () => finish(encodingValue.value.trim() || null);
+    document.querySelector("#cancelEncoding").addEventListener("click", onCancel);
+    document.querySelector("#retryEncoding").addEventListener("click", onRetry);
+  });
+}
+
 async function persistRevision(reason = "checkpoint-5m") {
   if (!draft || !dirty) return;
   const result = await api(`/api/drafts/${draft.id}/revisions`, {
@@ -107,6 +148,32 @@ async function persistSession() {
   });
 }
 
+async function resolveEmergency() {
+  const raw = localStorage.getItem(EMERGENCY_KEY);
+  if (!raw || !draft) return;
+  let emergency;
+  try { emergency = JSON.parse(raw); }
+  catch { return; }
+  if (emergency.draftId !== draft.id || !emergency.document) return;
+
+  const serverJson = JSON.stringify(draft.document);
+  const localJson = JSON.stringify(emergency.document);
+  if (serverJson === localJson) {
+    localStorage.removeItem(EMERGENCY_KEY);
+    return;
+  }
+
+  const choice = await chooseDivergence(draft.document, emergency.document);
+  if (choice === "server") {
+    localStorage.removeItem(EMERGENCY_KEY);
+    return;
+  }
+
+  draft = { ...draft, document: emergency.document };
+  dirty = true;
+  status.textContent = "Espelho local escolhido; aguardando checkpoint";
+}
+
 async function loadOrCreate() {
   const savedId = localStorage.getItem(ACTIVE_KEY);
   if (savedId) {
@@ -120,8 +187,16 @@ async function loadOrCreate() {
     })).draft;
     localStorage.setItem(ACTIVE_KEY, draft.id);
   }
+  await resolveEmergency();
   render(draft.document);
-  status.textContent = "Pronto";
+  if (!dirty) status.textContent = "Pronto";
+}
+
+async function submitImport(file, encoding = null) {
+  const form = new FormData();
+  form.append("file", file);
+  if (encoding) form.append("encoding", encoding);
+  return (await api("/api/import", { method: "POST", body: form })).draft;
 }
 
 editor.addEventListener("input", markDirty);
@@ -150,18 +225,20 @@ document.querySelector("#redo").addEventListener("click", async () => {
 importFile.addEventListener("change", async () => {
   const file = importFile.files?.[0];
   if (!file) return;
-  const form = new FormData();
-  form.append("file", file);
   try {
-    draft = (await api("/api/import", { method: "POST", body: form })).draft;
-    localStorage.setItem(ACTIVE_KEY, draft.id);
-    render(draft.document);
-    status.textContent = "Importado";
+    draft = await submitImport(file);
   } catch (error) {
-    if (error.payload?.error === "encoding_choice_required") {
-      status.textContent = "Escolha de encoding necessária; a importação não foi adivinhada.";
-    } else throw error;
+    if (error.payload?.error !== "encoding_choice_required") throw error;
+    const encoding = await chooseEncoding();
+    if (!encoding) {
+      status.textContent = "Importação cancelada sem adivinhar encoding";
+      return;
+    }
+    draft = await submitImport(file, encoding);
   }
+  localStorage.setItem(ACTIVE_KEY, draft.id);
+  render(draft.document);
+  status.textContent = "Importado";
 });
 
 setInterval(async () => {
