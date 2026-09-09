@@ -1,33 +1,12 @@
 """Active MDTXTRT entrypoint for the canonical Rich 10.3 runtime."""
 from aiohttp import web
 
-from canonical import CanonicalDocument
-import dm_command_ui
-import drafts
 import main
+import drafts
 import map_location
-import message_buttons
-import preview_security
-import rich_buttons
-import rich_delivery
-import rich_integrity
-import rich_media
-import rich_media_roundtrip
-import rich_roundtrip
 import runtime_v2
-
-runtime_v2.install(main)
-rich_media.install(main)
-drafts.install(main)
-preview_security.install(main)
-rich_delivery.install(main)
-rich_roundtrip.install(main)
-rich_media_roundtrip.install(rich_roundtrip)
-rich_integrity.install(main, rich_roundtrip)
-rich_buttons.install(main, rich_roundtrip)
-message_buttons.install(main)
-dm_command_ui.install(main)
-map_location.install(main)
+from canonical import CanonicalDocument
+from runtime_contract import compose
 
 
 def _canonical_markdown_export(source: str) -> str:
@@ -35,10 +14,9 @@ def _canonical_markdown_export(source: str) -> str:
     return CanonicalDocument.from_markdown(source).markdown
 
 
-# deliver_payload() resolve este nome no módulo main em tempo de execução.
-# Assim o .md usa a mesma fonte canônica do Telegram/Telegraph, sem strip,
-# remoção de escapes, compactação de linhas vazias ou alteração de espaços finais.
-main.optimize_markdown = _canonical_markdown_export
+# O exportador faz parte do contrato: o núcleo não é mais alterado por atribuição
+# lateral durante a importação de módulos.
+main.bind_runtime(compose(main, markdown_export=_canonical_markdown_export))
 
 
 def build_web_app() -> web.Application:
