@@ -151,12 +151,11 @@ async def handle_callback(query: CallbackQuery) -> None:
     await query.answer()
 
 
-def install(base_module, roundtrip_module) -> None:
-    """Instala UI/callback; não normaliza nem reescreve estilos existentes."""
-    original_serve_index = base_module.serve_index
+def decorate_serve_index(base_serve_index):
+    """Adiciona a UI de botões sem alterar o handler recebido."""
 
-    async def serve_index(request: web.Request):
-        response = await original_serve_index(request)
+    async def serve_index_with_buttons(request: web.Request):
+        response = await base_serve_index(request)
         if response.status != 200:
             return response
         try:
@@ -175,13 +174,8 @@ def install(base_module, roundtrip_module) -> None:
             },
         )
 
-    base_module.serve_index = serve_index
+    return serve_index_with_buttons
 
-    original_build_dispatcher = base_module.build_dispatcher
 
-    def build_dispatcher():
-        dispatcher = original_build_dispatcher()
-        dispatcher.callback_query.register(handle_callback)
-        return dispatcher
-
-    base_module.build_dispatcher = build_dispatcher
+def register_handlers(dispatcher) -> None:
+    dispatcher.callback_query.register(handle_callback)

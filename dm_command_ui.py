@@ -66,14 +66,13 @@ _META = {
 }
 
 
-def install(base_module) -> None:
-    previous_reply_text = base_module.reply_text
-    previous_start = base_module.start
-    previous_tgrich = base_module.tgrich
-    previous_mdrich = base_module.mdrich
+def create_command_handlers(
+    *, previous_reply_text, previous_start, previous_help,
+    previous_tgrich, previous_mdrich, mini_app_markup, private_chat_type,
+):
 
     def is_private(message) -> bool:
-        return message.chat.type == base_module.ChatType.PRIVATE
+        return message.chat.type == private_chat_type
 
     async def send_frame(
         message,
@@ -88,7 +87,7 @@ def install(base_module) -> None:
             message,
             bot,
             _frame(command, subtitle, body, command_table=command_table),
-            reply_markup=base_module.mini_app_markup(),
+            reply_markup=mini_app_markup(),
         )
 
     async def reply_text(message, bot, text: str, **kwargs):
@@ -97,7 +96,7 @@ def install(base_module) -> None:
             return await previous_reply_text(message, bot, text, **kwargs)
         command, subtitle = context
         kwargs.pop("parse_mode", None)
-        kwargs["reply_markup"] = base_module.mini_app_markup()
+        kwargs["reply_markup"] = mini_app_markup()
         return await previous_reply_text(
             message,
             bot,
@@ -126,7 +125,7 @@ def install(base_module) -> None:
 
     async def help_cmd(message, bot):
         if not is_private(message):
-            return await base_module._dm_command_ui_original_help(message, bot)
+            return await previous_help(message, bot)
         return await send_frame(
             message,
             bot,
@@ -154,9 +153,10 @@ def install(base_module) -> None:
         finally:
             _COMMAND_CONTEXT.reset(token)
 
-    base_module._dm_command_ui_original_help = base_module.help_cmd
-    base_module.reply_text = reply_text
-    base_module.start = start
-    base_module.help_cmd = help_cmd
-    base_module.tgrich = tgrich
-    base_module.mdrich = mdrich
+    return {
+        "reply_text": reply_text,
+        "start": start,
+        "help_cmd": help_cmd,
+        "tgrich": tgrich,
+        "mdrich": mdrich,
+    }

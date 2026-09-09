@@ -1,6 +1,10 @@
-# Compatibilidade verificada
+# Matriz de compatibilidade declarada
 
-Atualização executada a partir do projeto original, sem usar a migração anterior como base.
+Os valores abaixo são os alvos fixados pelo projeto. Em 9 de setembro de 2026,
+uma auditoria offline confirmou a coerência interna dos arquivos, mas **não**
+conseguiu reconfirmar versões ou contratos nas fontes oficiais porque o acesso
+HTTP do ambiente foi recusado. Portanto, esta página não deve ser interpretada
+como prova independente de que esses alvos continuam atuais.
 
 | Componente | Decisão |
 |---|---|
@@ -10,7 +14,8 @@ Atualização executada a partir do projeto original, sem usar a migração ante
 | aiohttp | 3.14.3, compatível com o intervalo oficial do aiogram 3.31.0 |
 | Telegraph | 2.2.0 mantido |
 | Transporte | Bot API hospedada pelo Telegram, via long polling |
-| Verificação | 2026-09-04 |
+| Última verificação oficial declarada no histórico | 2026-09-04 |
+| Auditoria offline desta árvore | 2026-09-09 |
 
 ## Contratos preservados
 
@@ -40,17 +45,61 @@ Atualização executada a partir do projeto original, sem usar a migração ante
 - A prévia duplicada foi removida. A única prévia restante se identifica como local
   e aproximada, porque o resultado definitivo depende do renderizador do Telegram.
 
-## Evidência e restrições consideradas
+## Composição do processo
 
-- A referência e o changelog oficiais identificam Bot API 10.3, de 24 de agosto de 2026, como a versão atual.
-- A documentação e a release oficial do aiogram 3.31.0 declaram cobertura completa do Bot API 10.3.
-- Os metadados instalados do aiogram exigem Python `>=3.10,<3.15`, aiohttp `>=3.9,<3.15`, Pydantic `>=2.4.1,<2.14` e magic-filter `>=1.0.12,<1.1`.
-- O metadado oficial do aiogram 3.31.0 exige Python `>=3.10,<3.15`; Python 3.13.15 está dentro desse intervalo.
-- O Railway usa Railpack 0.39.0 e confirmou Python 3.13.15 no build do commit implantado.
-- O envio de mídia em rich messages exige que o bot tenha permissão para enviar a mídia no chat de destino.
-- A proteção de origem de Mini Apps introduzida no Bot API 10.2 exige que a origem usada corresponda ao domínio configurado no BotFather.
+- `app.py` é o único entrypoint de produção, tanto no Railway quanto no Procfile.
+- `ApplicationServices` mantém referências concretas e imutáveis para mensagens,
+  mídia, rascunhos, Telegraph, round-trip, dispatcher e handlers HTTP.
+- Cada módulo exporta funções, factories ou registradores. As dependências de
+  wrappers são argumentos e os módulos não oferecem mais `install(...)`.
+- `main.build_web_app(services)` recebe a composição pronta, registra diretamente
+  suas rotas e guarda os serviços no estado da aplicação para o lifecycle.
+- O dispatcher recebe `MessageService`, registra seus handlers diretamente e
+  chama registradores adicionais para callbacks e localizações.
+- Não há `globals().update(...)`, captura `_ORIGINAL_*`, atribuição a módulos ou
+  protocolo baseado na ordem de imports. A ordem restante em `compose()` é apenas
+  construção explícita de dependências.
 
-## Alternativas não selecionadas
+## Alegações herdadas que exigem reconfirmação online
+
+- O histórico afirma que a referência e o changelog oficiais identificam Bot API 10.3, de 24 de agosto de 2026, como a versão atual.
+- O histórico afirma que a documentação e a release oficial do aiogram 3.31.0 declaram cobertura completa do Bot API 10.3.
+- O histórico registra metadados do aiogram com Python `>=3.10,<3.15`, aiohttp `>=3.9,<3.15`, Pydantic `>=2.4.1,<2.14` e magic-filter `>=1.0.12,<1.1`.
+- O histórico também atribui ao metadado oficial do aiogram 3.31.0 o intervalo
+  Python `>=3.10,<3.15` e registra Python 3.13.15 como pertencente a ele.
+- O histórico relata que um build implantado usou Railpack 0.39.0 e Python
+  3.13.15; nenhum log desse build está disponível nesta árvore para auditoria.
+- As afirmações sobre permissões de mídia e proteção de origem de Mini Apps
+  também permanecem pendentes de reconfirmação nas referências abaixo.
+
+Referências oficiais que devem ser confrontadas quando houver acesso:
+
+- [Telegram Bot API](https://core.telegram.org/bots/api), incluindo
+  `InputRichMessage`, `sendRichMessage`, download de arquivos, respostas e
+  prepared inline messages.
+- [Validação de dados de Mini Apps](https://core.telegram.org/bots/webapps#validating-data-received-via-the-mini-app),
+  para assinatura e `auth_date`.
+- [Documentação do aiogram](https://docs.aiogram.dev/en/latest/), para lifecycle
+  do dispatcher, modelos tipados, download e métodos do Bot API.
+- [Telegraph API](https://telegra.ph/api), para criação de conta e de página.
+
+## Limites confirmados na auditoria offline de 2026-09-09
+
+- O ambiente não contém o Python 3.13.15 fixado por `.python-version` e
+  `runtime.txt`; contém 3.13.13 como patch 3.13 mais próximo.
+- `aiogram`, `aiohttp` e `telegraph` não estão instalados nos runtimes Python
+  disponíveis e não há distribuições desses pacotes no cache local.
+- Por isso não foi possível importar nem executar a mesma composição de
+  produção sem baixar dependências. Compilação sintática não comprova contratos
+  de API, serialização, rede, lifecycle ou comportamento do Telegram.
+- Nenhuma versão, classe ou método foi promovido ou removido com base em memória
+  do modelo. Essa decisão evita transformar falta de conectividade em uma
+  “correção” especulativa.
+
+## Alternativas anteriormente registradas
+
+As decisões abaixo pertencem à análise anterior e herdam a mesma necessidade de
+reconfirmação online; a auditoria offline não as promove a fatos verificados.
 
 - aiogram 3.30.0 cobre Bot API 10.2, mas foi rejeitado porque 3.31.0 cobre a versão oficial atual 10.3.
 - Python 3.12 continua tecnicamente compatível e foi usado na validação local secundária, mas não foi selecionado porque o runtime isolado já fixa e executa 3.13.15 com sucesso.

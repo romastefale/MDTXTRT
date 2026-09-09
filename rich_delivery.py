@@ -319,9 +319,9 @@ def validate_explicit_blocks(blocks) -> dict[str, int]:
     return metrics
 
 
-def install(base_module)->None:
+def create_send_rich_message(build_rich_message):
     async def send_rich_message(bot,chat_id,content:str,reply_to_message_id=None,*,message_thread_id=None,direct_messages_topic_id=None,business_connection_id=None,ephemeral_message_parameters=None):
-        rich=base_module.build_rich_message(content); media=rich.media or []
+        rich=build_rich_message(content); media=rich.media or []
         if rich.blocks is not None:
             validate_explicit_blocks(rich.blocks)
             reply=ReplyParameters(message_id=reply_to_message_id) if reply_to_message_id else None
@@ -332,4 +332,4 @@ def install(base_module)->None:
             validate_rich_structure(chunk); reply=ReplyParameters(message_id=reply_to_message_id) if idx==0 and reply_to_message_id else None; chunk_media=media_for_chunk(chunk,media)
             if len(chunk_media)>RICH_MEDIA_LIMIT: raise ValueError(f"Chunk Rich excede o limite oficial de {RICH_MEDIA_LIMIT} mídias.")
             await bot.send_rich_message(chat_id=chat_id,rich_message=InputRichMessage(markdown=chunk,media=chunk_media or None,is_rtl=rich.is_rtl),reply_parameters=reply,message_thread_id=message_thread_id,direct_messages_topic_id=direct_messages_topic_id,business_connection_id=business_connection_id,ephemeral_message_parameters=ephemeral_message_parameters,request_timeout=60)
-    base_module.send_rich_message=send_rich_message
+    return send_rich_message

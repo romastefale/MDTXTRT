@@ -11,6 +11,7 @@ import os
 import re
 import secrets
 import time
+from functools import partial
 from typing import Optional
 from urllib.parse import parse_qsl, unquote
 
@@ -464,7 +465,7 @@ def mini_app_markup():
     )
 
 
-async def start(message: Message, bot: Bot, command: CommandObject):
+async def start(reply, markup, deliver, message: Message, bot: Bot, command: CommandObject):
     arg = ((command.args or "").split()[0] if command.args else "").strip()
     if arg:
         kind = arg[0]
@@ -473,7 +474,7 @@ async def start(message: Message, bot: Bot, command: CommandObject):
         if item and item.get("exp", 0) >= time.time():
             action = "mdrich" if kind == "m" or item.get("action") == "mdrich" else "chat"
             try:
-                await deliver_payload(
+                await deliver(
                     bot,
                     message.chat.id,
                     action,
@@ -481,20 +482,20 @@ async def start(message: Message, bot: Bot, command: CommandObject):
                     item.get("content") or "",
                 )
             except TelegramAPIError as exc:
-                await reply_text(message, bot, telegram_error_text(exc))
+                await reply(message, bot, telegram_error_text(exc))
             except ValueError as exc:
-                await reply_text(
+                await reply(
                     message,
                     bot,
                     str(exc),
-                    reply_markup=mini_app_markup(),
+                    reply_markup=markup(),
                 )
             return
-        await reply_text(
+        await reply(
             message,
             bot,
             "Este envio já foi usado ou expirou. Abre o Mini App e toca outra vez.",
-            reply_markup=mini_app_markup(),
+            reply_markup=markup(),
         )
         return
     text = (
@@ -506,10 +507,10 @@ async def start(message: Message, bot: Bot, command: CommandObject):
         "• /mdrich — responde a uma mensagem e exporta .md otimizado\n"
         "• /help — comandos e a diferença entre chat e Mini App"
     )
-    await reply_text(
+    await reply(
         message,
         bot,
-        text, reply_markup=mini_app_markup(), parse_mode=ParseMode.HTML
+        text, reply_markup=markup(), parse_mode=ParseMode.HTML
     )
 
 
@@ -532,11 +533,11 @@ HELP_TEXT = (
 )
 
 
-async def help_cmd(message: Message, bot: Bot):
-    await reply_text(
+async def help_cmd(reply, markup, message: Message, bot: Bot):
+    await reply(
         message,
         bot,
-        HELP_TEXT, reply_markup=mini_app_markup(), parse_mode=ParseMode.HTML
+        HELP_TEXT, reply_markup=markup(), parse_mode=ParseMode.HTML
     )
 
 
@@ -550,7 +551,7 @@ def _command_arg_text(message) -> str:
     return text
 
 
-async def source_for_tgrich(message, bot: Bot) -> str:
+async def source_for_tgrich(roundtrip, message, bot: Bot) -> str:
     if is_markdown_document(message.document):
         return await read_document_text(bot, message.document)
     target = message.reply_to_message
@@ -559,7 +560,7 @@ async def source_for_tgrich(message, bot: Bot) -> str:
             return await read_document_text(bot, target.document)
         rm = message_rich_payload(target)
         if rm:
-            md = rich_message_to_markdown(rm)
+            md = roundtrip(rm)
             if str(md).strip():
                 return md
         raw = target.text or target.caption
@@ -575,40 +576,40 @@ async def source_for_tgrich(message, bot: Bot) -> str:
     )
 
 
-async def source_for_mdrich(message, bot: Bot) -> str:
+async def source_for_mdrich(roundtrip, markdown_export, message, bot: Bot) -> str:
     target = message.reply_to_message
     if not target:
         if is_markdown_document(message.document):
-            return optimize_markdown(await read_document_text(bot, message.document))
+            return markdown_export(await read_document_text(bot, message.document))
         raise ValueError("Responda a uma mensagem com /mdrich.")
     rm = message_rich_payload(target)
     if rm:
-        md = rich_message_to_markdown(rm)
+        md = roundtrip(rm)
         if str(md).strip():
-            return optimize_markdown(md)
+            return markdown_export(md)
     if target.document:
         text = await read_document_text(bot, target.document)
         if is_markdown_document(target.document):
-            return optimize_markdown(text)
+            return markdown_export(text)
         caption = target.caption or ""
         if caption:
             cap_md = entities_to_markdown(caption, target.caption_entities or [])
-            return optimize_markdown(cap_md + "\n\n" + text)
-        return optimize_markdown(text)
+            return markdown_export(cap_md + "\n\n" + text)
+        return markdown_export(text)
     raw = target.text or target.caption or ""
     ents = target.entities or target.caption_entities or []
     if not raw:
         raise ValueError("A mensagem alvo não possui texto exportável.")
-    return optimize_markdown(entities_to_markdown(raw, ents))
+    return markdown_export(entities_to_markdown(raw, ents))
 
 
-async def tgrich(message: Message, bot: Bot):
+async def tgrich(reply, send_rich, roundtrip, message: Message, bot: Bot):
     try:
-        source = await source_for_tgrich(message, bot)
+        source = await source_for_tgrich(roundtrip, message, bot)
         if not source.strip():
-            await reply_text(message, bot, "Documento vazio.")
+            await reply(message, bot, "Documento vazio.")
             return
-        await send_rich_message(
+        await send_rich(
             bot,
             message.chat.id,
             source,
@@ -616,27 +617,27 @@ async def tgrich(message: Message, bot: Bot):
             **_message_context(message),
         )
     except TelegramAPIError as exc:
-        await reply_text(message, bot, telegram_error_text(exc))
+        await reply(message, bot, telegram_error_text(exc))
     except ValueError as exc:
-        await reply_text(message, bot, str(exc))
+        await reply(message, bot, str(exc))
     except Exception:
         log.exception("tgrich")
-        await reply_text(message, bot, "Não foi possível converter o arquivo.")
+        await reply(message, bot, "Não foi possível converter o arquivo.")
 
 
-async def mdrich(message: Message, bot: Bot):
+async def mdrich(reply, roundtrip, markdown_export, message: Message, bot: Bot):
     try:
-        md_text = await source_for_mdrich(message, bot)
+        md_text = await source_for_mdrich(roundtrip, markdown_export, message, bot)
         if not md_text.strip():
-            await reply_text(message, bot, "Nada para exportar.")
+            await reply(message, bot, "Nada para exportar.")
             return
         name = filename_from_markdown(md_text)
         await reply_document(message, bot, md_text.encode("utf-8"), f"{name}.md")
     except ValueError as exc:
-        await reply_text(message, bot, str(exc))
+        await reply(message, bot, str(exc))
     except Exception:
         log.exception("mdrich")
-        await reply_text(message, bot, "Não foi possível exportar o .md.")
+        await reply(message, bot, "Não foi possível exportar o .md.")
 
 
 def _caption_command(message) -> str:
@@ -646,17 +647,17 @@ def _caption_command(message) -> str:
     return caption.split()[0].split("@")[0].lower()
 
 
-async def handle_document(message: Message, bot: Bot):
+async def handle_document(tgrich_handler, mdrich_handler, message: Message, bot: Bot):
     if not message.document:
         return
     cmd = _caption_command(message)
     if cmd in {"/start", "/help"}:
         return
     if cmd == "/mdrich":
-        await mdrich(message, bot)
+        await mdrich_handler(message, bot)
         return
     if cmd == "/tgrich" or is_markdown_document(message.document):
-        await tgrich(message, bot)
+        await tgrich_handler(message, bot)
 
 
 def _payload_from_webapp(raw: str) -> dict:
@@ -672,18 +673,18 @@ def _payload_from_webapp(raw: str) -> dict:
     }
 
 
-async def handle_webapp_data(message: Message, bot: Bot):
+async def handle_webapp_data(reply, deliver, publish, message: Message, bot: Bot):
     try:
         payload = _payload_from_webapp(message.web_app_data.data)
         content = payload["content"]
         if not str(content).strip():
-            await reply_text(message, bot, "Documento vazio.")
+            await reply(message, bot, "Documento vazio.")
             return
         if payload["action"] in {"publish_telegraph", "telegraph"}:
-            page = await publish_page_async(payload["title"], content, payload["path"])
-            await reply_text(message, bot, f"Publicado: {page['url']}")
+            page = await publish(payload["title"], content, payload["path"])
+            await reply(message, bot, f"Publicado: {page['url']}")
             return
-        await deliver_payload(
+        await deliver(
             bot,
             message.chat.id,
             "mdrich" if payload["action"] == "mdrich" else "chat",
@@ -691,12 +692,12 @@ async def handle_webapp_data(message: Message, bot: Bot):
             content,
         )
     except TelegramAPIError as exc:
-        await reply_text(message, bot, telegram_error_text(exc))
+        await reply(message, bot, telegram_error_text(exc))
     except TelegraphException as exc:
-        await reply_text(message, bot, f"Telegraph recusou o HTML: {exc}")
+        await reply(message, bot, f"Telegraph recusou o HTML: {exc}")
     except Exception as exc:
         log.exception("web_app_data")
-        await reply_text(message, bot, f"Erro no processamento: {exc}")
+        await reply(message, bot, f"Erro no processamento: {exc}")
 
 
 async def serve_index(_request: web.Request):
@@ -719,7 +720,7 @@ async def health(_request: web.Request):
     )
 
 
-async def api_send_chat(request: web.Request):
+async def api_send_chat(dispatch_artifacts, request: web.Request):
     try:
         data = await request.json()
     except Exception:
@@ -735,7 +736,7 @@ async def api_send_chat(request: web.Request):
     if not bot_app:
         return web.json_response({"ok": False, "error": "Bot não inicializado."}, status=503)
     try:
-        await dispatch_user_artifacts(
+        await dispatch_artifacts(
             bot=bot_app.bot,
             chat_id=user["id"],
             title=data.get("title") or "Sem título",
@@ -914,14 +915,14 @@ def _polling_finished(task: asyncio.Task) -> None:
         )
 
 
-def build_dispatcher() -> Dispatcher:
+def build_dispatcher(message_service) -> Dispatcher:
     dispatcher = Dispatcher()
-    dispatcher.message.register(start, Command("start"))
-    dispatcher.message.register(help_cmd, Command("help"))
-    dispatcher.message.register(tgrich, Command("tgrich"))
-    dispatcher.message.register(mdrich, Command("mdrich"))
-    dispatcher.message.register(handle_webapp_data, F.web_app_data)
-    dispatcher.message.register(handle_document, F.document)
+    dispatcher.message.register(message_service.start, Command("start"))
+    dispatcher.message.register(message_service.help_cmd, Command("help"))
+    dispatcher.message.register(message_service.tgrich, Command("tgrich"))
+    dispatcher.message.register(message_service.mdrich, Command("mdrich"))
+    dispatcher.message.register(message_service.handle_webapp_data, F.web_app_data)
+    dispatcher.message.register(message_service.handle_document, F.document)
     return dispatcher
 
 
@@ -952,7 +953,7 @@ async def on_startup(app: web.Application):
         log.warning("TELEGRAM_TOKEN ausente. Mini App no ar; bot desligado.")
         return
     bot = Bot(TOKEN)
-    dispatcher = build_dispatcher()
+    dispatcher = app["services"].dispatcher_factory()
     try:
         me = await bot.get_me(request_timeout=60)
     except Exception:
@@ -1003,20 +1004,26 @@ async def on_cleanup(app: web.Application):
         await runtime.bot.session.close()
 
 
-def build_web_app() -> web.Application:
-    app = web.Application(client_max_size=MAX_PHOTO_BYTES + 131072)
-    app.router.add_get("/", serve_index)
-    app.router.add_get("/health", health)
+def build_web_app(services) -> web.Application:
+    app = web.Application(client_max_size=services.max_upload_bytes + 131072)
+    app["services"] = services
+    app.router.add_get("/", services.serve_index)
+    app.router.add_get("/health", services.health)
     app.router.add_get("/api/config", api_config)
-    app.router.add_get("/media/{mid}", serve_media)
-    app.router.add_post("/api/stash", api_stash)
-    app.router.add_post("/api/media", api_media)
-    app.router.add_post("/api/publish", api_publish)
-    app.router.add_post("/api/send-chat", api_send_chat)
+    app.router.add_get("/media/{mid}", services.media_service.serve_media)
+    app.router.add_post("/api/stash", services.draft_service.api_stash)
+    app.router.add_post("/api/media", services.media_service.api_media)
+    app.router.add_post("/api/publish", services.telegraph_service.api_publish)
+    app.router.add_post(
+        "/api/send-chat",
+        partial(api_send_chat, services.draft_service.dispatch_user_artifacts),
+    )
+    app.router.add_post("/api/share-telegraph", services.telegraph_service.api_share)
+    app.router.add_post("/api/draft/load", services.draft_service.api_load)
+    app.router.add_post("/api/draft/save", services.draft_service.api_save)
+    app.router.add_post("/api/map/request", services.map_request)
+    app.router.add_post("/api/map/status", services.map_status)
+    app.router.add_post("/api/map/send-location", services.map_send_location)
     app.on_startup.append(on_startup)
     app.on_cleanup.append(on_cleanup)
     return app
-
-
-if __name__ == "__main__":
-    web.run_app(build_web_app(), host="0.0.0.0", port=PORT)

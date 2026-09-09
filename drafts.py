@@ -25,12 +25,6 @@ LOCAL_MEDIA_ID_RE = re.compile(
 )
 MEDIA_SESSION_COOKIE = "mdtxtrt_media_session"
 
-_BASE = None
-_ORIGINAL_API_MEDIA = None
-_ORIGINAL_API_STASH = None
-_ORIGINAL_BUILD_RICH_MESSAGE = None
-_ORIGINAL_DISPATCH_USER_ARTIFACTS = None
-_ORIGINAL_START = None
 _MEDIA_OWNER: ContextVar[int | None] = ContextVar("mdtxtrt_media_owner", default=None)
 
 
@@ -416,78 +410,45 @@ _MEDIA_DIR = os.environ.get("DRAFT_MEDIA_DIR") or str(
 STORE = DraftStore(_DB_PATH, _MEDIA_DIR)
 
 
-def install(base_module) -> None:
-    global _BASE, _ORIGINAL_API_MEDIA, _ORIGINAL_API_STASH
-    global _ORIGINAL_BUILD_RICH_MESSAGE, _ORIGINAL_DISPATCH_USER_ARTIFACTS, _ORIGINAL_START
-    _BASE = base_module
-    if _ORIGINAL_API_MEDIA is None and base_module.api_media is not api_media:
-        _ORIGINAL_API_MEDIA = base_module.api_media
-    if _ORIGINAL_API_STASH is None and base_module.api_stash is not api_stash:
-        _ORIGINAL_API_STASH = base_module.api_stash
-    if (
-        _ORIGINAL_BUILD_RICH_MESSAGE is None
-        and base_module.build_rich_message is not build_rich_message
-    ):
-        _ORIGINAL_BUILD_RICH_MESSAGE = base_module.build_rich_message
-    if (
-        _ORIGINAL_DISPATCH_USER_ARTIFACTS is None
-        and base_module.dispatch_user_artifacts is not dispatch_user_artifacts
-    ):
-        _ORIGINAL_DISPATCH_USER_ARTIFACTS = base_module.dispatch_user_artifacts
-    if _ORIGINAL_START is None and base_module.start is not start:
-        _ORIGINAL_START = base_module.start
-
-    base_module.api_media = api_media
-    base_module.api_stash = api_stash
-    base_module.build_rich_message = build_rich_message
-    base_module.serve_media = serve_media
-    base_module.dispatch_user_artifacts = dispatch_user_artifacts
-    base_module.start = start
-
-
-def _validated_user(data: dict, request: web.Request):
-    if _BASE is None:
-        raise RuntimeError("drafts.install() não foi executado")
-    raw = _BASE.init_data_from_request(data, request)
-    user = _BASE.validate_init_data(raw)
+def _validated_user(deps, data: dict, request: web.Request):
+    raw = deps.init_data_from_request(data, request)
+    user = deps.validate_init_data(raw)
     return raw, user
 
 
-def _cookie_secret() -> bytes:
-    if _BASE is None:
-        return b""
-    return str(getattr(_BASE, "TOKEN", "") or "").encode("utf-8")
+def _cookie_secret(deps) -> bytes:
+    return str(getattr(deps, "TOKEN", "") or "").encode("utf-8")
 
 
-def _media_cookie_value(telegram_user_id: int) -> str:
+def _media_cookie_value(deps, telegram_user_id: int) -> str:
     user_id = int(telegram_user_id)
     signature = hmac.new(
-        _cookie_secret(),
+        _cookie_secret(deps),
         f"media:{user_id}".encode("utf-8"),
         hashlib.sha256,
     ).hexdigest()
     return f"{user_id}.{signature}"
 
 
-def _media_cookie_user(request: web.Request) -> int | None:
+def _media_cookie_user(deps, request: web.Request) -> int | None:
     raw = str(request.cookies.get(MEDIA_SESSION_COOKIE) or "")
     try:
         user_text, _signature = raw.split(".", 1)
         user_id = int(user_text)
     except (ValueError, TypeError):
         return None
-    expected = _media_cookie_value(user_id)
+    expected = _media_cookie_value(deps, user_id)
     if not expected or not hmac.compare_digest(expected, raw):
         return None
     return user_id
 
 
-def _set_media_cookie(response: web.StreamResponse, telegram_user_id: int) -> None:
-    if not _cookie_secret():
+def _set_media_cookie(deps, response: web.StreamResponse, telegram_user_id: int) -> None:
+    if not _cookie_secret(deps):
         return
     response.set_cookie(
         MEDIA_SESSION_COOKIE,
-        _media_cookie_value(int(telegram_user_id)),
+        _media_cookie_value(deps, int(telegram_user_id)),
         max_age=48 * 3600,
         httponly=True,
         secure=True,
@@ -496,9 +457,7 @@ def _set_media_cookie(response: web.StreamResponse, telegram_user_id: int) -> No
     )
 
 
-def _rehydrate_media(content: str) -> None:
-    if _BASE is None:
-        return
+def _rehydrate_media(deps, content: str) -> None:
     refs = local_media_ids(content)
     if not refs:
         return
@@ -508,7 +467,7 @@ def _rehydrate_media(content: str) -> None:
 
     now = time.time()
     for media_id in refs:
-        current = _BASE.MEDIA.get(media_id)
+        current = deps.MEDIA.get(media_id)
         if (
             current
             and current.get("exp", 0) >= now
@@ -520,19 +479,15 @@ def _rehydrate_media(content: str) -> None:
             raise ValueError(
                 f"Mídia local {media_id} indisponível para este usuário."
             )
-        _BASE.MEDIA[media_id] = persisted
+        deps.MEDIA[media_id] = persisted
 
 
-def build_rich_message(content: str):
-    if _ORIGINAL_BUILD_RICH_MESSAGE is None:
-        raise RuntimeError("build_rich_message persistente não instalado")
-    _rehydrate_media(content)
-    return _ORIGINAL_BUILD_RICH_MESSAGE(content)
+def build_rich_message(deps, base_build_rich_message, content: str):
+    _rehydrate_media(deps, content)
+    return base_build_rich_message(content)
 
 
-async def dispatch_user_artifacts(bot, chat_id, title: str, content: str):
-    if _ORIGINAL_DISPATCH_USER_ARTIFACTS is None:
-        raise RuntimeError("dispatch_user_artifacts persistente não instalado")
+async def dispatch_user_artifacts(base_dispatch, bot, chat_id, title: str, content: str):
     existing_owner = _MEDIA_OWNER.get()
     token = None
     if existing_owner is None:
@@ -541,16 +496,14 @@ async def dispatch_user_artifacts(bot, chat_id, title: str, content: str):
         except (TypeError, ValueError):
             token = None
     try:
-        return await _ORIGINAL_DISPATCH_USER_ARTIFACTS(bot, chat_id, title, content)
+        return await base_dispatch(bot, chat_id, title, content)
     finally:
         if token is not None:
             _MEDIA_OWNER.reset(token)
 
 
-async def api_media(request: web.Request):
-    if _ORIGINAL_API_MEDIA is None:
-        raise RuntimeError("api_media persistente não instalada")
-    response = await _ORIGINAL_API_MEDIA(request)
+async def api_media(deps, base_api_media, request: web.Request):
+    response = await base_api_media(request)
     if response.status >= 400:
         return response
     media_id = ""
@@ -558,25 +511,25 @@ async def api_media(request: web.Request):
         payload = json.loads(response.text)
         media_id = str(payload.get("id") or "")
         post = await request.post()
-        raw = _BASE.init_data_from_request(post, request)
-        user = _BASE.validate_init_data(raw)
-        item = _BASE.MEDIA.get(media_id)
+        raw = deps.init_data_from_request(post, request)
+        user = deps.validate_init_data(raw)
+        item = deps.MEDIA.get(media_id)
         if not user or not user.get("id") or not item:
             raise RuntimeError("upload validado sem estado de mídia correspondente")
         user_id = int(user["id"])
         item["telegram_user_id"] = user_id
         for removed_id in STORE.gc_media(user_id):
-            _BASE.MEDIA.pop(removed_id, None)
+            deps.MEDIA.pop(removed_id, None)
         STORE.save_media(user_id, media_id, item)
-        _set_media_cookie(response, user_id)
+        _set_media_cookie(deps, response, user_id)
     except ValueError as exc:
         if media_id:
-            _BASE.MEDIA.pop(media_id, None)
+            deps.MEDIA.pop(media_id, None)
         return web.json_response({"ok": False, "error": str(exc)}, status=413)
     except Exception:
         if media_id:
-            _BASE.MEDIA.pop(media_id, None)
-        _BASE.log.exception("persistência de mídia do rascunho")
+            deps.MEDIA.pop(media_id, None)
+        deps.log.exception("persistência de mídia do rascunho")
         return web.json_response(
             {"ok": False, "error": "Não foi possível persistir a mídia do rascunho."},
             status=500,
@@ -584,28 +537,26 @@ async def api_media(request: web.Request):
     return response
 
 
-async def api_stash(request: web.Request):
-    if _ORIGINAL_API_STASH is None:
-        raise RuntimeError("api_stash persistente não instalada")
-    owner_id = _media_cookie_user(request)
+async def api_stash(deps, base_api_stash, request: web.Request):
+    owner_id = _media_cookie_user(deps, request)
     if owner_id is None:
         return web.json_response(
             {"ok": False, "error": "Sessão do Telegram inválida. Reabra o Mini App."},
             status=401,
         )
-    response = await _ORIGINAL_API_STASH(request)
+    response = await base_api_stash(request)
     if response.status >= 400:
         return response
     try:
         payload = json.loads(response.text)
         start_param = str(payload.get("start") or "")
         code = start_param[1:] if len(start_param) > 1 else ""
-        item = _BASE.STASH.get(code)
+        item = deps.STASH.get(code)
         if not code or item is None:
             raise RuntimeError("stash criado sem estado correspondente")
         item["telegram_user_id"] = int(owner_id)
     except Exception:
-        _BASE.log.exception("vínculo do stash ao usuário")
+        deps.log.exception("vínculo do stash ao usuário")
         return web.json_response(
             {"ok": False, "error": "Não foi possível vincular o envio ao usuário."},
             status=500,
@@ -613,16 +564,14 @@ async def api_stash(request: web.Request):
     return response
 
 
-async def serve_media(request: web.Request):
-    if _BASE is None:
-        raise RuntimeError("serve_media persistente não instalado")
-    user_id = _media_cookie_user(request)
+async def serve_media(deps, request: web.Request):
+    user_id = _media_cookie_user(deps, request)
     if user_id is None:
         return web.Response(text="Mídia não autorizada", status=401)
 
-    _BASE.purge_stash()
+    deps.purge_stash()
     media_id = (request.match_info.get("mid") or "").strip()
-    current = _BASE.MEDIA.get(media_id)
+    current = deps.MEDIA.get(media_id)
     if not (
         current
         and current.get("exp", 0) >= time.time()
@@ -631,7 +580,7 @@ async def serve_media(request: web.Request):
         persisted = STORE.load_media(media_id, user_id)
         if not persisted:
             return web.Response(text="Mídia indisponível", status=404)
-        _BASE.MEDIA[media_id] = persisted
+        deps.MEDIA[media_id] = persisted
         current = persisted
 
     return web.Response(
@@ -641,14 +590,14 @@ async def serve_media(request: web.Request):
     )
 
 
-async def api_draft_load(request: web.Request):
+async def api_draft_load(deps, request: web.Request):
     try:
         data = await request.json()
     except Exception:
         data = {}
-    raw, user = _validated_user(data, request)
+    raw, user = _validated_user(deps, data, request)
     if not user or not user.get("id"):
-        return _BASE.session_error(raw)
+        return deps.session_error(raw)
     user_id = int(user["id"])
     draft = STORE.load(user_id)
     payload = (
@@ -663,18 +612,18 @@ async def api_draft_load(request: web.Request):
         }
     )
     response = web.json_response({"ok": True, **payload})
-    _set_media_cookie(response, user_id)
+    _set_media_cookie(deps, response, user_id)
     return response
 
 
-async def api_draft_save(request: web.Request):
+async def api_draft_save(deps, request: web.Request):
     try:
         data = await request.json()
     except Exception:
         return web.json_response({"ok": False, "error": "JSON inválido"}, status=400)
-    raw, user = _validated_user(data, request)
+    raw, user = _validated_user(deps, data, request)
     if not user or not user.get("id"):
-        return _BASE.session_error(raw)
+        return deps.session_error(raw)
 
     user_id = int(user["id"])
     try:
@@ -690,7 +639,7 @@ async def api_draft_save(request: web.Request):
             base_revision=base_revision,
         )
         for removed_id in STORE.gc_media(user_id):
-            _BASE.MEDIA.pop(removed_id, None)
+            deps.MEDIA.pop(removed_id, None)
     except DraftConflict as exc:
         response = web.json_response(
             {
@@ -701,45 +650,42 @@ async def api_draft_save(request: web.Request):
             },
             status=409,
         )
-        _set_media_cookie(response, user_id)
+        _set_media_cookie(deps, response, user_id)
         return response
     except ValueError as exc:
         return web.json_response({"ok": False, "error": str(exc)}, status=413)
 
     response = web.json_response({"ok": True, **draft})
-    _set_media_cookie(response, user_id)
+    _set_media_cookie(deps, response, user_id)
     return response
 
 
-async def start(message, bot, command):
-    if _ORIGINAL_START is None:
-        raise RuntimeError("start persistente não instalado")
-
+async def start(deps, base_start, message, bot, command):
     arg = ((command.args or "").split()[0] if command.args else "").strip()
     if not arg:
-        return await _ORIGINAL_START(message, bot, command)
+        return await base_start(message, bot, command)
 
     kind = arg[0]
     code = arg[1:]
-    item = _BASE.STASH.get(code)
+    item = deps.STASH.get(code)
     if not item or item.get("exp", 0) < time.time():
-        _BASE.STASH.pop(code, None)
-        await _BASE.reply_text(
+        deps.STASH.pop(code, None)
+        await deps.reply_text(
             message,
             bot,
             "Este envio já foi usado ou expirou. Abre o Mini App e toca outra vez.",
-            reply_markup=_BASE.mini_app_markup(),
+            reply_markup=deps.mini_app_markup(),
         )
         return
 
     expected_owner = item.get("telegram_user_id")
     opener = getattr(getattr(message, "from_user", None), "id", None)
     if expected_owner is not None and int(opener or 0) != int(expected_owner):
-        await _BASE.reply_text(
+        await deps.reply_text(
             message,
             bot,
             "Este envio pertence a outro usuário.",
-            reply_markup=_BASE.mini_app_markup(),
+            reply_markup=deps.mini_app_markup(),
         )
         return
 
@@ -754,25 +700,25 @@ async def start(message, bot, command):
         else int(opener or message.chat.id)
     )
     try:
-        await _BASE.deliver_payload(
+        await deps.deliver_payload(
             bot,
             message.chat.id,
             action,
             item.get("title") or "Sem título",
             item.get("content") or "",
         )
-    except _BASE.TelegramAPIError as exc:
-        await _BASE.reply_text(message, bot, _BASE.telegram_error_text(exc))
+    except deps.TelegramAPIError as exc:
+        await deps.reply_text(message, bot, deps.telegram_error_text(exc))
         return
     except ValueError as exc:
-        await _BASE.reply_text(
+        await deps.reply_text(
             message,
             bot,
             str(exc),
-            reply_markup=_BASE.mini_app_markup(),
+            reply_markup=deps.mini_app_markup(),
         )
         return
     finally:
         _MEDIA_OWNER.reset(token)
 
-    _BASE.STASH.pop(code, None)
+    deps.STASH.pop(code, None)

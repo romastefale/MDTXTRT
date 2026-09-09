@@ -78,7 +78,9 @@ def _local_input_media(item: dict):
     return _input_media(str(item.get("kind") or "document"), upload)
 
 
-def install(base_module) -> None:
+def create_build_rich_message(media_store) -> callable:
+    """Cria o compilador Rich com sua única dependência explícita."""
+
     def build_rich_message(content: str) -> InputRichMessage:
         source = str(content or "")
         is_rtl = source == _RTL_MARKER or source.startswith(_RTL_MARKER + "\n")
@@ -89,7 +91,7 @@ def install(base_module) -> None:
         media_ids: set[str] = set()
 
         for ref in refs:
-            item = base_module.MEDIA.get(ref.media_id)
+            item = media_store.get(ref.media_id)
             if not item:
                 raise ValueError(f"Mídia local {ref.media_id} indisponível.")
             media.append(
@@ -148,4 +150,4 @@ def install(base_module) -> None:
             is_rtl=True if is_rtl else None,
         )
 
-    base_module.build_rich_message = build_rich_message
+    return build_rich_message

@@ -4,6 +4,10 @@ Editor Markdown para Telegram Mini App. Converte `.md` em rich text do Telegram 
 
 O bot usa aiogram 3.31.0, com suporte nativo ao Telegram Bot API 10.3. O deploy atual fixa Python 3.13.15 e aiohttp 3.14.3.
 
+O processo é composto por `ApplicationServices`: serviços de mensagens, mídia,
+rascunhos, Telegraph e round-trip são injetados no servidor e no dispatcher.
+Os módulos não modificam outros módulos durante o import ou por `install(...)`.
+
 ## Comandos
 
 | Comando | Função |
@@ -65,7 +69,7 @@ source .venv/bin/activate
 pip install -r requirements.txt
 export TELEGRAM_TOKEN=123:abc
 export WEB_APP_URL=http://localhost:8080
-python main.py
+python app.py
 ```
 
 Abrir `http://localhost:8080`. Publicar Telegraph e ações autenticadas só são aceitas com `initData` válido do Telegram.
