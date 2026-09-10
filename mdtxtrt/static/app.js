@@ -350,12 +350,14 @@ function semanticDocumentDiff(left,right){
   }
   const leftOrder=(left?.blocks||[]).map(x=>x.id).filter(Boolean).join("|");
   const rightOrder=(right?.blocks||[]).map(x=>x.id).filter(Boolean).join("|");
+  const metadataChanged=JSON.stringify(left?.metadata||{})!==JSON.stringify(right?.metadata||{});
   const summary=[
     `Blocos: servidor ${left?.blocks?.length||0}; espelho local ${right?.blocks?.length||0}.`,
     `Nós identificáveis: servidor ${leftNodes.length}; espelho local ${rightNodes.length}.`,
     `Adicionados localmente: ${added.length}; removidos localmente: ${removed.length}; alterados com o mesmo ID: ${changed.length}.`,
   ];
   if(leftOrder!==rightOrder) summary.push("A ordem dos blocos de nível superior é diferente.");
+  if(metadataChanged) summary.push("Os metadados canônicos do documento são diferentes.");
   if(left?.id!==right?.id) summary.push(`Identidade do documento é diferente (${left?.id||"sem ID"} × ${right?.id||"sem ID"}).`);
   for(const item of added.slice(0,4)) summary.push(`+ ${item.path} ${item.kind}: ${item.text.slice(0,70)||"sem texto"}`);
   for(const item of removed.slice(0,4)) summary.push(`− ${item.path} ${item.kind}: ${item.text.slice(0,70)||"sem texto"}`);
@@ -1001,7 +1003,7 @@ async function resolveMirror(local,server){
   const compatible=server?.id&&local.document?.id&&server.id===local.document.id;
   const choices=[
     {value:"server",label:"Manter versão do servidor",detail:"O espelho local será atualizado para esta versão."},
-    ...(compatible?[{value:"local",label:"Restaurar espelho local",detail:"O conteúdo local será gravado como nova revisão; o servidor atual continua preservado no histórico."}]:[]),
+    ...(compatible?[{value:"local",label:"Restaurar espelho local",detail:"O conteúdo e os metadados locais serão gravados como nova revisão; o servidor atual continua preservado no histórico."}]:[]),
   ];
   const result=await comparisonDialog({
     title:"Divergência servidor × espelho local",
@@ -1050,7 +1052,8 @@ async function loadDraft(id,{fromPublication=null,skipCurrentSave=false}={}){
       if(local.document&&JSON.stringify(local.document)!==state.lastSaved){
         const choice=await resolveMirror(local,state.draft.document);
         if(choice==="local"){
-          renderDocument(local.document);
+          state.draft={...state.draft,document:clone(local.document)};
+          renderDocument(state.draft.document);
           setStatus("restaurando espelho local…");
           const restored=await commitNow("restore-local-mirror");
           if(!restored) setStatus("espelho local não sincronizado");
@@ -1085,6 +1088,7 @@ async function listDrafts(){
   for(const draft of data.drafts){
     const row=document.createElement("div");
     row.className="list-row";
+    row.dataset.draftId=String(draft.id);
     const name=document.createElement("strong");
     name.textContent=draft.name;
     const meta=document.createElement("small");
@@ -1529,6 +1533,7 @@ $("#publish-telegraph").onclick=()=>void reviewAndPublish("telegraph");
 $("#review-confirm").onclick=()=>void state.reviewAction?.();
 $$('[data-close]').forEach(button=>button.onclick=()=>button.closest("dialog")?.close());
 
+window.addEventListener("mdtxtrt:auth-expired",()=>authExpired());
 document.addEventListener("visibilitychange",()=>{
   if(!document.hidden&&state.pendingLocationRequest&&!state.authExpired) void pollLocation(state.pendingLocationRequest);
 });
