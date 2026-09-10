@@ -26,8 +26,9 @@ function installStyle(){
   document.head.append(style);
 }
 
+installStyle();
+
 function shell(title){
-  installStyle();
   const dialog=document.createElement("dialog");
   dialog.className="mdtxtrt-dialog";
   const head=document.createElement("div");
