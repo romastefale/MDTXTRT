@@ -19,6 +19,18 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _http_media_type(value: str) -> str:
+    """Return only type/subtype for aiohttp's content_type parameter.
+
+    The original MIME string remains persisted. Public response construction
+    must not receive parameters such as ``; charset=...`` through content_type.
+    """
+    base = (value or "application/octet-stream").split(";", 1)[0].strip().lower()
+    if "/" not in base or any(ch.isspace() for ch in base):
+        return "application/octet-stream"
+    return base
+
+
 @dataclass(frozen=True, slots=True)
 class MediaBlob:
     id: str
@@ -243,9 +255,13 @@ class AssetService:
         digest = hashlib.sha256(data).hexdigest()
         if not secrets.compare_digest(digest, str(row["sha256"])):
             raise BlobIntegrityError("media_sha256_mismatch")
+        # The database keeps the exact upload MIME string. The anonymous HTTP
+        # response receives only a valid type/subtype; response policy then
+        # decides whether that base type is safe to render inline.
+        public_mime = _http_media_type(str(row["mime_type"]))
         return MediaBlob(
             id=str(row["id"]), user_id=int(row["user_id"]), draft_id=str(row["draft_id"]),
-            filename=str(row["filename"]), mime_type=str(row["mime_type"]),
+            filename=str(row["filename"]), mime_type=public_mime,
             sha256=str(row["sha256"]), data=data,
         )
 
