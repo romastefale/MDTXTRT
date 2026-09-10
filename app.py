@@ -7,6 +7,7 @@ from mdtxtrt.assets import AssetService
 from mdtxtrt.bot import TelegramRuntime
 from mdtxtrt.config import Settings
 from mdtxtrt.credentials import CredentialCipher
+from mdtxtrt.pending_imports import PendingImportStore
 from mdtxtrt.publishing import TelegramPublicationService, TelegraphPublicationService
 from mdtxtrt.server import create_web_app
 from mdtxtrt.services import DocumentService, ImportService
@@ -20,8 +21,10 @@ def build_application(settings: Settings | None = None) -> web.Application:
 
     assets = AssetService(repository)
     assets.initialize()
+    pending_imports = PendingImportStore(repository)
+    pending_imports.initialize()
     documents = DocumentService(repository)
-    imports = ImportService(repository, documents)
+    imports = ImportService(repository, documents, pending_imports)
     telegram_publications = TelegramPublicationService(repository, assets)
     telegraph_publications = None
     if resolved.telegraph_key:
