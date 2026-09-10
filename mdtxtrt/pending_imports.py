@@ -66,6 +66,8 @@ class PendingImportStore:
                 );
                 CREATE INDEX IF NOT EXISTS idx_pending_imports_owner
                     ON pending_imports(user_id, status, created_at DESC);
+                CREATE INDEX IF NOT EXISTS idx_pending_imports_digest
+                    ON pending_imports(user_id, sha256, filename, status, created_at DESC);
             """)
 
     def stage(
@@ -89,6 +91,19 @@ class PendingImportStore:
                 if existing is not None:
                     if not secrets.compare_digest(str(existing["sha256"]), digest):
                         raise RuntimeError("pending_import_source_collision")
+                    return self._from_row(existing)
+            else:
+                # Web App retries the same local file after the user chooses an
+                # explicit encoding. Reuse only an unfinished import with the
+                # same owner, filename and verified bytes; a completed upload
+                # remains eligible to be intentionally imported again later.
+                existing = db.execute(
+                    """SELECT * FROM pending_imports
+                       WHERE user_id=? AND source_key IS NULL AND sha256=? AND filename=? AND status='pending'
+                       ORDER BY created_at DESC LIMIT 1""",
+                    (user_id, digest, clean_filename),
+                ).fetchone()
+                if existing is not None:
                     return self._from_row(existing)
             import_id = str(uuid4())
             db.execute(
