@@ -13,6 +13,7 @@ from mdtxtrt.import_workflow import attach_import_workflow_routes
 from mdtxtrt.lifecycle import attach_lifecycle_routes
 from mdtxtrt.pending_imports import PendingImportStore
 from mdtxtrt.preferences import PreferenceStore, attach_preference_routes
+from mdtxtrt.public_media_security import public_media_response_policy
 from mdtxtrt.publishing import TelegramPublicationService, TelegraphPublicationService
 from mdtxtrt.server import create_web_app
 from mdtxtrt.services import DocumentService, ImportService
@@ -52,6 +53,9 @@ def build_application(settings: Settings | None = None) -> web.Application:
         telegraph_publications,
         telegram_runtime,
     )
+    # Public BLOB links share the Web App origin. Harden browser interpretation
+    # without changing the stored bytes or the explicit opt-in token lifecycle.
+    app.middlewares.append(public_media_response_policy)
     attach_lifecycle_routes(app)
     attach_conversion_routes(app)
     attach_preference_routes(app, preferences)
