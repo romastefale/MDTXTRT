@@ -1229,7 +1229,7 @@ async function reviewAndPublish(destination){
 
   if(destination==="telegram"){
     const preview=await api("/api/publish/telegram/preview",{method:"POST",body:{draft_id:state.draft.id,document_override:override}});
-    const representations=preview.representations;
+    let representations=preview.representations;
     const available=Object.values(representations.options||{}).filter(item=>item.available);
     if(!available.length){showMessage("Telegram","Nenhuma representação Telegram publicável para este documento.");return}
     let operation=editing?"edit":"new";
@@ -1244,6 +1244,13 @@ async function reviewAndPublish(destination){
     title=value.title;
     target=value.target;
     operation=value.operation||operation;
+    // The destination is part of preflight: never confirm a plan calculated for
+    // the user's private chat and then send that plan to an unrelated target.
+    const contextualPreview=await api("/api/publish/telegram/preview",{
+      method:"POST",
+      body:{draft_id:state.draft.id,document_override:override,...(target?{destination_chat_id:target}:{})},
+    });
+    representations=contextualPreview.representations;
     const plan=representations.options[value.representation];
     fillReview(`Revisão — ${plan.label}`,plan);
     const confirmButton=$("#review-confirm");

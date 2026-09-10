@@ -31,7 +31,11 @@ from mdtxtrt.telegram_representations import (
     TelegramRepresentationSet,
     plan_telegram_representations,
 )
-from mdtxtrt.telegram_validation import rich_block_count, validate_telegram_document
+from mdtxtrt.telegram_validation import (
+    TelegramDestinationContext,
+    rich_block_count,
+    validate_telegram_document,
+)
 
 TELEGRAPH_CONTENT_LIMIT_BYTES = 64 * 1024
 _LOCAL_MEDIA_KINDS = {"photo", "video", "animation", "audio", "voice_note", "document"}
@@ -110,14 +114,18 @@ def _input_media(kind: str, data: bytes, filename: str):
     raise ValueError("unsupported_local_media_kind")
 
 
-def _apply_telegram_validation(review: ProjectionReview, document: CanonicalDocument) -> None:
+def _apply_telegram_validation(
+    review: ProjectionReview,
+    document: CanonicalDocument,
+    destination: TelegramDestinationContext | None = None,
+) -> None:
     review.blocking[:] = [
         message for message in review.blocking
         if not message.startswith("Documento excede 500 blocos/nós estruturais")
     ]
     review.metrics.pop("nodes", None)
     review.metrics["blocks"] = rich_block_count(document)
-    for message in validate_telegram_document(document):
+    for message in validate_telegram_document(document, destination):
         if message not in review.blocking:
             review.blocking.append(message)
 
@@ -166,6 +174,7 @@ class TelegramPublicationService:
         user_id: int,
         draft_id: str,
         document_override: dict[str, Any] | None = None,
+        destination: TelegramDestinationContext | None = None,
     ) -> tuple[str, CanonicalDocument, ProjectionReview, list[InputRichMessageMedia]]:
         revision_id, document = self._source_document(
             user_id=user_id,
@@ -204,7 +213,7 @@ class TelegramPublicationService:
             metadata=document.metadata,
         )
         review = telegram_projection(projected_document)
-        _apply_telegram_validation(review, projected_document)
+        _apply_telegram_validation(review, projected_document, destination)
         review.metrics["local_media_attachments"] = len(attachments)
         return revision_id, projected_document, review, list(attachments.values())
 
@@ -220,16 +229,19 @@ class TelegramPublicationService:
         user_id: int,
         draft_id: str,
         document_override: dict[str, Any] | None = None,
+        destination: TelegramDestinationContext | None = None,
     ) -> tuple[str, TelegramRepresentationSet]:
         revision_id, document, html_review, _attachments = self._prepare(
             user_id=user_id,
             draft_id=draft_id,
             document_override=document_override,
+            destination=destination,
         )
         plans = plan_telegram_representations(
             document,
             html_review=html_review,
             preferred=self._preferred_representation(user_id),
+            fingerprint_context=destination.public() if destination else {},
         )
         return revision_id, plans
 
@@ -240,11 +252,13 @@ class TelegramPublicationService:
         document: CanonicalDocument,
         html_review: ProjectionReview,
         representation: str | None,
+        destination: TelegramDestinationContext | None = None,
     ) -> RepresentationPlan:
         plans = plan_telegram_representations(
             document,
             html_review=html_review,
             preferred=self._preferred_representation(user_id),
+            fingerprint_context=destination.public() if destination else {},
         )
         key = str(representation or "auto").strip().lower()
         if key == "auto":
@@ -260,9 +274,7 @@ class TelegramPublicationService:
         if plan.key == "markdown":
             return InputRichMessage(markdown=plan.content or "", media=attachments or None)
         if plan.key == "blocks":
-            if attachments:
-                raise ValueError("blocks_representation_does_not_support_local_attachment_plan")
-            return InputRichMessage(blocks=plan.blocks or [])
+            return InputRichMessage(blocks=plan.blocks or [], media=attachments or None)
         raise ValueError("unsupported_telegram_representation")
 
     async def publish(
@@ -276,23 +288,31 @@ class TelegramPublicationService:
         confirmed_fingerprint: str | None = None,
         representation: str | None = None,
         document_override: dict[str, Any] | None = None,
+        destination: TelegramDestinationContext | None = None,
     ) -> dict[str, Any]:
+        destination = destination or TelegramDestinationContext(destination_chat_id)
+        if str(destination.chat_id) != str(destination_chat_id):
+            raise ValueError("destination_context_chat_id_mismatch")
         revision_id, document, html_review, attachments = self._prepare(
             user_id=user_id,
             draft_id=draft_id,
             document_override=document_override,
+            destination=destination,
         )
         plan = self._select_plan(
             user_id=user_id,
             document=document,
             html_review=html_review,
             representation=representation,
+            destination=destination,
         )
         _require_representation(plan, confirmed_fingerprint)
         target = _chat_id(destination_chat_id)
         message = await bot.send_rich_message(
             chat_id=target,
             rich_message=self._message(plan, attachments),
+            message_thread_id=destination.message_thread_id,
+            direct_messages_topic_id=destination.direct_messages_topic_id,
         )
         event = {
             "representation": plan.key,
@@ -300,6 +320,7 @@ class TelegramPublicationService:
             "telegram_message_id": int(message.message_id),
             "destination_chat_id": str(destination_chat_id),
             "local_media_attachments": len(attachments),
+            "destination_context": destination.public(),
             **_override_payload(document_override),
         }
         return self.repository.create_publication(
@@ -323,6 +344,7 @@ class TelegramPublicationService:
         confirmed_fingerprint: str | None = None,
         representation: str | None = None,
         document_override: dict[str, Any] | None = None,
+        destination_context: TelegramDestinationContext | None = None,
     ) -> dict[str, Any]:
         publication = self.repository.get_publication(publication_id=publication_id, user_id=user_id)
         if publication["kind"] != "telegram":
@@ -331,16 +353,21 @@ class TelegramPublicationService:
         message_id = publication.get("telegram_message_id")
         if not destination or message_id is None:
             raise ValueError("telegram_publication_missing_target")
+        destination_context = destination_context or TelegramDestinationContext(destination)
+        if str(destination_context.chat_id) != str(destination):
+            raise ValueError("destination_context_chat_id_mismatch")
         revision_id, document, html_review, attachments = self._prepare(
             user_id=user_id,
             draft_id=publication["draft_id"],
             document_override=document_override,
+            destination=destination_context,
         )
         plan = self._select_plan(
             user_id=user_id,
             document=document,
             html_review=html_review,
             representation=representation,
+            destination=destination_context,
         )
         _require_representation(plan, confirmed_fingerprint)
         await bot.edit_message_text(
@@ -359,6 +386,10 @@ class TelegramPublicationService:
                 "telegram_message_id": int(message_id),
                 "destination_chat_id": str(destination),
                 "local_media_attachments": len(attachments),
+                "destination_context": (
+                    destination_context.public()
+                    if destination_context else TelegramDestinationContext(destination).public()
+                ),
                 **_override_payload(document_override),
             },
         )
@@ -374,6 +405,7 @@ class TelegramPublicationService:
         confirmed_fingerprint: str | None = None,
         representation: str | None = None,
         document_override: dict[str, Any] | None = None,
+        destination: TelegramDestinationContext | None = None,
     ) -> dict[str, Any]:
         publication = self.repository.get_publication(publication_id=publication_id, user_id=user_id)
         if publication["kind"] != "telegram":
@@ -390,6 +422,7 @@ class TelegramPublicationService:
             confirmed_fingerprint=confirmed_fingerprint,
             representation=representation,
             document_override=document_override,
+            destination=destination,
         )
 
 

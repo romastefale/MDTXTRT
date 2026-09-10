@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+from importlib.metadata import version
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit, urlunsplit
@@ -26,6 +27,7 @@ from mdtxtrt.services import (
     ImportReviewRequired,
     ImportService,
 )
+from mdtxtrt.telegram_validation import TelegramDestinationContext
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 log = logging.getLogger("mdtxtrt.server")
@@ -100,11 +102,17 @@ async def index(_request: web.Request) -> web.FileResponse:
 
 async def health(request: web.Request) -> web.Response:
     settings: Settings = request.app["settings"]
+    runtime: TelegramRuntime = request.app["telegram_runtime"]
     return web.json_response(
         {
             "ok": True,
             "runtime": "mdtxtrt-rebuild-v7-static-hardening",
-            "telegram_bot_api": "10.3",
+            "target_bot_api_version": "10.3",
+            "aiogram_version": version("aiogram"),
+            "rich_message_models_available": True,
+            "telegram_ready": runtime.telegram_ready,
+            "polling_ready": runtime.polling_ready,
+            "last_telegram_error": runtime.last_operational_error,
             "canonical_document": True,
             "telegraph_per_user": True,
             "telegraph_key_configured": bool(settings.telegraph_key),
@@ -333,14 +341,33 @@ async def list_publications(request: web.Request) -> web.Response:
     return web.json_response({"ok": True, "publications": repository.list_publications(user_id=identity.user_id)})
 
 
+async def _destination_context(
+    request: web.Request, payload: dict[str, Any], default_chat_id: str | int
+) -> TelegramDestinationContext:
+    """Resolve destination facts once, before representation selection and send."""
+    chat_id = payload.get("destination_chat_id", default_chat_id)
+    supplied = dict(payload.get("destination_context") or {})
+    supplied["chat_id"] = chat_id
+    if str(chat_id) == str(default_chat_id) and str(default_chat_id).lstrip("-").isdigit() and int(default_chat_id) > 0:
+        supplied["chat_type"] = "private"
+    else:
+        runtime: TelegramRuntime = request.app["telegram_runtime"]
+        chat = await runtime.bot.get_chat(chat_id)
+        chat_type = getattr(chat, "type", "unknown")
+        supplied["chat_type"] = getattr(chat_type, "value", str(chat_type))
+    return TelegramDestinationContext.from_dict(supplied, default_chat_id=chat_id)
+
+
 async def telegram_preview(request: web.Request) -> web.Response:
     identity = _identity(request)
     payload = await request.json()
     service: TelegramPublicationService = request.app["telegram_publications"]
+    destination = await _destination_context(request, payload, identity.user_id)
     revision_id, representations = service.preview(
         user_id=identity.user_id,
         draft_id=str(payload["draft_id"]),
         document_override=payload.get("document_override"),
+        destination=destination,
     )
     return web.json_response(
         {"ok": True, "revision_id": revision_id, "representations": representations.public()}
@@ -352,6 +379,7 @@ async def telegram_publish(request: web.Request) -> web.Response:
     payload = await request.json()
     service: TelegramPublicationService = request.app["telegram_publications"]
     runtime: TelegramRuntime = request.app["telegram_runtime"]
+    destination = await _destination_context(request, payload, identity.user_id)
     publication = await service.publish(
         bot=runtime.bot,
         user_id=identity.user_id,
@@ -361,6 +389,7 @@ async def telegram_publish(request: web.Request) -> web.Response:
         confirmed_fingerprint=payload.get("confirmed_fingerprint"),
         representation=payload.get("representation"),
         document_override=payload.get("document_override"),
+        destination=destination,
     )
     return web.json_response({"ok": True, "publication": publication}, status=201)
 
@@ -370,6 +399,12 @@ async def telegram_edit(request: web.Request) -> web.Response:
     payload = await request.json()
     service: TelegramPublicationService = request.app["telegram_publications"]
     runtime: TelegramRuntime = request.app["telegram_runtime"]
+    publication_record = request.app["repository"].get_publication(
+        publication_id=request.match_info["publication_id"], user_id=identity.user_id
+    )
+    destination = await _destination_context(
+        request, payload, publication_record.get("destination_chat_id") or identity.user_id
+    )
     publication = await service.edit(
         bot=runtime.bot,
         user_id=identity.user_id,
@@ -378,6 +413,7 @@ async def telegram_edit(request: web.Request) -> web.Response:
         confirmed_fingerprint=payload.get("confirmed_fingerprint"),
         representation=payload.get("representation"),
         document_override=payload.get("document_override"),
+        destination_context=destination,
     )
     return web.json_response({"ok": True, "publication": publication})
 
@@ -387,6 +423,12 @@ async def telegram_republish(request: web.Request) -> web.Response:
     payload = await request.json()
     service: TelegramPublicationService = request.app["telegram_publications"]
     runtime: TelegramRuntime = request.app["telegram_runtime"]
+    previous = request.app["repository"].get_publication(
+        publication_id=request.match_info["publication_id"], user_id=identity.user_id
+    )
+    destination = await _destination_context(
+        request, payload, payload.get("destination_chat_id") or previous.get("destination_chat_id") or identity.user_id
+    )
     publication = await service.republish(
         bot=runtime.bot,
         user_id=identity.user_id,
@@ -396,6 +438,7 @@ async def telegram_republish(request: web.Request) -> web.Response:
         confirmed_fingerprint=payload.get("confirmed_fingerprint"),
         representation=payload.get("representation"),
         document_override=payload.get("document_override"),
+        destination=destination,
     )
     return web.json_response({"ok": True, "publication": publication}, status=201)
 
