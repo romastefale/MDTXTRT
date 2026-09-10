@@ -6,6 +6,7 @@ from aiohttp import web
 from mdtxtrt.assets import AssetService
 from mdtxtrt.bot import TelegramRuntime
 from mdtxtrt.config import Settings
+from mdtxtrt.conversion_workflow import attach_conversion_routes
 from mdtxtrt.credentials import CredentialCipher
 from mdtxtrt.lifecycle import attach_lifecycle_routes
 from mdtxtrt.pending_imports import PendingImportStore
@@ -46,6 +47,7 @@ def build_application(settings: Settings | None = None) -> web.Application:
         telegram_runtime,
     )
     attach_lifecycle_routes(app)
+    attach_conversion_routes(app)
     return app
 
 
