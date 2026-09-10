@@ -2,9 +2,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import hashlib
 import secrets
+import sqlite3
 from typing import Any
 from uuid import uuid4
 
@@ -44,6 +45,8 @@ class PendingImport:
 
 
 class PendingImportStore:
+    CLAIM_TTL = timedelta(minutes=15)
+
     def __init__(self, repository: SQLiteRepository):
         self.repository = repository
 
@@ -68,6 +71,12 @@ class PendingImportStore:
                     ON pending_imports(user_id, status, created_at DESC);
                 CREATE INDEX IF NOT EXISTS idx_pending_imports_digest
                     ON pending_imports(user_id, sha256, filename, status, created_at DESC);
+                CREATE TABLE IF NOT EXISTS pending_import_claims (
+                    pending_import_id TEXT PRIMARY KEY REFERENCES pending_imports(id) ON DELETE CASCADE,
+                    user_id INTEGER NOT NULL,
+                    claim_token TEXT NOT NULL,
+                    claimed_at TEXT NOT NULL
+                );
             """)
 
     def stage(
@@ -93,10 +102,6 @@ class PendingImportStore:
                         raise RuntimeError("pending_import_source_collision")
                     return self._from_row(existing)
             else:
-                # Web App retries the same local file after the user chooses an
-                # explicit encoding. Reuse only an unfinished import with the
-                # same owner, filename and verified bytes; a completed upload
-                # remains eligible to be intentionally imported again later.
                 existing = db.execute(
                     """SELECT * FROM pending_imports
                        WHERE user_id=? AND source_key IS NULL AND sha256=? AND filename=? AND status='pending'
@@ -143,7 +148,39 @@ class PendingImportStore:
             raise KeyError("pending_import_not_found")
         return self._from_row(row)
 
-    def mark_completed(self, *, user_id: int, pending_import_id: str, draft_id: str) -> PendingImport:
+    def claim_completion(self, *, user_id: int, pending_import_id: str) -> str | None:
+        token = secrets.token_urlsafe(24)
+        cutoff = (datetime.now(timezone.utc) - self.CLAIM_TTL).isoformat()
+        with self.repository.connect() as db:
+            current = db.execute(
+                "SELECT status FROM pending_imports WHERE id=? AND user_id=?",
+                (pending_import_id, user_id),
+            ).fetchone()
+            if current is None:
+                raise KeyError("pending_import_not_found")
+            if current["status"] == "completed":
+                return None
+            db.execute(
+                "DELETE FROM pending_import_claims WHERE pending_import_id=? AND claimed_at<?",
+                (pending_import_id, cutoff),
+            )
+            try:
+                db.execute(
+                    "INSERT INTO pending_import_claims(pending_import_id,user_id,claim_token,claimed_at) VALUES(?,?,?,?)",
+                    (pending_import_id, user_id, token, _now()),
+                )
+            except sqlite3.IntegrityError as exc:
+                raise RuntimeError("pending_import_completion_in_progress") from exc
+        return token
+
+    def release_claim(self, *, user_id: int, pending_import_id: str, claim_token: str) -> None:
+        with self.repository.connect() as db:
+            db.execute(
+                "DELETE FROM pending_import_claims WHERE pending_import_id=? AND user_id=? AND claim_token=?",
+                (pending_import_id, user_id, claim_token),
+            )
+
+    def mark_completed(self, *, user_id: int, pending_import_id: str, draft_id: str, claim_token: str | None = None) -> PendingImport:
         now = _now()
         with self.repository.connect() as db:
             current = db.execute(
@@ -154,8 +191,24 @@ class PendingImportStore:
                 raise KeyError("pending_import_not_found")
             if current["status"] == "completed":
                 return self.get(user_id=user_id, pending_import_id=pending_import_id)
-            db.execute(
-                "UPDATE pending_imports SET status='completed',draft_id=?,completed_at=? WHERE id=? AND user_id=? AND status='pending'",
+            if claim_token is not None:
+                claim = db.execute(
+                    """SELECT 1 FROM pending_import_claims
+                       WHERE pending_import_id=? AND user_id=? AND claim_token=?""",
+                    (pending_import_id, user_id, claim_token),
+                ).fetchone()
+                if claim is None:
+                    raise RuntimeError("pending_import_claim_lost")
+            cur = db.execute(
+                """UPDATE pending_imports SET status='completed',draft_id=?,completed_at=?
+                   WHERE id=? AND user_id=? AND status='pending'""",
                 (draft_id, now, pending_import_id, user_id),
             )
+            if cur.rowcount != 1:
+                raise RuntimeError("pending_import_completion_conflict")
+            if claim_token is not None:
+                db.execute(
+                    "DELETE FROM pending_import_claims WHERE pending_import_id=? AND user_id=? AND claim_token=?",
+                    (pending_import_id, user_id, claim_token),
+                )
         return self.get(user_id=user_id, pending_import_id=pending_import_id)
