@@ -1,7 +1,7 @@
 """User-owned media BLOBs and native Telegram location requests.
 
-BLOBs are immutable. Replacement creates a new BLOB version and preserves the
-previous bytes. Public URLs are opt-in, random-token based and revocable.
+BLOBs are immutable. Replacement or restoration creates a new BLOB version and
+preserves the previous bytes. Public URLs are opt-in, random-token based and revocable.
 """
 from __future__ import annotations
 
@@ -171,6 +171,23 @@ class AssetService:
                 })
                 current = previous.id
         return history
+
+    def restore_media_version(self, *, user_id: int, media_id: str, version_id: str) -> dict[str, Any]:
+        current = self.get_media(user_id=user_id, media_id=media_id)
+        candidates = {item["id"] for item in self.replacement_history(user_id=user_id, media_id=media_id)}
+        if version_id not in candidates:
+            raise ValueError("media_version_is_not_in_history")
+        selected = self.get_media(user_id=user_id, media_id=version_id)
+        if selected.draft_id != current.draft_id:
+            raise ValueError("media_version_does_not_belong_to_draft")
+        return self.store_media(
+            user_id=user_id,
+            draft_id=current.draft_id,
+            filename=selected.filename,
+            mime_type=selected.mime_type,
+            data=selected.data,
+            replaces_media_id=current.id,
+        )
 
     def clone_draft_media(self, *, user_id: int, source_draft_id: str, target_draft_id: str) -> dict[str, str]:
         self.repository.get_draft(source_draft_id, user_id=user_id)
