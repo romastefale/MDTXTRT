@@ -33,6 +33,13 @@ def _encoding_error(exc: EncodingChoiceRequired) -> web.Response:
     )
 
 
+def _public_review(review: dict) -> dict:
+    """Expose one explicit compatibility alias without changing service semantics."""
+    result = dict(review)
+    result["requires_partial_confirmation"] = bool(result.get("requires_confirmation"))
+    return result
+
+
 async def stage_import(request: web.Request) -> web.Response:
     identity = _identity(request)
     reader = await request.multipart()
@@ -56,7 +63,10 @@ async def stage_import(request: web.Request) -> web.Response:
         )
     except EncodingChoiceRequired as exc:
         return _encoding_error(exc)
-    return web.json_response({"ok": True, "pending_import": pending.public(), "review": review}, status=201)
+    return web.json_response(
+        {"ok": True, "pending_import": pending.public(), "review": _public_review(review)},
+        status=201,
+    )
 
 
 async def preview_import(request: web.Request) -> web.Response:
@@ -72,7 +82,7 @@ async def preview_import(request: web.Request) -> web.Response:
         )
     except EncodingChoiceRequired as exc:
         return _encoding_error(exc)
-    return web.json_response({"ok": True, "review": review})
+    return web.json_response({"ok": True, "review": _public_review(review)})
 
 
 async def complete_import(request: web.Request) -> web.Response:
@@ -96,7 +106,7 @@ async def complete_import(request: web.Request) -> web.Response:
                 "ok": False,
                 "error": "import_review_required",
                 "pending_import_id": exc.pending_import_id,
-                "review": exc.review,
+                "review": _public_review(exc.review),
             },
             status=409,
         )
