@@ -17,11 +17,15 @@ const state = {
   editingPublication: null,
   archivedView: false,
   reviewAction: null,
+  pendingMediaKind: null,
+  pendingLocationRequest: sessionStorage.getItem("mdtxtrt:location-request") || null,
 };
 
 const uid = () => crypto.randomUUID();
 const enc = new TextEncoder();
 const deepClone = value => JSON.parse(JSON.stringify(value));
+const domNodeIds = new WeakMap();
+const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 function setStatus(text) { statusEl.textContent = text; }
 function closeMenus() { $$(".toolbar details[open]").forEach(x => x.removeAttribute("open")); }
@@ -57,13 +61,32 @@ function node(kind, {text = null, attrs = {}, children = []} = {}) {
 
 function textNode(text) { return node("text", {text}); }
 
+function rememberDomNodeId(dom, preferred = null) {
+  let id = domNodeIds.get(dom);
+  if (!id) {
+    id = preferred || uid();
+    domNodeIds.set(dom, id);
+  }
+  return id;
+}
+
+function renderTextNode(n) {
+  const dom = document.createTextNode(n?.text || "");
+  rememberDomNodeId(dom, n?.id || uid());
+  return dom;
+}
+
+function serializedTextNode(dom, text) {
+  return {id: rememberDomNodeId(dom), kind: "text", text, attrs: {}, children: []};
+}
+
 const inlineTags = {
   bold: "strong", italic: "em", underline: "u", strikethrough: "s",
   marked: "mark", subscript: "sub", superscript: "sup", code: "code",
 };
 
 function renderInline(n) {
-  if (!n || n.kind === "text" || n.kind === "plain") return document.createTextNode(n?.text || "");
+  if (!n || n.kind === "text" || n.kind === "plain") return renderTextNode(n || textNode(""));
   let el;
   if (inlineTags[n.kind]) el = document.createElement(inlineTags[n.kind]);
   else if (["url","link","text_mention","anchor_link","reference_link"].includes(n.kind)) {
@@ -105,7 +128,7 @@ function blockElement(n) {
   el.__attrs = deepClone(n.attrs || {});
   if (n.kind === "code_block") el.textContent = n.text || n.children?.map(plainNode).join("") || "";
   else if (n.children?.length) n.children.forEach(child => el.append(renderInline(child)));
-  else el.textContent = n.text || "";
+  else if (n.text) el.append(renderTextNode(textNode(n.text)));
   return el;
 }
 
@@ -118,7 +141,7 @@ function plainNode(n) {
 function nodeSummary(n) {
   if (n.kind === "divider") return "Divisor horizontal";
   if (n.kind === "map") return `${n.attrs?.name || "Mapa"}: ${n.attrs?.lat || "?"}, ${n.attrs?.long || "?"}`;
-  if (["photo","video","audio","voice_note","animation","document"].includes(n.kind)) return n.attrs?.caption || n.attrs?.src || n.kind;
+  if (["photo","video","audio","voice_note","animation","document"].includes(n.kind)) return n.attrs?.caption || n.attrs?.filename || n.attrs?.src || n.kind;
   if (n.kind === "list") return `${n.children?.length || 0} itens`;
   if (n.kind === "table") return `${n.children?.length || 0} linhas`;
   if (n.kind === "details") return n.attrs?.summary || "Detalhes";
@@ -175,13 +198,16 @@ function serializeInline(root) {
   const out = [];
   for (const child of root.childNodes) {
     if (child.nodeType === Node.TEXT_NODE) {
-      if (child.nodeValue) out.push(textNode(child.nodeValue));
+      if (child.nodeValue) out.push(serializedTextNode(child, child.nodeValue));
       continue;
     }
     if (child.nodeType !== Node.ELEMENT_NODE) continue;
-    if (child.tagName === "BR") { out.push(textNode("\n")); continue; }
+    if (child.tagName === "BR") { out.push(serializedTextNode(child, "\n")); continue; }
     const kind = elementInlineKind(child) || "text";
-    if (kind === "text") { out.push(textNode(child.textContent || "")); continue; }
+    if (kind === "text") {
+      out.push({id: child.dataset?.nodeId || rememberDomNodeId(child), kind: "text", text: child.textContent || "", attrs: {}, children: []});
+      continue;
+    }
     const attrs = deepClone(child.__attrs || {});
     if (kind === "url" && child.tagName === "A") attrs.url = attrs.url || child.getAttribute("href") || "";
     const n = {id: child.dataset.nodeId || uid(), kind, text: null, attrs, children: []};
@@ -266,21 +292,104 @@ async function commitNow(reason = "edit") {
   }
 }
 
+function activeBlock() {
+  const sel = window.getSelection();
+  const start = sel?.anchorNode?.nodeType === Node.ELEMENT_NODE ? sel.anchorNode : sel?.anchorNode?.parentElement;
+  return start?.closest?.("[data-block]") || null;
+}
+
+function pathWithin(root, target) {
+  const path = [];
+  let current = target;
+  while (current && current !== root) {
+    const parent = current.parentNode;
+    if (!parent) return null;
+    const index = [...parent.childNodes].indexOf(current);
+    if (index < 0) return null;
+    path.unshift(index);
+    current = parent;
+  }
+  return current === root ? path : null;
+}
+
+function nodeAtPath(root, path) {
+  let current = root;
+  for (const index of path || []) {
+    current = current?.childNodes?.[index];
+    if (!current) return null;
+  }
+  return current;
+}
+
+function selectionSnapshot() {
+  const sel = window.getSelection();
+  if (!sel?.rangeCount) return null;
+  const range = sel.getRangeAt(0);
+  const startElement = range.startContainer.nodeType === Node.ELEMENT_NODE ? range.startContainer : range.startContainer.parentElement;
+  const endElement = range.endContainer.nodeType === Node.ELEMENT_NODE ? range.endContainer : range.endContainer.parentElement;
+  const startBlock = startElement?.closest?.("[data-block]");
+  const endBlock = endElement?.closest?.("[data-block]");
+  if (!startBlock || startBlock !== endBlock || startBlock.__node) return null;
+  const startPath = pathWithin(startBlock, range.startContainer);
+  const endPath = pathWithin(startBlock, range.endContainer);
+  if (!startPath || !endPath) return null;
+  return {
+    block_id: startBlock.dataset.block,
+    start_path: startPath,
+    start_offset: range.startOffset,
+    end_path: endPath,
+    end_offset: range.endOffset,
+  };
+}
+
+function safeOffset(target, offset) {
+  if (!target) return 0;
+  const limit = target.nodeType === Node.TEXT_NODE ? (target.nodeValue?.length || 0) : target.childNodes.length;
+  return Math.min(Math.max(Number(offset) || 0, 0), limit);
+}
+
+function restoreSelection(session) {
+  const saved = session?.selection;
+  const blockId = saved?.block_id || session?.active_block_id;
+  if (!blockId) return;
+  const block = [...editor.querySelectorAll("[data-block]")].find(el => el.dataset.block === blockId);
+  if (!block || block.__node) return;
+  if (!saved) {
+    block.focus();
+    return;
+  }
+  const start = nodeAtPath(block, saved.start_path);
+  const end = nodeAtPath(block, saved.end_path);
+  if (!start || !end) {
+    block.focus();
+    return;
+  }
+  try {
+    const range = document.createRange();
+    range.setStart(start, safeOffset(start, saved.start_offset));
+    range.setEnd(end, safeOffset(end, saved.end_offset));
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+  } catch (_) {
+    block.focus();
+  }
+}
+
 async function saveSession() {
   if (!state.draft) return;
   await commitNow("checkpoint");
   try {
     await api(`/api/drafts/${state.draft.id}/session`, {
       method:"PUT",
-      body:{revision_id:state.draft.active_revision_id, scroll_top:window.scrollY, active_block_id:activeBlock()?.dataset.block || null}
+      body:{
+        revision_id:state.draft.active_revision_id,
+        scroll_top:window.scrollY,
+        active_block_id:activeBlock()?.dataset.block || null,
+        selection:selectionSnapshot(),
+      }
     });
   } catch (_) {}
-}
-
-function activeBlock() {
-  const sel = window.getSelection();
-  const start = sel?.anchorNode?.nodeType === Node.ELEMENT_NODE ? sel.anchorNode : sel?.anchorNode?.parentElement;
-  return start?.closest?.("[data-block]") || null;
 }
 
 function updateMarkButtons() {
@@ -313,7 +422,9 @@ function wrapSelection(kind, attrs = {}, explicitText = null) {
   if (kind === "spoiler") wrapper.dataset.inline = "spoiler";
   if (explicitText !== null) {
     range.deleteContents();
-    wrapper.textContent = explicitText;
+    const text = document.createTextNode(explicitText);
+    rememberDomNodeId(text);
+    wrapper.append(text);
   } else wrapper.append(range.extractContents());
   range.insertNode(wrapper);
   const after = document.createRange();
@@ -333,6 +444,7 @@ function insertPendingText(event) {
   event.preventDefault();
   range.deleteContents();
   let leaf = document.createTextNode(event.data);
+  rememberDomNodeId(leaf);
   let outer = leaf;
   for (const [kind, attrs] of [...state.pendingInline.entries()].reverse()) {
     const wrap = document.createElement(inlineTags[kind] || (kind === "url" ? "a" : "span"));
@@ -462,6 +574,16 @@ function buttonLines(n) {
   }).join("\n");
 }
 
+function validateButtonNode(button) {
+  const type = button.attrs?.type || "url";
+  if (button.attrs?.style === "link" && type !== "callback_data") return "O estilo link só pode ser usado em botão callback_data.";
+  if (type === "callback_data") {
+    const size = enc.encode(button.attrs?.data || "").length;
+    if (size < 1 || size > 64) return "callback_data deve ter de 1 a 64 bytes.";
+  }
+  return null;
+}
+
 async function buildStructured(kind, preset = "", existing = null) {
   let fields = [], v;
   if (kind === "list") {
@@ -494,7 +616,7 @@ async function buildStructured(kind, preset = "", existing = null) {
     return {...(existing||node("reference")),kind:"reference",attrs:{name:v.name},children:[textNode(v.text)]};
   }
   if (kind === "map") {
-    v=await openForm("Mapa",[field("name","Nome","text",existing?.attrs?.name||""),field("lat","Latitude","number",existing?.attrs?.lat||""),field("long","Longitude","number",existing?.attrs?.long||""),field("zoom","Zoom","number",existing?.attrs?.zoom||14)]);if(!v)return null;
+    v=await openForm("Mapa manual",[field("name","Nome","text",existing?.attrs?.name||""),field("lat","Latitude","number",existing?.attrs?.lat||""),field("long","Longitude","number",existing?.attrs?.long||""),field("zoom","Zoom","number",existing?.attrs?.zoom||14)]);if(!v)return null;
     return {...(existing||node("map")),kind:"map",attrs:{name:v.name,lat:Number(v.lat),long:Number(v.long),zoom:Number(v.zoom)},children:[]};
   }
   if (["collage","slideshow"].includes(kind)) {
@@ -505,6 +627,10 @@ async function buildStructured(kind, preset = "", existing = null) {
   if (kind === "button_row") {
     v=await openForm("Linha de botões",[field("align","Alinhamento","select",existing?.attrs?.align||"center",[["left","Esquerda"],["center","Centro"],["right","Direita"]]),field("buttons","type|texto|valor|style — uma linha por botão","textarea",existing?buttonLines(existing):"url|Abrir|https://|success")]);if(!v)return null;
     const children=v.buttons.split(/\r?\n/).filter(Boolean).map(line=>{const [type,label,value,style]=line.split("|");const attrs={type:(type||"url").trim(),style:(style||"").trim()};const val=(value||"").trim();if(["url","web_app","login_url"].includes(attrs.type))attrs.url=val;else if(attrs.type==="callback_data")attrs.data=val;else if(attrs.type==="copy_text")attrs.copy_text=val;else if(attrs.type.startsWith("switch_inline_query"))attrs.query=val;return node("button",{attrs,children:[textNode((label||attrs.type).trim())]});});
+    for (const button of children) {
+      const problem = validateButtonNode(button);
+      if (problem) { showMessage("Botão inválido", problem); return null; }
+    }
     return {...(existing||node("button_row")),kind:"button_row",attrs:{align:v.align},children};
   }
   return null;
@@ -518,9 +644,78 @@ async function structuredAction(kind, preset = "") {
 
 async function mediaAction(kind, existing = null, replace = null) {
   closeMenus();
+  if (existing?.attrs?.media_blob_id) {
+    const hasPublic = /^https?:\/\//.test(existing.attrs?.src || "");
+    const v = await openForm(labels[kind] || "Mídia local",[
+      field("caption","Legenda","text",existing.attrs?.caption||""),
+      field("credit","Crédito","text",existing.attrs?.credit||""),
+      field("spoiler","Spoiler","checkbox",existing.attrs?.spoiler||false),
+      field("make_public","Criar novo link público para Telegraph","checkbox",false),
+      field("revoke_public",hasPublic?"Revogar links públicos e remover URL do documento":"Revogar links públicos existentes","checkbox",false),
+    ]);
+    if (!v) return;
+    const attrs = {...existing.attrs, caption:v.caption, credit:v.credit, spoiler:v.spoiler};
+    try {
+      if (v.revoke_public) {
+        await api(`/api/media/${attrs.media_blob_id}/public`, {method:"DELETE"});
+        delete attrs.src;
+      }
+      if (v.make_public) {
+        const result = await api(`/api/media/${attrs.media_blob_id}/public`, {method:"POST"});
+        attrs.src = result.public.url;
+      }
+    } catch (error) {
+      showMessage("Mídia local", error.message);
+      return;
+    }
+    const n = {...existing, kind, attrs, children:[]};
+    if (replace) replace(n); else insertBlock(n);
+    return;
+  }
   const v=await openForm(labels[kind]||"Mídia",[field("src","URL HTTP/HTTPS","url",existing?.attrs?.src||""),field("caption","Legenda","text",existing?.attrs?.caption||""),field("credit","Crédito","text",existing?.attrs?.credit||""),field("spoiler","Spoiler","checkbox",existing?.attrs?.spoiler||false)]);if(!v)return;
   const n={...(existing||node(kind)),kind,attrs:{src:v.src,caption:v.caption,credit:v.credit,spoiler:v.spoiler},children:[]};
   if(replace)replace(n);else insertBlock(n);
+}
+
+function localMediaAccept(kind) {
+  if (kind === "photo") return "image/*";
+  if (kind === "video") return "video/*";
+  if (kind === "animation") return "image/gif,video/mp4";
+  if (kind === "audio" || kind === "voice_note") return "audio/*";
+  return "*/*";
+}
+
+function localMediaAction(kind) {
+  closeMenus();
+  if (!state.draft) { showMessage("Mídia local", "Abra ou crie um rascunho antes de adicionar mídia."); return; }
+  state.pendingMediaKind = kind;
+  const input = $("#media-file");
+  input.accept = localMediaAccept(kind);
+  input.click();
+}
+
+async function uploadLocalMedia(file, kind) {
+  if (!state.draft || !file || !kind) return;
+  const form = new FormData();
+  form.append("draft_id", state.draft.id);
+  form.append("file", file, file.name);
+  setStatus("enviando mídia…");
+  try {
+    const result = await api("/api/media", {method:"POST", body:form});
+    insertBlock(node(kind, {attrs:{
+      media_blob_id: result.media.id,
+      filename: result.media.filename,
+      mime_type: result.media.mime_type,
+      caption: "",
+      credit: "",
+      spoiler: false,
+    }}));
+    setStatus("mídia adicionada");
+    showMessage("Mídia local", "O arquivo foi preservado como BLOB do seu rascunho. Telegram usa o BLOB diretamente; Telegraph só recebe uma URL pública se você criar essa URL explicitamente em Editar.");
+  } catch (error) {
+    setStatus("erro de mídia");
+    showMessage("Falha no upload", error.message);
+  }
 }
 
 async function buttonAction(type) {
@@ -531,9 +726,60 @@ async function buttonAction(type) {
   if(type.startsWith("switch_inline_query")) fields.push(field("value","Query","text",""));
   if(type==="copy_text") fields.push(field("value","Texto a copiar","text",""));
   const v=await openForm("Botão Rich",fields);if(!v)return;
-  if(type==="callback_data" && (enc.encode(v.value).length<1 || enc.encode(v.value).length>64)){showMessage("Callback inválido","callback_data deve ter de 1 a 64 bytes.");return;}
   const attrs={type,style:v.style};if(["url","web_app","login_url"].includes(type))attrs.url=v.value;else if(type==="callback_data")attrs.data=v.value;else if(type.startsWith("switch_inline_query"))attrs.query=v.value;else if(type==="copy_text")attrs.copy_text=v.value;
-  insertBlock(node("button_row",{attrs:{align:"center"},children:[node("button",{attrs,children:[textNode(v.label)]})]}));
+  const button=node("button",{attrs,children:[textNode(v.label)]});
+  const problem=validateButtonNode(button);if(problem){showMessage("Botão inválido",problem);return;}
+  insertBlock(node("button_row",{attrs:{align:"center"},children:[button]}));
+}
+
+async function nativeLocationAction() {
+  closeMenus();
+  if (!state.draft) { showMessage("Localização", "Abra ou crie um rascunho antes de adicionar uma localização."); return; }
+  try {
+    const result = await api("/api/location-requests", {method:"POST", body:{draft_id:state.draft.id}});
+    state.pendingLocationRequest = result.request.id;
+    sessionStorage.setItem("mdtxtrt:location-request", state.pendingLocationRequest);
+    if (result.bot_url && tg?.openTelegramLink) tg.openTelegramLink(result.bot_url);
+    else showMessage("Localização", "Abra a conversa com o bot e envie uma Location ou Venue pelo anexo de localização do Telegram. Depois retorne ao editor.");
+    void pollLocationRequest(state.pendingLocationRequest);
+  } catch (error) {
+    showMessage("Localização", error.message);
+  }
+}
+
+function insertFulfilledLocation(locationRequest) {
+  if (!state.draft || locationRequest.draft_id !== state.draft.id) return false;
+  const attrs = {
+    name: locationRequest.name || locationRequest.address || "Localização",
+    address: locationRequest.address || "",
+    lat: Number(locationRequest.latitude),
+    long: Number(locationRequest.longitude),
+    zoom: 14,
+    source: "telegram_native_location",
+  };
+  insertBlock(node("map", {attrs}));
+  state.pendingLocationRequest = null;
+  sessionStorage.removeItem("mdtxtrt:location-request");
+  showMessage("Localização recebida", "A Location/Venue enviada ao bot foi adicionada ao rascunho.");
+  return true;
+}
+
+async function checkLocationRequest(requestId, {silent = false} = {}) {
+  if (!requestId) return false;
+  try {
+    const result = await api(`/api/location-requests/${requestId}`);
+    if (result.request?.status === "fulfilled") return insertFulfilledLocation(result.request);
+  } catch (error) {
+    if (!silent) showMessage("Localização", error.message);
+  }
+  return false;
+}
+
+async function pollLocationRequest(requestId) {
+  for (let attempt = 0; attempt < 60 && state.pendingLocationRequest === requestId; attempt += 1) {
+    if (await checkLocationRequest(requestId, {silent:true})) return;
+    await delay(2000);
+  }
 }
 
 async function editStructuredCard(card) {
@@ -554,9 +800,13 @@ async function loadDraft(id, {fromPublication = null} = {}) {
   state.lastSaved=JSON.stringify(state.draft.document);
   const mirror=localStorage.getItem(mirrorKey());
   if(mirror){try{const local=JSON.parse(mirror);if(JSON.stringify(local.document)!==state.lastSaved){const useLocal=confirm("Existe um espelho local diferente do servidor. OK usa o local; Cancelar mantém o servidor. Nenhuma mesclagem será feita automaticamente.");if(useLocal){renderDocument(local.document);setStatus("espelho local");}else saveMirror();}}catch(_){}}
-  if(state.draft.session?.scroll_top) requestAnimationFrame(()=>window.scrollTo(0,state.draft.session.scroll_top));
+  requestAnimationFrame(()=>{
+    if(state.draft.session?.scroll_top) window.scrollTo(0,state.draft.session.scroll_top);
+    restoreSelection(state.draft.session);
+  });
   setStatus("salvo");
   updatePublishLabels();
+  if (state.pendingLocationRequest) void checkLocationRequest(state.pendingLocationRequest, {silent:true});
 }
 
 async function createDraft() {
@@ -648,7 +898,11 @@ $$('[data-block-action]').forEach(button=>button.addEventListener("click",()=>{c
 $$('[data-insert]').forEach(button=>button.addEventListener("click",()=>{closeMenus();insertBlock(node(button.dataset.insert))}));
 $$('[data-structured]').forEach(button=>button.addEventListener("click",()=>structuredAction(button.dataset.structured,button.dataset.preset||"")));
 $$('[data-media]').forEach(button=>button.addEventListener("click",()=>mediaAction(button.dataset.media)));
+$$('[data-local-media]').forEach(button=>button.addEventListener("click",()=>localMediaAction(button.dataset.localMedia)));
 $$('[data-button]').forEach(button=>button.addEventListener("click",()=>buttonAction(button.dataset.button)));
+
+$("#native-location").onclick=nativeLocationAction;
+$("#media-file").addEventListener("change",async event=>{const file=event.target.files?.[0];const kind=state.pendingMediaKind;event.target.value="";state.pendingMediaKind=null;if(file&&kind)await uploadLocalMedia(file,kind)});
 
 $("#undo").onclick=async()=>{if(!state.draft)return;await commitNow("before-undo");const d=await api(`/api/drafts/${state.draft.id}/undo`,{method:"POST"});state.draft=d.draft;renderDocument(state.draft.document);state.lastSaved=JSON.stringify(state.draft.document);setStatus("desfeito")};
 $("#redo").onclick=async()=>{if(!state.draft)return;const candidates=state.draft.redo_candidates||[];if(!candidates.length){showMessage("Refazer","Não há revisão posterior neste ramo.");return;}const selected=candidates.length===1?candidates[0].id:(await openForm("Escolher ramo",[field("revision_id","Revisão","select",candidates[0].id,candidates.map(c=>[c.id,`${c.reason} — ${c.created_at}`]))]))?.revision_id;if(!selected)return;const d=await api(`/api/drafts/${state.draft.id}/redo`,{method:"POST",body:{revision_id:selected}});state.draft=d.draft;renderDocument(state.draft.document);state.lastSaved=JSON.stringify(state.draft.document);setStatus("refeito")};
@@ -666,6 +920,7 @@ $("#review-confirm").onclick=()=>state.reviewAction?.();
 $$('[data-close]').forEach(button=>button.addEventListener("click",()=>button.closest("dialog")?.close()));
 
 document.addEventListener("click",event=>{if(!event.target.closest(".toolbar details"))closeMenus()});
+document.addEventListener("visibilitychange",()=>{if(!document.hidden&&state.pendingLocationRequest)void checkLocationRequest(state.pendingLocationRequest,{silent:true})});
 window.addEventListener("pagehide",()=>{saveMirror()});
 state.sessionTimer=setInterval(saveSession,5*60*1000);
 bootstrap();
