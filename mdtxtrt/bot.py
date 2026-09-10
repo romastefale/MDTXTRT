@@ -14,6 +14,7 @@ from aiogram import Bot, Dispatcher, F, Router
 from aiogram.filters import Command
 from aiogram.types import BotCommand, InputRichMessage, MenuButtonWebApp, Message, WebAppInfo
 
+from mdtxtrt.assets import AssetService
 from mdtxtrt.config import Settings
 from mdtxtrt.services import EncodingChoiceRequired, ImportService
 
@@ -30,13 +31,15 @@ def _attr(value: str) -> str:
 
 
 class TelegramRuntime:
-    def __init__(self, settings: Settings, imports: ImportService):
+    def __init__(self, settings: Settings, imports: ImportService, assets: AssetService):
         self.settings = settings
         self.imports = imports
+        self.assets = assets
         self.bot = Bot(settings.telegram_token)
         self.dispatcher = Dispatcher()
         self.router = Router(name="mdtxtrt-rebuild")
         self._polling_task: asyncio.Task | None = None
+        self.bot_username: str | None = None
         self._register_handlers()
         self.dispatcher.include_router(self.router)
 
@@ -44,6 +47,7 @@ class TelegramRuntime:
         self.router.message.register(self.start, Command("start"))
         self.router.message.register(self.help, Command("help"))
         self.router.message.register(self.import_command, Command("import"))
+        self.router.message.register(self.native_location, F.location | F.venue)
         self.router.message.register(self.document, F.document)
 
     async def start(self, message: Message) -> None:
@@ -109,7 +113,45 @@ class TelegramRuntime:
         )
         await message.answer_rich(InputRichMessage(html=body))
 
+    async def native_location(self, message: Message) -> None:
+        if not message.from_user:
+            return
+        latitude: float
+        longitude: float
+        name: str | None = None
+        address: str | None = None
+        if message.venue:
+            latitude = float(message.venue.location.latitude)
+            longitude = float(message.venue.location.longitude)
+            name = message.venue.title
+            address = message.venue.address
+        elif message.location:
+            latitude = float(message.location.latitude)
+            longitude = float(message.location.longitude)
+        else:
+            return
+        request = self.assets.fulfill_latest_location(
+            user_id=int(message.from_user.id),
+            latitude=latitude,
+            longitude=longitude,
+            name=name,
+            address=address,
+        )
+        if request is not None:
+            await message.answer("Localização recebida para o rascunho. Volte ao editor para continuar.")
+
+    async def prompt_location(self, user_id: int) -> None:
+        await self.bot.send_message(
+            chat_id=user_id,
+            text=(
+                "O MDTXTRT está aguardando uma Location ou Venue para o rascunho. "
+                "Use o anexo de localização do Telegram e escolha o local desejado; não precisa ser sua localização atual."
+            ),
+        )
+
     async def on_startup(self) -> None:
+        me = await self.bot.get_me()
+        self.bot_username = me.username
         await self.bot.delete_webhook(drop_pending_updates=False)
         await self.bot.set_my_commands(
             [
