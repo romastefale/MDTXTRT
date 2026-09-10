@@ -16,7 +16,7 @@ from aiogram.types import BotCommand, InputRichMessage, MenuButtonWebApp, Messag
 
 from mdtxtrt.assets import AssetService
 from mdtxtrt.config import Settings
-from mdtxtrt.services import EncodingChoiceRequired, ImportService
+from mdtxtrt.services import EncodingChoiceRequired, ImportReviewRequired, ImportService
 
 
 def _with_query(url: str, **values: str) -> str:
@@ -86,7 +86,21 @@ class TelegramRuntime:
         await message.answer_rich(InputRichMessage(html=body))
 
     async def import_command(self, message: Message) -> None:
-        await message.answer("Envie um arquivo .md ou .txt. Ele será criado como rascunho separado da sua conta.")
+        await message.answer("Envie um arquivo .md ou .txt. Ele será criado como rascunho separado da sua conta após a revisão necessária.")
+
+    async def _pending_import_link(self, message: Message, pending_id: str, filename: str, reason: str) -> None:
+        if not self.settings.web_app_url:
+            await message.answer(reason + " O original foi preservado como importação pendente, mas WEB_APP_URL não está configurada.")
+            return
+        url = _with_pending_import(self.settings.web_app_url, pending_id)
+        body = (
+            f"<p><strong>{html.escape(filename)}</strong></p>"
+            f"<p>{html.escape(reason)} O original foi preservado e nenhum rascunho definitivo foi criado ainda.</p>"
+            '<tg-button-row align="center">'
+            f'<tg-button type="web_app" style="success" url="{_attr(url)}">Revisar importação</tg-button>'
+            '</tg-button-row>'
+        )
+        await message.answer_rich(InputRichMessage(html=body))
 
     async def document(self, message: Message) -> None:
         if not message.from_user or not message.document:
@@ -108,26 +122,44 @@ class TelegramRuntime:
             source_key=source_key,
         )
         try:
-            draft = self.imports.complete_pending(
+            review = self.imports.preview_pending(
                 user_id=user_id,
                 pending_import_id=pending.id,
             )
         except EncodingChoiceRequired as exc:
-            if not self.settings.web_app_url:
-                await message.answer(
-                    "O arquivo não é UTF-8. O original foi preservado como importação pendente, mas WEB_APP_URL precisa estar configurada para você escolher o encoding."
+            await self._pending_import_link(
+                message,
+                exc.pending_import_id or pending.id,
+                filename,
+                "O arquivo não é UTF-8; escolha o encoding explicitamente antes de importar.",
+            )
+            return
+
+        if review.get("status") == "completed" and review.get("draft_id"):
+            draft = self.imports.complete_pending(user_id=user_id, pending_import_id=pending.id)
+        elif review.get("requires_confirmation"):
+            await self._pending_import_link(
+                message,
+                pending.id,
+                filename,
+                "Parte do Markdown não pode ser convertida visualmente sem manter conteúdo cru; revise o resultado antes de criar o rascunho.",
+            )
+            return
+        else:
+            try:
+                draft = self.imports.complete_pending(
+                    user_id=user_id,
+                    pending_import_id=pending.id,
+                )
+            except ImportReviewRequired:
+                await self._pending_import_link(
+                    message,
+                    pending.id,
+                    filename,
+                    "A conversão passou a exigir revisão antes da conclusão; revise o resultado.",
                 )
                 return
-            url = _with_pending_import(self.settings.web_app_url, exc.pending_import_id or pending.id)
-            body = (
-                f"<p>O arquivo <strong>{html.escape(filename)}</strong> não é UTF-8. "
-                "O original foi preservado; escolha o encoding explicitamente no editor.</p>"
-                '<tg-button-row align="center">'
-                f'<tg-button type="web_app" style="success" url="{_attr(url)}">Escolher encoding</tg-button>'
-                '</tg-button-row>'
-            )
-            await message.answer_rich(InputRichMessage(html=body))
-            return
+
         if not self.settings.web_app_url:
             await message.answer(f"Rascunho importado: {draft['name']}")
             return
