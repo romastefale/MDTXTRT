@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import asyncio
 import html
+import logging
 from io import BytesIO
 from pathlib import Path
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
@@ -17,6 +18,8 @@ from aiogram.types import BotCommand, InputRichMessage, MenuButtonWebApp, Messag
 from mdtxtrt.assets import AssetService
 from mdtxtrt.config import Settings
 from mdtxtrt.services import EncodingChoiceRequired, ImportReviewRequired, ImportService
+
+log = logging.getLogger("mdtxtrt.bot")
 
 
 def _with_query(url: str, **values: str) -> str:
@@ -49,6 +52,9 @@ class TelegramRuntime:
         self.router = Router(name="mdtxtrt-rebuild")
         self._polling_task: asyncio.Task | None = None
         self.bot_username: str | None = None
+        self.telegram_ready = False
+        self.polling_ready = False
+        self.last_operational_error: str | None = None
         self._register_handlers()
         self.dispatcher.include_router(self.router)
 
@@ -209,33 +215,54 @@ class TelegramRuntime:
         )
 
     async def on_startup(self) -> None:
-        me = await self.bot.get_me()
-        self.bot_username = me.username
-        await self.bot.delete_webhook(drop_pending_updates=False)
-        await self.bot.set_my_commands(
-            [
-                BotCommand(command="start", description="Abrir MDTXTRT"),
-                BotCommand(command="import", description="Importar .md/.txt"),
-                BotCommand(command="help", description="Ajuda"),
-            ]
-        )
-        if self.settings.web_app_url:
-            await self.bot.set_chat_menu_button(
-                menu_button=MenuButtonWebApp(
-                    text="MDTXTRT",
-                    web_app=WebAppInfo(url=self.settings.web_app_url),
+        # Telegram availability must not prevent aiohttp from serving the editor.
+        self._polling_task = asyncio.create_task(self._connect_and_poll(), name="mdtxtrt-telegram-supervisor")
+
+    async def _connect_and_poll(self) -> None:
+        delay = 1.0
+        while True:
+            try:
+                me = await self.bot.get_me()
+                self.bot_username = me.username
+                await self.bot.delete_webhook(drop_pending_updates=False)
+                await self.bot.set_my_commands(
+                    [
+                        BotCommand(command="start", description="Abrir MDTXTRT"),
+                        BotCommand(command="import", description="Importar .md/.txt"),
+                        BotCommand(command="help", description="Ajuda"),
+                    ]
                 )
-            )
-        self._polling_task = asyncio.create_task(
-            self.dispatcher.start_polling(self.bot),
-            name="mdtxtrt-telegram-polling",
-        )
+                if self.settings.web_app_url:
+                    await self.bot.set_chat_menu_button(
+                        menu_button=MenuButtonWebApp(
+                            text="MDTXTRT", web_app=WebAppInfo(url=self.settings.web_app_url)
+                        )
+                    )
+                self.telegram_ready = True
+                self.polling_ready = True
+                self.last_operational_error = None
+                delay = 1.0
+                await self.dispatcher.start_polling(self.bot)
+                self.polling_ready = False
+                self.telegram_ready = False
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                self.telegram_ready = False
+                self.polling_ready = False
+                self.last_operational_error = type(exc).__name__
+                log.warning(
+                    "Telegram indisponível; nova tentativa em %.1fs (%s)",
+                    delay,
+                    type(exc).__name__,
+                )
+            await asyncio.sleep(delay)
+            delay = min(delay * 2, 60.0)
 
     async def on_cleanup(self) -> None:
         try:
             if self._polling_task is not None:
-                if not self._polling_task.done():
-                    await self.dispatcher.stop_polling()
-                await self._polling_task
+                self._polling_task.cancel()
+                await asyncio.gather(self._polling_task, return_exceptions=True)
         finally:
             await self.bot.session.close()

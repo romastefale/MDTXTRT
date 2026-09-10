@@ -29,6 +29,7 @@ class RepresentationPlan:
     blocking: list[str] = field(default_factory=list)
     content: str | None = None
     blocks: list[dict[str, Any]] | None = None
+    fingerprint_context: dict[str, Any] = field(default_factory=dict)
 
     @property
     def requires_confirmation(self) -> bool:
@@ -44,6 +45,7 @@ class RepresentationPlan:
             "blocks": self.blocks,
             "adaptations": self.adaptations,
             "blocking": self.blocking,
+            "context": self.fingerprint_context,
         }
         raw = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
         return hashlib.sha256(raw.encode("utf-8")).hexdigest()
@@ -59,6 +61,7 @@ class RepresentationPlan:
             "blocking": list(self.blocking),
             "requires_confirmation": self.requires_confirmation,
             "fingerprint": self.fingerprint,
+            "destination_context": dict(self.fingerprint_context),
         }
 
 
@@ -384,6 +387,7 @@ def plan_telegram_representations(
     *,
     html_review: ProjectionReview | None = None,
     preferred: str | None = None,
+    fingerprint_context: dict[str, Any] | None = None,
 ) -> TelegramRepresentationSet:
     html_result = html_review or telegram_projection(document)
     html_plan = RepresentationPlan(
@@ -413,6 +417,8 @@ def plan_telegram_representations(
 
     blocks_plan = _blocks_plan(document)
     options = {"markdown": markdown_plan, "html": html_plan, "blocks": blocks_plan}
+    for option in options.values():
+        option.fingerprint_context = dict(fingerprint_context or {})
 
     preferred_key = str(preferred or "").strip().lower()
     if preferred_key in options and options[preferred_key].available:
