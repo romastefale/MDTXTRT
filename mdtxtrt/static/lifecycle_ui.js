@@ -15,8 +15,44 @@ async function api(path, options = {}) {
   return data;
 }
 
+async function authenticatedDownload(path, filename) {
+  const response = await fetch(path, {headers:{"X-Telegram-Init-Data":initData}});
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const blob = await response.blob();
+  const href = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = href;
+  anchor.download = filename || "arquivo";
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  setTimeout(() => URL.revokeObjectURL(href), 1000);
+}
+
 function archivedView() {
   return $("#toggle-archived")?.textContent?.trim() === "Ver ativos";
+}
+
+async function downloadDraftOriginal(draft) {
+  const result = await api(`/api/drafts/${draft.id}/imports`);
+  const imports = result.imports || [];
+  if (!imports.length) {
+    alert("Este rascunho não possui arquivo original importado.");
+    return;
+  }
+  let chosen = imports[0];
+  if (imports.length > 1) {
+    const menu = imports.map((item, index) => `${index + 1}. ${item.filename} — ${item.encoding} — ${item.size} bytes`).join("\n");
+    const answer = prompt(`Escolha o arquivo original:\n\n${menu}`, "1");
+    if (answer === null) return;
+    const index = Number(answer) - 1;
+    if (!Number.isInteger(index) || !imports[index]) {
+      alert("Seleção inválida.");
+      return;
+    }
+    chosen = imports[index];
+  }
+  await authenticatedDownload(`/api/imports/${chosen.id}/original`, chosen.filename);
 }
 
 let enhancingDrafts = false;
@@ -36,6 +72,18 @@ async function enhanceDraftRows() {
       row.dataset.draftId = draft.id;
       const actions = row.querySelector(".list-actions");
       if (!actions) return;
+
+      const original = document.createElement("button");
+      original.type = "button";
+      original.textContent = "Original";
+      original.addEventListener("click", async () => {
+        try {
+          await downloadDraftOriginal(draft);
+        } catch (error) {
+          alert(`Falha ao baixar original: ${error.message}`);
+        }
+      });
+
       const duplicate = document.createElement("button");
       duplicate.type = "button";
       duplicate.textContent = "Duplicar";
@@ -51,10 +99,10 @@ async function enhanceDraftRows() {
           alert(`Falha ao duplicar: ${error.message}`);
         }
       });
-      actions.append(duplicate);
+      actions.append(original, duplicate);
     });
   } catch (_) {
-    // The primary editor remains usable; the explicit action surfaces failures.
+    // Primary editor remains usable; explicit lifecycle actions surface failures.
   } finally {
     enhancingDrafts = false;
   }
