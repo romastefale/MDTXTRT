@@ -7,6 +7,7 @@ from mdtxtrt.assets import AssetService
 from mdtxtrt.bot import TelegramRuntime
 from mdtxtrt.config import Settings
 from mdtxtrt.credentials import CredentialCipher
+from mdtxtrt.lifecycle import attach_lifecycle_routes
 from mdtxtrt.pending_imports import PendingImportStore
 from mdtxtrt.publishing import TelegramPublicationService, TelegraphPublicationService
 from mdtxtrt.server import create_web_app
@@ -34,7 +35,7 @@ def build_application(settings: Settings | None = None) -> web.Application:
         )
     telegram_runtime = TelegramRuntime(resolved, imports, assets)
 
-    return create_web_app(
+    app = create_web_app(
         resolved,
         documents,
         imports,
@@ -44,6 +45,8 @@ def build_application(settings: Settings | None = None) -> web.Application:
         telegraph_publications,
         telegram_runtime,
     )
+    attach_lifecycle_routes(app)
+    return app
 
 
 if __name__ == "__main__":
