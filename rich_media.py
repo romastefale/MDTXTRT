@@ -132,7 +132,7 @@ def install(base_module) -> None:
             raise ValueError(
                 "O documento contém referência tg:// de mídia sem arquivo associado."
             )
-        if rich_explicit.contains_semantic_entities(markdown):
+        if rich_explicit.requires_explicit_blocks(markdown):
             blocks = rich_explicit.compile_semantic_blocks(
                 markdown,
                 {item.id: item.media for item in media},
