@@ -55,6 +55,14 @@ class ToolbarUiTests(unittest.TestCase):
         self.assertIn('.toolbar .tool[aria-pressed="true"]', index)
         self.assertIn("['select','keyup','mouseup','touchend','input','focus','click']", index)
 
+    def test_view_tabs_expose_state_and_extra_narrow_toolbar_stays_compact(self):
+        index = runtime_v2.render_index()
+        self.assertIn('role="tablist"', index)
+        self.assertIn('role="tab" aria-selected="true" data-view="edit"', index)
+        self.assertIn('role="tab" aria-selected="false" data-view="preview"', index)
+        self.assertIn("b.setAttribute('aria-selected',active?'true':'false')", index)
+        self.assertIn('@media(max-width:380px){.toolbar{gap:1px;padding-inline:3px}', index)
+
     def test_family_menus_repeat_icon_title_and_icon_each_option(self):
         index = runtime_v2.render_index()
         self.assertIn('menu-title-icon', index)
