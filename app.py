@@ -8,6 +8,8 @@ from mdtxtrt.bot import TelegramRuntime
 from mdtxtrt.config import Settings
 from mdtxtrt.conversion_workflow import attach_conversion_routes
 from mdtxtrt.credentials import CredentialCipher
+from mdtxtrt.import_finalizer import ImportFinalizer
+from mdtxtrt.import_workflow import attach_import_workflow_routes
 from mdtxtrt.lifecycle import attach_lifecycle_routes
 from mdtxtrt.pending_imports import PendingImportStore
 from mdtxtrt.preferences import PreferenceStore, attach_preference_routes
@@ -29,7 +31,8 @@ def build_application(settings: Settings | None = None) -> web.Application:
     preferences = PreferenceStore(repository)
     preferences.initialize()
     documents = DocumentService(repository)
-    imports = ImportService(repository, documents, pending_imports)
+    import_finalizer = ImportFinalizer(repository)
+    imports = ImportService(repository, documents, pending_imports, import_finalizer)
     telegram_publications = TelegramPublicationService(repository, assets)
     telegraph_publications = None
     if resolved.telegraph_key:
@@ -52,6 +55,7 @@ def build_application(settings: Settings | None = None) -> web.Application:
     attach_lifecycle_routes(app)
     attach_conversion_routes(app)
     attach_preference_routes(app, preferences)
+    attach_import_workflow_routes(app)
     return app
 
 
