@@ -4,11 +4,13 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit, urlunsplit
 
 from aiohttp import web
 from aiogram.exceptions import TelegramAPIError
 from telegraph.exceptions import TelegraphException
 
+from mdtxtrt.assets import AssetService
 from mdtxtrt.auth import AuthError, validate_init_data
 from mdtxtrt.bot import TelegramRuntime
 from mdtxtrt.config import Settings
@@ -35,6 +37,14 @@ def _identity(request: web.Request):
 
 def _error(code: str, *, status: int = 400, **extra: Any) -> web.Response:
     return web.json_response({"ok": False, "error": code, **extra}, status=status)
+
+
+def _public_origin(settings: Settings) -> str:
+    raw = (settings.web_app_url or "").strip()
+    parts = urlsplit(raw)
+    if parts.scheme not in {"http", "https"} or not parts.netloc:
+        raise RuntimeError("WEB_APP_URL must be configured before creating public media links")
+    return urlunsplit((parts.scheme, parts.netloc, "", "", ""))
 
 
 @web.middleware
@@ -81,6 +91,8 @@ async def health(request: web.Request) -> web.Response:
             "canonical_document": True,
             "telegraph_per_user": True,
             "telegraph_key_configured": bool(settings.telegraph_key),
+            "local_media": True,
+            "native_location": True,
             "legacy_runtime_loaded": False,
         }
     )
@@ -183,6 +195,94 @@ async def import_file(request: web.Request) -> web.Response:
     return web.json_response({"ok": True, "draft": draft}, status=201)
 
 
+async def upload_media(request: web.Request) -> web.Response:
+    identity = _identity(request)
+    reader = await request.multipart()
+    draft_id: str | None = None
+    filename = "arquivo"
+    mime_type: str | None = None
+    data: bytes | None = None
+    while True:
+        part = await reader.next()
+        if part is None:
+            break
+        if part.name == "draft_id":
+            draft_id = (await part.text()).strip()
+        elif part.name == "file":
+            filename = part.filename or "arquivo"
+            mime_type = part.headers.get("Content-Type")
+            data = await part.read(decode=False)
+    if not draft_id:
+        raise ValueError("missing_draft_id")
+    if data is None:
+        raise ValueError("missing_file")
+    assets: AssetService = request.app["assets"]
+    media = assets.store_media(
+        user_id=identity.user_id,
+        draft_id=draft_id,
+        filename=filename,
+        mime_type=mime_type,
+        data=data,
+    )
+    return web.json_response({"ok": True, "media": media}, status=201)
+
+
+async def create_public_media_link(request: web.Request) -> web.Response:
+    identity = _identity(request)
+    assets: AssetService = request.app["assets"]
+    settings: Settings = request.app["settings"]
+    link = assets.create_public_link(
+        user_id=identity.user_id,
+        media_id=request.match_info["media_id"],
+        public_base_url=_public_origin(settings),
+    )
+    return web.json_response({"ok": True, "public": link}, status=201)
+
+
+async def revoke_public_media_links(request: web.Request) -> web.Response:
+    identity = _identity(request)
+    assets: AssetService = request.app["assets"]
+    assets.revoke_public_links(user_id=identity.user_id, media_id=request.match_info["media_id"])
+    return web.json_response({"ok": True})
+
+
+async def public_media(request: web.Request) -> web.Response:
+    assets: AssetService = request.app["assets"]
+    blob = assets.get_public_media(request.match_info["token"])
+    return web.Response(
+        body=blob.data,
+        content_type=blob.mime_type,
+        headers={
+            "Cache-Control": "private, no-store",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
+
+
+async def create_location_request(request: web.Request) -> web.Response:
+    identity = _identity(request)
+    payload = await request.json()
+    draft_id = str(payload.get("draft_id") or "").strip()
+    if not draft_id:
+        raise ValueError("missing_draft_id")
+    assets: AssetService = request.app["assets"]
+    runtime: TelegramRuntime = request.app["telegram_runtime"]
+    location_request = assets.create_location_request(user_id=identity.user_id, draft_id=draft_id)
+    await runtime.prompt_location(identity.user_id)
+    bot_url = f"https://t.me/{runtime.bot_username}" if runtime.bot_username else None
+    return web.json_response({"ok": True, "request": location_request, "bot_url": bot_url}, status=201)
+
+
+async def get_location_request(request: web.Request) -> web.Response:
+    identity = _identity(request)
+    assets: AssetService = request.app["assets"]
+    location_request = assets.get_location_request(
+        user_id=identity.user_id,
+        request_id=request.match_info["request_id"],
+    )
+    return web.json_response({"ok": True, "request": location_request})
+
+
 async def list_publications(request: web.Request) -> web.Response:
     identity = _identity(request)
     repository = request.app["repository"]
@@ -271,6 +371,7 @@ def create_web_app(
     documents: DocumentService,
     imports: ImportService,
     repository,
+    assets: AssetService,
     telegram_publications: TelegramPublicationService,
     telegraph_publications: TelegraphPublicationService | None,
     telegram_runtime: TelegramRuntime,
@@ -280,6 +381,7 @@ def create_web_app(
     app["documents"] = documents
     app["imports"] = imports
     app["repository"] = repository
+    app["assets"] = assets
     app["telegram_publications"] = telegram_publications
     app["telegraph_publications"] = telegraph_publications
     app["telegram_runtime"] = telegram_runtime
@@ -287,6 +389,7 @@ def create_web_app(
     app.router.add_get("/", index)
     app.router.add_get("/health", health)
     app.router.add_static("/static/", STATIC_DIR, show_index=False)
+    app.router.add_get("/public/media/{token}", public_media)
     app.router.add_get("/api/drafts", list_drafts)
     app.router.add_post("/api/drafts", create_draft)
     app.router.add_get("/api/drafts/{draft_id}", get_draft)
@@ -296,6 +399,11 @@ def create_web_app(
     app.router.add_post("/api/drafts/{draft_id}/redo", redo)
     app.router.add_put("/api/drafts/{draft_id}/session", save_session)
     app.router.add_post("/api/import", import_file)
+    app.router.add_post("/api/media", upload_media)
+    app.router.add_post("/api/media/{media_id}/public", create_public_media_link)
+    app.router.add_delete("/api/media/{media_id}/public", revoke_public_media_links)
+    app.router.add_post("/api/location-requests", create_location_request)
+    app.router.add_get("/api/location-requests/{request_id}", get_location_request)
     app.router.add_get("/api/publications", list_publications)
     app.router.add_post("/api/publish/telegram/preview", telegram_preview)
     app.router.add_post("/api/publish/telegram", telegram_publish)
