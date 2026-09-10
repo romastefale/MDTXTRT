@@ -1,9 +1,44 @@
-"""Active MDTXTRT entrypoint with explicit runtime composition."""
+"""Production entrypoint for the MDTXTRT ground-up architecture."""
+from __future__ import annotations
+
 from aiohttp import web
 
-from main import PORT
-from runtime_composition import build_web_app
+from mdtxtrt.bot import TelegramRuntime
+from mdtxtrt.config import Settings
+from mdtxtrt.credentials import CredentialCipher
+from mdtxtrt.publishing import TelegramPublicationService, TelegraphPublicationService
+from mdtxtrt.server import create_web_app
+from mdtxtrt.services import DocumentService, ImportService
+from mdtxtrt.storage import SQLiteRepository
+
+
+def build_application(settings: Settings | None = None) -> web.Application:
+    resolved = settings or Settings.from_env()
+    repository = SQLiteRepository(resolved.database_path)
+    repository.initialize()
+
+    documents = DocumentService(repository)
+    imports = ImportService(repository, documents)
+    telegram_publications = TelegramPublicationService(repository)
+    telegraph_publications = None
+    if resolved.telegraph_key:
+        telegraph_publications = TelegraphPublicationService(
+            repository,
+            CredentialCipher(resolved.telegraph_key_bytes()),
+        )
+    telegram_runtime = TelegramRuntime(resolved, imports)
+
+    return create_web_app(
+        resolved,
+        documents,
+        imports,
+        repository,
+        telegram_publications,
+        telegraph_publications,
+        telegram_runtime,
+    )
 
 
 if __name__ == "__main__":
-    web.run_app(build_web_app(), host="0.0.0.0", port=PORT)
+    settings = Settings.from_env()
+    web.run_app(build_application(settings), host=settings.host, port=settings.port)

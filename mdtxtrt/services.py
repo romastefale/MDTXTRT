@@ -1,4 +1,4 @@
-"""Application services for documents and loss-aware imports."""
+"""Application services for user-owned documents and loss-aware imports."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -23,14 +23,13 @@ class DocumentService:
         self.repository = repository
 
     def create(self, *, user_id: int, name: str = "Novo rascunho") -> dict[str, Any]:
-        return self.repository.create_draft(
-            user_id=user_id,
-            name=name,
-            document=CanonicalDocument.empty(),
-        )
+        return self.repository.create_draft(user_id=user_id, name=name, document=CanonicalDocument.empty())
 
     def create_with_document(self, *, user_id: int, name: str, document: CanonicalDocument, reason: str) -> dict[str, Any]:
         return self.repository.create_draft(user_id=user_id, name=name, document=document, reason=reason)
+
+    def list(self, *, user_id: int, archived: bool = False) -> list[dict[str, Any]]:
+        return self.repository.list_drafts(user_id=user_id, archived=archived)
 
     def get(self, *, user_id: int, draft_id: str) -> dict[str, Any]:
         result = self.repository.get_draft(draft_id, user_id=user_id)
@@ -39,13 +38,20 @@ class DocumentService:
         return result
 
     def commit(self, *, user_id: int, draft_id: str, canonical: dict[str, Any], reason: str = "edit") -> dict[str, Any]:
-        document = CanonicalDocument.from_dict(canonical)
         self.repository.commit_revision(
             draft_id=draft_id,
             user_id=user_id,
-            document=document,
+            document=CanonicalDocument.from_dict(canonical),
             reason=reason,
         )
+        return self.get(user_id=user_id, draft_id=draft_id)
+
+    def rename(self, *, user_id: int, draft_id: str, name: str) -> dict[str, Any]:
+        self.repository.rename_draft(draft_id=draft_id, user_id=user_id, name=name)
+        return self.get(user_id=user_id, draft_id=draft_id)
+
+    def archive(self, *, user_id: int, draft_id: str, archived: bool) -> dict[str, Any]:
+        self.repository.set_archived(draft_id=draft_id, user_id=user_id, archived=archived)
         return self.get(user_id=user_id, draft_id=draft_id)
 
     def undo(self, *, user_id: int, draft_id: str) -> dict[str, Any]:
@@ -68,7 +74,10 @@ class ImportService:
     @staticmethod
     def _decode(filename: str, data: bytes, encoding: str | None) -> tuple[str, str]:
         if encoding:
-            return data.decode(encoding), encoding
+            try:
+                return data.decode(encoding), encoding
+            except LookupError as exc:
+                raise ValueError("unknown_encoding") from exc
         if data.startswith(b"\xef\xbb\xbf"):
             return data.decode("utf-8-sig"), "utf-8-sig"
         try:
@@ -77,26 +86,15 @@ class ImportService:
             raise EncodingChoiceRequired(filename) from exc
 
     def import_file(
-        self,
-        *,
-        user_id: int,
-        filename: str,
-        data: bytes,
-        mime_type: str | None = None,
-        encoding: str | None = None,
+        self, *, user_id: int, filename: str, data: bytes,
+        mime_type: str | None = None, encoding: str | None = None,
     ) -> dict[str, Any]:
         suffix = Path(filename).suffix.lower()
         if suffix not in {".md", ".txt"}:
             raise ValueError("unsupported_import_format")
-
         text, used_encoding = self._decode(filename, data, encoding)
-        if suffix == ".md":
-            document = from_markdown(text)
-            format_name = "markdown"
-        else:
-            document = from_text(text)
-            format_name = "text"
-
+        document = from_markdown(text) if suffix == ".md" else from_text(text)
+        format_name = "markdown" if suffix == ".md" else "text"
         title = next(
             ((block.text or "").strip()[:40] for block in document.blocks if (block.text or "").strip()),
             filename,
