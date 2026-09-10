@@ -20,7 +20,12 @@ from mdtxtrt.publishing import (
     TelegramPublicationService,
     TelegraphPublicationService,
 )
-from mdtxtrt.services import DocumentService, EncodingChoiceRequired, ImportService
+from mdtxtrt.services import (
+    DocumentService,
+    EncodingChoiceRequired,
+    ImportReviewRequired,
+    ImportService,
+)
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 log = logging.getLogger("mdtxtrt.server")
@@ -62,6 +67,13 @@ async def error_boundary(request: web.Request, handler):
             filename=exc.filename,
             pending_import_id=exc.pending_import_id,
         )
+    except ImportReviewRequired as exc:
+        return _error(
+            "import_review_required",
+            status=409,
+            pending_import_id=exc.pending_import_id,
+            review=exc.review,
+        )
     except ProjectionConfirmationRequired as exc:
         return _error("projection_confirmation_required", status=409, review=exc.review.public())
     except ProjectionRejected as exc:
@@ -99,6 +111,7 @@ async def health(request: web.Request) -> web.Response:
             "local_media": True,
             "native_location": True,
             "persistent_pending_imports": True,
+            "telegram_representations": ["markdown", "html", "blocks"],
             "legacy_runtime_loaded": False,
         }
     )
@@ -178,6 +191,7 @@ async def save_session(request: web.Request) -> web.Response:
 
 
 async def import_file(request: web.Request) -> web.Response:
+    """Compatibility endpoint. It still obeys staged review and never bypasses it."""
     identity = _identity(request)
     reader = await request.multipart()
     file_part = await reader.next()
@@ -197,6 +211,7 @@ async def import_file(request: web.Request) -> web.Response:
         data=data,
         mime_type=mime_type,
         encoding=encoding,
+        confirm_partial=False,
     )
     return web.json_response({"ok": True, "draft": draft}, status=201)
 
@@ -212,6 +227,7 @@ async def get_pending_import(request: web.Request) -> web.Response:
 
 
 async def complete_pending_import(request: web.Request) -> web.Response:
+    """Compatibility endpoint; partial conversions require explicit confirm_partial."""
     identity = _identity(request)
     payload = await request.json() if request.can_read_body else {}
     service: ImportService = request.app["imports"]
@@ -219,6 +235,7 @@ async def complete_pending_import(request: web.Request) -> web.Response:
         user_id=identity.user_id,
         pending_import_id=request.match_info["pending_import_id"],
         encoding=(str(payload.get("encoding") or "").strip() or None),
+        confirm_partial=payload.get("confirm_partial") is True,
     )
     return web.json_response({"ok": True, "draft": draft}, status=201)
 
@@ -280,10 +297,7 @@ async def public_media(request: web.Request) -> web.Response:
     return web.Response(
         body=blob.data,
         content_type=blob.mime_type,
-        headers={
-            "Cache-Control": "private, no-store",
-            "X-Content-Type-Options": "nosniff",
-        },
+        headers={"Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff"},
     )
 
 
@@ -321,8 +335,14 @@ async def telegram_preview(request: web.Request) -> web.Response:
     identity = _identity(request)
     payload = await request.json()
     service: TelegramPublicationService = request.app["telegram_publications"]
-    revision_id, review = service.preview(user_id=identity.user_id, draft_id=str(payload["draft_id"]))
-    return web.json_response({"ok": True, "revision_id": revision_id, "review": review.public()})
+    revision_id, representations = service.preview(
+        user_id=identity.user_id,
+        draft_id=str(payload["draft_id"]),
+        document_override=payload.get("document_override"),
+    )
+    return web.json_response(
+        {"ok": True, "revision_id": revision_id, "representations": representations.public()}
+    )
 
 
 async def telegram_publish(request: web.Request) -> web.Response:
@@ -337,6 +357,8 @@ async def telegram_publish(request: web.Request) -> web.Response:
         destination_chat_id=payload.get("destination_chat_id", identity.user_id),
         title=str(payload.get("title") or "Publicação Telegram"),
         confirmed_fingerprint=payload.get("confirmed_fingerprint"),
+        representation=payload.get("representation"),
+        document_override=payload.get("document_override"),
     )
     return web.json_response({"ok": True, "publication": publication}, status=201)
 
@@ -352,8 +374,28 @@ async def telegram_edit(request: web.Request) -> web.Response:
         publication_id=request.match_info["publication_id"],
         title=str(payload.get("title") or ""),
         confirmed_fingerprint=payload.get("confirmed_fingerprint"),
+        representation=payload.get("representation"),
+        document_override=payload.get("document_override"),
     )
     return web.json_response({"ok": True, "publication": publication})
+
+
+async def telegram_republish(request: web.Request) -> web.Response:
+    identity = _identity(request)
+    payload = await request.json()
+    service: TelegramPublicationService = request.app["telegram_publications"]
+    runtime: TelegramRuntime = request.app["telegram_runtime"]
+    publication = await service.republish(
+        bot=runtime.bot,
+        user_id=identity.user_id,
+        publication_id=request.match_info["publication_id"],
+        title=(str(payload.get("title") or "").strip() or None),
+        destination_chat_id=payload.get("destination_chat_id"),
+        confirmed_fingerprint=payload.get("confirmed_fingerprint"),
+        representation=payload.get("representation"),
+        document_override=payload.get("document_override"),
+    )
+    return web.json_response({"ok": True, "publication": publication}, status=201)
 
 
 def _telegraph_service(request: web.Request) -> TelegraphPublicationService:
@@ -366,7 +408,11 @@ def _telegraph_service(request: web.Request) -> TelegraphPublicationService:
 async def telegraph_preview(request: web.Request) -> web.Response:
     identity = _identity(request)
     payload = await request.json()
-    revision_id, review = _telegraph_service(request).preview(user_id=identity.user_id, draft_id=str(payload["draft_id"]))
+    revision_id, review = _telegraph_service(request).preview(
+        user_id=identity.user_id,
+        draft_id=str(payload["draft_id"]),
+        document_override=payload.get("document_override"),
+    )
     return web.json_response({"ok": True, "revision_id": revision_id, "review": review.public()})
 
 
@@ -378,6 +424,7 @@ async def telegraph_publish(request: web.Request) -> web.Response:
         draft_id=str(payload["draft_id"]),
         title=str(payload.get("title") or "Sem título"),
         confirmed_fingerprint=payload.get("confirmed_fingerprint"),
+        document_override=payload.get("document_override"),
     )
     return web.json_response({"ok": True, "publication": publication}, status=201)
 
@@ -390,6 +437,7 @@ async def telegraph_edit(request: web.Request) -> web.Response:
         publication_id=request.match_info["publication_id"],
         title=str(payload.get("title") or ""),
         confirmed_fingerprint=payload.get("confirmed_fingerprint"),
+        document_override=payload.get("document_override"),
     )
     return web.json_response({"ok": True, "publication": publication})
 
@@ -438,6 +486,7 @@ def create_web_app(
     app.router.add_post("/api/publish/telegram/preview", telegram_preview)
     app.router.add_post("/api/publish/telegram", telegram_publish)
     app.router.add_put("/api/publications/{publication_id}/telegram", telegram_edit)
+    app.router.add_post("/api/publications/{publication_id}/telegram/republish", telegram_republish)
     app.router.add_post("/api/publish/telegraph/preview", telegraph_preview)
     app.router.add_post("/api/publish/telegraph", telegraph_publish)
     app.router.add_put("/api/publications/{publication_id}/telegraph", telegraph_edit)
