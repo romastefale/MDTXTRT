@@ -103,7 +103,7 @@ async def health(request: web.Request) -> web.Response:
     return web.json_response(
         {
             "ok": True,
-            "runtime": "mdtxtrt-rebuild-v5",
+            "runtime": "mdtxtrt-rebuild-v7-static-hardening",
             "telegram_bot_api": "10.3",
             "canonical_document": True,
             "telegraph_per_user": True,
@@ -112,6 +112,8 @@ async def health(request: web.Request) -> web.Response:
             "native_location": True,
             "persistent_pending_imports": True,
             "telegram_representations": ["markdown", "html", "blocks"],
+            "positional_output_override": True,
+            "semantic_recovery_review": True,
             "legacy_runtime_loaded": False,
         }
     )
