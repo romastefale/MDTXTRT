@@ -56,7 +56,12 @@ async def error_boundary(request: web.Request, handler):
     except KeyError as exc:
         return _error(str(exc).strip("'"), status=404)
     except EncodingChoiceRequired as exc:
-        return _error("encoding_choice_required", status=409, filename=exc.filename)
+        return _error(
+            "encoding_choice_required",
+            status=409,
+            filename=exc.filename,
+            pending_import_id=exc.pending_import_id,
+        )
     except ProjectionConfirmationRequired as exc:
         return _error("projection_confirmation_required", status=409, review=exc.review.public())
     except ProjectionRejected as exc:
@@ -93,6 +98,7 @@ async def health(request: web.Request) -> web.Response:
             "telegraph_key_configured": bool(settings.telegraph_key),
             "local_media": True,
             "native_location": True,
+            "persistent_pending_imports": True,
             "legacy_runtime_loaded": False,
         }
     )
@@ -191,6 +197,28 @@ async def import_file(request: web.Request) -> web.Response:
         data=data,
         mime_type=mime_type,
         encoding=encoding,
+    )
+    return web.json_response({"ok": True, "draft": draft}, status=201)
+
+
+async def get_pending_import(request: web.Request) -> web.Response:
+    identity = _identity(request)
+    service: ImportService = request.app["imports"]
+    pending = service.get_pending(
+        user_id=identity.user_id,
+        pending_import_id=request.match_info["pending_import_id"],
+    )
+    return web.json_response({"ok": True, "pending_import": pending})
+
+
+async def complete_pending_import(request: web.Request) -> web.Response:
+    identity = _identity(request)
+    payload = await request.json() if request.can_read_body else {}
+    service: ImportService = request.app["imports"]
+    draft = service.complete_pending(
+        user_id=identity.user_id,
+        pending_import_id=request.match_info["pending_import_id"],
+        encoding=(str(payload.get("encoding") or "").strip() or None),
     )
     return web.json_response({"ok": True, "draft": draft}, status=201)
 
@@ -399,6 +427,8 @@ def create_web_app(
     app.router.add_post("/api/drafts/{draft_id}/redo", redo)
     app.router.add_put("/api/drafts/{draft_id}/session", save_session)
     app.router.add_post("/api/import", import_file)
+    app.router.add_get("/api/imports/pending/{pending_import_id}", get_pending_import)
+    app.router.add_post("/api/imports/pending/{pending_import_id}/complete", complete_pending_import)
     app.router.add_post("/api/media", upload_media)
     app.router.add_post("/api/media/{media_id}/public", create_public_media_link)
     app.router.add_delete("/api/media/{media_id}/public", revoke_public_media_links)
