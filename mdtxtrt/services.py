@@ -183,36 +183,56 @@ class ImportService:
             draft = self.documents.get(user_id=user_id, draft_id=pending.draft_id)
             draft["pending_import_id"] = pending.id
             return draft
+
         try:
             text, used_encoding = self._decode(pending.filename, pending.data, encoding)
         except EncodingChoiceRequired as exc:
             raise EncodingChoiceRequired(exc.filename, pending.id) from exc
-        suffix = Path(pending.filename).suffix.lower()
-        document = from_markdown(text) if suffix == ".md" else from_text(text)
-        format_name = "markdown" if suffix == ".md" else "text"
-        title = _content_title(document, pending.filename)
-        draft = self.documents.create_with_document(
-            user_id=user_id,
-            name=title,
-            document=document,
-            reason=f"import:{format_name}",
-        )
-        draft["import_id"] = self.repository.store_import(
-            user_id=user_id,
-            draft_id=draft["id"],
-            filename=pending.filename,
-            mime_type=pending.mime_type,
-            encoding=used_encoding,
-            original_bytes=pending.data,
-        )
-        completed = self.pending.mark_completed(
-            user_id=user_id,
-            pending_import_id=pending.id,
-            draft_id=draft["id"],
-        )
-        draft["pending_import_id"] = completed.id
-        draft["import_encoding"] = used_encoding
-        return draft
+
+        claim_token = self.pending.claim_completion(user_id=user_id, pending_import_id=pending.id)
+        if claim_token is None:
+            completed = self.pending.get(user_id=user_id, pending_import_id=pending.id)
+            if completed.draft_id:
+                draft = self.documents.get(user_id=user_id, draft_id=completed.draft_id)
+                draft["pending_import_id"] = completed.id
+                return draft
+            raise RuntimeError("pending_import_completed_without_draft")
+
+        try:
+            suffix = Path(pending.filename).suffix.lower()
+            document = from_markdown(text) if suffix == ".md" else from_text(text)
+            format_name = "markdown" if suffix == ".md" else "text"
+            title = _content_title(document, pending.filename)
+            draft = self.documents.create_with_document(
+                user_id=user_id,
+                name=title,
+                document=document,
+                reason=f"import:{format_name}",
+            )
+            draft["import_id"] = self.repository.store_import(
+                user_id=user_id,
+                draft_id=draft["id"],
+                filename=pending.filename,
+                mime_type=pending.mime_type,
+                encoding=used_encoding,
+                original_bytes=pending.data,
+            )
+            completed = self.pending.mark_completed(
+                user_id=user_id,
+                pending_import_id=pending.id,
+                draft_id=draft["id"],
+                claim_token=claim_token,
+            )
+            draft["pending_import_id"] = completed.id
+            draft["import_encoding"] = used_encoding
+            return draft
+        except Exception:
+            self.pending.release_claim(
+                user_id=user_id,
+                pending_import_id=pending.id,
+                claim_token=claim_token,
+            )
+            raise
 
     def import_file(
         self, *, user_id: int, filename: str, data: bytes,
