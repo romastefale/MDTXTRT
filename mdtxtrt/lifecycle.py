@@ -3,13 +3,13 @@ from __future__ import annotations
 
 from typing import Any
 from urllib.parse import quote
+from uuid import uuid4
 
 from aiohttp import web
 
 from mdtxtrt.assets import AssetService
 from mdtxtrt.auth import validate_init_data
 from mdtxtrt.config import Settings
-from mdtxtrt.domain import CanonicalDocument
 from mdtxtrt.services import DocumentService
 from mdtxtrt.storage import SQLiteRepository
 
@@ -44,8 +44,6 @@ def _remap_media(value: Any, mapping: dict[str, str]) -> Any:
         old_id = str(attrs.get("media_blob_id") or "")
         if old_id and old_id in mapping:
             attrs["media_blob_id"] = mapping[old_id]
-            # Public links are opt-in and belong to the original BLOB. A copy
-            # starts private and requires its own explicit public-link action.
             attrs.pop("src", None)
     return out
 
@@ -83,6 +81,7 @@ async def duplicate_draft(request: web.Request) -> web.Response:
             target_draft_id=target["id"],
         )
         remapped = _remap_media(source["document"], mapping)
+        remapped["id"] = str(uuid4())
         target = documents.commit(
             user_id=identity.user_id,
             draft_id=target["id"],
