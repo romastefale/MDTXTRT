@@ -77,11 +77,8 @@ async function enhanceDraftRows() {
       original.type = "button";
       original.textContent = "Original";
       original.addEventListener("click", async () => {
-        try {
-          await downloadDraftOriginal(draft);
-        } catch (error) {
-          alert(`Falha ao baixar original: ${error.message}`);
-        }
+        try { await downloadDraftOriginal(draft); }
+        catch (error) { alert(`Falha ao baixar original: ${error.message}`); }
       });
 
       const duplicate = document.createElement("button");
@@ -91,21 +88,16 @@ async function enhanceDraftRows() {
         if (!confirm(`Duplicar “${draft.name}” como rascunho independente?`)) return;
         try {
           const created = await api(`/api/drafts/${draft.id}/duplicate`, {method:"POST", body:{confirm:true}});
-          const target = created.draft.id;
           const url = new URL(location.href);
-          url.searchParams.set("draft", target);
+          url.searchParams.set("draft", created.draft.id);
           location.assign(url.toString());
-        } catch (error) {
-          alert(`Falha ao duplicar: ${error.message}`);
-        }
+        } catch (error) { alert(`Falha ao duplicar: ${error.message}`); }
       });
       actions.append(original, duplicate);
     });
   } catch (_) {
     // Primary editor remains usable; explicit lifecycle actions surface failures.
-  } finally {
-    enhancingDrafts = false;
-  }
+  } finally { enhancingDrafts = false; }
 }
 
 const draftObserver = new MutationObserver(() => queueMicrotask(enhanceDraftRows));
@@ -159,63 +151,35 @@ async function chooseMediaVersion(card) {
   const current = mediaCardNode(card);
   if (!current) return;
   let history;
-  try {
-    history = (await api(`/api/media/${current.attrs.media_blob_id}/history`)).history || [];
-  } catch (error) {
-    alert(`Falha ao carregar versões: ${error.message}`);
-    return;
-  }
-  if (!history.length) {
-    alert("Esta mídia ainda não possui versão anterior.");
-    return;
-  }
+  try { history = (await api(`/api/media/${current.attrs.media_blob_id}/history`)).history || []; }
+  catch (error) { alert(`Falha ao carregar versões: ${error.message}`); return; }
+  if (!history.length) { alert("Esta mídia ainda não possui versão anterior."); return; }
 
   const dialog = document.createElement("dialog");
   dialog.style.width = "min(680px, calc(100% - 24px))";
-  const head = document.createElement("div");
-  head.className = "dialog-head";
-  const title = document.createElement("h2");
-  title.textContent = "Versões anteriores da mídia";
-  const close = document.createElement("button");
-  close.type = "button";
-  close.textContent = "Fechar";
-  close.onclick = () => dialog.close();
+  const head = document.createElement("div"); head.className = "dialog-head";
+  const title = document.createElement("h2"); title.textContent = "Versões anteriores da mídia";
+  const close = document.createElement("button"); close.type = "button"; close.textContent = "Fechar"; close.onclick = () => dialog.close();
   head.append(title, close);
-  const body = document.createElement("div");
-  body.className = "dialog-body";
+  const body = document.createElement("div"); body.className = "dialog-body";
   history.forEach((version, index) => {
-    const row = document.createElement("div");
-    row.className = "list-row";
-    const name = document.createElement("strong");
-    name.textContent = `${index + 1}. ${version.filename}`;
-    const meta = document.createElement("small");
-    meta.textContent = `${version.size} bytes · SHA-256 ${version.sha256}`;
-    const actions = document.createElement("div");
-    actions.className = "list-actions";
-    const restore = document.createElement("button");
-    restore.type = "button";
-    restore.textContent = "Restaurar";
+    const row = document.createElement("div"); row.className = "list-row";
+    const name = document.createElement("strong"); name.textContent = `${index + 1}. ${version.filename}`;
+    const meta = document.createElement("small"); meta.textContent = `${version.size} bytes · SHA-256 ${version.sha256}`;
+    const actions = document.createElement("div"); actions.className = "list-actions";
+    const restore = document.createElement("button"); restore.type = "button"; restore.textContent = "Restaurar";
     restore.onclick = async () => {
       if (!confirm(`Restaurar “${version.filename}” como uma nova versão atual? A atual continuará preservada.`)) return;
       restore.disabled = true;
       try {
-        const result = await api(`/api/media/${current.attrs.media_blob_id}/restore`, {
-          method:"POST",
-          body:{version_id:version.id},
-        });
+        const result = await api(`/api/media/${current.attrs.media_blob_id}/restore`, {method:"POST", body:{version_id:version.id}});
         applyMediaVersionToCard(card, current, result.media);
         dialog.close();
-      } catch (error) {
-        alert(`Falha ao restaurar versão: ${error.message}`);
-        restore.disabled = false;
-      }
+      } catch (error) { alert(`Falha ao restaurar versão: ${error.message}`); restore.disabled = false; }
     };
-    actions.append(restore);
-    row.append(name, meta, actions);
-    body.append(row);
+    actions.append(restore); row.append(name, meta, actions); body.append(row);
   });
-  dialog.append(head, body);
-  document.body.append(dialog);
+  dialog.append(head, body); document.body.append(dialog);
   dialog.addEventListener("close", () => dialog.remove(), {once:true});
   dialog.showModal();
 }
@@ -228,38 +192,24 @@ function enhanceMediaCards() {
     card.dataset.mediaLifecycleEnhanced = "1";
 
     const replace = document.createElement("button");
-    replace.type = "button";
-    replace.textContent = "Substituir arquivo";
-    replace.style.gridColumn = "1 / -1";
-    replace.style.gridRow = "auto";
-    replace.style.justifySelf = "start";
+    replace.type = "button"; replace.textContent = "Substituir arquivo";
+    replace.style.gridColumn = "1 / -1"; replace.style.gridRow = "auto"; replace.style.justifySelf = "start";
     replace.addEventListener("click", async event => {
       event.stopPropagation();
-      const current = mediaCardNode(card);
-      if (!current) return;
-      const file = await chooseFile(mediaAccept(current.kind));
-      if (!file) return;
+      const current = mediaCardNode(card); if (!current) return;
+      const file = await chooseFile(mediaAccept(current.kind)); if (!file) return;
       if (!confirm(`Substituir “${current.attrs.filename || current.kind}” por “${file.name}”? A versão anterior será preservada.`)) return;
-      const form = new FormData();
-      form.append("file", file, file.name);
+      const form = new FormData(); form.append("file", file, file.name);
       try {
         const result = await api(`/api/media/${current.attrs.media_blob_id}/replace`, {method:"POST", body:form});
         applyMediaVersionToCard(card, current, result.media);
-      } catch (error) {
-        alert(`Falha ao substituir mídia: ${error.message}`);
-      }
+      } catch (error) { alert(`Falha ao substituir mídia: ${error.message}`); }
     });
 
     const versions = document.createElement("button");
-    versions.type = "button";
-    versions.textContent = "Versões";
-    versions.style.gridColumn = "1 / -1";
-    versions.style.gridRow = "auto";
-    versions.style.justifySelf = "start";
-    versions.addEventListener("click", event => {
-      event.stopPropagation();
-      void chooseMediaVersion(card);
-    });
+    versions.type = "button"; versions.textContent = "Versões";
+    versions.style.gridColumn = "1 / -1"; versions.style.gridRow = "auto"; versions.style.justifySelf = "start";
+    versions.addEventListener("click", event => { event.stopPropagation(); void chooseMediaVersion(card); });
     card.append(replace, versions);
   }
 }
@@ -278,10 +228,38 @@ function selectionInsideEditor(selection) {
   return Boolean(start && end && editor.contains(start) && editor.contains(end));
 }
 
-// With selected text, block dragging is suspended so native contenteditable
-// drag/drop moves the selected range. Collapsed selection restores block drag.
 document.addEventListener("selectionchange", () => {
   if (!editor) return;
   const textMove = selectionInsideEditor(window.getSelection());
   for (const block of editor.children) block.draggable = !textMove;
 });
+
+// Keep review/document intact when an async publication action is rejected and
+// surface the failure to the user instead of leaving only a console rejection.
+window.addEventListener("unhandledrejection", event => {
+  const reason = event.reason;
+  if (!reason || reason.status === 401) return;
+  const message = reason?.data?.detail || reason?.message;
+  if (!message) return;
+  event.preventDefault();
+  alert(`Operação não concluída: ${message}`);
+});
+
+// The main editor preserves the local mirror on HTTP 401. This controller adds
+// the explicit action required by the session-expiry flow: close the current
+// Mini App instance so it can be reopened by Telegram with fresh initData.
+const statusNode = $("#status");
+function exposeSessionRestart() {
+  if (!statusNode || statusNode.textContent.trim() !== "sessão expirada") return;
+  const actions = $("#message-dialog .dialog-actions");
+  if (!actions || $("#restart-telegram-session")) return;
+  const restart = document.createElement("button");
+  restart.id = "restart-telegram-session";
+  restart.type = "button";
+  restart.className = "primary";
+  restart.textContent = "Fechar para reabrir";
+  restart.onclick = () => tg?.close();
+  actions.prepend(restart);
+}
+if (statusNode) new MutationObserver(exposeSessionRestart).observe(statusNode, {childList:true, characterData:true, subtree:true});
+exposeSessionRestart();
