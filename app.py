@@ -33,7 +33,7 @@ def build_application(settings: Settings | None = None) -> web.Application:
     documents = DocumentService(repository)
     import_finalizer = ImportFinalizer(repository)
     imports = ImportService(repository, documents, pending_imports, import_finalizer)
-    telegram_publications = TelegramPublicationService(repository, assets)
+    telegram_publications = TelegramPublicationService(repository, assets, preferences)
     telegraph_publications = None
     if resolved.telegraph_key:
         telegraph_publications = TelegraphPublicationService(
