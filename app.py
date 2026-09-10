@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from aiohttp import web
 
+from mdtxtrt.assets import AssetService
 from mdtxtrt.bot import TelegramRuntime
 from mdtxtrt.config import Settings
 from mdtxtrt.credentials import CredentialCipher
@@ -17,22 +18,25 @@ def build_application(settings: Settings | None = None) -> web.Application:
     repository = SQLiteRepository(resolved.database_path)
     repository.initialize()
 
+    assets = AssetService(repository)
+    assets.initialize()
     documents = DocumentService(repository)
     imports = ImportService(repository, documents)
-    telegram_publications = TelegramPublicationService(repository)
+    telegram_publications = TelegramPublicationService(repository, assets)
     telegraph_publications = None
     if resolved.telegraph_key:
         telegraph_publications = TelegraphPublicationService(
             repository,
             CredentialCipher(resolved.telegraph_key_bytes()),
         )
-    telegram_runtime = TelegramRuntime(resolved, imports)
+    telegram_runtime = TelegramRuntime(resolved, imports, assets)
 
     return create_web_app(
         resolved,
         documents,
         imports,
         repository,
+        assets,
         telegram_publications,
         telegraph_publications,
         telegram_runtime,
