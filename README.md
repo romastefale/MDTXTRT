@@ -1,1 +1,1 @@
-OBEDECER ORDENS DO USUÁRIO
+ The user request is the main command all the decision decisions taken without them user knowledge is a error error of decision 
