@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>MDTXTRT</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="pr54-faithful-skeleton.css">
+</head>
+<body>
+<header>
+  <div class="brand"><h1>MDTXTRT</h1><div class="brand-actions"><span class="tag">Rich 10.3</span><button type="button" id="btnOptions" class="icon-button" aria-label="Opções">⋯</button></div></div>
+  <nav>
+    <button type="button" data-view="edit" class="on">editar</button>
+    <button type="button" data-view="preview">prévia Telegram</button>
+  </nav>
+</header>
+<main>
+  <textarea id="editor" class="on" placeholder="# Título&#10;&#10;Escreva em **Markdown**."></textarea>
+  <div id="preview" class="pane"></div>
+  <div id="selectionTools" class="selection-tools" aria-label="Formatação da seleção"></div>
+  <div id="drop" class="drop">Solte o arquivo .md</div>
+</main>
+<footer>
+  <button type="button" id="btnInsert">＋ inserir</button>
+  <button type="button" class="solid" id="btnChat">enviar ao chat</button>
+</footer>
+<input id="file" type="file" accept=".md,.markdown,.txt,.mdown,text/markdown,text/plain" hidden>
+<input id="photo" type="file" accept="image/jpeg,image/png,image/webp,image/gif" hidden>
+<div id="toast" class="toast"></div>
+<div id="insertBackdrop" class="sheet-backdrop" aria-hidden="true">
+  <section class="sheet" role="dialog" aria-modal="true" aria-label="Inserir conteúdo Rich">
+    <div class="sheet-head"><strong>Inserir Rich 10.3</strong><button type="button" class="icon-button" aria-label="Fechar">×</button></div>
+    <div id="generatorBody" class="sheet-body"></div>
+  </section>
+</div>
+<div id="optionsBackdrop" class="sheet-backdrop" aria-hidden="true">
+  <section class="sheet" role="dialog" aria-modal="true" aria-label="Opções do documento">
+    <div class="sheet-head"><strong>Documento</strong><button type="button" class="icon-button" aria-label="Fechar">×</button></div>
+    <div class="sheet-body">
+      <div class="settings-grid">
+        <label>Título<input id="inpTitle" type="text" placeholder="Título do documento"></label>
+        <label>Slug do Telegraph<input id="inpPath" type="text" placeholder="Opcional"></label>
+      </div>
+      <h2>Ações</h2>
+      <div class="generator-grid">
+        <button type="button" id="btnOpen">Abrir .md</button>
+        <button type="button" id="btnMd">Exportar .md</button>
+        <button type="button" id="btnPub">Telegraph</button>
+      </div>
+      <h2>Comandos no chat</h2>
+      <p class="tag"><code>/tgrich</code> converte Markdown · <code>/mdrich</code> exporta uma mensagem · <code>/help</code> mostra a ajuda.</p>
+    </div>
+  </section>
+</div>
+</body>
+</html>
