@@ -292,9 +292,6 @@ def from_markdown(source: str) -> CanonicalDocument:
             index += 1
             continue
 
-        # Rich/custom HTML can encode semantics Markdown cannot represent. It is
-        # preserved byte-for-text as an explicit raw node until the user chooses
-        # a conversion in the visual review instead of being flattened here.
         if line.lstrip().startswith("<"):
             flush_paragraph()
             raw = [line]
@@ -313,9 +310,10 @@ def from_markdown(source: str) -> CanonicalDocument:
 
 
 def from_text(source: str) -> CanonicalDocument:
+    """Import TXT literally; text that resembles Markdown remains text."""
     text = (source or "").replace("\r\n", "\n").replace("\r", "\n")
     blocks = [
-        CanonicalNode.create("paragraph", children=_inline_nodes(part))
+        CanonicalNode.create("paragraph", children=(_text(part),))
         for part in text.split("\n\n")
         if part
     ]
