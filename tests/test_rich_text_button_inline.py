@@ -1,4 +1,4 @@
-"""Regressões de RichTextButton cobrindo o caminho público real."""
+"""Regressões focadas de RichTextButton inline da Bot API 10.3."""
 import unittest
 from types import SimpleNamespace
 
@@ -31,8 +31,6 @@ class RichTextButtonInlineTests(unittest.TestCase):
 
         self.assertEqual(data[0]["type"], "paragraph")
         rich_text = data[0]["text"]
-        self.assertIsInstance(rich_text, list)
-
         entity = next(
             item
             for item in rich_text
@@ -43,13 +41,12 @@ class RichTextButtonInlineTests(unittest.TestCase):
             for item in rich_text
             if isinstance(item, dict) and item.get("type") == "button"
         )
-
         self.assertEqual(entity["hashtag"], "#teste")
         self.assertEqual(button["button"]["text"], "Confirmar")
         self.assertEqual(button["button"]["style"], "success")
         self.assertEqual(button["button"]["callback_data"], "confirmar")
 
-    def test_root_inline_button_is_preserved_as_paragraph(self):
+    def test_standalone_inline_button_compiles_without_semantic_entity(self):
         source = '<tg-button type="callback_data" data="solto">Solto</tg-button>'
 
         blocks = rich_explicit.compile_semantic_blocks(source, {})
@@ -58,13 +55,12 @@ class RichTextButtonInlineTests(unittest.TestCase):
         self.assertEqual(len(data), 1)
         self.assertEqual(data[0]["type"], "paragraph")
         button = data[0]["text"]
-        self.assertIsInstance(button, dict)
         self.assertEqual(button["type"], "button")
         self.assertEqual(button["button"]["text"], "Solto")
         self.assertEqual(button["button"]["callback_data"], "solto")
 
-    def test_public_pipeline_compiles_standalone_inline_button_without_helper_entity(self):
-        source = '<tg-button type="callback_data" data="solto">Solto</tg-button>'
+    def test_public_pipeline_routes_standalone_button_to_blocks(self):
+        source = '<tg-button type="callback_data" data="confirmar">Confirmar</tg-button>'
         base = SimpleNamespace(MEDIA={})
 
         rich_media.install(base)
@@ -78,13 +74,13 @@ class RichTextButtonInlineTests(unittest.TestCase):
         self.assertEqual(data[0]["type"], "paragraph")
         button = data[0]["text"]
         self.assertEqual(button["type"], "button")
-        self.assertEqual(button["button"]["callback_data"], "solto")
+        self.assertEqual(button["button"]["callback_data"], "confirmar")
 
-    def test_plain_markdown_stays_on_markdown_path(self):
+    def test_public_pipeline_keeps_plain_markdown_on_markdown_path(self):
         base = SimpleNamespace(MEDIA={})
         rich_media.install(base)
 
-        message = base.build_rich_message("Texto **normal**")
+        message = base.build_rich_message("Texto simples")
 
         self.assertIsNotNone(message.markdown)
         self.assertIsNone(message.blocks)
@@ -101,7 +97,7 @@ class RichTextButtonInlineTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Texto de botão Rich"):
             rich_explicit.compile_semantic_blocks(source, {})
 
-    def test_button_row_uses_the_same_text_validation_as_inline_button(self):
+    def test_button_row_uses_same_text_validation(self):
         source = (
             '<tg-button-row>'
             '<tg-button type="callback_data" data="confirmar">'
@@ -113,29 +109,21 @@ class RichTextButtonInlineTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Texto de botão Rich"):
             rich_explicit.compile_semantic_blocks(source, {})
 
-    def test_inline_disabled_button_serializes_disabled_object(self):
-        source = (
-            '<p>'
-            '<tg-button type="disabled">Indisponível</tg-button>'
-            '</p>'
+    def test_inline_and_row_unknown_types_fail_the_same_way(self):
+        inline = '<tg-button type="nao_existe">X</tg-button>'
+        row = (
+            '<tg-button-row>'
+            '<tg-button type="nao_existe">X</tg-button>'
+            '</tg-button-row>'
         )
 
-        blocks = rich_explicit.compile_semantic_blocks(source, {})
-        data = self._python(blocks)
-        rich_text = data[0]["text"]
-        button = (
-            next(
-                item
-                for item in rich_text
-                if isinstance(item, dict) and item.get("type") == "button"
-            )
-            if isinstance(rich_text, list)
-            else rich_text
-        )
-
-        self.assertEqual(button["button"]["text"], "Indisponível")
-        self.assertIn("disabled", button["button"])
-        self.assertEqual(button["button"]["disabled"], {})
+        for source in (inline, row):
+            with self.subTest(source=source):
+                with self.assertRaisesRegex(
+                    ValueError,
+                    "Tipo de botão Rich explícito desconhecido",
+                ):
+                    rich_explicit.compile_semantic_blocks(source, {})
 
     def test_existing_button_row_contract_stays_valid(self):
         source = (
