@@ -7,8 +7,9 @@ from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from mdtxtrt.conversion import from_markdown, from_text
-from mdtxtrt.domain import CanonicalDocument
+from mdtxtrt.conversion import from_markdown, from_text, to_markdown, to_text
+from mdtxtrt.domain import CanonicalDocument, CanonicalNode
+from mdtxtrt.import_finalizer import ImportFinalizer
 from mdtxtrt.pending_imports import PendingImport, PendingImportStore
 from mdtxtrt.storage import SQLiteRepository
 
@@ -20,6 +21,15 @@ class EncodingChoiceRequired(Exception):
 
     def __str__(self) -> str:
         return f"encoding choice required for {self.filename}"
+
+
+@dataclass(frozen=True, slots=True)
+class ImportReviewRequired(ValueError):
+    pending_import_id: str
+    review: dict[str, Any]
+
+    def __str__(self) -> str:
+        return "import_review_required"
 
 
 def _automatic_empty_name() -> str:
@@ -53,6 +63,26 @@ def _content_title(document: CanonicalDocument, fallback: str) -> str:
         if structural:
             return structural
     return fallback
+
+
+def _raw_markdown_nodes(nodes: tuple[CanonicalNode, ...]) -> list[dict[str, Any]]:
+    result: list[dict[str, Any]] = []
+
+    def walk(node: CanonicalNode) -> None:
+        if node.kind == "raw_markdown":
+            result.append(
+                {
+                    "node_id": node.id,
+                    "reason": str(node.attrs.get("reason") or "unsupported_markdown"),
+                    "text": node.text or "",
+                }
+            )
+        for child in node.children:
+            walk(child)
+
+    for node in nodes:
+        walk(node)
+    return result
 
 
 class DocumentService:
@@ -127,10 +157,17 @@ class DocumentService:
 
 
 class ImportService:
-    def __init__(self, repository: SQLiteRepository, documents: DocumentService, pending: PendingImportStore):
+    def __init__(
+        self,
+        repository: SQLiteRepository,
+        documents: DocumentService,
+        pending: PendingImportStore,
+        finalizer: ImportFinalizer,
+    ):
         self.repository = repository
         self.documents = documents
         self.pending = pending
+        self.finalizer = finalizer
 
     @staticmethod
     def _decode(filename: str, data: bytes, encoding: str | None) -> tuple[str, str]:
@@ -171,7 +208,7 @@ class ImportService:
     def get_pending(self, *, user_id: int, pending_import_id: str) -> dict[str, Any]:
         return self.pending.get(user_id=user_id, pending_import_id=pending_import_id).public()
 
-    def complete_pending(
+    def preview_pending(
         self,
         *,
         user_id: int,
@@ -180,14 +217,62 @@ class ImportService:
     ) -> dict[str, Any]:
         pending = self.pending.get(user_id=user_id, pending_import_id=pending_import_id)
         if pending.status == "completed" and pending.draft_id:
-            draft = self.documents.get(user_id=user_id, draft_id=pending.draft_id)
-            draft["pending_import_id"] = pending.id
-            return draft
-
+            return {
+                "pending_import_id": pending.id,
+                "status": "completed",
+                "draft_id": pending.draft_id,
+                "requires_confirmation": False,
+            }
         try:
             text, used_encoding = self._decode(pending.filename, pending.data, encoding)
         except EncodingChoiceRequired as exc:
             raise EncodingChoiceRequired(exc.filename, pending.id) from exc
+
+        suffix = Path(pending.filename).suffix.lower()
+        document = from_markdown(text) if suffix == ".md" else from_text(text)
+        residual = _raw_markdown_nodes(document.blocks)
+        format_name = "markdown" if suffix == ".md" else "text"
+        title = _content_title(document, pending.filename)
+        return {
+            "pending_import_id": pending.id,
+            "status": "staged",
+            "filename": pending.filename,
+            "mime_type": pending.mime_type,
+            "sha256": pending.sha256,
+            "size": len(pending.data),
+            "encoding": used_encoding,
+            "format": format_name,
+            "suggested_title": title,
+            "original_text": text,
+            "converted_document": document.to_dict(),
+            "converted_markdown": to_markdown(document),
+            "converted_text": to_text(document),
+            "residual_raw_markdown": residual,
+            "requires_confirmation": bool(residual),
+            "lossless_visual_import": not residual,
+        }
+
+    def complete_pending(
+        self,
+        *,
+        user_id: int,
+        pending_import_id: str,
+        encoding: str | None = None,
+        confirm_partial: bool = False,
+    ) -> dict[str, Any]:
+        pending = self.pending.get(user_id=user_id, pending_import_id=pending_import_id)
+        if pending.status == "completed" and pending.draft_id:
+            draft = self.documents.get(user_id=user_id, draft_id=pending.draft_id)
+            draft["pending_import_id"] = pending.id
+            return draft
+
+        review = self.preview_pending(
+            user_id=user_id,
+            pending_import_id=pending.id,
+            encoding=encoding,
+        )
+        if review.get("requires_confirmation") and not confirm_partial:
+            raise ImportReviewRequired(pending.id, review)
 
         claim_token = self.pending.claim_completion(user_id=user_id, pending_import_id=pending.id)
         if claim_token is None:
@@ -199,32 +284,28 @@ class ImportService:
             raise RuntimeError("pending_import_completed_without_draft")
 
         try:
-            suffix = Path(pending.filename).suffix.lower()
-            document = from_markdown(text) if suffix == ".md" else from_text(text)
-            format_name = "markdown" if suffix == ".md" else "text"
-            title = _content_title(document, pending.filename)
-            draft = self.documents.create_with_document(
-                user_id=user_id,
-                name=title,
-                document=document,
-                reason=f"import:{format_name}",
-            )
-            draft["import_id"] = self.repository.store_import(
-                user_id=user_id,
-                draft_id=draft["id"],
-                filename=pending.filename,
-                mime_type=pending.mime_type,
-                encoding=used_encoding,
-                original_bytes=pending.data,
-            )
-            completed = self.pending.mark_completed(
+            document = CanonicalDocument.from_dict(review["converted_document"])
+            draft_id, import_id = self.finalizer.finalize(
                 user_id=user_id,
                 pending_import_id=pending.id,
-                draft_id=draft["id"],
                 claim_token=claim_token,
+                name=str(review["suggested_title"]),
+                document=document,
+                filename=pending.filename,
+                mime_type=pending.mime_type,
+                encoding=str(review["encoding"]),
+                original_bytes=pending.data,
+                reason=f"import:{review['format']}",
             )
-            draft["pending_import_id"] = completed.id
-            draft["import_encoding"] = used_encoding
+            draft = self.documents.get(user_id=user_id, draft_id=draft_id)
+            if import_id:
+                draft["import_id"] = import_id
+            draft["pending_import_id"] = pending.id
+            draft["import_encoding"] = str(review["encoding"])
+            draft["import_review"] = {
+                "lossless_visual_import": bool(review["lossless_visual_import"]),
+                "residual_raw_markdown": review["residual_raw_markdown"],
+            }
             return draft
         except Exception:
             self.pending.release_claim(
@@ -235,9 +316,15 @@ class ImportService:
             raise
 
     def import_file(
-        self, *, user_id: int, filename: str, data: bytes,
-        mime_type: str | None = None, encoding: str | None = None,
+        self,
+        *,
+        user_id: int,
+        filename: str,
+        data: bytes,
+        mime_type: str | None = None,
+        encoding: str | None = None,
         source_key: str | None = None,
+        confirm_partial: bool = False,
     ) -> dict[str, Any]:
         pending = self.stage_file(
             user_id=user_id,
@@ -250,4 +337,5 @@ class ImportService:
             user_id=user_id,
             pending_import_id=pending.id,
             encoding=encoding,
+            confirm_partial=confirm_partial,
         )
