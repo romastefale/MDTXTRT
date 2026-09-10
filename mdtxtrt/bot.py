@@ -31,7 +31,8 @@ def _with_draft(url: str, draft_id: str) -> str:
 
 
 def _with_pending_import(url: str, pending_import_id: str) -> str:
-    return _with_query(url, pending_import=pending_import_id)
+    parts = urlsplit(url)
+    return urlunsplit((parts.scheme, parts.netloc, "/static/pending-import.html", urlencode({"pending_import": pending_import_id}), ""))
 
 
 def _attr(value: str) -> str:
