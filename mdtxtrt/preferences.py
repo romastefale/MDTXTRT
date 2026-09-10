@@ -17,6 +17,7 @@ from mdtxtrt.storage import SQLiteRepository
 
 _ALLOWED_KEYS = {
     "telegram_representation",
+    "raw_markdown_apply_mode",
     "table_to_text",
     "table_to_telegraph",
     "details_fallback",
