@@ -4,61 +4,138 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <title>MDTXTRT</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <style>
-    :root { font-family: system-ui, sans-serif; color-scheme: light dark; }
-    body { margin: 0; padding: 16px; }
-    header, .toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-    header { justify-content: space-between; margin-bottom: 12px; }
-    button, label { min-height: 36px; }
-    #status { opacity: .72; font-size: 13px; }
-    #editor { min-height: 58vh; border: 1px solid currentColor; border-radius: 10px; padding: 14px; outline: none; }
-    #editor [data-node-kind="heading"] { font-size: 1.45rem; font-weight: 700; }
-    #editor [data-node-kind="blockquote"] { border-inline-start: 3px solid currentColor; padding-inline-start: 10px; opacity: .86; }
-    #editor [data-node-kind="code_block"] { font-family: ui-monospace, monospace; white-space: pre-wrap; }
-    dialog { width: min(92vw, 760px); }
-    .versions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-    .versions pre { max-height: 38vh; overflow: auto; white-space: pre-wrap; border: 1px solid currentColor; padding: 8px; }
-    .dialog-actions { display: flex; gap: 8px; justify-content: flex-end; }
-    .hidden { display: none; }
+    :root{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color-scheme:light dark;--bg:var(--tg-theme-bg-color,#fff);--text:var(--tg-theme-text-color,#171717);--hint:var(--tg-theme-hint-color,#747474);--surface:var(--tg-theme-secondary-bg-color,#f3f4f6);--accent:var(--tg-theme-button-color,#2481cc);--accent-text:var(--tg-theme-button-text-color,#fff);--line:color-mix(in srgb,var(--hint) 28%,transparent)}
+    *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);min-height:100vh}button,input,select,textarea{font:inherit;color:inherit}button{cursor:pointer}.app{min-height:100vh;display:grid;grid-template-rows:auto auto 1fr auto}.top{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--bg) 94%,transparent);backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
+    .head{display:flex;align-items:center;gap:10px;padding:10px 12px}.brand{font-weight:760;letter-spacing:.02em}.draft-name{min-width:0;flex:1;border:0;background:transparent;font-weight:600;padding:7px;border-radius:8px}.status{font-size:12px;color:var(--hint);white-space:nowrap}.icon-btn,.tool,.action{border:1px solid var(--line);background:var(--surface);border-radius:9px;padding:7px 10px}.icon-btn:active,.tool:active,.action:active{transform:translateY(1px)}
+    .toolbar{display:flex;align-items:center;gap:6px;overflow-x:auto;padding:7px 10px 10px;scrollbar-width:none}.toolbar::-webkit-scrollbar{display:none}.toolbar details{position:relative;flex:0 0 auto}.toolbar summary{list-style:none}.toolbar summary::-webkit-details-marker{display:none}.tool{min-width:38px;height:36px;display:inline-flex;align-items:center;justify-content:center;gap:5px}.tool.active{background:var(--accent);color:var(--accent-text);border-color:var(--accent)}
+    .menu{position:fixed;left:10px;right:10px;z-index:50;display:grid;grid-template-columns:repeat(auto-fit,minmax(125px,1fr));gap:7px;padding:10px;background:var(--bg);border:1px solid var(--line);box-shadow:0 16px 45px #0002;border-radius:14px}.menu button{text-align:left;border:0;background:var(--surface);padding:10px;border-radius:9px}.menu small{display:block;color:var(--hint);margin-top:2px}.editor-wrap{width:min(900px,100%);margin:0 auto;padding:18px 14px 110px}.editor{min-height:58vh;outline:none;line-height:1.55}.editor:empty:before{content:"Comece a escrever…";color:var(--hint)}.editor [data-block]{position:relative;margin:0 0 12px;outline:none}.editor [data-block]:focus{box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 30%,transparent);border-radius:4px}.editor pre{white-space:pre-wrap;background:var(--surface);padding:12px;border-radius:10px}.editor blockquote{border-left:3px solid var(--accent);padding-left:12px;margin-left:0}.editor mark{border-radius:2px}.editor [data-inline="spoiler"]{background:var(--text);color:transparent;border-radius:3px}.editor [data-inline="spoiler"]:hover,.editor [data-inline="spoiler"]:focus{color:var(--bg)}
+    .node-card{border:1px solid var(--line);border-radius:12px;background:var(--surface);padding:11px 12px;display:grid;grid-template-columns:1fr auto;gap:4px 10px;user-select:none}.node-card strong{font-size:13px}.node-card .summary{font-size:13px;color:var(--hint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.node-card button{grid-column:2;grid-row:1/3;border:0;background:transparent;color:var(--accent);font-weight:650}.bottom{position:fixed;left:0;right:0;bottom:0;z-index:30;background:color-mix(in srgb,var(--bg) 96%,transparent);backdrop-filter:blur(14px);border-top:1px solid var(--line);padding:8px max(10px,env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) max(10px,env(safe-area-inset-left));display:flex;gap:7px;overflow-x:auto}.bottom .action{flex:0 0 auto}.bottom .primary{background:var(--accent);color:var(--accent-text);border-color:var(--accent)}
+    dialog{width:min(680px,calc(100% - 24px));max-height:82vh;border:1px solid var(--line);border-radius:16px;background:var(--bg);color:var(--text);padding:0;box-shadow:0 28px 80px #0004}dialog::backdrop{background:#0007}.dialog-head{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line)}.dialog-head h2{font-size:17px;margin:0;flex:1}.dialog-body{padding:14px 16px;overflow:auto;max-height:62vh}.dialog-actions{padding:12px 16px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:8px}.dialog-actions button{border:1px solid var(--line);background:var(--surface);border-radius:9px;padding:8px 12px}.dialog-actions .primary{background:var(--accent);border-color:var(--accent);color:var(--accent-text)}
+    .field{display:grid;gap:5px;margin:0 0 12px}.field label{font-size:12px;color:var(--hint)}.field input,.field select,.field textarea{width:100%;border:1px solid var(--line);background:var(--surface);border-radius:9px;padding:9px}.field textarea{min-height:110px;resize:vertical}.check{display:flex;align-items:center;gap:8px;margin:8px 0}.list-row{display:grid;grid-template-columns:1fr auto;gap:5px 9px;padding:10px 0;border-bottom:1px solid var(--line)}.list-row:last-child{border-bottom:0}.list-row small{color:var(--hint)}.list-actions{grid-column:2;grid-row:1/3;display:flex;gap:5px;align-items:center}.list-actions button{border:0;background:var(--surface);border-radius:8px;padding:7px}.review-box{font:12px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap;overflow-wrap:anywhere;background:var(--surface);border-radius:9px;padding:10px;max-height:220px;overflow:auto}.warnings{display:grid;gap:7px;margin:10px 0}.warning{padding:8px 10px;border:1px solid var(--line);border-radius:9px}.warning b{display:block;font-size:12px}.muted{color:var(--hint);font-size:12px}.danger{color:#d33}.hidden{display:none!important}@media(min-width:760px){.menu{left:auto;right:18px;width:620px}.editor-wrap{padding-top:28px}}
   </style>
 </head>
 <body>
-  <header><strong>MDTXTRT</strong><span id="status">Inicializando…</span></header>
-  <div class="toolbar" aria-label="Ferramentas do editor">
-    <button type="button" data-kind="paragraph">Texto</button>
-    <button type="button" data-kind="heading">Título</button>
-    <button type="button" data-kind="blockquote">Citação</button>
-    <button type="button" data-kind="code_block">Código</button>
-    <button type="button" id="undo">Desfazer</button>
-    <button type="button" id="redo">Refazer</button>
-    <label>Importar<input id="importFile" class="hidden" type="file" accept=".md,.txt,text/markdown,text/plain"></label>
-  </div>
-  <main id="editor" contenteditable="true" spellcheck="true" aria-label="Editor visual"></main>
-
-  <dialog id="divergenceDialog">
-    <h2>Há duas versões do trabalho</h2>
-    <p>Escolha qual versão abrir. Nenhuma mesclagem será feita automaticamente.</p>
-    <div class="versions">
-      <section><h3>Servidor</h3><pre id="serverVersion"></pre></section>
-      <section><h3>Espelho local</h3><pre id="localVersion"></pre></section>
+<div class="app">
+  <header class="top">
+    <div class="head">
+      <span class="brand">MDTXTRT</span>
+      <input id="draft-name" class="draft-name" aria-label="Nome do rascunho" value="Novo rascunho">
+      <span id="status" class="status">iniciando</span>
     </div>
-    <div class="dialog-actions">
-      <button type="button" id="chooseServer">Usar servidor</button>
-      <button type="button" id="chooseLocal">Usar local</button>
-    </div>
-  </dialog>
+    <nav class="toolbar" aria-label="Ferramentas de edição">
+      <button class="tool" data-format="bold" title="Negrito"><b>B</b></button>
+      <button class="tool" data-format="italic" title="Itálico"><i>I</i></button>
+      <button class="tool" data-format="underline" title="Sublinhado"><u>U</u></button>
+      <button class="tool" data-format="strikethrough" title="Riscado"><s>S</s></button>
+      <button class="tool" data-format="code" title="Código inline">&lt;/&gt;</button>
+      <details><summary class="tool">Texto ▾</summary><div class="menu">
+        <button data-format="marked"><b>Marcado</b><small>realce de texto</small></button>
+        <button data-format="spoiler"><b>Spoiler</b><small>texto ocultável</small></button>
+        <button data-format="subscript"><b>Subscrito</b><small>índice inferior</small></button>
+        <button data-format="superscript"><b>Sobrescrito</b><small>índice superior</small></button>
+        <button data-inline-form="url"><b>Link</b><small>HTTP, HTTPS ou tg://</small></button>
+        <button data-inline-form="text_mention"><b>Usuário</b><small>menção por ID</small></button>
+        <button data-inline-form="custom_emoji"><b>Emoji personalizado</b><small>ID + texto alternativo</small></button>
+        <button data-inline-form="datetime"><b>Data/hora</b><small>Unix + formato</small></button>
+        <button data-inline-form="math_inline"><b>Fórmula inline</b><small>LaTeX</small></button>
+        <button data-inline-form="anchor_link"><b>Link interno</b><small>âncora ou referência</small></button>
+      </div></details>
+      <details><summary class="tool">Bloco ▾</summary><div class="menu">
+        <button data-block-action="paragraph"><b>Parágrafo</b><small>bloco normal</small></button>
+        <button data-block-action="heading" data-level="1"><b>H1</b><small>título principal</small></button>
+        <button data-block-action="heading" data-level="2"><b>H2</b><small>seção</small></button>
+        <button data-block-action="heading" data-level="3"><b>H3</b><small>subseção</small></button>
+        <button data-block-action="heading" data-level="4"><b>H4</b><small>heading</small></button>
+        <button data-block-action="heading" data-level="5"><b>H5</b><small>heading</small></button>
+        <button data-block-action="heading" data-level="6"><b>H6</b><small>heading</small></button>
+        <button data-block-action="blockquote"><b>Citação</b><small>blockquote</small></button>
+        <button data-block-action="expandable_blockquote"><b>Citação expansível</b><small>Bot API 10.3</small></button>
+        <button data-block-action="pullquote"><b>Pull quote</b><small>citação destacada</small></button>
+        <button data-block-action="code_block"><b>Código</b><small>preformatado</small></button>
+        <button data-block-action="footer"><b>Rodapé</b><small>footer Rich</small></button>
+        <button data-insert="divider"><b>Divisor</b><small>linha horizontal</small></button>
+      </div></details>
+      <details><summary class="tool">Lista ▾</summary><div class="menu">
+        <button data-structured="list" data-preset="unordered"><b>Marcadores</b><small>lista não ordenada</small></button>
+        <button data-structured="list" data-preset="ordered"><b>Numerada</b><small>lista ordenada</small></button>
+        <button data-structured="list" data-preset="task"><b>Tarefas</b><small>checkboxes</small></button>
+      </div></details>
+      <details><summary class="tool">Estrutura ▾</summary><div class="menu">
+        <button data-structured="table"><b>Tabela</b><small>bordas, listras, compacta</small></button>
+        <button data-structured="details"><b>Detalhes</b><small>recolhível/expandido</small></button>
+        <button data-structured="math_block"><b>Fórmula</b><small>LaTeX em bloco</small></button>
+        <button data-structured="anchor"><b>Âncora</b><small>navegação interna</small></button>
+        <button data-structured="reference"><b>Referência</b><small>nota referenciada</small></button>
+        <button id="native-location"><b>Localização Telegram</b><small>Location/Venue nativa</small></button>
+        <button data-structured="map"><b>Mapa manual</b><small>fallback por coordenadas</small></button>
+      </div></details>
+      <details><summary class="tool">Mídia ▾</summary><div class="menu">
+        <button data-local-media="photo"><b>Foto local</b><small>BLOB preservado + SHA-256</small></button>
+        <button data-local-media="video"><b>Vídeo local</b><small>BLOB preservado + SHA-256</small></button>
+        <button data-local-media="animation"><b>Animação local</b><small>BLOB preservado + SHA-256</small></button>
+        <button data-local-media="audio"><b>Áudio local</b><small>BLOB preservado + SHA-256</small></button>
+        <button data-local-media="voice_note"><b>Voz local</b><small>voice note Rich</small></button>
+        <button data-local-media="document"><b>Documento local</b><small>Bot API 10.3</small></button>
+        <button data-media="photo"><b>Foto por URL</b><small>HTTP/HTTPS</small></button>
+        <button data-media="video"><b>Vídeo por URL</b><small>HTTP/HTTPS</small></button>
+        <button data-media="animation"><b>Animação por URL</b><small>HTTP/HTTPS</small></button>
+        <button data-media="audio"><b>Áudio por URL</b><small>HTTP/HTTPS</small></button>
+        <button data-media="voice_note"><b>Voz por URL</b><small>HTTP/HTTPS</small></button>
+        <button data-media="document"><b>Documento por URL</b><small>HTTP/HTTPS</small></button>
+        <button data-structured="collage"><b>Collage</b><small>fotos/vídeos</small></button>
+        <button data-structured="slideshow"><b>Slideshow</b><small>fotos/vídeos</small></button>
+      </div></details>
+      <details><summary class="tool">Botão ▾</summary><div class="menu">
+        <button data-button="url"><b>URL</b><small>link</small></button>
+        <button data-button="callback_data"><b>Callback</b><small>1–64 bytes</small></button>
+        <button data-button="web_app"><b>Mini App</b><small>web_app</small></button>
+        <button data-button="login_url"><b>Login</b><small>login_url</small></button>
+        <button data-button="switch_inline_query"><b>Inline query</b><small>escolher chat</small></button>
+        <button data-button="switch_inline_query_current_chat"><b>Inline atual</b><small>chat atual</small></button>
+        <button data-button="switch_inline_query_chosen_chat"><b>Inline escolhido</b><small>tipos de chat</small></button>
+        <button data-button="copy_text"><b>Copiar</b><small>clipboard</small></button>
+        <button data-button="disabled"><b>Desativado</b><small>sem ação</small></button>
+        <button data-structured="button_row"><b>Linha de botões</b><small>alinhamento</small></button>
+      </div></details>
+      <button class="tool" id="undo" title="Desfazer">↶</button>
+      <button class="tool" id="redo" title="Refazer">↷</button>
+    </nav>
+  </header>
 
-  <dialog id="encodingDialog">
-    <h2>Escolha o encoding</h2>
-    <p>O arquivo não é UTF-8. Informe explicitamente o encoding para tentar novamente.</p>
-    <input id="encodingValue" autocomplete="off" placeholder="ex.: windows-1252">
-    <div class="dialog-actions">
-      <button type="button" id="cancelEncoding">Cancelar</button>
-      <button type="button" id="retryEncoding">Tentar novamente</button>
-    </div>
-  </dialog>
+  <main class="editor-wrap">
+    <section id="editor" class="editor" contenteditable="true" spellcheck="true" aria-label="Editor Rich"></section>
+  </main>
 
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <script type="module" src="/static/app.js"></script>
+  <footer class="bottom">
+    <button class="action" id="new-draft">Novo</button>
+    <button class="action" id="open-drafts">Rascunhos</button>
+    <button class="action" id="open-publications">Publicações</button>
+    <button class="action" id="import-file">Importar .md/.txt</button>
+    <button class="action primary" id="publish-telegram">Telegram</button>
+    <button class="action primary" id="publish-telegraph">Telegraph</button>
+    <input id="file" type="file" accept=".md,.txt,text/plain,text/markdown" hidden>
+    <input id="media-file" type="file" hidden>
+  </footer>
+</div>
+
+<dialog id="resume-dialog">
+  <div class="dialog-head"><h2>Continuar trabalho</h2></div>
+  <div class="dialog-body"><p>Há rascunhos anteriores. Continue o mais recente ou comece um novo; o anterior será preservado.</p><div id="resume-summary" class="muted"></div></div>
+  <div class="dialog-actions"><button value="new">Novo</button><button class="primary" value="continue">Continuar</button></div>
+</dialog>
+
+<dialog id="drafts-dialog"><div class="dialog-head"><h2>Rascunhos</h2><button data-close>Fechar</button></div><div class="dialog-body" id="drafts-list"></div><div class="dialog-actions"><button id="toggle-archived">Ver arquivados</button></div></dialog>
+<dialog id="publications-dialog"><div class="dialog-head"><h2>Publicações</h2><button data-close>Fechar</button></div><div class="dialog-body" id="publications-list"></div></dialog>
+
+<dialog id="form-dialog"><form method="dialog" id="form"><div class="dialog-head"><h2 id="form-title">Editar</h2><button value="cancel">Fechar</button></div><div class="dialog-body" id="form-fields"></div><div class="dialog-actions"><button value="cancel">Cancelar</button><button class="primary" value="save">Aplicar</button></div></form></dialog>
+
+<dialog id="review-dialog"><div class="dialog-head"><h2 id="review-title">Revisão</h2><button data-close>Fechar</button></div><div class="dialog-body"><div id="review-metrics" class="muted"></div><div id="review-warnings" class="warnings"></div><h3>Resultado exato</h3><pre id="review-content" class="review-box"></pre></div><div class="dialog-actions"><button data-close>Cancelar</button><button class="primary" id="review-confirm">Confirmar publicação</button></div></dialog>
+
+<dialog id="message-dialog"><div class="dialog-head"><h2 id="message-title">MDTXTRT</h2></div><div class="dialog-body" id="message-body"></div><div class="dialog-actions"><button class="primary" data-close>OK</button></div></dialog>
+
+<script type="module" src="/static/app.js"></script>
+<script type="module" src="/static/lifecycle_ui.js"></script>
 </body>
 </html>

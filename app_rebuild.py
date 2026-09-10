@@ -1,29 +1,14 @@
-"""Ground-up MDTXTRT entrypoint.
+"""Compatibility entrypoint name for the rebuilt runtime.
 
-The legacy ``app.py`` remains preserved. This entrypoint composes only the new
-``mdtxtrt`` package and never imports ``main``.
+`app.py` is now the canonical production entrypoint. This file remains so links
+and operational references to the v4 rebuild are not broken.
 """
 from aiohttp import web
 
+from app import build_application
 from mdtxtrt.config import Settings
-from mdtxtrt.server import create_web_app
-from mdtxtrt.services import DocumentService, ImportService
-from mdtxtrt.storage import SQLiteRepository
-
-
-def build(settings: Settings | None = None) -> web.Application:
-    resolved = settings or Settings.from_env()
-    repository = SQLiteRepository(resolved.database_path)
-    repository.initialize()
-    documents = DocumentService(repository)
-    imports = ImportService(repository, documents)
-    return create_web_app(resolved, documents, imports)
-
-
-def run() -> None:
-    settings = Settings.from_env()
-    web.run_app(build(settings), host=settings.host, port=settings.port)
 
 
 if __name__ == "__main__":
-    run()
+    settings = Settings.from_env()
+    web.run_app(build_application(settings), host=settings.host, port=settings.port)

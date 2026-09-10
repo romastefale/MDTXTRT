@@ -1,4 +1,4 @@
-"""SQLite persistence for drafts, immutable revisions, sessions and imports."""
+"""SQLite persistence for user-owned drafts, immutable revisions and publications."""
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -40,6 +40,8 @@ class SQLiteRepository:
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 );
+                CREATE INDEX IF NOT EXISTS idx_drafts_user_updated
+                    ON drafts(user_id, archived_at, updated_at DESC);
                 CREATE TABLE IF NOT EXISTS branches (
                     id TEXT PRIMARY KEY,
                     draft_id TEXT NOT NULL REFERENCES drafts(id) ON DELETE CASCADE,
@@ -80,29 +82,92 @@ class SQLiteRepository:
                     original_bytes BLOB NOT NULL,
                     created_at TEXT NOT NULL
                 );
+                CREATE INDEX IF NOT EXISTS idx_imports_user_draft
+                    ON imports(user_id, draft_id, created_at DESC);
+                CREATE TABLE IF NOT EXISTS telegraph_accounts (
+                    user_id INTEGER PRIMARY KEY,
+                    token_envelope TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS publications (
+                    id TEXT PRIMARY KEY,
+                    user_id INTEGER NOT NULL,
+                    draft_id TEXT NOT NULL REFERENCES drafts(id) ON DELETE CASCADE,
+                    revision_id TEXT NOT NULL REFERENCES revisions(id),
+                    kind TEXT NOT NULL CHECK(kind IN ('telegram','telegraph')),
+                    title TEXT NOT NULL,
+                    destination_chat_id TEXT,
+                    telegram_message_id INTEGER,
+                    telegraph_path TEXT,
+                    telegraph_url TEXT,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_publications_user_updated
+                    ON publications(user_id, updated_at DESC);
+                CREATE TABLE IF NOT EXISTS publication_events (
+                    id TEXT PRIMARY KEY,
+                    publication_id TEXT NOT NULL REFERENCES publications(id) ON DELETE CASCADE,
+                    user_id INTEGER NOT NULL,
+                    revision_id TEXT NOT NULL REFERENCES revisions(id),
+                    action TEXT NOT NULL,
+                    payload_json TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_publication_events_publication
+                    ON publication_events(publication_id, created_at);
             """)
+            columns = {str(row["name"]) for row in db.execute("PRAGMA table_info(revisions)").fetchall()}
+            if "draft_name" not in columns:
+                db.execute("ALTER TABLE revisions ADD COLUMN draft_name TEXT")
+            if "archived_at" not in columns:
+                db.execute("ALTER TABLE revisions ADD COLUMN archived_at TEXT")
+            db.execute(
+                """UPDATE revisions
+                   SET draft_name=(SELECT d.name FROM drafts d WHERE d.id=revisions.draft_id)
+                   WHERE draft_name IS NULL"""
+            )
+            db.execute(
+                """UPDATE revisions
+                   SET archived_at=(SELECT d.archived_at FROM drafts d WHERE d.id=revisions.draft_id)
+                   WHERE archived_at IS NULL
+                     AND EXISTS(SELECT 1 FROM drafts d WHERE d.id=revisions.draft_id AND d.archived_at IS NOT NULL)"""
+            )
 
     def create_draft(self, *, user_id: int, name: str, document: CanonicalDocument, reason: str = "create") -> dict[str, Any]:
         draft_id, branch_id, revision_id = str(uuid4()), str(uuid4()), str(uuid4())
         now = _now()
+        clean_name = (name or "Novo rascunho").strip()[:160] or "Novo rascunho"
         with self.connect() as db:
             db.execute(
                 "INSERT INTO drafts(id,user_id,name,created_at,updated_at) VALUES(?,?,?,?,?)",
-                (draft_id, user_id, name, now, now),
+                (draft_id, user_id, clean_name, now, now),
             )
             db.execute(
                 "INSERT INTO branches(id,draft_id,parent_branch_id,fork_revision_id,created_at) VALUES(?,?,?,?,?)",
                 (branch_id, draft_id, None, None, now),
             )
             db.execute(
-                "INSERT INTO revisions(id,draft_id,branch_id,parent_revision_id,canonical_json,reason,created_at) VALUES(?,?,?,?,?,?,?)",
-                (revision_id, draft_id, branch_id, None, document.to_json(), reason, now),
+                """INSERT INTO revisions(
+                    id,draft_id,branch_id,parent_revision_id,canonical_json,reason,created_at,draft_name,archived_at
+                ) VALUES(?,?,?,?,?,?,?,?,?)""",
+                (revision_id, draft_id, branch_id, None, document.to_json(), reason, now, clean_name, None),
             )
             db.execute(
                 "UPDATE drafts SET active_revision_id=?,active_branch_id=? WHERE id=?",
                 (revision_id, branch_id, draft_id),
             )
         return self.get_draft(draft_id, user_id=user_id)
+
+    def list_drafts(self, *, user_id: int, archived: bool = False) -> list[dict[str, Any]]:
+        predicate = "archived_at IS NOT NULL" if archived else "archived_at IS NULL"
+        with self.connect() as db:
+            rows = db.execute(
+                f"SELECT id,name,active_revision_id,active_branch_id,archived_at,created_at,updated_at FROM drafts WHERE user_id=? AND {predicate} ORDER BY updated_at DESC",
+                (user_id,),
+            ).fetchall()
+            return [dict(row) for row in rows]
 
     def get_draft(self, draft_id: str, *, user_id: int) -> dict[str, Any]:
         with self.connect() as db:
@@ -118,9 +183,14 @@ class SQLiteRepository:
                 "active_revision_id": revision["id"],
                 "active_branch_id": revision["branch_id"],
                 "document": json.loads(revision["canonical_json"]),
+                "archived_at": draft["archived_at"],
                 "created_at": draft["created_at"],
                 "updated_at": draft["updated_at"],
             }
+
+    def get_active_document(self, *, draft_id: str, user_id: int) -> tuple[str, CanonicalDocument]:
+        draft = self.get_draft(draft_id, user_id=user_id)
+        return str(draft["active_revision_id"]), CanonicalDocument.from_dict(draft["document"])
 
     def _active(self, db: sqlite3.Connection, draft_id: str, user_id: int) -> sqlite3.Row:
         row = db.execute(
@@ -131,30 +201,124 @@ class SQLiteRepository:
             raise KeyError("draft_not_found")
         return row
 
+    def _draft_row(self, db: sqlite3.Connection, draft_id: str, user_id: int) -> sqlite3.Row:
+        row = db.execute("SELECT * FROM drafts WHERE id=? AND user_id=?", (draft_id, user_id)).fetchone()
+        if row is None:
+            raise KeyError("draft_not_found")
+        return row
+
+    def _append_revision(
+        self,
+        db: sqlite3.Connection,
+        *,
+        draft_id: str,
+        user_id: int,
+        canonical_json: str,
+        reason: str,
+        draft_name: str,
+        archived_at: str | None,
+        now: str,
+    ) -> tuple[str, str]:
+        active = self._active(db, draft_id, user_id)
+        existing_child = db.execute(
+            "SELECT 1 FROM revisions WHERE draft_id=? AND parent_revision_id=? LIMIT 1",
+            (draft_id, active["id"]),
+        ).fetchone()
+        branch_id = str(active["branch_id"])
+        if existing_child is not None:
+            branch_id = str(uuid4())
+            db.execute(
+                "INSERT INTO branches(id,draft_id,parent_branch_id,fork_revision_id,created_at) VALUES(?,?,?,?,?)",
+                (branch_id, draft_id, active["branch_id"], active["id"], now),
+            )
+        revision_id = str(uuid4())
+        db.execute(
+            """INSERT INTO revisions(
+                id,draft_id,branch_id,parent_revision_id,canonical_json,reason,created_at,draft_name,archived_at
+            ) VALUES(?,?,?,?,?,?,?,?,?)""",
+            (revision_id, draft_id, branch_id, active["id"], canonical_json, reason, now, draft_name, archived_at),
+        )
+        return revision_id, branch_id
+
     def commit_revision(self, *, draft_id: str, user_id: int, document: CanonicalDocument, reason: str) -> None:
         now = _now()
         with self.connect() as db:
-            active = self._active(db, draft_id, user_id)
-            existing_child = db.execute(
-                "SELECT 1 FROM revisions WHERE draft_id=? AND parent_revision_id=? LIMIT 1",
-                (draft_id, active["id"]),
-            ).fetchone()
-            branch_id = active["branch_id"]
-            if existing_child is not None:
-                branch_id = str(uuid4())
-                db.execute(
-                    "INSERT INTO branches(id,draft_id,parent_branch_id,fork_revision_id,created_at) VALUES(?,?,?,?,?)",
-                    (branch_id, draft_id, active["branch_id"], active["id"], now),
-                )
-            revision_id = str(uuid4())
-            db.execute(
-                "INSERT INTO revisions(id,draft_id,branch_id,parent_revision_id,canonical_json,reason,created_at) VALUES(?,?,?,?,?,?,?)",
-                (revision_id, draft_id, branch_id, active["id"], document.to_json(), reason, now),
+            draft = self._draft_row(db, draft_id, user_id)
+            revision_id, branch_id = self._append_revision(
+                db,
+                draft_id=draft_id,
+                user_id=user_id,
+                canonical_json=document.to_json(),
+                reason=reason,
+                draft_name=str(draft["name"]),
+                archived_at=str(draft["archived_at"]) if draft["archived_at"] is not None else None,
+                now=now,
             )
             db.execute(
                 "UPDATE drafts SET active_revision_id=?,active_branch_id=?,updated_at=? WHERE id=? AND user_id=?",
                 (revision_id, branch_id, now, draft_id, user_id),
             )
+
+    def rename_draft(self, *, draft_id: str, user_id: int, name: str) -> None:
+        clean_name = name.strip()[:160]
+        if not clean_name:
+            raise ValueError("draft_name_required")
+        now = _now()
+        with self.connect() as db:
+            draft = self._draft_row(db, draft_id, user_id)
+            if str(draft["name"]) == clean_name:
+                return
+            active = self._active(db, draft_id, user_id)
+            revision_id, branch_id = self._append_revision(
+                db,
+                draft_id=draft_id,
+                user_id=user_id,
+                canonical_json=str(active["canonical_json"]),
+                reason="rename",
+                draft_name=clean_name,
+                archived_at=str(draft["archived_at"]) if draft["archived_at"] is not None else None,
+                now=now,
+            )
+            db.execute(
+                """UPDATE drafts SET name=?,active_revision_id=?,active_branch_id=?,updated_at=?
+                   WHERE id=? AND user_id=?""",
+                (clean_name, revision_id, branch_id, now, draft_id, user_id),
+            )
+
+    def set_archived(self, *, draft_id: str, user_id: int, archived: bool) -> None:
+        now = _now()
+        with self.connect() as db:
+            draft = self._draft_row(db, draft_id, user_id)
+            currently_archived = draft["archived_at"] is not None
+            if currently_archived == archived:
+                return
+            archived_at = now if archived else None
+            active = self._active(db, draft_id, user_id)
+            revision_id, branch_id = self._append_revision(
+                db,
+                draft_id=draft_id,
+                user_id=user_id,
+                canonical_json=str(active["canonical_json"]),
+                reason="archive" if archived else "restore",
+                draft_name=str(draft["name"]),
+                archived_at=archived_at,
+                now=now,
+            )
+            db.execute(
+                """UPDATE drafts SET archived_at=?,active_revision_id=?,active_branch_id=?,updated_at=?
+                   WHERE id=? AND user_id=?""",
+                (archived_at, revision_id, branch_id, now, draft_id, user_id),
+            )
+
+    def _restore_revision(self, db: sqlite3.Connection, *, draft_id: str, user_id: int, revision: sqlite3.Row, now: str) -> None:
+        current = self._draft_row(db, draft_id, user_id)
+        name = str(revision["draft_name"] or current["name"])
+        archived_at = revision["archived_at"]
+        db.execute(
+            """UPDATE drafts SET name=?,archived_at=?,active_revision_id=?,active_branch_id=?,updated_at=?
+               WHERE id=? AND user_id=?""",
+            (name, archived_at, revision["id"], revision["branch_id"], now, draft_id, user_id),
+        )
 
     def undo(self, *, draft_id: str, user_id: int) -> None:
         now = _now()
@@ -163,16 +327,15 @@ class SQLiteRepository:
             if active["parent_revision_id"] is None:
                 return
             parent = db.execute("SELECT * FROM revisions WHERE id=?", (active["parent_revision_id"],)).fetchone()
-            db.execute(
-                "UPDATE drafts SET active_revision_id=?,active_branch_id=?,updated_at=? WHERE id=? AND user_id=?",
-                (parent["id"], parent["branch_id"], now, draft_id, user_id),
-            )
+            if parent is None:
+                raise RuntimeError("revision_parent_missing")
+            self._restore_revision(db, draft_id=draft_id, user_id=user_id, revision=parent, now=now)
 
     def redo_candidates(self, *, draft_id: str, user_id: int) -> list[dict[str, Any]]:
         with self.connect() as db:
             active = self._active(db, draft_id, user_id)
             rows = db.execute(
-                "SELECT id,branch_id,reason,created_at FROM revisions WHERE draft_id=? AND parent_revision_id=? ORDER BY created_at",
+                "SELECT id,branch_id,reason,created_at,draft_name,archived_at FROM revisions WHERE draft_id=? AND parent_revision_id=? ORDER BY created_at",
                 (draft_id, active["id"]),
             ).fetchall()
             return [dict(row) for row in rows]
@@ -187,10 +350,7 @@ class SQLiteRepository:
             ).fetchone()
             if target is None:
                 raise ValueError("revision_is_not_a_redo_candidate")
-            db.execute(
-                "UPDATE drafts SET active_revision_id=?,active_branch_id=?,updated_at=? WHERE id=? AND user_id=?",
-                (target["id"], target["branch_id"], now, draft_id, user_id),
-            )
+            self._restore_revision(db, draft_id=draft_id, user_id=user_id, revision=target, now=now)
 
     def save_session(self, *, draft_id: str, user_id: int, payload: dict[str, Any]) -> None:
         now = _now()
@@ -236,3 +396,127 @@ class SQLiteRepository:
                 (import_id, user_id, draft_id, filename, mime_type, encoding, hashlib.sha256(original_bytes).hexdigest(), original_bytes, _now()),
             )
         return import_id
+
+    def get_import(self, *, user_id: int, import_id: str) -> dict[str, Any]:
+        with self.connect() as db:
+            row = db.execute(
+                "SELECT * FROM imports WHERE id=? AND user_id=?",
+                (import_id, user_id),
+            ).fetchone()
+        if row is None:
+            raise KeyError("import_not_found")
+        data = bytes(row["original_bytes"])
+        digest = hashlib.sha256(data).hexdigest()
+        if digest != str(row["sha256"]):
+            raise RuntimeError("import_sha256_mismatch")
+        result = dict(row)
+        result["original_bytes"] = data
+        return result
+
+    def get_telegraph_token_envelope(self, *, user_id: int) -> str | None:
+        with self.connect() as db:
+            row = db.execute("SELECT token_envelope FROM telegraph_accounts WHERE user_id=?", (user_id,)).fetchone()
+            return str(row["token_envelope"]) if row else None
+
+    def set_telegraph_token_envelope(self, *, user_id: int, token_envelope: str) -> None:
+        now = _now()
+        with self.connect() as db:
+            db.execute(
+                """
+                INSERT INTO telegraph_accounts(user_id,token_envelope,created_at,updated_at)
+                VALUES(?,?,?,?)
+                ON CONFLICT(user_id) DO UPDATE SET token_envelope=excluded.token_envelope,updated_at=excluded.updated_at
+                """,
+                (user_id, token_envelope, now, now),
+            )
+
+    def create_publication(
+        self, *, user_id: int, draft_id: str, revision_id: str, kind: str, title: str,
+        destination_chat_id: str | None = None, telegram_message_id: int | None = None,
+        telegraph_path: str | None = None, telegraph_url: str | None = None,
+        event_payload: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        if kind not in {"telegram", "telegraph"}:
+            raise ValueError("invalid_publication_kind")
+        publication_id, now = str(uuid4()), _now()
+        with self.connect() as db:
+            owner = db.execute("SELECT active_revision_id FROM drafts WHERE id=? AND user_id=?", (draft_id, user_id)).fetchone()
+            if owner is None:
+                raise KeyError("draft_not_found")
+            revision = db.execute("SELECT 1 FROM revisions WHERE id=? AND draft_id=?", (revision_id, draft_id)).fetchone()
+            if revision is None:
+                raise ValueError("revision_not_in_draft")
+            db.execute(
+                """INSERT INTO publications(
+                    id,user_id,draft_id,revision_id,kind,title,destination_chat_id,telegram_message_id,
+                    telegraph_path,telegraph_url,created_at,updated_at
+                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""",
+                (publication_id,user_id,draft_id,revision_id,kind,title,destination_chat_id,telegram_message_id,telegraph_path,telegraph_url,now,now),
+            )
+            self._append_publication_event(
+                db, publication_id=publication_id, user_id=user_id, revision_id=revision_id,
+                action="create", payload=event_payload or {}, created_at=now,
+            )
+        return self.get_publication(publication_id=publication_id, user_id=user_id)
+
+    def _append_publication_event(self, db: sqlite3.Connection, *, publication_id: str, user_id: int, revision_id: str, action: str, payload: dict[str, Any], created_at: str | None = None) -> None:
+        db.execute(
+            "INSERT INTO publication_events(id,publication_id,user_id,revision_id,action,payload_json,created_at) VALUES(?,?,?,?,?,?,?)",
+            (str(uuid4()), publication_id, user_id, revision_id, action, json.dumps(payload, ensure_ascii=False, separators=(",", ":")), created_at or _now()),
+        )
+
+    def update_publication(
+        self, *, publication_id: str, user_id: int, revision_id: str, title: str,
+        destination_chat_id: str | None = None, telegram_message_id: int | None = None,
+        telegraph_path: str | None = None, telegraph_url: str | None = None,
+        event_payload: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        now = _now()
+        with self.connect() as db:
+            current = db.execute("SELECT * FROM publications WHERE id=? AND user_id=?", (publication_id, user_id)).fetchone()
+            if current is None:
+                raise KeyError("publication_not_found")
+            revision = db.execute("SELECT 1 FROM revisions WHERE id=? AND draft_id=?", (revision_id, current["draft_id"])).fetchone()
+            if revision is None:
+                raise ValueError("revision_not_in_publication_draft")
+            db.execute(
+                """UPDATE publications SET revision_id=?,title=?,destination_chat_id=?,telegram_message_id=?,
+                    telegraph_path=?,telegraph_url=?,updated_at=? WHERE id=? AND user_id=?""",
+                (
+                    revision_id, title, destination_chat_id if destination_chat_id is not None else current["destination_chat_id"],
+                    telegram_message_id if telegram_message_id is not None else current["telegram_message_id"],
+                    telegraph_path if telegraph_path is not None else current["telegraph_path"],
+                    telegraph_url if telegraph_url is not None else current["telegraph_url"],
+                    now, publication_id, user_id,
+                ),
+            )
+            self._append_publication_event(
+                db, publication_id=publication_id, user_id=user_id, revision_id=revision_id,
+                action="edit", payload=event_payload or {}, created_at=now,
+            )
+        return self.get_publication(publication_id=publication_id, user_id=user_id)
+
+    def get_publication(self, *, publication_id: str, user_id: int) -> dict[str, Any]:
+        with self.connect() as db:
+            row = db.execute("SELECT * FROM publications WHERE id=? AND user_id=?", (publication_id, user_id)).fetchone()
+            if row is None:
+                raise KeyError("publication_not_found")
+            result = dict(row)
+            events = db.execute(
+                "SELECT id,revision_id,action,payload_json,created_at FROM publication_events WHERE publication_id=? AND user_id=? ORDER BY created_at",
+                (publication_id, user_id),
+            ).fetchall()
+            result["events"] = [
+                {**dict(event), "payload": json.loads(event["payload_json"])} for event in events
+            ]
+            for event in result["events"]:
+                event.pop("payload_json", None)
+            return result
+
+    def list_publications(self, *, user_id: int) -> list[dict[str, Any]]:
+        with self.connect() as db:
+            rows = db.execute(
+                "SELECT * FROM publications WHERE user_id=? ORDER BY updated_at DESC",
+                (user_id,),
+            ).fetchall()
+            return [dict(row) for row in rows]
