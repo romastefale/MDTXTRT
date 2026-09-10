@@ -5,6 +5,10 @@ const initData=tg?.initData||"";
 const $=(selector,root=document)=>root.querySelector(selector);
 const editor=$("#editor");
 
+function markSessionExpired(){
+  window.dispatchEvent(new CustomEvent("mdtxtrt:auth-expired",{detail:{source:"lifecycle"}}));
+}
+
 async function api(path,options={}){
   const headers={"X-Telegram-Init-Data":initData,...(options.headers||{})};
   if(options.body&&!(options.body instanceof FormData)&&typeof options.body!=="string"){
@@ -13,6 +17,7 @@ async function api(path,options={}){
   }
   const response=await fetch(path,{...options,headers});
   const data=await response.json().catch(()=>({}));
+  if(response.status===401) markSessionExpired();
   if(!response.ok||data.ok===false){
     const error=new Error(data.detail||data.error||`HTTP ${response.status}`);
     error.status=response.status;
@@ -24,6 +29,7 @@ async function api(path,options={}){
 
 async function authenticatedDownload(path,filename){
   const response=await fetch(path,{headers:{"X-Telegram-Init-Data":initData}});
+  if(response.status===401) markSessionExpired();
   if(!response.ok) throw new Error(`HTTP ${response.status}`);
   const blob=await response.blob();
   const href=URL.createObjectURL(blob);
@@ -76,9 +82,11 @@ async function enhanceDraftRows(){
   try{
     const result=await api(`/api/drafts?archived=${archivedView()?1:0}`);
     if(result.drafts.length!==rows.length) return;
+    const draftsById=new Map(result.drafts.map(draft=>[String(draft.id),draft]));
     rows.forEach((row,index)=>{
       if(row.dataset.lifecycleEnhanced==="1") return;
-      const draft=result.drafts[index];
+      const draft=draftsById.get(String(row.dataset.draftId||""))||result.drafts[index];
+      if(!draft) return;
       row.dataset.lifecycleEnhanced="1";
       row.dataset.draftId=draft.id;
       const actions=row.querySelector(".list-actions");
@@ -89,7 +97,7 @@ async function enhanceDraftRows(){
       original.textContent="Original";
       original.onclick=async()=>{
         try{await downloadDraftOriginal(draft)}
-        catch(error){await noticeDialog("Falha ao baixar original",error.message)}
+        catch(error){if(error.status!==401) await noticeDialog("Falha ao baixar original",error.message)}
       };
 
       const duplicate=document.createElement("button");
@@ -108,13 +116,15 @@ async function enhanceDraftRows(){
           url.searchParams.set("draft",created.draft.id);
           location.assign(url.toString());
         }catch(error){
-          await noticeDialog("Falha ao duplicar",error.message);
+          if(error.status!==401) await noticeDialog("Falha ao duplicar",error.message);
         }
       };
       actions.append(original,duplicate);
     });
-  }catch{
-    // O editor principal continua responsável por exibir sua própria falha.
+  }catch(error){
+    if(error?.status!==401){
+      // O editor principal continua responsável pelo fluxo base; enhancement é opcional.
+    }
   }finally{
     enhancingDrafts=false;
   }
@@ -240,7 +250,7 @@ async function chooseMediaVersion(card){
   try{
     history=(await api(`/api/media/${current.attrs.media_blob_id}/history`)).history||[];
   }catch(error){
-    await noticeDialog("Falha ao carregar versões",error.message);
+    if(error.status!==401) await noticeDialog("Falha ao carregar versões",error.message);
     return;
   }
   if(!history.length){
@@ -293,8 +303,10 @@ async function chooseMediaVersion(card){
         applyMediaVersionToCard(card,current,result.media);
         dialog.close();
       }catch(error){
-        await noticeDialog("Falha ao restaurar versão",error.message);
-        restore.disabled=false;
+        if(error.status!==401){
+          await noticeDialog("Falha ao restaurar versão",error.message);
+          restore.disabled=false;
+        }
       }
     };
     actions.append(restore);
@@ -350,7 +362,7 @@ function enhanceMediaCards(){
         const result=await api(`/api/media/${current.attrs.media_blob_id}/replace`,{method:"POST",body:form});
         applyMediaVersionToCard(card,current,result.media);
       }catch(error){
-        await noticeDialog("Falha ao substituir mídia",error.message);
+        if(error.status!==401) await noticeDialog("Falha ao substituir mídia",error.message);
       }
     };
 
