@@ -68,15 +68,22 @@
         <button data-structured="math_block"><b>Fórmula</b><small>LaTeX em bloco</small></button>
         <button data-structured="anchor"><b>Âncora</b><small>navegação interna</small></button>
         <button data-structured="reference"><b>Referência</b><small>nota referenciada</small></button>
-        <button data-structured="map"><b>Mapa</b><small>latitude/longitude</small></button>
+        <button id="native-location"><b>Localização Telegram</b><small>Location/Venue nativa</small></button>
+        <button data-structured="map"><b>Mapa manual</b><small>fallback por coordenadas</small></button>
       </div></details>
       <details><summary class="tool">Mídia ▾</summary><div class="menu">
-        <button data-media="photo"><b>Foto</b><small>URL HTTP/HTTPS</small></button>
-        <button data-media="video"><b>Vídeo</b><small>URL HTTP/HTTPS</small></button>
-        <button data-media="animation"><b>Animação</b><small>URL HTTP/HTTPS</small></button>
-        <button data-media="audio"><b>Áudio</b><small>URL HTTP/HTTPS</small></button>
-        <button data-media="voice_note"><b>Voz</b><small>voice note</small></button>
-        <button data-media="document"><b>Documento</b><small>Bot API 10.3</small></button>
+        <button data-local-media="photo"><b>Foto local</b><small>BLOB preservado + SHA-256</small></button>
+        <button data-local-media="video"><b>Vídeo local</b><small>BLOB preservado + SHA-256</small></button>
+        <button data-local-media="animation"><b>Animação local</b><small>BLOB preservado + SHA-256</small></button>
+        <button data-local-media="audio"><b>Áudio local</b><small>BLOB preservado + SHA-256</small></button>
+        <button data-local-media="voice_note"><b>Voz local</b><small>voice note Rich</small></button>
+        <button data-local-media="document"><b>Documento local</b><small>Bot API 10.3</small></button>
+        <button data-media="photo"><b>Foto por URL</b><small>HTTP/HTTPS</small></button>
+        <button data-media="video"><b>Vídeo por URL</b><small>HTTP/HTTPS</small></button>
+        <button data-media="animation"><b>Animação por URL</b><small>HTTP/HTTPS</small></button>
+        <button data-media="audio"><b>Áudio por URL</b><small>HTTP/HTTPS</small></button>
+        <button data-media="voice_note"><b>Voz por URL</b><small>HTTP/HTTPS</small></button>
+        <button data-media="document"><b>Documento por URL</b><small>HTTP/HTTPS</small></button>
         <button data-structured="collage"><b>Collage</b><small>fotos/vídeos</small></button>
         <button data-structured="slideshow"><b>Slideshow</b><small>fotos/vídeos</small></button>
       </div></details>
@@ -109,6 +116,7 @@
     <button class="action primary" id="publish-telegram">Telegram</button>
     <button class="action primary" id="publish-telegraph">Telegraph</button>
     <input id="file" type="file" accept=".md,.txt,text/plain,text/markdown" hidden>
+    <input id="media-file" type="file" hidden>
   </footer>
 </div>
 
