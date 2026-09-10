@@ -10,6 +10,7 @@ from mdtxtrt.conversion_workflow import attach_conversion_routes
 from mdtxtrt.credentials import CredentialCipher
 from mdtxtrt.lifecycle import attach_lifecycle_routes
 from mdtxtrt.pending_imports import PendingImportStore
+from mdtxtrt.preferences import PreferenceStore, attach_preference_routes
 from mdtxtrt.publishing import TelegramPublicationService, TelegraphPublicationService
 from mdtxtrt.server import create_web_app
 from mdtxtrt.services import DocumentService, ImportService
@@ -25,6 +26,8 @@ def build_application(settings: Settings | None = None) -> web.Application:
     assets.initialize()
     pending_imports = PendingImportStore(repository)
     pending_imports.initialize()
+    preferences = PreferenceStore(repository)
+    preferences.initialize()
     documents = DocumentService(repository)
     imports = ImportService(repository, documents, pending_imports)
     telegram_publications = TelegramPublicationService(repository, assets)
@@ -48,6 +51,7 @@ def build_application(settings: Settings | None = None) -> web.Application:
     )
     attach_lifecycle_routes(app)
     attach_conversion_routes(app)
+    attach_preference_routes(app, preferences)
     return app
 
 
