@@ -1,8 +1,4 @@
-"""Compila a projeção canônica de Rich explícito para blocos Bot API.
-
-O parser é a única autoridade para decidir se a projeção precisa de blocks.
-Isso evita separar o roteamento público da capacidade real do compilador.
-"""
+"""Compila a projeção canônica de entidades Rich explícitas para blocos Bot API."""
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -31,14 +27,6 @@ class _Node:
     tag: str
     attrs: dict[str, str | bool] = field(default_factory=dict)
     children: list["_Node | str"] = field(default_factory=list)
-
-
-@dataclass(frozen=True)
-class ExplicitCompilationPlan:
-    """Resultado único da decisão de roteamento + compilação explícita."""
-
-    required: bool
-    blocks: tuple[InputRichBlockUnion, ...] = ()
 
 
 class _TreeParser(HTMLParser):
@@ -82,17 +70,7 @@ def _parse(source: str) -> _Node:
 
 
 def _requires_explicit_node(node: _Node) -> bool:
-    """Detecta extensões que não podem ser delegadas ao markdown direto.
-
-    Toda extensão ``tg-*`` pertence ao compilador explícito. Uma extensão futura
-    desconhecida também entra no compilador e falha de modo explícito, em vez de
-    ser silenciosamente enviada como markdown. Âncoras nomeadas já possuem
-    representação explícita no compilador e seguem a mesma regra.
-    """
-
-    if node.tag.startswith("tg-"):
-        return True
-    if node.tag == "a" and node.attrs.get("name") not in (None, False, ""):
+    if node.tag in {"tg-entity", "tg-button"}:
         return True
     return any(
         _requires_explicit_node(child)
@@ -102,14 +80,10 @@ def _requires_explicit_node(node: _Node) -> bool:
 
 
 def requires_explicit_blocks(source: str) -> bool:
-    """Retorna a decisão produzida pelo mesmo parser usado na compilação."""
-
     return _requires_explicit_node(_parse(source))
 
 
 def contains_semantic_entities(source: str) -> bool:
-    """Compatibilidade: o nome antigo agora delega ao planejamento correto."""
-
     return requires_explicit_blocks(source)
 
 
@@ -154,8 +128,6 @@ def _validate_button_text(value) -> None:
 
 
 def _build_button(node: _Node) -> dict:
-    """Único construtor de ``tg-button`` para inline e button-row."""
-
     attrs = node.attrs
     text = _inline_children(node)
     _validate_button_text(text)
@@ -567,33 +539,13 @@ def _block(node: _Node, media_by_id: dict[str, object]) -> list[dict]:
         f"Bloco canônico <{tag}> não possui projeção Rich explícita sem perda.")
 
 
-def _compile_root(root: _Node, media_by_id: dict[str, object]) -> tuple[InputRichBlockUnion, ...]:
-    blocks = _child_blocks(root, media_by_id)
-    if not blocks:
-        raise ValueError("Documento Rich sem blocos após a projeção explícita.")
-    adapter = TypeAdapter(InputRichBlockUnion)
-    return tuple(adapter.validate_python(block) for block in blocks)
-
-
-def plan_explicit_blocks(
-    source: str,
-    media_by_id: dict[str, object],
-) -> ExplicitCompilationPlan:
-    """Decide e, quando necessário, compila usando a mesma árvore sintática."""
-
-    root = _parse(source)
-    if not _requires_explicit_node(root):
-        return ExplicitCompilationPlan(required=False)
-    return ExplicitCompilationPlan(
-        required=True,
-        blocks=_compile_root(root, media_by_id),
-    )
-
-
 def compile_semantic_blocks(
     source: str,
     media_by_id: dict[str, object],
 ) -> list[InputRichBlockUnion]:
-    """API direta mantida para consumidores que já decidiram usar blocks."""
-
-    return list(_compile_root(_parse(source), media_by_id))
+    root = _parse(source)
+    blocks = _child_blocks(root, media_by_id)
+    if not blocks:
+        raise ValueError("Documento Rich sem blocos após a projeção explícita.")
+    adapter = TypeAdapter(InputRichBlockUnion)
+    return [adapter.validate_python(block) for block in blocks]
