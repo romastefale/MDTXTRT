@@ -3,14 +3,13 @@
 The canonical tree is the source of truth. HTML, Rich Markdown and typed Blocks
 are publication representations, not independent parsing routes. A Blocks plan
 is offered only when every represented node has a typed construction known to
-this module; unsupported nodes make that option unavailable rather than being
-silently flattened.
+this module; unsupported or structurally invalid nodes make that option
+unavailable rather than being silently flattened.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 import hashlib
-import html
 import json
 from typing import Any
 
@@ -84,10 +83,10 @@ def _plain(node: CanonicalNode) -> str:
 def _rich_text(node: CanonicalNode, adaptations: list[str]) -> Any:
     if node.kind in {"text", "plain"}:
         return node.text or ""
-    children: Any
+
     if node.children:
         values = [_rich_text(child, adaptations) for child in node.children]
-        children = values[0] if len(values) == 1 else values
+        children: Any = values[0] if len(values) == 1 else values
     else:
         children = node.text or ""
 
@@ -129,11 +128,23 @@ def _rich_text(node: CanonicalNode, adaptations: list[str]) -> Any:
     if node.kind in {"math_inline", "mathematical_expression"}:
         return {"type": "mathematical_expression", "expression": node.text or _plain(node)}
     if node.kind == "anchor_link":
-        return {"type": "anchor_link", "text": children, "anchor_name": str(node.attrs.get("name") or "")}
+        return {
+            "type": "anchor_link",
+            "text": children,
+            "anchor_name": str(node.attrs.get("name") or ""),
+        }
     if node.kind == "reference_link":
-        return {"type": "reference_link", "text": children, "reference_name": str(node.attrs.get("name") or "")}
+        return {
+            "type": "reference_link",
+            "text": children,
+            "reference_name": str(node.attrs.get("name") or ""),
+        }
     if node.kind == "reference":
-        return {"type": "reference", "text": children, "name": str(node.attrs.get("name") or "")}
+        return {
+            "type": "reference",
+            "text": children,
+            "name": str(node.attrs.get("name") or ""),
+        }
     raise ValueError(f"blocks_inline_unsupported:{node.kind}:{node.id}")
 
 
@@ -169,7 +180,7 @@ def _blocks_for_node(node: CanonicalNode, adaptations: list[str]) -> list[dict[s
         return [{"type": "anchor", "name": str(node.attrs.get("name") or "")}]
     if node.kind == "blockquote":
         paragraph = {"type": "paragraph", "text": _block_text(node, adaptations)}
-        result: dict[str, Any] = {"type": "blockquote", "blocks": [paragraph]}
+        result = {"type": "blockquote", "blocks": [paragraph]}
         credit = str(node.attrs.get("citation") or "").strip()
         if credit:
             result["credit"] = credit
@@ -192,10 +203,7 @@ def _blocks_for_node(node: CanonicalNode, adaptations: list[str]) -> list[dict[s
             if item.kind != "list_item":
                 raise ValueError(f"blocks_list_child_unsupported:{item.kind}:{item.id}")
             content = {"type": "paragraph", "text": _block_text(item, adaptations)}
-            entry: dict[str, Any] = {
-                "label": str(item.attrs.get("value") or index) if node.attrs.get("ordered") else "•",
-                "blocks": [content],
-            }
+            entry: dict[str, Any] = {"blocks": [content]}
             if item.attrs.get("task"):
                 entry["has_checkbox"] = True
                 entry["is_checked"] = bool(item.attrs.get("checked"))
@@ -218,14 +226,99 @@ def _blocks_for_node(node: CanonicalNode, adaptations: list[str]) -> list[dict[s
     raise ValueError(f"blocks_block_unsupported:{node.kind}:{node.id}")
 
 
+_RICH_TEXT_KEYS: dict[str, frozenset[str]] = {
+    "bold": frozenset({"type", "text"}),
+    "italic": frozenset({"type", "text"}),
+    "underline": frozenset({"type", "text"}),
+    "strikethrough": frozenset({"type", "text"}),
+    "spoiler": frozenset({"type", "text"}),
+    "subscript": frozenset({"type", "text"}),
+    "superscript": frozenset({"type", "text"}),
+    "marked": frozenset({"type", "text"}),
+    "code": frozenset({"type", "text"}),
+    "url": frozenset({"type", "text", "url"}),
+    "custom_emoji": frozenset({"type", "custom_emoji_id", "alternative_text"}),
+    "date_time": frozenset({"type", "text", "unix_time", "date_time_format"}),
+    "mathematical_expression": frozenset({"type", "expression"}),
+    "anchor_link": frozenset({"type", "text", "anchor_name"}),
+    "reference_link": frozenset({"type", "text", "reference_name"}),
+    "reference": frozenset({"type", "text", "name"}),
+}
+_BLOCK_KEYS: dict[str, frozenset[str]] = {
+    "paragraph": frozenset({"type", "text"}),
+    "heading": frozenset({"type", "text", "size"}),
+    "pre": frozenset({"type", "text", "language"}),
+    "footer": frozenset({"type", "text"}),
+    "divider": frozenset({"type"}),
+    "mathematical_expression": frozenset({"type", "expression"}),
+    "anchor": frozenset({"type", "name"}),
+    "blockquote": frozenset({"type", "blocks", "credit"}),
+    "expandable_blockquote": frozenset({"type", "text", "credit"}),
+    "pullquote": frozenset({"type", "text", "credit"}),
+    "list": frozenset({"type", "items"}),
+    "details": frozenset({"type", "summary", "blocks", "is_open"}),
+}
+_LIST_ITEM_KEYS = frozenset({"blocks", "has_checkbox", "is_checked", "value", "type"})
+
+
+def _validate_rich_text(value: Any) -> None:
+    if isinstance(value, str):
+        return
+    if isinstance(value, list):
+        for child in value:
+            _validate_rich_text(child)
+        return
+    if not isinstance(value, dict):
+        raise ValueError("blocks_rich_text_invalid_shape")
+    kind = str(value.get("type") or "")
+    allowed = _RICH_TEXT_KEYS.get(kind)
+    if allowed is None:
+        raise ValueError(f"blocks_rich_text_type_unverified:{kind}")
+    unexpected = set(value) - set(allowed)
+    if unexpected:
+        raise ValueError(f"blocks_rich_text_unexpected_fields:{kind}:{','.join(sorted(unexpected))}")
+    if "text" in value:
+        _validate_rich_text(value["text"])
+
+
+def _validate_input_block(block: dict[str, Any]) -> None:
+    kind = str(block.get("type") or "")
+    allowed = _BLOCK_KEYS.get(kind)
+    if allowed is None:
+        raise ValueError(f"blocks_type_unverified:{kind}")
+    unexpected = set(block) - set(allowed)
+    if unexpected:
+        raise ValueError(f"blocks_unexpected_fields:{kind}:{','.join(sorted(unexpected))}")
+    if "text" in block:
+        _validate_rich_text(block["text"])
+    if "credit" in block:
+        _validate_rich_text(block["credit"])
+    if "summary" in block:
+        _validate_rich_text(block["summary"])
+    for nested in block.get("blocks", []):
+        _validate_input_block(nested)
+    if kind == "list":
+        for item in block.get("items", []):
+            if not isinstance(item, dict):
+                raise ValueError("blocks_list_item_invalid_shape")
+            unexpected_item = set(item) - set(_LIST_ITEM_KEYS)
+            if unexpected_item:
+                raise ValueError(
+                    f"blocks_list_item_unexpected_fields:{','.join(sorted(unexpected_item))}"
+                )
+            for nested in item.get("blocks", []):
+                _validate_input_block(nested)
+
+
 def _blocks_plan(document: CanonicalDocument) -> RepresentationPlan:
     adaptations: list[str] = []
     blocks: list[dict[str, Any]] = []
     try:
         for block in document.blocks:
             blocks.extend(_blocks_for_node(block, adaptations))
+        for block in blocks:
+            _validate_input_block(block)
     except (ValueError, TypeError) as exc:
-        message = str(exc)
         return RepresentationPlan(
             key="blocks",
             label="Blocks tipados",
@@ -233,7 +326,7 @@ def _blocks_plan(document: CanonicalDocument) -> RepresentationPlan:
             exact=False,
             preview=json.dumps(blocks, ensure_ascii=False, indent=2),
             adaptations=adaptations,
-            blocking=[message],
+            blocking=[str(exc)],
             blocks=None,
         )
     return RepresentationPlan(
