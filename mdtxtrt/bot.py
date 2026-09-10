@@ -19,11 +19,19 @@ from mdtxtrt.config import Settings
 from mdtxtrt.services import EncodingChoiceRequired, ImportService
 
 
-def _with_draft(url: str, draft_id: str) -> str:
+def _with_query(url: str, **values: str) -> str:
     parts = urlsplit(url)
     query = dict(parse_qsl(parts.query, keep_blank_values=True))
-    query["draft"] = draft_id
+    query.update(values)
     return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
+
+
+def _with_draft(url: str, draft_id: str) -> str:
+    return _with_query(url, draft=draft_id)
+
+
+def _with_pending_import(url: str, pending_import_id: str) -> str:
+    return _with_query(url, pending_import=pending_import_id)
 
 
 def _attr(value: str) -> str:
@@ -89,17 +97,35 @@ class TelegramRuntime:
         buffer = BytesIO()
         await self.bot.download(message.document, destination=buffer)
         data = buffer.getvalue()
+        user_id = int(message.from_user.id)
+        source_key = f"telegram:{message.chat.id}:{message.message_id}"
+        pending = self.imports.stage_file(
+            user_id=user_id,
+            filename=filename,
+            data=data,
+            mime_type=message.document.mime_type,
+            source_key=source_key,
+        )
         try:
-            draft = self.imports.import_file(
-                user_id=int(message.from_user.id),
-                filename=filename,
-                data=data,
-                mime_type=message.document.mime_type,
+            draft = self.imports.complete_pending(
+                user_id=user_id,
+                pending_import_id=pending.id,
             )
-        except EncodingChoiceRequired:
-            await message.answer(
-                "O arquivo não é UTF-8. Para não adivinhar o encoding, importe-o pelo Web App e escolha a codificação explicitamente."
+        except EncodingChoiceRequired as exc:
+            if not self.settings.web_app_url:
+                await message.answer(
+                    "O arquivo não é UTF-8. O original foi preservado como importação pendente, mas WEB_APP_URL precisa estar configurada para você escolher o encoding."
+                )
+                return
+            url = _with_pending_import(self.settings.web_app_url, exc.pending_import_id or pending.id)
+            body = (
+                f"<p>O arquivo <strong>{html.escape(filename)}</strong> não é UTF-8. "
+                "O original foi preservado; escolha o encoding explicitamente no editor.</p>"
+                '<tg-button-row align="center">'
+                f'<tg-button type="web_app" style="success" url="{_attr(url)}">Escolher encoding</tg-button>'
+                '</tg-button-row>'
             )
+            await message.answer_rich(InputRichMessage(html=body))
             return
         if not self.settings.web_app_url:
             await message.answer(f"Rascunho importado: {draft['name']}")
