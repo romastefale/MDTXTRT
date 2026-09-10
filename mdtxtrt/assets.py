@@ -1,7 +1,7 @@
 """User-owned media BLOBs and native Telegram location requests.
 
-BLOBs are immutable. Replacement creates a new BLOB version and preserves the
-previous bytes. Public URLs are opt-in, random-token based and revocable.
+BLOBs are immutable. Replacement or restoration creates a new BLOB version and
+preserves the previous bytes. Public URLs are opt-in, random-token based and revocable.
 """
 from __future__ import annotations
 
@@ -17,6 +17,18 @@ from mdtxtrt.storage import SQLiteRepository
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _http_media_type(value: str) -> str:
+    """Return only type/subtype for aiohttp's content_type parameter.
+
+    The original MIME string remains persisted. Public response construction
+    must not receive parameters such as ``; charset=...`` through content_type.
+    """
+    base = (value or "application/octet-stream").split(";", 1)[0].strip().lower()
+    if "/" not in base or any(ch.isspace() for ch in base):
+        return "application/octet-stream"
+    return base
 
 
 @dataclass(frozen=True, slots=True)
@@ -172,6 +184,23 @@ class AssetService:
                 current = previous.id
         return history
 
+    def restore_media_version(self, *, user_id: int, media_id: str, version_id: str) -> dict[str, Any]:
+        current = self.get_media(user_id=user_id, media_id=media_id)
+        candidates = {item["id"] for item in self.replacement_history(user_id=user_id, media_id=media_id)}
+        if version_id not in candidates:
+            raise ValueError("media_version_is_not_in_history")
+        selected = self.get_media(user_id=user_id, media_id=version_id)
+        if selected.draft_id != current.draft_id:
+            raise ValueError("media_version_does_not_belong_to_draft")
+        return self.store_media(
+            user_id=user_id,
+            draft_id=current.draft_id,
+            filename=selected.filename,
+            mime_type=selected.mime_type,
+            data=selected.data,
+            replaces_media_id=current.id,
+        )
+
     def clone_draft_media(self, *, user_id: int, source_draft_id: str, target_draft_id: str) -> dict[str, str]:
         self.repository.get_draft(source_draft_id, user_id=user_id)
         self.repository.get_draft(target_draft_id, user_id=user_id)
@@ -226,9 +255,13 @@ class AssetService:
         digest = hashlib.sha256(data).hexdigest()
         if not secrets.compare_digest(digest, str(row["sha256"])):
             raise BlobIntegrityError("media_sha256_mismatch")
+        # The database keeps the exact upload MIME string. The anonymous HTTP
+        # response receives only a valid type/subtype; response policy then
+        # decides whether that base type is safe to render inline.
+        public_mime = _http_media_type(str(row["mime_type"]))
         return MediaBlob(
             id=str(row["id"]), user_id=int(row["user_id"]), draft_id=str(row["draft_id"]),
-            filename=str(row["filename"]), mime_type=str(row["mime_type"]),
+            filename=str(row["filename"]), mime_type=public_mime,
             sha256=str(row["sha256"]), data=data,
         )
 

@@ -1,659 +1,1543 @@
-const tg = window.Telegram?.WebApp;
+import {comparisonDialog,confirmDialog,noticeDialog} from "/static/dialogs.js";
+
+const tg=window.Telegram?.WebApp;
 tg?.ready();
 tg?.expand();
 
-const $ = (selector, root = document) => root.querySelector(selector);
-const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
-const editor = $("#editor");
-const statusEl = $("#status");
-const nameEl = $("#draft-name");
-const initData = tg?.initData || "";
-const state = {
-  draft: null,
-  lastSaved: "",
-  saveTimer: null,
-  sessionTimer: null,
-  pendingInline: new Map(),
-  editingPublication: null,
-  archivedView: false,
-  reviewAction: null,
-  pendingMediaKind: null,
-  pendingLocationRequest: sessionStorage.getItem("mdtxtrt:location-request") || null,
-  draggedBlock: null,
-  undoToastTimer: null,
+const $=(selector,root=document)=>root.querySelector(selector);
+const $$=(selector,root=document)=>[...root.querySelectorAll(selector)];
+const editor=$("#editor");
+const statusEl=$("#status");
+const nameEl=$("#draft-name");
+const initData=tg?.initData||"";
+
+const state={
+  draft:null,
+  lastSaved:"",
+  saveTimer:null,
+  sessionTimer:null,
+  pendingInline:new Map(),
+  editingPublication:null,
+  archivedView:false,
+  reviewAction:null,
+  pendingMediaKind:null,
+  pendingLocationRequest:sessionStorage.getItem("mdtxtrt:location-request")||null,
+  draggedBlock:null,
+  undoToastTimer:null,
+  preferences:{},
+  outputOverride:null,
+  authExpired:false,
 };
 
-const uid = () => crypto.randomUUID();
-const enc = new TextEncoder();
-const deepClone = value => JSON.parse(JSON.stringify(value));
-const domNodeIds = new WeakMap();
-const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+const uid=()=>crypto.randomUUID();
+const clone=value=>JSON.parse(JSON.stringify(value));
+const enc=new TextEncoder();
+const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+const domNodeIds=new WeakMap();
 
-function setStatus(text) { statusEl.textContent = text; }
-function closeMenus() { $$(".toolbar details[open]").forEach(x => x.removeAttribute("open")); }
-function currentUserHeader() { return {"X-Telegram-Init-Data": initData}; }
+function setStatus(value){statusEl.textContent=value}
+function closeMenus(){$$(".toolbar details[open]").forEach(item=>item.removeAttribute("open"))}
+function headers(){return {"X-Telegram-Init-Data":initData}}
+function mirrorKey(){return state.draft?`mdtxtrt:mirror:${state.draft.id}`:null}
 
-async function api(path, options = {}) {
-  const headers = {...currentUserHeader(), ...(options.headers || {})};
-  if (options.body && !(options.body instanceof FormData) && typeof options.body !== "string") {
-    headers["Content-Type"] = "application/json";
-    options.body = JSON.stringify(options.body);
+function rememberDomNodeId(dom,id=null){
+  let value=domNodeIds.get(dom);
+  if(!value){value=id||uid();domNodeIds.set(dom,value)}
+  return value;
+}
+
+function saveMirror(){
+  if(!state.draft) return;
+  localStorage.setItem(mirrorKey(),JSON.stringify({
+    revision_id:state.draft.active_revision_id,
+    document:canonicalDocument(),
+    saved_at:Date.now(),
+  }));
+}
+
+function showMessage(title,body){
+  $("#message-title").textContent=title;
+  $("#message-body").textContent=body;
+  const dialog=$("#message-dialog");
+  if(!dialog.open) dialog.showModal();
+}
+
+function authExpired(){
+  if(state.authExpired) return;
+  state.authExpired=true;
+  saveMirror();
+  setStatus("sessão expirada");
+  showMessage(
+    "Sessão expirada",
+    "O espelho local foi preservado. Reabra o Mini App pelo Telegram para obter uma nova autenticação; ao abrir, o MDTXTRT compara o servidor com o espelho local e pede qual versão usar.",
+  );
+}
+
+async function api(path,options={}){
+  const requestHeaders={...headers(),...(options.headers||{})};
+  const next={...options};
+  if(next.body&&!(next.body instanceof FormData)&&typeof next.body!=="string"){
+    requestHeaders["Content-Type"]="application/json";
+    next.body=JSON.stringify(next.body);
   }
-  const response = await fetch(path, {...options, headers});
-  let data = {};
-  try { data = await response.json(); } catch (_) {}
-  if (!response.ok || data.ok === false) {
-    const error = new Error(data.error || `HTTP ${response.status}`);
-    error.data = data;
-    error.status = response.status;
+  const response=await fetch(path,{...next,headers:requestHeaders});
+  let data={};
+  try{data=await response.json()}catch{}
+  if(response.status===401){
+    authExpired();
+    const error=new Error(data.error||"authentication_expired");
+    error.status=401;
+    error.data=data;
+    throw error;
+  }
+  if(!response.ok||data.ok===false){
+    const error=new Error(data.detail||data.error||`HTTP ${response.status}`);
+    error.status=response.status;
+    error.data=data;
     throw error;
   }
   return data;
 }
 
-async function authenticatedDownload(path, filename) {
-  const response = await fetch(path, {headers:currentUserHeader()});
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
-  const blob = await response.blob();
-  const href = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = href;
-  a.download = filename || "arquivo";
-  document.body.append(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(href), 1000);
+async function authenticatedDownload(path,filename){
+  const response=await fetch(path,{headers:headers()});
+  if(response.status===401){authExpired();return false}
+  if(!response.ok) throw new Error(`HTTP ${response.status}`);
+  const blob=await response.blob();
+  const url=URL.createObjectURL(blob);
+  const anchor=document.createElement("a");
+  anchor.href=url;
+  anchor.download=filename||"arquivo";
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+  return true;
 }
 
-function showMessage(title, body) {
-  $("#message-title").textContent = title;
-  $("#message-body").textContent = body;
-  $("#message-dialog").showModal();
-}
-
-function showUndoToast(message, undo, timeout = 9000) {
+function showUndoToast(message,undo,timeout=9000){
   clearTimeout(state.undoToastTimer);
   $("#mdtxtrt-undo-toast")?.remove();
-  const toast = document.createElement("div");
-  toast.id = "mdtxtrt-undo-toast";
-  Object.assign(toast.style, {
-    position:"fixed", left:"12px", right:"12px", bottom:"78px", zIndex:"90",
-    display:"flex", alignItems:"center", gap:"12px", padding:"11px 13px",
-    borderRadius:"12px", background:"var(--surface)", color:"var(--text)",
-    border:"1px solid var(--line)", boxShadow:"0 12px 38px #0004",
-  });
-  const text = document.createElement("span"); text.textContent = message; text.style.flex = "1";
-  const button = document.createElement("button");
-  button.type = "button"; button.textContent = "Desfazer";
-  button.style.cssText = "border:0;background:transparent;color:var(--accent);font-weight:700";
-  button.onclick = () => { clearTimeout(state.undoToastTimer); toast.remove(); undo(); };
-  toast.append(text, button); document.body.append(toast);
-  state.undoToastTimer = setTimeout(() => toast.remove(), timeout);
+  const toast=document.createElement("div");
+  toast.id="mdtxtrt-undo-toast";
+  toast.style.cssText="position:fixed;left:12px;right:12px;bottom:78px;z-index:90;display:flex;align-items:center;gap:12px;padding:11px 13px;border-radius:12px;background:var(--surface);color:var(--text);border:1px solid var(--line);box-shadow:0 12px 38px #0004";
+  const text=document.createElement("span");
+  text.textContent=message;
+  text.style.flex="1";
+  const button=document.createElement("button");
+  button.type="button";
+  button.textContent="Desfazer";
+  button.style.cssText="border:0;background:transparent;color:var(--accent);font-weight:700";
+  button.onclick=()=>{clearTimeout(state.undoToastTimer);toast.remove();undo()};
+  toast.append(text,button);
+  document.body.append(toast);
+  state.undoToastTimer=setTimeout(()=>toast.remove(),timeout);
 }
 
-function node(kind, {text = null, attrs = {}, children = []} = {}) {
-  return {id: uid(), kind, text, attrs, children};
-}
+function node(kind,{text=null,attrs={},children=[]}={}){return {id:uid(),kind,text,attrs,children}}
+function textNode(text){return node("text",{text})}
+function plainNode(value){if(!value)return"";return value.children?.length?value.children.map(plainNode).join(""):(value.text||"")}
 
-function textNode(text) { return node("text", {text}); }
+const inlineTags={
+  bold:"strong",
+  italic:"em",
+  underline:"u",
+  strikethrough:"s",
+  marked:"mark",
+  subscript:"sub",
+  superscript:"sup",
+  code:"code",
+};
 
-function rememberDomNodeId(dom, preferred = null) {
-  let id = domNodeIds.get(dom);
-  if (!id) {
-    id = preferred || uid();
-    domNodeIds.set(dom, id);
-  }
-  return id;
-}
-
-function renderTextNode(n) {
-  const dom = document.createTextNode(n?.text || "");
-  rememberDomNodeId(dom, n?.id || uid());
+function renderTextNode(value){
+  const dom=document.createTextNode(value?.text||"");
+  rememberDomNodeId(dom,value?.id||uid());
   return dom;
 }
 
-function serializedTextNode(dom, text) {
-  return {id: rememberDomNodeId(dom), kind: "text", text, attrs: {}, children: []};
-}
-
-const inlineTags = {
-  bold: "strong", italic: "em", underline: "u", strikethrough: "s",
-  marked: "mark", subscript: "sub", superscript: "sup", code: "code",
-};
-
-function renderInline(n) {
-  if (!n || n.kind === "text" || n.kind === "plain") return renderTextNode(n || textNode(""));
-  let el;
-  if (inlineTags[n.kind]) el = document.createElement(inlineTags[n.kind]);
-  else if (["url","link","text_mention","anchor_link","reference_link"].includes(n.kind)) {
-    el = document.createElement("a");
-    if (n.kind === "url" || n.kind === "link") el.href = n.attrs?.url || "#";
-    else if (n.kind === "text_mention") el.href = `tg://user?id=${n.attrs?.user_id || ""}`;
-    else el.href = `#${n.attrs?.name || ""}`;
-  } else el = document.createElement("span");
-  el.dataset.inline = n.kind;
-  el.dataset.nodeId = n.id || uid();
-  el.__attrs = deepClone(n.attrs || {});
-  if (n.kind === "spoiler") el.dataset.inline = "spoiler";
-  if (n.kind === "math_inline" || n.kind === "mathematical_expression") {
-    el.textContent = n.text || "";
-    el.title = "Fórmula LaTeX";
-    return el;
+function renderInline(value){
+  if(!value||value.kind==="text"||value.kind==="plain") return renderTextNode(value||textNode(""));
+  let element;
+  if(inlineTags[value.kind]) element=document.createElement(inlineTags[value.kind]);
+  else if(["url","link","text_mention","anchor_link","reference_link"].includes(value.kind)){
+    element=document.createElement("a");
+    if(value.kind==="text_mention") element.href=`tg://user?id=${value.attrs?.user_id||""}`;
+    else if(["anchor_link","reference_link"].includes(value.kind)) element.href=`#${value.attrs?.name||""}`;
+    else element.href=value.attrs?.url||"#";
+  }else element=document.createElement("span");
+  element.dataset.inline=value.kind;
+  element.dataset.nodeId=value.id||uid();
+  element.__attrs=clone(value.attrs||{});
+  if(["math_inline","mathematical_expression"].includes(value.kind)){
+    element.textContent=value.text||"";
+    return element;
   }
-  const children = n.children?.length ? n.children : [textNode(n.text || "")];
-  children.forEach(child => el.append(renderInline(child)));
-  return el;
+  (value.children?.length?value.children:[textNode(value.text||"")]).forEach(child=>element.append(renderInline(child)));
+  return element;
 }
 
-const simpleBlockKinds = new Set([
-  "paragraph","heading","code_block","footer","blockquote","expandable_blockquote","pullquote"
-]);
-
-function blockElement(n) {
-  let tag = "p";
-  if (n.kind === "heading") tag = `h${Math.min(6, Math.max(1, Number(n.attrs?.level || 1)))}`;
-  else if (n.kind === "code_block") tag = "pre";
-  else if (["blockquote","expandable_blockquote"].includes(n.kind)) tag = "blockquote";
-  else if (n.kind === "pullquote") tag = "aside";
-  else if (n.kind === "footer") tag = "footer";
-  const el = document.createElement(tag);
-  el.dataset.block = n.id || uid();
-  el.dataset.kind = n.kind;
-  el.__attrs = deepClone(n.attrs || {});
-  if (n.kind === "code_block") el.textContent = n.text || n.children?.map(plainNode).join("") || "";
-  else if (n.children?.length) n.children.forEach(child => el.append(renderInline(child)));
-  else if (n.text) el.append(renderTextNode(textNode(n.text)));
-  return el;
-}
-
-function plainNode(n) {
-  if (!n) return "";
-  if (n.children?.length) return n.children.map(plainNode).join("");
-  return n.text || "";
-}
-
-function nodeSummary(n) {
-  if (n.kind === "divider") return "Divisor horizontal";
-  if (n.kind === "map") return `${n.attrs?.name || "Mapa"}: ${n.attrs?.lat || "?"}, ${n.attrs?.long || "?"}`;
-  if (["photo","video","audio","voice_note","animation","document"].includes(n.kind)) return n.attrs?.caption || n.attrs?.filename || n.attrs?.src || n.kind;
-  if (n.kind === "list") return `${n.children?.length || 0} itens`;
-  if (n.kind === "table") return `${n.children?.length || 0} linhas`;
-  if (n.kind === "details") return n.attrs?.summary || "Detalhes";
-  if (n.kind === "math_block") return n.text || "Fórmula";
-  if (n.kind === "anchor" || n.kind === "reference") return n.attrs?.name || n.kind;
-  if (n.kind === "button_row") return `${n.children?.length || 0} botões — ${n.attrs?.align || "padrão"}`;
-  if (["collage","slideshow"].includes(n.kind)) return `${n.children?.length || 0} mídias`;
-  if (n.kind === "raw_markdown") return (n.text || "Markdown cru").slice(0, 90);
-  return plainNode(n).slice(0, 90) || n.kind;
-}
-
-const labels = {
+const simpleBlocks=new Set(["paragraph","heading","code_block","footer","blockquote","expandable_blockquote","pullquote"]);
+const labels={
   divider:"Divisor",list:"Lista",table:"Tabela",details:"Detalhes",math_block:"Fórmula",
   anchor:"Âncora",reference:"Referência",map:"Mapa",photo:"Foto",video:"Vídeo",
   animation:"Animação",audio:"Áudio",voice_note:"Mensagem de voz",document:"Documento",
   collage:"Collage",slideshow:"Slideshow",button_row:"Linha de botões",raw_markdown:"Markdown cru",
 };
 
-function cardElement(n) {
-  const el = document.createElement("div");
-  el.className = "node-card";
-  el.contentEditable = "false";
-  el.dataset.block = n.id || uid();
-  el.dataset.kind = n.kind;
-  el.__node = deepClone({...n, id: n.id || el.dataset.block});
-  const title = document.createElement("strong"); title.textContent = labels[n.kind] || n.kind;
-  const summary = document.createElement("span"); summary.className = "summary"; summary.textContent = nodeSummary(n);
-  const edit = document.createElement("button");
-  edit.type = "button"; edit.textContent = "Editar";
-  edit.addEventListener("click", () => editStructuredCard(el));
-  el.append(title, summary, edit);
-  return el;
+function blockElement(value){
+  let tag="p";
+  if(value.kind==="heading") tag=`h${Math.min(6,Math.max(1,Number(value.attrs?.level||1)))}`;
+  else if(value.kind==="code_block") tag="pre";
+  else if(["blockquote","expandable_blockquote"].includes(value.kind)) tag="blockquote";
+  else if(value.kind==="pullquote") tag="aside";
+  else if(value.kind==="footer") tag="footer";
+  const element=document.createElement(tag);
+  element.dataset.block=value.id||uid();
+  element.dataset.kind=value.kind;
+  element.__attrs=clone(value.attrs||{});
+  if(value.kind==="code_block") element.textContent=value.text||plainNode(value);
+  else if(value.children?.length) value.children.forEach(child=>element.append(renderInline(child)));
+  else if(value.text) element.append(renderTextNode(textNode(value.text)));
+  element.draggable=true;
+  return element;
 }
 
-function renderBlock(n) {
-  const el = simpleBlockKinds.has(n.kind) ? blockElement(n) : cardElement(n);
-  el.draggable = true;
-  return el;
+function nodeSummary(value){
+  if(value.kind==="divider") return "Divisor horizontal";
+  if(value.kind==="map") return `${value.attrs?.name||"Mapa"}: ${value.attrs?.lat??"?"}, ${value.attrs?.long??"?"}`;
+  if(["photo","video","animation","audio","voice_note","document"].includes(value.kind)) return value.attrs?.caption||value.attrs?.filename||value.attrs?.src||value.kind;
+  if(value.kind==="list") return `${value.children?.length||0} itens`;
+  if(value.kind==="table") return `${value.children?.length||0} linhas`;
+  if(value.kind==="details") return value.attrs?.summary||"Detalhes";
+  if(value.kind==="button_row") return `${value.children?.length||0} botões`;
+  return (value.text||plainNode(value)||value.kind).slice(0,100);
 }
 
-function renderDocument(doc) {
+function cardElement(value){
+  const element=document.createElement("div");
+  element.className="node-card";
+  element.contentEditable="false";
+  element.dataset.block=value.id||uid();
+  element.dataset.kind=value.kind;
+  element.__node=clone({...value,id:value.id||element.dataset.block});
+  element.draggable=true;
+  const title=document.createElement("strong");
+  title.textContent=labels[value.kind]||value.kind;
+  const summary=document.createElement("span");
+  summary.className="summary";
+  summary.textContent=nodeSummary(value);
+  const edit=document.createElement("button");
+  edit.type="button";
+  edit.textContent="Editar";
+  edit.onclick=()=>editStructuredCard(element);
+  element.append(title,summary,edit);
+  return element;
+}
+
+function renderBlock(value){return simpleBlocks.has(value.kind)?blockElement(value):cardElement(value)}
+function renderDocument(documentValue){
   editor.replaceChildren();
-  (doc?.blocks || []).forEach(b => editor.append(renderBlock(b)));
-  if (!editor.children.length) editor.append(blockElement(node("paragraph")));
+  (documentValue?.blocks||[]).forEach(block=>editor.append(renderBlock(block)));
+  if(!editor.children.length) editor.append(blockElement(node("paragraph")));
 }
 
-function elementInlineKind(el) {
-  return el.dataset?.inline || ({STRONG:"bold",B:"bold",EM:"italic",I:"italic",U:"underline",S:"strikethrough",STRIKE:"strikethrough",DEL:"strikethrough",MARK:"marked",SUB:"subscript",SUP:"superscript",CODE:"code",A:"url"}[el.tagName]);
+function inlineKind(element){
+  return element.dataset?.inline||({
+    STRONG:"bold",B:"bold",EM:"italic",I:"italic",U:"underline",S:"strikethrough",
+    STRIKE:"strikethrough",DEL:"strikethrough",MARK:"marked",SUB:"subscript",
+    SUP:"superscript",CODE:"code",A:"url",
+  }[element.tagName]);
 }
 
-function serializeInline(root) {
-  const out = [];
-  for (const child of root.childNodes) {
-    if (child.nodeType === Node.TEXT_NODE) {
-      if (child.nodeValue) out.push(serializedTextNode(child, child.nodeValue));
+function serializeInline(root){
+  const out=[];
+  for(const child of root.childNodes){
+    if(child.nodeType===Node.TEXT_NODE){
+      if(child.nodeValue) out.push({id:rememberDomNodeId(child),kind:"text",text:child.nodeValue,attrs:{},children:[]});
       continue;
     }
-    if (child.nodeType !== Node.ELEMENT_NODE) continue;
-    if (child.tagName === "BR") { out.push(serializedTextNode(child, "\n")); continue; }
-    const kind = elementInlineKind(child) || "text";
-    if (kind === "text") {
-      out.push({id: child.dataset?.nodeId || rememberDomNodeId(child), kind:"text", text:child.textContent || "", attrs:{}, children:[]});
+    if(child.nodeType!==Node.ELEMENT_NODE) continue;
+    if(child.tagName==="BR"){
+      out.push({id:rememberDomNodeId(child),kind:"text",text:"\n",attrs:{},children:[]});
       continue;
     }
-    const attrs = deepClone(child.__attrs || {});
-    if (kind === "url" && child.tagName === "A") attrs.url = attrs.url || child.getAttribute("href") || "";
-    const n = {id: child.dataset.nodeId || uid(), kind, text:null, attrs, children:[]};
-    if (["math_inline","mathematical_expression"].includes(kind)) n.text = child.textContent || "";
-    else n.children = serializeInline(child);
-    out.push(n);
+    const kind=inlineKind(child)||"text";
+    const attrs=clone(child.__attrs||{});
+    if(kind==="url"&&child.tagName==="A") attrs.url=attrs.url||child.getAttribute("href")||"";
+    const value={id:child.dataset.nodeId||uid(),kind,text:null,attrs,children:[]};
+    if(["math_inline","mathematical_expression"].includes(kind)) value.text=child.textContent||"";
+    else value.children=serializeInline(child);
+    out.push(value);
   }
   return out;
 }
 
-function serializeBlock(el) {
-  if (el.__node) return deepClone(el.__node);
-  const kind = el.dataset.kind || "paragraph";
-  const attrs = deepClone(el.__attrs || {});
-  if (kind === "heading") attrs.level = Number(el.tagName.slice(1)) || attrs.level || 1;
-  const result = {id:el.dataset.block || uid(), kind, text:null, attrs, children:[]};
-  if (kind === "code_block") result.text = el.textContent || "";
-  else result.children = serializeInline(el);
-  return result;
+function serializeBlock(element){
+  if(element.__node) return clone(element.__node);
+  const kind=element.dataset.kind||"paragraph";
+  const attrs=clone(element.__attrs||{});
+  if(kind==="heading") attrs.level=Number(element.tagName.slice(1))||attrs.level||1;
+  const value={id:element.dataset.block||uid(),kind,text:null,attrs,children:[]};
+  if(kind==="code_block") value.text=element.textContent||"";
+  else value.children=serializeInline(element);
+  return value;
 }
 
-function normalizeTopLevel() {
-  [...editor.childNodes].forEach(child => {
-    if (child.nodeType === Node.TEXT_NODE) {
-      if (!child.nodeValue?.trim()) return;
-      const p = blockElement(node("paragraph", {text:child.nodeValue}));
-      editor.replaceChild(p, child);
-      return;
-    }
-    if (child.nodeType !== Node.ELEMENT_NODE) return;
-    if (!child.dataset.block) child.dataset.block = uid();
-    if (!child.dataset.kind) {
-      if (/^H[1-6]$/.test(child.tagName)) { child.dataset.kind="heading"; child.__attrs={level:Number(child.tagName[1])}; }
-      else if (child.tagName === "PRE") child.dataset.kind="code_block";
-      else if (child.tagName === "BLOCKQUOTE") child.dataset.kind="blockquote";
-      else child.dataset.kind="paragraph";
+function normalizeTopLevel(){
+  [...editor.childNodes].forEach(child=>{
+    if(child.nodeType===Node.TEXT_NODE&&child.nodeValue?.trim()){
+      const paragraph=blockElement(node("paragraph",{children:[textNode(child.nodeValue)]}));
+      editor.replaceChild(paragraph,child);
+    }else if(child.nodeType===Node.ELEMENT_NODE&&!child.dataset.block){
+      child.dataset.block=uid();
+      child.dataset.kind=/^H[1-6]$/.test(child.tagName)?"heading":child.tagName==="PRE"?"code_block":child.tagName==="BLOCKQUOTE"?"blockquote":"paragraph";
     }
   });
 }
 
-function canonicalDocument() {
+function canonicalDocument(){
   normalizeTopLevel();
   return {
-    schema_version:state.draft?.document?.schema_version || 1,
-    id:state.draft?.document?.id || uid(),
+    schema_version:state.draft?.document?.schema_version||1,
+    id:state.draft?.document?.id||uid(),
     blocks:[...editor.children].map(serializeBlock),
-    metadata:deepClone(state.draft?.document?.metadata || {}),
+    metadata:clone(state.draft?.document?.metadata||{}),
   };
 }
 
-function mirrorKey() { return state.draft ? `mdtxtrt:mirror:${state.draft.id}` : null; }
-function saveMirror() {
-  if (!state.draft) return;
-  const payload = {revision_id:state.draft.active_revision_id, document:canonicalDocument(), saved_at:Date.now()};
-  localStorage.setItem(mirrorKey(), JSON.stringify(payload));
+function canonicalComparable(value){
+  return {
+    kind:value?.kind||"",
+    text:value?.text??null,
+    attrs:value?.attrs||{},
+    children:(value?.children||[]).map(canonicalComparable),
+  };
 }
 
-function scheduleSave() {
-  if (!state.draft) return;
+function canonicalSignature(value){return JSON.stringify(canonicalComparable(value))}
+
+function flattenNodes(documentValue){
+  const out=[];
+  const walk=(value,path)=>{
+    out.push({id:value.id,kind:value.kind,text:plainNode(value),signature:canonicalSignature(value),path});
+    (value.children||[]).forEach((child,index)=>walk(child,`${path}.${index+1}`));
+  };
+  (documentValue?.blocks||[]).forEach((block,index)=>walk(block,String(index+1)));
+  return out;
+}
+
+function documentOutline(documentValue){
+  const blocks=documentValue?.blocks||[];
+  if(!blocks.length) return "Documento sem blocos.";
+  return blocks.map((block,index)=>{
+    const text=plainNode(block).replace(/\s+/g," ").trim();
+    const preview=text.length>110?`${text.slice(0,107)}…`:text;
+    return `${index+1}. ${block.kind}${preview?` — ${preview}`:""}`;
+  }).join("\n");
+}
+
+function semanticDocumentDiff(left,right){
+  const leftNodes=flattenNodes(left);
+  const rightNodes=flattenNodes(right);
+  const leftMap=new Map(leftNodes.filter(x=>x.id).map(x=>[x.id,x]));
+  const rightMap=new Map(rightNodes.filter(x=>x.id).map(x=>[x.id,x]));
+  const added=rightNodes.filter(x=>x.id&&!leftMap.has(x.id));
+  const removed=leftNodes.filter(x=>x.id&&!rightMap.has(x.id));
+  const changed=[];
+  for(const [id,leftNode] of leftMap){
+    const rightNode=rightMap.get(id);
+    if(rightNode&&leftNode.signature!==rightNode.signature) changed.push({left:leftNode,right:rightNode});
+  }
+  const leftOrder=(left?.blocks||[]).map(x=>x.id).filter(Boolean).join("|");
+  const rightOrder=(right?.blocks||[]).map(x=>x.id).filter(Boolean).join("|");
+  const metadataChanged=JSON.stringify(left?.metadata||{})!==JSON.stringify(right?.metadata||{});
+  const summary=[
+    `Blocos: servidor ${left?.blocks?.length||0}; espelho local ${right?.blocks?.length||0}.`,
+    `Nós identificáveis: servidor ${leftNodes.length}; espelho local ${rightNodes.length}.`,
+    `Adicionados localmente: ${added.length}; removidos localmente: ${removed.length}; alterados com o mesmo ID: ${changed.length}.`,
+  ];
+  if(leftOrder!==rightOrder) summary.push("A ordem dos blocos de nível superior é diferente.");
+  if(metadataChanged) summary.push("Os metadados canônicos do documento são diferentes.");
+  if(left?.id!==right?.id) summary.push(`Identidade do documento é diferente (${left?.id||"sem ID"} × ${right?.id||"sem ID"}).`);
+  for(const item of added.slice(0,4)) summary.push(`+ ${item.path} ${item.kind}: ${item.text.slice(0,70)||"sem texto"}`);
+  for(const item of removed.slice(0,4)) summary.push(`− ${item.path} ${item.kind}: ${item.text.slice(0,70)||"sem texto"}`);
+  for(const item of changed.slice(0,4)) summary.push(`~ ${item.right.path} ${item.right.kind}: conteúdo/atributos alterados.`);
+  return {summary,leftOutline:documentOutline(left),rightOutline:documentOutline(right)};
+}
+
+function conversionSummary(source,review){
+  const documentValue=review?.converted_document||{};
+  const blocks=documentValue.blocks||[];
+  const kinds=new Map();
+  for(const block of blocks) kinds.set(block.kind,(kinds.get(block.kind)||0)+1);
+  const kindText=[...kinds.entries()].map(([kind,count])=>`${kind}×${count}`).join(", ")||"nenhum";
+  const converted=review?.converted_markdown||"";
+  const residual=review?.residual_raw_markdown||[];
+  const summary=[
+    `Original: ${source.length} caracteres; convertido: ${converted.length} caracteres.`,
+    `Estrutura convertida: ${blocks.length} blocos (${kindText}).`,
+    `Trechos preservados como Markdown cru: ${residual.length}.`,
+    review?.lossless_visual_conversion?"Conversão visual sem resíduo cru.":"Há conteúdo que permanece cru para evitar perda silenciosa.",
+  ];
+  if(typeof review?.roundtrip_markdown_equal==="boolean") summary.push(review.roundtrip_markdown_equal?"O Markdown reemitido coincide com o original após normalização de bordas.":"O Markdown reemitido não é textualmente idêntico ao original.");
+  for(const change of review?.apply_back_changes||[]) summary.push(change.message||String(change));
+  return summary;
+}
+
+function scheduleSave(){
+  if(!state.draft||state.authExpired) return;
   setStatus("editando");
   saveMirror();
   clearTimeout(state.saveTimer);
-  state.saveTimer = setTimeout(() => commitNow("typing-pause"), 2000);
+  state.saveTimer=setTimeout(()=>void commitNow("typing-pause"),2000);
 }
 
-async function commitNow(reason = "edit") {
-  if (!state.draft) return;
+async function commitNow(reason="edit"){
+  if(!state.draft) return true;
+  if(state.authExpired) return false;
   clearTimeout(state.saveTimer);
-  const document = canonicalDocument();
-  const snapshot = JSON.stringify(document);
-  if (snapshot === state.lastSaved) { setStatus("salvo"); return; }
+  const documentValue=canonicalDocument();
+  const snapshot=JSON.stringify(documentValue);
+  if(snapshot===state.lastSaved){setStatus("salvo");return true}
   setStatus("salvando…");
-  try {
-    const data = await api(`/api/drafts/${state.draft.id}/revisions`, {method:"POST", body:{document,reason}});
-    state.draft = data.draft;
-    state.lastSaved = JSON.stringify(state.draft.document);
+  try{
+    const data=await api(`/api/drafts/${state.draft.id}/revisions`,{method:"POST",body:{document:documentValue,reason}});
+    state.draft=data.draft;
+    state.lastSaved=JSON.stringify(state.draft.document);
     saveMirror();
     setStatus("salvo");
-  } catch (error) {
+    return true;
+  }catch(error){
     setStatus("não salvo");
-    showMessage("Falha ao salvar", error.message);
+    if(error.status!==401) showMessage("Falha ao salvar",error.message);
+    return false;
   }
 }
 
-function activeBlock() {
-  const sel = window.getSelection();
-  const start = sel?.anchorNode?.nodeType === Node.ELEMENT_NODE ? sel.anchorNode : sel?.anchorNode?.parentElement;
-  return start?.closest?.("[data-block]") || null;
+function activeBlock(){
+  const selection=window.getSelection();
+  const start=selection?.anchorNode?.nodeType===Node.ELEMENT_NODE?selection.anchorNode:selection?.anchorNode?.parentElement;
+  return start?.closest?.("[data-block]")||null;
 }
 
-function pathWithin(root, target) {
-  const path = [];
-  let current = target;
-  while (current && current !== root) {
-    const parent = current.parentNode;
-    if (!parent) return null;
-    const index = [...parent.childNodes].indexOf(current);
-    if (index < 0) return null;
+function pathWithin(root,target){
+  const path=[];
+  let current=target;
+  while(current&&current!==root){
+    const parent=current.parentNode;
+    if(!parent) return null;
+    const index=[...parent.childNodes].indexOf(current);
+    if(index<0) return null;
     path.unshift(index);
-    current = parent;
+    current=parent;
   }
-  return current === root ? path : null;
+  return current===root?path:null;
 }
 
-function nodeAtPath(root, path) {
-  let current = root;
-  for (const index of path || []) {
-    current = current?.childNodes?.[index];
-    if (!current) return null;
-  }
+function nodeAtPath(root,path){
+  let current=root;
+  for(const index of path||[]){current=current?.childNodes?.[index];if(!current)return null}
   return current;
 }
 
-function selectionSnapshot() {
-  const sel = window.getSelection();
-  if (!sel?.rangeCount) return null;
-  const range = sel.getRangeAt(0);
-  const startElement = range.startContainer.nodeType === Node.ELEMENT_NODE ? range.startContainer : range.startContainer.parentElement;
-  const endElement = range.endContainer.nodeType === Node.ELEMENT_NODE ? range.endContainer : range.endContainer.parentElement;
-  const startBlock = startElement?.closest?.("[data-block]");
-  const endBlock = endElement?.closest?.("[data-block]");
-  if (!startBlock || startBlock !== endBlock || startBlock.__node) return null;
-  const startPath = pathWithin(startBlock, range.startContainer);
-  const endPath = pathWithin(startBlock, range.endContainer);
-  if (!startPath || !endPath) return null;
-  return {block_id:startBlock.dataset.block,start_path:startPath,start_offset:range.startOffset,end_path:endPath,end_offset:range.endOffset};
+function selectionSnapshot(){
+  const selection=window.getSelection();
+  if(!selection?.rangeCount) return null;
+  const range=selection.getRangeAt(0);
+  const start=range.startContainer.nodeType===1?range.startContainer:range.startContainer.parentElement;
+  const end=range.endContainer.nodeType===1?range.endContainer:range.endContainer.parentElement;
+  const startBlock=start?.closest?.("[data-block]");
+  const endBlock=end?.closest?.("[data-block]");
+  if(!startBlock||startBlock!==endBlock||startBlock.__node) return null;
+  const startPath=pathWithin(startBlock,range.startContainer);
+  const endPath=pathWithin(startBlock,range.endContainer);
+  return startPath&&endPath?{
+    block_id:startBlock.dataset.block,
+    start_path:startPath,
+    start_offset:range.startOffset,
+    end_path:endPath,
+    end_offset:range.endOffset,
+  }:null;
 }
 
-function safeOffset(target, offset) {
-  if (!target) return 0;
-  const limit = target.nodeType === Node.TEXT_NODE ? (target.nodeValue?.length || 0) : target.childNodes.length;
-  return Math.min(Math.max(Number(offset) || 0, 0), limit);
+function restoreSelection(session){
+  const value=session?.selection;
+  const id=value?.block_id||session?.active_block_id;
+  if(!id) return;
+  const block=[...editor.querySelectorAll("[data-block]")].find(item=>item.dataset.block===id);
+  if(!block||block.__node) return;
+  if(!value){block.focus();return}
+  const start=nodeAtPath(block,value.start_path);
+  const end=nodeAtPath(block,value.end_path);
+  if(!start||!end){block.focus();return}
+  const limit=(item,offset)=>Math.min(Math.max(Number(offset)||0,0),item.nodeType===Node.TEXT_NODE?(item.nodeValue?.length||0):item.childNodes.length);
+  try{
+    const range=document.createRange();
+    range.setStart(start,limit(start,value.start_offset));
+    range.setEnd(end,limit(end,value.end_offset));
+    const selection=window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+  }catch{block.focus()}
 }
 
-function restoreSelection(session) {
-  const saved = session?.selection;
-  const blockId = saved?.block_id || session?.active_block_id;
-  if (!blockId) return;
-  const block = [...editor.querySelectorAll("[data-block]")].find(el => el.dataset.block === blockId);
-  if (!block || block.__node) return;
-  if (!saved) { block.focus(); return; }
-  const start = nodeAtPath(block, saved.start_path), end = nodeAtPath(block, saved.end_path);
-  if (!start || !end) { block.focus(); return; }
-  try {
-    const range = document.createRange();
-    range.setStart(start, safeOffset(start, saved.start_offset));
-    range.setEnd(end, safeOffset(end, saved.end_offset));
-    const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range);
-  } catch (_) { block.focus(); }
-}
-
-async function saveSession() {
-  if (!state.draft) return;
-  await commitNow("checkpoint");
-  try {
-    await api(`/api/drafts/${state.draft.id}/session`, {method:"PUT",body:{
+async function saveSession(){
+  if(!state.draft||state.authExpired) return;
+  if(!(await commitNow("checkpoint"))) return;
+  try{
+    await api(`/api/drafts/${state.draft.id}/session`,{method:"PUT",body:{
       revision_id:state.draft.active_revision_id,
       scroll_top:window.scrollY,
-      active_block_id:activeBlock()?.dataset.block || null,
+      active_block_id:activeBlock()?.dataset.block||null,
       selection:selectionSnapshot(),
     }});
-  } catch (_) {}
-}
-
-function updateMarkButtons() {
-  $$('[data-format]').forEach(button => button.classList.toggle("active", state.pendingInline.has(button.dataset.format)));
-}
-
-function wrapSelection(kind, attrs = {}, explicitText = null) {
-  const sel = window.getSelection();
-  if (!sel?.rangeCount) return;
-  const range = sel.getRangeAt(0);
-  const startEl = range.startContainer.nodeType === 1 ? range.startContainer : range.startContainer.parentElement;
-  const endEl = range.endContainer.nodeType === 1 ? range.endContainer : range.endContainer.parentElement;
-  const startBlock = startEl?.closest?.("[data-block]");
-  const endBlock = endEl?.closest?.("[data-block]");
-  if (!startBlock || startBlock !== endBlock || startBlock.__node) {
-    showMessage("Seleção", "A formatação inline deve permanecer dentro do mesmo bloco de texto.");
-    return;
-  }
-  if (range.collapsed && explicitText === null) {
-    if (state.pendingInline.has(kind)) state.pendingInline.delete(kind); else state.pendingInline.set(kind, attrs);
-    updateMarkButtons(); return;
-  }
-  const wrapper = document.createElement(inlineTags[kind] || (kind === "url" ? "a" : "span"));
-  wrapper.dataset.inline=kind; wrapper.dataset.nodeId=uid(); wrapper.__attrs=deepClone(attrs);
-  if (kind === "url") wrapper.href=attrs.url || "#";
-  if (kind === "spoiler") wrapper.dataset.inline="spoiler";
-  if (explicitText !== null) {
-    range.deleteContents(); const text=document.createTextNode(explicitText); rememberDomNodeId(text); wrapper.append(text);
-  } else wrapper.append(range.extractContents());
-  range.insertNode(wrapper);
-  const after=document.createRange(); after.selectNodeContents(wrapper); after.collapse(false);
-  sel.removeAllRanges(); sel.addRange(after); scheduleSave();
-}
-
-function insertPendingText(event) {
-  if (!state.pendingInline.size || event.inputType !== "insertText" || !event.data) return;
-  const sel=window.getSelection(); if(!sel?.rangeCount)return;
-  const range=sel.getRangeAt(0), block=activeBlock(); if(!block||block.__node)return;
-  event.preventDefault(); range.deleteContents();
-  let leaf=document.createTextNode(event.data); rememberDomNodeId(leaf); let outer=leaf;
-  for(const [kind,attrs] of [...state.pendingInline.entries()].reverse()){
-    const wrap=document.createElement(inlineTags[kind]||(kind==="url"?"a":"span"));
-    wrap.dataset.inline=kind;wrap.dataset.nodeId=uid();wrap.__attrs=deepClone(attrs);if(kind==="url")wrap.href=attrs.url||"#";wrap.append(outer);outer=wrap;
-  }
-  range.insertNode(outer);const caret=document.createRange();caret.setStart(leaf,leaf.nodeValue.length);caret.collapse(true);sel.removeAllRanges();sel.addRange(caret);scheduleSave();
-}
-
-function replaceBlockKind(kind, level = null) {
-  let old=activeBlock();
-  if(!old||old.__node){const n=node(kind,{attrs:level?{level}:{}});editor.append(renderBlock(n));scheduleSave();return;}
-  const current=serializeBlock(old);current.kind=kind;current.attrs={...current.attrs,...(level?{level}:{})};
-  if(kind==="code_block"){current.text=plainNode(current);current.children=[];}
-  const replacement=renderBlock(current);old.replaceWith(replacement);
-  const range=document.createRange();range.selectNodeContents(replacement);range.collapse(false);const sel=window.getSelection();sel.removeAllRanges();sel.addRange(range);scheduleSave();
-}
-
-function insertBlock(n, after = activeBlock()) {
-  const el=renderBlock(n);if(after?.parentElement===editor)after.after(el);else editor.append(el);scheduleSave();return el;
-}
-
-function deleteActiveBlock() {
-  const target=activeBlock();
-  if(!target||target.parentElement!==editor){showMessage("Excluir bloco","Selecione ou coloque o cursor no bloco que deseja excluir.");return;}
-  const snapshot=serializeBlock(target);const index=[...editor.children].indexOf(target);target.remove();scheduleSave();
-  showUndoToast("Bloco excluído",()=>{const restored=renderBlock(snapshot);editor.insertBefore(restored,editor.children[index]||null);scheduleSave();});
+  }catch{}
 }
 
 const field=(name,label,type="text",value="",options=null)=>({name,label,type,value,options});
 
-async function openForm(title, fields) {
-  const dialog=$("#form-dialog"),form=$("#form"),box=$("#form-fields");$("#form-title").textContent=title;box.replaceChildren();
+async function openForm(title,fields){
+  const dialog=$("#form-dialog");
+  const form=$("#form");
+  const box=$("#form-fields");
+  $("#form-title").textContent=title;
+  box.replaceChildren();
   for(const spec of fields){
-    const wrap=document.createElement("div");wrap.className=spec.type==="checkbox"?"check":"field";const label=document.createElement("label");label.textContent=spec.label;let input;
-    if(spec.type==="select"){input=document.createElement("select");(spec.options||[]).forEach(([value,text])=>{const o=document.createElement("option");o.value=value;o.textContent=text;input.append(o)});input.value=spec.value??"";}
-    else if(spec.type==="textarea"){input=document.createElement("textarea");input.value=spec.value??"";}
-    else{input=document.createElement("input");input.type=spec.type;input.value=spec.type==="checkbox"?"1":(spec.value??"");if(spec.type==="checkbox")input.checked=Boolean(spec.value);}
-    input.name=spec.name;if(spec.type==="checkbox")wrap.append(input,label);else wrap.append(label,input);box.append(wrap);
+    const wrap=document.createElement("div");
+    wrap.className=spec.type==="checkbox"?"check":"field";
+    const label=document.createElement("label");
+    label.textContent=spec.label;
+    let input;
+    if(spec.type==="select"){
+      input=document.createElement("select");
+      (spec.options||[]).forEach(([value,text])=>{
+        const option=document.createElement("option");
+        option.value=value;
+        option.textContent=text;
+        input.append(option);
+      });
+      input.value=spec.value??"";
+    }else if(spec.type==="textarea"){
+      input=document.createElement("textarea");
+      input.value=spec.value??"";
+    }else{
+      input=document.createElement("input");
+      input.type=spec.type;
+      input.value=spec.type==="checkbox"?"1":(spec.value??"");
+      if(spec.type==="checkbox") input.checked=Boolean(spec.value);
+    }
+    input.name=spec.name;
+    if(spec.type==="checkbox") wrap.append(input,label);
+    else wrap.append(label,input);
+    box.append(wrap);
   }
-  return new Promise(resolve=>{const onClose=()=>{dialog.removeEventListener("close",onClose);if(dialog.returnValue!=="save")return resolve(null);const values={};for(const spec of fields){const input=form.elements.namedItem(spec.name);values[spec.name]=spec.type==="checkbox"?input.checked:input.value;}resolve(values);};dialog.addEventListener("close",onClose);dialog.showModal();});
-}
-
-async function inlineForm(kind) {
-  closeMenus();const sel=window.getSelection();const selected=sel?.rangeCount&&!sel.getRangeAt(0).collapsed?sel.getRangeAt(0).toString():"";let fields=[];
-  if(kind==="url")fields=[field("label","Texto","text",selected),field("url","URL","url","")];
-  if(kind==="text_mention")fields=[field("label","Texto","text",selected),field("user_id","ID do usuário","text","")];
-  if(kind==="custom_emoji")fields=[field("label","Emoji alternativo","text",selected||"🙂"),field("emoji_id","Custom emoji ID","text","")];
-  if(kind==="datetime")fields=[field("label","Texto exibido","text",selected),field("unix","Unix time","number",""),field("format","Formato Telegram","text","wDT")];
-  if(kind==="math_inline")fields=[field("expression","LaTeX","text",selected)];
-  if(kind==="anchor_link")fields=[field("label","Texto","text",selected),field("name","Nome da âncora/referência","text","")];
-  const v=await openForm("Formatação inline",fields);if(!v)return;if(kind==="math_inline")return wrapSelection(kind,{},v.expression);const attrs={};
-  if(kind==="url")attrs.url=v.url;if(kind==="text_mention")attrs.user_id=v.user_id;if(kind==="custom_emoji")attrs.emoji_id=v.emoji_id;if(kind==="datetime"){attrs.unix=v.unix;attrs.format=v.format;}if(kind==="anchor_link")attrs.name=v.name;wrapSelection(kind,attrs,v.label||selected);
-}
-
-function parseListLines(text,preset){return text.split(/\r?\n/).filter(x=>x.trim()).map(line=>{const match=line.match(/^\s*\[([ xX])\]\s*(.*)$/);return node("list_item",{attrs:{task:preset==="task",checked:Boolean(match&&/x/i.test(match[1]))},children:[textNode(match?match[2]:line)]});});}
-function listText(n){return(n.children||[]).map(item=>`${item.attrs?.task?`[${item.attrs?.checked?"x":" "}] `:""}${plainNode(item)}`).join("\n");}
-function tableText(n){return(n.children||[]).map(row=>(row.children||[]).map(plainNode).join(" | ")).join("\n");}
-function mediaLines(n){return(n.children||[]).map(m=>`${m.kind}|${m.attrs?.src||""}`).join("\n");}
-function buttonLines(n){return(n.children||[]).map(b=>{const type=b.attrs?.type||"url";const value=b.attrs?.url??b.attrs?.data??b.attrs?.query??b.attrs?.copy_text??"";return`${type}|${plainNode(b)}|${value}|${b.attrs?.style||""}`;}).join("\n");}
-
-function validateButtonNode(button){const type=button.attrs?.type||"url";if(button.attrs?.style==="link"&&type!=="callback_data")return"O estilo link só pode ser usado em botão callback_data.";if(type==="callback_data"){const size=enc.encode(button.attrs?.data||"").length;if(size<1||size>64)return"callback_data deve ter de 1 a 64 bytes.";}return null;}
-
-async function buildStructured(kind,preset="",existing=null){
-  let fields=[],v;
-  if(kind==="list"){const p=preset||(existing?.attrs?.ordered?"ordered":existing?.children?.some(x=>x.attrs?.task)?"task":"unordered");fields=[field("mode","Tipo","select",p,[["unordered","Marcadores"],["ordered","Numerada"],["task","Tarefas"]]),field("items","Um item por linha","textarea",existing?listText(existing):"")];v=await openForm("Lista",fields);if(!v)return null;return{...(existing||node("list")),kind:"list",attrs:{ordered:v.mode==="ordered"},children:parseListLines(v.items,v.mode)};}
-  if(kind==="table"){fields=[field("caption","Legenda","text",existing?.attrs?.caption||""),field("rows","Linhas; separe células com |","textarea",existing?tableText(existing):"Cabeçalho 1 | Cabeçalho 2\nValor 1 | Valor 2"),field("header","Primeira linha é cabeçalho","checkbox",existing?.children?.[0]?.children?.some(c=>c.kind==="table_header")??true),field("bordered","Com borda","checkbox",existing?.attrs?.bordered??true),field("striped","Listrada","checkbox",existing?.attrs?.striped??false),field("compact","Compacta","checkbox",existing?.attrs?.compact??false)];v=await openForm("Tabela",fields);if(!v)return null;const rows=v.rows.split(/\r?\n/).filter(x=>x.trim()).map((line,i)=>node("table_row",{children:line.split("|").map(cell=>node(v.header&&i===0?"table_header":"table_cell",{children:[textNode(cell.trim())]}))}));return{...(existing||node("table")),kind:"table",attrs:{caption:v.caption,bordered:v.bordered,striped:v.striped,compact:v.compact},children:rows};}
-  if(kind==="details"){fields=[field("summary","Título","text",existing?.attrs?.summary||"Detalhes"),field("open","Aberto inicialmente","checkbox",existing?.attrs?.open||false),field("body","Conteúdo","textarea",existing?.children?.map(plainNode).join("\n")||existing?.text||"")];v=await openForm("Detalhes",fields);if(!v)return null;return{...(existing||node("details")),kind:"details",attrs:{summary:v.summary,open:v.open},text:null,children:v.body.split(/\r?\n/).filter(Boolean).map(line=>node("paragraph",{children:[textNode(line)]}))};}
-  if(kind==="math_block"){v=await openForm("Fórmula em bloco",[field("expression","LaTeX","textarea",existing?.text||"")]);if(!v)return null;return{...(existing||node("math_block")),kind:"math_block",text:v.expression,attrs:{},children:[]};}
-  if(kind==="anchor"){v=await openForm("Âncora",[field("name","Nome","text",existing?.attrs?.name||"")]);if(!v)return null;return{...(existing||node("anchor")),kind:"anchor",attrs:{name:v.name},children:[]};}
-  if(kind==="reference"){v=await openForm("Referência",[field("name","Nome","text",existing?.attrs?.name||""),field("text","Texto","textarea",existing?plainNode(existing):"")]);if(!v)return null;return{...(existing||node("reference")),kind:"reference",attrs:{name:v.name},children:[textNode(v.text)]};}
-  if(kind==="map"){v=await openForm("Mapa manual",[field("name","Nome","text",existing?.attrs?.name||""),field("lat","Latitude","number",existing?.attrs?.lat||""),field("long","Longitude","number",existing?.attrs?.long||""),field("zoom","Zoom","number",existing?.attrs?.zoom||14)]);if(!v)return null;return{...(existing||node("map")),kind:"map",attrs:{name:v.name,lat:Number(v.lat),long:Number(v.long),zoom:Number(v.zoom)},children:[]};}
-  if(["collage","slideshow"].includes(kind)){v=await openForm(labels[kind],[field("caption","Legenda","text",existing?.attrs?.caption||""),field("media","Uma mídia por linha: photo|URL ou video|URL","textarea",existing?mediaLines(existing):"photo|https://\nvideo|https://")]);if(!v)return null;const children=v.media.split(/\r?\n/).filter(Boolean).map(line=>{const[type,...rest]=line.split("|");return node(type.trim()==="video"?"video":"photo",{attrs:{src:rest.join("|").trim()}})});return{...(existing||node(kind)),kind,attrs:{caption:v.caption},children};}
-  if(kind==="button_row"){v=await openForm("Linha de botões",[field("align","Alinhamento","select",existing?.attrs?.align||"center",[["left","Esquerda"],["center","Centro"],["right","Direita"]]),field("buttons","type|texto|valor|style — uma linha por botão","textarea",existing?buttonLines(existing):"url|Abrir|https://|success")]);if(!v)return null;const children=v.buttons.split(/\r?\n/).filter(Boolean).map(line=>{const[type,label,value,style]=line.split("|");const attrs={type:(type||"url").trim(),style:(style||"").trim()};const val=(value||"").trim();if(["url","web_app","login_url"].includes(attrs.type))attrs.url=val;else if(attrs.type==="callback_data")attrs.data=val;else if(attrs.type==="copy_text")attrs.copy_text=val;else if(attrs.type.startsWith("switch_inline_query"))attrs.query=val;return node("button",{attrs,children:[textNode((label||attrs.type).trim())]});});for(const button of children){const problem=validateButtonNode(button);if(problem){showMessage("Botão inválido",problem);return null;}}return{...(existing||node("button_row")),kind:"button_row",attrs:{align:v.align},children};}
-  return null;
-}
-
-async function structuredAction(kind,preset=""){closeMenus();const built=await buildStructured(kind,preset,null);if(built)insertBlock(built);}
-
-async function mediaAction(kind,existing=null,replace=null){
-  closeMenus();
-  if(existing?.attrs?.media_blob_id){const hasPublic=/^https?:\/\//.test(existing.attrs?.src||"");const v=await openForm(labels[kind]||"Mídia local",[
-    field("caption","Legenda","text",existing.attrs?.caption||""),field("credit","Crédito","text",existing.attrs?.credit||""),field("spoiler","Spoiler","checkbox",existing.attrs?.spoiler||false),field("download_original","Baixar arquivo original agora","checkbox",false),field("make_public","Criar novo link público para Telegraph","checkbox",false),field("revoke_public",hasPublic?"Revogar links públicos e remover URL do documento":"Revogar links públicos existentes","checkbox",false),]);if(!v)return;const attrs={...existing.attrs,caption:v.caption,credit:v.credit,spoiler:v.spoiler};try{if(v.download_original)await authenticatedDownload(`/api/media/${attrs.media_blob_id}/original`,attrs.filename||"arquivo");if(v.revoke_public){await api(`/api/media/${attrs.media_blob_id}/public`,{method:"DELETE"});delete attrs.src;}if(v.make_public){const result=await api(`/api/media/${attrs.media_blob_id}/public`,{method:"POST"});attrs.src=result.public.url;}}catch(error){showMessage("Mídia local",error.message);return;}const n={...existing,kind,attrs,children:[]};if(replace)replace(n);else insertBlock(n);return;}
-  const v=await openForm(labels[kind]||"Mídia",[field("src","URL HTTP/HTTPS","url",existing?.attrs?.src||""),field("caption","Legenda","text",existing?.attrs?.caption||""),field("credit","Crédito","text",existing?.attrs?.credit||""),field("spoiler","Spoiler","checkbox",existing?.attrs?.spoiler||false)]);if(!v)return;const n={...(existing||node(kind)),kind,attrs:{src:v.src,caption:v.caption,credit:v.credit,spoiler:v.spoiler},children:[]};if(replace)replace(n);else insertBlock(n);
-}
-
-function localMediaAccept(kind){if(kind==="photo")return"image/*";if(kind==="video")return"video/*";if(kind==="animation")return"image/gif,video/mp4";if(kind==="audio"||kind==="voice_note")return"audio/*";return"*/*";}
-function localMediaAction(kind){closeMenus();if(!state.draft){showMessage("Mídia local","Abra ou crie um rascunho antes de adicionar mídia.");return;}state.pendingMediaKind=kind;const input=$("#media-file");input.accept=localMediaAccept(kind);input.click();}
-async function uploadLocalMedia(file,kind){if(!state.draft||!file||!kind)return;const form=new FormData();form.append("draft_id",state.draft.id);form.append("file",file,file.name);setStatus("enviando mídia…");try{const result=await api("/api/media",{method:"POST",body:form});insertBlock(node(kind,{attrs:{media_blob_id:result.media.id,filename:result.media.filename,mime_type:result.media.mime_type,caption:"",credit:"",spoiler:false}}));setStatus("mídia adicionada");showMessage("Mídia local","O arquivo foi preservado como BLOB do seu rascunho. Telegram usa o BLOB diretamente; Telegraph só recebe uma URL pública se você criar essa URL explicitamente em Editar.");}catch(error){setStatus("erro de mídia");showMessage("Falha no upload",error.message);}}
-
-async function buttonAction(type){closeMenus();const fields=[field("label","Texto","text",type==="disabled"?"Desativado":"Botão"),field("style","Estilo","select","",[["","Padrão"],["primary","Primary"],["success","Success"],["danger","Danger"],["link","Link (callback)"]])];if(["url","web_app","login_url"].includes(type))fields.push(field("value","URL","url","https://"));if(type==="callback_data")fields.push(field("value","Callback data (1–64 bytes)","text",""));if(type.startsWith("switch_inline_query"))fields.push(field("value","Query","text",""));if(type==="copy_text")fields.push(field("value","Texto a copiar","text",""));const v=await openForm("Botão Rich",fields);if(!v)return;const attrs={type,style:v.style};if(["url","web_app","login_url"].includes(type))attrs.url=v.value;else if(type==="callback_data")attrs.data=v.value;else if(type.startsWith("switch_inline_query"))attrs.query=v.value;else if(type==="copy_text")attrs.copy_text=v.value;const button=node("button",{attrs,children:[textNode(v.label)]});const problem=validateButtonNode(button);if(problem){showMessage("Botão inválido",problem);return;}insertBlock(node("button_row",{attrs:{align:"center"},children:[button]}));}
-
-async function nativeLocationAction(){closeMenus();if(!state.draft){showMessage("Localização","Abra ou crie um rascunho antes de adicionar uma localização.");return;}try{const result=await api("/api/location-requests",{method:"POST",body:{draft_id:state.draft.id}});state.pendingLocationRequest=result.request.id;sessionStorage.setItem("mdtxtrt:location-request",state.pendingLocationRequest);if(result.bot_url&&tg?.openTelegramLink)tg.openTelegramLink(result.bot_url);else showMessage("Localização","Abra a conversa com o bot e envie uma Location ou Venue pelo anexo de localização do Telegram. Depois retorne ao editor.");void pollLocationRequest(state.pendingLocationRequest);}catch(error){showMessage("Localização",error.message);}}
-function insertFulfilledLocation(locationRequest){if(!state.draft||locationRequest.draft_id!==state.draft.id)return false;const attrs={name:locationRequest.name||locationRequest.address||"Localização",address:locationRequest.address||"",lat:Number(locationRequest.latitude),long:Number(locationRequest.longitude),zoom:14,source:"telegram_native_location"};insertBlock(node("map",{attrs}));state.pendingLocationRequest=null;sessionStorage.removeItem("mdtxtrt:location-request");showMessage("Localização recebida","A Location/Venue enviada ao bot foi adicionada ao rascunho.");return true;}
-async function checkLocationRequest(requestId,{silent=false}={}){if(!requestId)return false;try{const result=await api(`/api/location-requests/${requestId}`);if(result.request?.status==="fulfilled")return insertFulfilledLocation(result.request);}catch(error){if(!silent)showMessage("Localização",error.message);}return false;}
-async function pollLocationRequest(requestId){for(let attempt=0;attempt<60&&state.pendingLocationRequest===requestId;attempt+=1){if(await checkLocationRequest(requestId,{silent:true}))return;await delay(2000);}}
-
-async function editRawMarkdown(card,existing){
-  const first=await openForm("Markdown cru",[field("source","Conteúdo Markdown","textarea",existing.text||""),field("action","Ação","select","keep",[["keep","Manter como Markdown cru"],["convert","Revisar conversão para visual"]])]);
-  if(!first)return;
-  const updated={...existing,text:first.source};
-  if(first.action==="keep"){card.replaceWith(cardElement(updated));scheduleSave();return;}
-  try{
-    const result=await api("/api/conversion/raw-markdown/review",{method:"POST",body:{source:first.source}});const review=result.review;
-    const residual=(review.residual_raw_markdown||[]).map(x=>`${x.reason||"raw"}: ${x.text}`).join("\n\n")||"Nenhum resíduo cru.";
-    const choice=await openForm("Revisão de conversão",[
-      field("original","Original — apenas visualização","textarea",review.original),
-      field("converted","Convertido — apenas visualização","textarea",review.converted_markdown),
-      field("residual","Incompatibilidades/resíduos — apenas visualização","textarea",residual),
-      field("action","Aplicação","select",review.lossless_visual_conversion?"apply":"keep",[["apply","Aplicar conversão ao documento"],["keep","Manter original como Markdown cru"]]),
-    ]);
-    if(!choice)return;
-    if(choice.action!=="apply"){card.replaceWith(cardElement(updated));scheduleSave();return;}
-    const blocks=review.converted_document?.blocks||[];const rendered=blocks.map(renderBlock);if(rendered.length)card.replaceWith(...rendered);else card.remove();scheduleSave();
-  }catch(error){showMessage("Conversão",error.message);}
-}
-
-async function editStructuredCard(card){const existing=deepClone(card.__node);const replace=n=>{card.replaceWith(cardElement(n));scheduleSave();};if(existing.kind==="raw_markdown")return editRawMarkdown(card,existing);if(["photo","video","animation","audio","voice_note","document"].includes(existing.kind))return mediaAction(existing.kind,existing,replace);const built=await buildStructured(existing.kind,"",existing);if(built)replace(built);}
-
-async function resolveMirrorDivergence(local,serverDocument){
-  const choice=await openForm("Divergência servidor × espelho local",[
-    field("server","Versão do servidor — apenas visualização","textarea",JSON.stringify(serverDocument,null,2)),
-    field("local","Versão local — apenas visualização","textarea",JSON.stringify(local.document,null,2)),
-    field("choice","Escolha explícita; nenhuma mesclagem automática","select","server",[["server","Manter servidor"],["local","Usar espelho local"]]),
-  ]);
-  return choice?.choice||"server";
-}
-
-async function loadDraft(id,{fromPublication=null}={}){
-  await commitNow("switch-draft");const data=await api(`/api/drafts/${id}`);state.draft=data.draft;state.editingPublication=fromPublication;nameEl.value=state.draft.name;renderDocument(state.draft.document);state.lastSaved=JSON.stringify(state.draft.document);
-  const mirror=localStorage.getItem(mirrorKey());if(mirror){try{const local=JSON.parse(mirror);if(JSON.stringify(local.document)!==state.lastSaved){const choice=await resolveMirrorDivergence(local,state.draft.document);if(choice==="local"){renderDocument(local.document);setStatus("espelho local");}else saveMirror();}}catch(_){}}
-  requestAnimationFrame(()=>{if(state.draft.session?.scroll_top)window.scrollTo(0,state.draft.session.scroll_top);restoreSelection(state.draft.session);});setStatus("salvo");updatePublishLabels();if(state.pendingLocationRequest)void checkLocationRequest(state.pendingLocationRequest,{silent:true});
-}
-
-async function createDraft(){await commitNow("new-draft");const data=await api("/api/drafts",{method:"POST",body:{name:"Novo rascunho"}});await loadDraft(data.draft.id);}
-
-async function downloadDraftOriginal(draftId){
-  try{const data=await api(`/api/drafts/${draftId}/imports`);if(!data.imports.length){showMessage("Arquivo original","Este rascunho não possui import original associado.");return;}let item=data.imports[0];if(data.imports.length>1){const v=await openForm("Escolher original",[field("id","Arquivo","select",item.id,data.imports.map(x=>[x.id,`${x.filename} — ${x.encoding} — ${x.size} bytes`]))]);if(!v)return;item=data.imports.find(x=>x.id===v.id)||item;}await authenticatedDownload(`/api/imports/${item.id}/original`,item.filename);}catch(error){showMessage("Arquivo original",error.message);}
-}
-
-async function listDrafts(){
-  const data=await api(`/api/drafts?archived=${state.archivedView?1:0}`);const box=$("#drafts-list");box.replaceChildren();if(!data.drafts.length){box.textContent=state.archivedView?"Nenhum arquivado.":"Nenhum rascunho.";return;}
-  data.drafts.forEach(d=>{const row=document.createElement("div");row.className="list-row";const name=document.createElement("strong");name.textContent=d.name;const meta=document.createElement("small");meta.textContent=new Date(d.updated_at).toLocaleString();const actions=document.createElement("div");actions.className="list-actions";
-    const open=document.createElement("button");open.textContent="Abrir";open.onclick=async()=>{$("#drafts-dialog").close();await loadDraft(d.id)};
-    const original=document.createElement("button");original.textContent="Original";original.onclick=()=>downloadDraftOriginal(d.id);
-    const archive=document.createElement("button");archive.textContent=state.archivedView?"Restaurar":"Arquivar";archive.onclick=async()=>{await api(`/api/drafts/${d.id}`,{method:"PATCH",body:{archived:!state.archivedView}});await listDrafts()};
-    const remove=document.createElement("button");remove.textContent="Excluir";remove.className="danger";remove.onclick=async()=>{if(!confirm(`Excluir definitivamente “${d.name}”? Esta ação não é o mesmo que arquivar.`))return;try{await api(`/api/drafts/${d.id}`,{method:"DELETE",body:{confirm:true}});if(state.draft?.id===d.id){state.draft=null;$("#drafts-dialog").close();await createDraft();}else await listDrafts();}catch(error){showMessage("Excluir rascunho",error.message);}};
-    actions.append(open,original,archive,remove);row.append(name,meta,actions);box.append(row);
+  return new Promise(resolve=>{
+    const done=()=>{
+      dialog.removeEventListener("close",done);
+      if(dialog.returnValue!=="save"){resolve(null);return}
+      const value={};
+      for(const spec of fields){
+        const input=form.elements.namedItem(spec.name);
+        value[spec.name]=spec.type==="checkbox"?input.checked:input.value;
+      }
+      resolve(value);
+    };
+    dialog.addEventListener("close",done);
+    dialog.showModal();
   });
 }
 
-async function listPublications(){const data=await api("/api/publications");const box=$("#publications-list");box.replaceChildren();if(!data.publications.length){box.textContent="Nenhuma publicação.";return;}data.publications.forEach(p=>{const row=document.createElement("div");row.className="list-row";const name=document.createElement("strong");name.textContent=`${p.kind==="telegram"?"Telegram":"Telegraph"} — ${p.title}`;const meta=document.createElement("small");meta.textContent=p.kind==="telegram"?`chat ${p.destination_chat_id} · mensagem ${p.telegram_message_id}`:(p.telegraph_url||p.telegraph_path);const actions=document.createElement("div");actions.className="list-actions";const edit=document.createElement("button");edit.textContent="Editar";edit.onclick=async()=>{$("#publications-dialog").close();await loadDraft(p.draft_id,{fromPublication:p});showMessage("Publicação vinculada",`Este rascunho está vinculado à publicação ${p.title}. Ao publicar em ${p.kind}, o MDTXTRT atualizará a publicação existente.`)};actions.append(edit);row.append(name,meta,actions);box.append(row)});}
-function updatePublishLabels(){$("#publish-telegram").textContent=state.editingPublication?.kind==="telegram"?"Atualizar Telegram":"Telegram";$("#publish-telegraph").textContent=state.editingPublication?.kind==="telegraph"?"Atualizar Telegraph":"Telegraph";}
+function wrapSelection(kind,attrs={},explicit=null){
+  const selection=window.getSelection();
+  if(!selection?.rangeCount) return;
+  const range=selection.getRangeAt(0);
+  const start=range.startContainer.nodeType===1?range.startContainer:range.startContainer.parentElement;
+  const end=range.endContainer.nodeType===1?range.endContainer:range.endContainer.parentElement;
+  const startBlock=start?.closest?.("[data-block]");
+  const endBlock=end?.closest?.("[data-block]");
+  if(!startBlock||startBlock!==endBlock||startBlock.__node){
+    showMessage("Seleção","A formatação inline precisa ficar dentro do mesmo bloco de texto.");
+    return;
+  }
+  if(range.collapsed&&explicit===null){
+    state.pendingInline.has(kind)?state.pendingInline.delete(kind):state.pendingInline.set(kind,attrs);
+    $$('[data-format]').forEach(button=>button.classList.toggle("active",state.pendingInline.has(button.dataset.format)));
+    return;
+  }
+  const wrapper=document.createElement(inlineTags[kind]||(kind==="url"?"a":"span"));
+  wrapper.dataset.inline=kind;
+  wrapper.dataset.nodeId=uid();
+  wrapper.__attrs=clone(attrs);
+  if(kind==="url") wrapper.href=attrs.url||"#";
+  if(explicit!==null){range.deleteContents();wrapper.append(document.createTextNode(explicit))}
+  else wrapper.append(range.extractContents());
+  range.insertNode(wrapper);
+  scheduleSave();
+}
+
+function insertPendingText(event){
+  if(!state.pendingInline.size||event.inputType!=="insertText"||!event.data) return;
+  const selection=window.getSelection();
+  if(!selection?.rangeCount) return;
+  const range=selection.getRangeAt(0);
+  const block=activeBlock();
+  if(!block||block.__node) return;
+  event.preventDefault();
+  range.deleteContents();
+  const leaf=document.createTextNode(event.data);
+  rememberDomNodeId(leaf);
+  let outer=leaf;
+  for(const [kind,attrs] of [...state.pendingInline.entries()].reverse()){
+    const wrapper=document.createElement(inlineTags[kind]||(kind==="url"?"a":"span"));
+    wrapper.dataset.inline=kind;
+    wrapper.dataset.nodeId=uid();
+    wrapper.__attrs=clone(attrs);
+    if(kind==="url") wrapper.href=attrs.url||"#";
+    wrapper.append(outer);
+    outer=wrapper;
+  }
+  range.insertNode(outer);
+  range.setStart(leaf,leaf.nodeValue.length);
+  range.collapse(true);
+  selection.removeAllRanges();
+  selection.addRange(range);
+  scheduleSave();
+}
+
+async function inlineForm(kind){
+  closeMenus();
+  const selection=window.getSelection();
+  const selected=selection?.rangeCount&&!selection.getRangeAt(0).collapsed?selection.getRangeAt(0).toString():"";
+  let fields=[];
+  if(kind==="url") fields=[field("label","Texto","text",selected),field("url","URL","url","")];
+  if(kind==="text_mention") fields=[field("label","Texto","text",selected),field("user_id","ID do usuário","text","")];
+  if(kind==="custom_emoji") fields=[field("label","Emoji alternativo","text",selected||"🙂"),field("emoji_id","Custom emoji ID","text","")];
+  if(kind==="datetime") fields=[field("label","Texto exibido","text",selected),field("unix","Unix time","number",""),field("format","Formato Telegram","text","wDT")];
+  if(kind==="math_inline") fields=[field("expression","LaTeX","text",selected)];
+  if(kind==="anchor_link") fields=[field("label","Texto","text",selected),field("name","Âncora/referência","text","")];
+  const value=await openForm("Formatação inline",fields);
+  if(!value) return;
+  if(kind==="math_inline"){wrapSelection(kind,{},value.expression);return}
+  const attrs={};
+  if(kind==="url") attrs.url=value.url;
+  if(kind==="text_mention") attrs.user_id=value.user_id;
+  if(kind==="custom_emoji") attrs.emoji_id=value.emoji_id;
+  if(kind==="datetime"){attrs.unix=value.unix;attrs.format=value.format}
+  if(kind==="anchor_link") attrs.name=value.name;
+  wrapSelection(kind,attrs,value.label||selected);
+}
+
+function replaceBlockKind(kind,level=null){
+  const old=activeBlock();
+  if(!old||old.__node){
+    editor.append(renderBlock(node(kind,{attrs:level?{level}:{}})));
+    scheduleSave();
+    return;
+  }
+  const value=serializeBlock(old);
+  value.kind=kind;
+  value.attrs={...value.attrs,...(level?{level}:{})};
+  if(kind==="code_block"){value.text=plainNode(value);value.children=[]}
+  old.replaceWith(renderBlock(value));
+  scheduleSave();
+}
+
+function insertBlock(value,after=activeBlock()){
+  const element=renderBlock(value);
+  after?.parentElement===editor?after.after(element):editor.append(element);
+  scheduleSave();
+  return element;
+}
+
+function deleteActiveBlock(){
+  const target=activeBlock();
+  if(!target||target.parentElement!==editor){showMessage("Excluir bloco","Selecione o bloco que deseja excluir.");return}
+  const value=serializeBlock(target);
+  const index=[...editor.children].indexOf(target);
+  target.remove();
+  scheduleSave();
+  showUndoToast("Bloco excluído",()=>{
+    editor.insertBefore(renderBlock(value),editor.children[index]||null);
+    scheduleSave();
+  });
+}
+
+function listText(value){
+  return (value.children||[]).map(item=>`${item.attrs?.task?`[${item.attrs?.checked?"x":" "}] `:""}${plainNode(item)}`).join("\n");
+}
+function tableText(value){return (value.children||[]).map(row=>(row.children||[]).map(plainNode).join(" | ")).join("\n")}
+
+async function buildStructured(kind,preset="",existing=null){
+  let value;
+  if(kind==="list"){
+    value=await openForm("Lista",[
+      field("mode","Tipo","select",preset||(existing?.attrs?.ordered?"ordered":"unordered"),[["unordered","Marcadores"],["ordered","Numerada"],["task","Tarefas"]]),
+      field("items","Um item por linha","textarea",existing?listText(existing):""),
+    ]);
+    if(!value) return null;
+    return {...(existing||node("list")),kind:"list",attrs:{ordered:value.mode==="ordered"},children:value.items.split(/\r?\n/).filter(Boolean).map(text=>{
+      const match=text.match(/^\s*\[([ xX])\]\s*(.*)$/);
+      return node("list_item",{attrs:{task:value.mode==="task",checked:Boolean(match&&/x/i.test(match[1]))},children:[textNode(match?match[2]:text)]});
+    })};
+  }
+  if(kind==="table"){
+    value=await openForm("Tabela",[
+      field("rows","Linhas; células com |","textarea",existing?tableText(existing):"Cabeçalho 1 | Cabeçalho 2\nValor 1 | Valor 2"),
+      field("header","Primeira linha é cabeçalho","checkbox",true),
+      field("bordered","Com borda","checkbox",existing?.attrs?.bordered??true),
+      field("striped","Listrada","checkbox",existing?.attrs?.striped??false),
+      field("compact","Compacta","checkbox",existing?.attrs?.compact??false),
+    ]);
+    if(!value) return null;
+    return {...(existing||node("table")),kind:"table",attrs:{bordered:value.bordered,striped:value.striped,compact:value.compact},children:value.rows.split(/\r?\n/).filter(Boolean).map((line,index)=>node("table_row",{children:line.split("|").map(cell=>node(value.header&&index===0?"table_header":"table_cell",{children:[textNode(cell.trim())]}))}))};
+  }
+  if(kind==="details"){
+    value=await openForm("Detalhes",[
+      field("summary","Título","text",existing?.attrs?.summary||"Detalhes"),
+      field("open","Aberto inicialmente","checkbox",existing?.attrs?.open||false),
+      field("body","Conteúdo","textarea",existing?plainNode(existing):""),
+    ]);
+    if(!value) return null;
+    return {...(existing||node("details")),kind:"details",attrs:{summary:value.summary,open:value.open},children:value.body.split(/\r?\n/).filter(Boolean).map(text=>node("paragraph",{children:[textNode(text)]}))};
+  }
+  if(kind==="math_block"){
+    value=await openForm("Fórmula",[field("expression","LaTeX","textarea",existing?.text||"")]);
+    return value?{...(existing||node(kind)),kind,text:value.expression,attrs:{},children:[]}:null;
+  }
+  if(kind==="anchor"){
+    value=await openForm("Âncora",[field("name","Nome","text",existing?.attrs?.name||"")]);
+    return value?{...(existing||node(kind)),kind,attrs:{name:value.name},children:[]}:null;
+  }
+  if(kind==="reference"){
+    value=await openForm("Referência",[field("name","Nome","text",existing?.attrs?.name||""),field("text","Texto","textarea",existing?plainNode(existing):"")]);
+    return value?{...(existing||node(kind)),kind,attrs:{name:value.name},children:[textNode(value.text)]}:null;
+  }
+  if(kind==="map"){
+    value=await openForm("Mapa manual",[field("name","Nome","text",existing?.attrs?.name||""),field("lat","Latitude","number",existing?.attrs?.lat||""),field("long","Longitude","number",existing?.attrs?.long||""),field("zoom","Zoom","number",existing?.attrs?.zoom||14)]);
+    return value?{...(existing||node(kind)),kind,attrs:{name:value.name,lat:Number(value.lat),long:Number(value.long),zoom:Number(value.zoom)},children:[]}:null;
+  }
+  if(["collage","slideshow"].includes(kind)){
+    value=await openForm(labels[kind],[field("caption","Legenda","text",existing?.attrs?.caption||""),field("media","photo|URL ou video|URL por linha","textarea",existing?(existing.children||[]).map(media=>`${media.kind}|${media.attrs?.src||""}`).join("\n"):"")]);
+    if(!value) return null;
+    return {...(existing||node(kind)),kind,attrs:{caption:value.caption},children:value.media.split(/\r?\n/).filter(Boolean).map(line=>{
+      const [type,...rest]=line.split("|");
+      return node(type.trim()==="video"?"video":"photo",{attrs:{src:rest.join("|").trim()}});
+    })};
+  }
+  if(kind==="button_row"){
+    value=await openForm("Linha de botões",[
+      field("align","Alinhamento","select",existing?.attrs?.align||"center",[["left","Esquerda"],["center","Centro"],["right","Direita"]]),
+      field("buttons","type|texto|valor|style por linha","textarea",existing?(existing.children||[]).map(button=>`${button.attrs?.type||"url"}|${plainNode(button)}|${button.attrs?.url??button.attrs?.data??button.attrs?.query??button.attrs?.copy_text??""}|${button.attrs?.style||""}`).join("\n"):"url|Abrir|https://|success"),
+    ]);
+    if(!value) return null;
+    return {...(existing||node(kind)),kind,attrs:{align:value.align},children:value.buttons.split(/\r?\n/).filter(Boolean).map(line=>{
+      const [type,label,raw,style]=line.split("|");
+      const attrs={type:(type||"url").trim(),style:(style||"").trim()};
+      if(["url","web_app","login_url"].includes(attrs.type)) attrs.url=(raw||"").trim();
+      else if(attrs.type==="callback_data") attrs.data=(raw||"").trim();
+      else if(attrs.type==="copy_text") attrs.copy_text=(raw||"").trim();
+      else attrs.query=(raw||"").trim();
+      return node("button",{attrs,children:[textNode((label||attrs.type).trim())]});
+    })};
+  }
+  return null;
+}
+
+async function structuredAction(kind,preset=""){
+  closeMenus();
+  const value=await buildStructured(kind,preset);
+  if(value) insertBlock(value);
+}
+
+function localMediaAccept(kind){
+  if(kind==="photo") return "image/*";
+  if(kind==="video") return "video/*";
+  if(kind==="animation") return "image/gif,video/mp4";
+  if(["audio","voice_note"].includes(kind)) return "audio/*";
+  return "*/*";
+}
+
+async function mediaAction(kind,existing=null,replace=null){
+  closeMenus();
+  if(existing?.attrs?.media_blob_id){
+    const value=await openForm(labels[kind]||"Mídia",[
+      field("caption","Legenda","text",existing.attrs.caption||""),
+      field("download","Baixar original","checkbox",false),
+      field("public","Criar link público para Telegraph","checkbox",false),
+      field("revoke","Revogar link público","checkbox",false),
+    ]);
+    if(!value) return;
+    const next=clone(existing);
+    next.attrs.caption=value.caption;
+    try{
+      if(value.download) await authenticatedDownload(`/api/media/${next.attrs.media_blob_id}/original`,next.attrs.filename||"arquivo");
+      if(value.revoke){await api(`/api/media/${next.attrs.media_blob_id}/public`,{method:"DELETE"});delete next.attrs.src}
+      if(value.public){const data=await api(`/api/media/${next.attrs.media_blob_id}/public`,{method:"POST"});next.attrs.src=data.public.url}
+    }catch(error){showMessage("Mídia",error.message);return}
+    replace?replace(next):insertBlock(next);
+    return;
+  }
+  const value=await openForm(labels[kind]||"Mídia",[field("src","URL HTTP/HTTPS","url",existing?.attrs?.src||""),field("caption","Legenda","text",existing?.attrs?.caption||"")]);
+  if(!value) return;
+  const next={...(existing||node(kind)),kind,attrs:{...(existing?.attrs||{}),src:value.src,caption:value.caption},children:[]};
+  replace?replace(next):insertBlock(next);
+}
+
+function localMediaAction(kind){
+  if(!state.draft){showMessage("Mídia local","Abra um rascunho primeiro.");return}
+  state.pendingMediaKind=kind;
+  const input=$("#media-file");
+  input.accept=localMediaAccept(kind);
+  input.click();
+}
+
+async function uploadLocalMedia(file,kind){
+  const form=new FormData();
+  form.append("draft_id",state.draft.id);
+  form.append("file",file,file.name);
+  try{
+    const data=await api("/api/media",{method:"POST",body:form});
+    insertBlock(node(kind,{attrs:{media_blob_id:data.media.id,filename:data.media.filename,mime_type:data.media.mime_type,caption:""}}));
+  }catch(error){showMessage("Mídia local",error.message)}
+}
+
+async function buttonAction(type){
+  const fields=[field("label","Texto","text","Botão"),field("style","Estilo","select","",[["","Padrão"],["primary","Primary"],["success","Success"],["danger","Danger"],["link","Link callback"]])];
+  if(["url","web_app","login_url"].includes(type)) fields.push(field("value","URL","url","https://"));
+  else if(type==="callback_data") fields.push(field("value","Callback data 1–64 bytes","text",""));
+  else if(type==="copy_text") fields.push(field("value","Texto a copiar","text",""));
+  else if(type.startsWith("switch_inline_query")) fields.push(field("value","Query","text",""));
+  const value=await openForm("Botão Rich",fields);
+  if(!value) return;
+  const attrs={type,style:value.style};
+  if(["url","web_app","login_url"].includes(type)) attrs.url=value.value;
+  else if(type==="callback_data"){
+    const size=enc.encode(value.value||"").length;
+    if(size<1||size>64){showMessage("Botão inválido","callback_data deve ter de 1 a 64 bytes.");return}
+    attrs.data=value.value;
+  }else if(type==="copy_text") attrs.copy_text=value.value;
+  else if(type.startsWith("switch_inline_query")) attrs.query=value.value;
+  if(attrs.style==="link"&&type!=="callback_data"){
+    showMessage("Botão inválido","O estilo link só pode ser usado em callback_data.");
+    return;
+  }
+  insertBlock(node("button_row",{attrs:{align:"center"},children:[node("button",{attrs,children:[textNode(value.label)]})]}));
+}
+
+async function nativeLocationAction(){
+  if(!state.draft) return;
+  try{
+    const data=await api("/api/location-requests",{method:"POST",body:{draft_id:state.draft.id}});
+    state.pendingLocationRequest=data.request.id;
+    sessionStorage.setItem("mdtxtrt:location-request",data.request.id);
+    if(data.bot_url&&tg?.openTelegramLink) tg.openTelegramLink(data.bot_url);
+    void pollLocation(data.request.id);
+  }catch(error){showMessage("Localização",error.message)}
+}
+
+async function pollLocation(id){
+  for(let index=0;index<60&&state.pendingLocationRequest===id&&!state.authExpired;index++){
+    try{
+      const data=await api(`/api/location-requests/${id}`);
+      if(data.request?.status==="fulfilled"){
+        insertBlock(node("map",{attrs:{
+          name:data.request.name||data.request.address||"Localização",
+          address:data.request.address||"",
+          lat:Number(data.request.latitude),
+          long:Number(data.request.longitude),
+          zoom:14,
+          source:"telegram_native_location",
+        }}));
+        state.pendingLocationRequest=null;
+        sessionStorage.removeItem("mdtxtrt:location-request");
+        return;
+      }
+    }catch(error){if(error.status===401)return}
+    await delay(2000);
+  }
+}
+
+async function rememberPreference(key,value){
+  try{
+    const data=await api(`/api/preferences/conversion/${encodeURIComponent(key)}`,{method:"PUT",body:{value}});
+    state.preferences=data.preferences||state.preferences;
+  }catch{}
+}
+
+function outputOperationForReplace(existing,blocks){
+  return {
+    kind:"replace_raw",
+    draftId:state.draft?.id||null,
+    blockId:existing.id,
+    expectedSignature:canonicalSignature(existing),
+    blocks:clone(blocks),
+  };
+}
+
+function outputOperationForInsert(afterBlockId,blocks){
+  return {
+    kind:"insert_after",
+    draftId:state.draft?.id||null,
+    afterBlockId:afterBlockId||null,
+    blocks:clone(blocks),
+  };
+}
+
+function materializeOutputOverride(baseDocument){
+  const operation=state.outputOverride;
+  if(!operation) return null;
+  if(operation.draftId!==state.draft?.id) throw new Error("A saída temporária pertence a outro rascunho e precisa ser revisada novamente.");
+  const documentValue=clone(baseDocument);
+  if(operation.kind==="replace_raw"){
+    const index=documentValue.blocks.findIndex(block=>block.id===operation.blockId);
+    if(index<0) throw new Error("O bloco Markdown usado pela saída temporária não existe mais. Revise a conversão novamente.");
+    if(canonicalSignature(documentValue.blocks[index])!==operation.expectedSignature) throw new Error("O bloco Markdown mudou depois da revisão. Revise a conversão novamente antes de publicar.");
+    documentValue.blocks.splice(index,1,...clone(operation.blocks));
+    return documentValue;
+  }
+  if(operation.kind==="insert_after"){
+    if(operation.afterBlockId===null){
+      documentValue.blocks.push(...clone(operation.blocks));
+      return documentValue;
+    }
+    const index=documentValue.blocks.findIndex(block=>block.id===operation.afterBlockId);
+    if(index<0) throw new Error("A âncora da inserção temporária não existe mais. Revise o Markdown colado novamente.");
+    documentValue.blocks.splice(index+1,0,...clone(operation.blocks));
+    return documentValue;
+  }
+  throw new Error("Tipo de saída temporária desconhecido.");
+}
+
+async function conversionReviewFlow(original,{existingRaw=null,insertAfterBlockId=undefined}={}){
+  let source=original;
+  let review=(await api("/api/conversion/raw-markdown/review",{method:"POST",body:{source}})).review;
+  const canOutput=Boolean(existingRaw)||insertAfterBlockId!==undefined;
+  while(true){
+    const choices=[
+      {value:"apply",label:"Aplicar ao documento principal",detail:"A conversão entra no rascunho e passa a fazer parte do histórico."},
+      ...(canOutput?[{value:"output",label:"Usar somente nesta saída",detail:"O rascunho principal não é alterado; a transformação é re-materializada sobre a versão atual no momento da publicação."}]:[]),
+      {value:"keep",label:"Manter original sem converter",detail:"Nenhuma conversão visual é aplicada."},
+    ];
+    const preferred=state.preferences.raw_markdown_apply_mode||"apply";
+    const defaultChoice=choices.some(item=>item.value===preferred)?preferred:"apply";
+    const value=await comparisonDialog({
+      title:"Original ↔ convertido",
+      summary:conversionSummary(source,review),
+      leftLabel:"Markdown original — editável",
+      leftValue:source,
+      leftEditable:true,
+      rightLabel:"Markdown convertido — editável",
+      rightValue:review.converted_markdown,
+      rightEditable:true,
+      choices,
+      defaultChoice,
+      rememberLabel:"Memorizar esta escolha como padrão",
+      confirmLabel:"Continuar com esta decisão",
+    });
+    if(!value) return null;
+    if(value.left!==source){
+      source=value.left;
+      review=(await api("/api/conversion/raw-markdown/review",{method:"POST",body:{source}})).review;
+      continue;
+    }
+    let finalReview=review;
+    if(value.right!==review.converted_markdown){
+      finalReview=(await api("/api/conversion/raw-markdown/review-edited",{method:"POST",body:{original:source,converted_markdown:value.right}})).review;
+    }
+    if(value.remember) await rememberPreference("raw_markdown_apply_mode",value.choice);
+    if(value.choice==="keep") return {mode:"keep",source};
+    if(value.choice==="apply"&&finalReview.requires_apply_back_confirmation){
+      const details=(finalReview.apply_back_changes||[]).map(item=>item.message||String(item));
+      const allowed=await confirmDialog(
+        "Aplicar conversão ao documento principal",
+        "A versão convertida contém mudanças que precisam de confirmação antes de substituir conteúdo do rascunho.",
+        {confirmLabel:"Aplicar ao documento",details},
+      );
+      if(!allowed){review=finalReview;continue}
+    }
+    if(value.choice==="output"){
+      const operation=existingRaw?
+        outputOperationForReplace(existingRaw,finalReview.converted_document.blocks):
+        outputOperationForInsert(insertAfterBlockId??null,finalReview.converted_document.blocks);
+      return {mode:"output",operation,blocks:finalReview.converted_document.blocks};
+    }
+    return {mode:"apply",blocks:finalReview.converted_document.blocks,document:finalReview.converted_document};
+  }
+}
+
+async function editRawMarkdown(card,existing){
+  try{
+    const result=await conversionReviewFlow(existing.text||"",{existingRaw:existing});
+    if(!result) return;
+    if(result.mode==="keep"){
+      const next=clone(existing);
+      next.text=result.source;
+      card.replaceWith(cardElement(next));
+      state.outputOverride=null;
+      scheduleSave();
+      return;
+    }
+    if(result.mode==="output"){
+      state.outputOverride=result.operation;
+      showMessage("Saída temporária","A conversão substituirá este bloco somente na próxima publicação. Outras edições posteriores do rascunho serão preservadas; se este bloco mudar, a publicação exigirá nova revisão.");
+      return;
+    }
+    const rendered=(result.blocks||[]).map(renderBlock);
+    rendered.length?card.replaceWith(...rendered):card.remove();
+    state.outputOverride=null;
+    scheduleSave();
+  }catch(error){showMessage("Conversão",error.message)}
+}
+
+async function editStructuredCard(card){
+  const value=clone(card.__node);
+  const replace=next=>{card.replaceWith(cardElement(next));scheduleSave()};
+  if(value.kind==="raw_markdown") return editRawMarkdown(card,value);
+  if(["photo","video","animation","audio","voice_note","document"].includes(value.kind)) return mediaAction(value.kind,value,replace);
+  const next=await buildStructured(value.kind,"",value);
+  if(next) replace(next);
+}
+
+async function resolveMirror(local,server){
+  const diff=semanticDocumentDiff(server,local.document);
+  const compatible=server?.id&&local.document?.id&&server.id===local.document.id;
+  const choices=[
+    {value:"server",label:"Manter versão do servidor",detail:"O espelho local será atualizado para esta versão."},
+    ...(compatible?[{value:"local",label:"Restaurar espelho local",detail:"O conteúdo e os metadados locais serão gravados como nova revisão; o servidor atual continua preservado no histórico."}]:[]),
+  ];
+  const result=await comparisonDialog({
+    title:"Divergência servidor × espelho local",
+    summary:diff.summary,
+    leftLabel:"Servidor — estrutura",
+    leftValue:diff.leftOutline,
+    rightLabel:"Espelho local — estrutura",
+    rightValue:diff.rightOutline,
+    choices,
+    defaultChoice:"server",
+    confirmLabel:"Usar esta versão",
+  });
+  return result?.choice||"server";
+}
+
+async function allowLeaveWithUnsavedMirror(actionLabel){
+  saveMirror();
+  return confirmDialog(
+    "Alterações ainda não sincronizadas",
+    `Não foi possível salvar no servidor antes de ${actionLabel}. O espelho local foi preservado neste dispositivo.`,
+    {
+      confirmLabel:`${actionLabel} mesmo assim`,
+      cancelLabel:"Permanecer neste rascunho",
+      details:["Continuar pode deixar o servidor temporariamente atrás do conteúdo local.","Na próxima abertura, o MDTXTRT compara servidor e espelho local antes de escolher a versão."],
+    },
+  );
+}
+
+async function loadDraft(id,{fromPublication=null,skipCurrentSave=false}={}){
+  if(state.draft&&!skipCurrentSave){
+    const saved=await commitNow("switch-draft");
+    if(!saved&&!(await allowLeaveWithUnsavedMirror("trocar de rascunho"))) return false;
+  }
+  const data=await api(`/api/drafts/${id}`);
+  state.draft=data.draft;
+  state.editingPublication=fromPublication;
+  state.outputOverride=null;
+  nameEl.value=state.draft.name;
+  renderDocument(state.draft.document);
+  state.lastSaved=JSON.stringify(state.draft.document);
+
+  const mirror=localStorage.getItem(mirrorKey());
+  if(mirror){
+    try{
+      const local=JSON.parse(mirror);
+      if(local.document&&JSON.stringify(local.document)!==state.lastSaved){
+        const choice=await resolveMirror(local,state.draft.document);
+        if(choice==="local"){
+          state.draft={...state.draft,document:clone(local.document)};
+          renderDocument(state.draft.document);
+          setStatus("restaurando espelho local…");
+          const restored=await commitNow("restore-local-mirror");
+          if(!restored) setStatus("espelho local não sincronizado");
+        }else saveMirror();
+      }else saveMirror();
+    }catch{saveMirror()}
+  }else saveMirror();
+
+  requestAnimationFrame(()=>{
+    if(state.draft.session?.scroll_top) window.scrollTo(0,state.draft.session.scroll_top);
+    restoreSelection(state.draft.session);
+  });
+  updatePublishLabels();
+  if(!state.authExpired&&statusEl.textContent!=="espelho local não sincronizado") setStatus("salvo");
+  return true;
+}
+
+async function createDraft(){
+  if(state.draft){
+    const saved=await commitNow("new-draft");
+    if(!saved&&!(await allowLeaveWithUnsavedMirror("criar novo rascunho"))) return;
+  }
+  const data=await api("/api/drafts",{method:"POST",body:{name:"Novo rascunho"}});
+  await loadDraft(data.draft.id,{skipCurrentSave:true});
+}
+
+async function listDrafts(){
+  const data=await api(`/api/drafts?archived=${state.archivedView?1:0}`);
+  const box=$("#drafts-list");
+  box.replaceChildren();
+  if(!data.drafts.length){box.textContent="Nenhum rascunho.";return}
+  for(const draft of data.drafts){
+    const row=document.createElement("div");
+    row.className="list-row";
+    row.dataset.draftId=String(draft.id);
+    const name=document.createElement("strong");
+    name.textContent=draft.name;
+    const meta=document.createElement("small");
+    meta.textContent=new Date(draft.updated_at).toLocaleString();
+    const actions=document.createElement("div");
+    actions.className="list-actions";
+    const open=document.createElement("button");
+    open.textContent="Abrir";
+    open.onclick=async()=>{
+      const loaded=await loadDraft(draft.id);
+      if(loaded) $("#drafts-dialog").close();
+    };
+    const archive=document.createElement("button");
+    archive.textContent=state.archivedView?"Restaurar":"Arquivar";
+    archive.onclick=async()=>{
+      await api(`/api/drafts/${draft.id}`,{method:"PATCH",body:{archived:!state.archivedView}});
+      await listDrafts();
+    };
+    const remove=document.createElement("button");
+    remove.textContent="Excluir";
+    remove.className="danger";
+    remove.onclick=async()=>{
+      const allowed=await confirmDialog(
+        "Excluir rascunho definitivamente",
+        `Excluir definitivamente “${draft.name}”?`,
+        {confirmLabel:"Excluir definitivamente",danger:true,details:["Esta operação remove o rascunho e os dados dependentes previstos pelo backend.","Use Arquivar se quiser manter o conteúdo recuperável."]},
+      );
+      if(!allowed) return;
+      await api(`/api/drafts/${draft.id}`,{method:"DELETE",body:{confirm:true}});
+      if(state.draft?.id===draft.id){state.draft=null;await createDraft()}
+      else await listDrafts();
+    };
+    actions.append(open,archive,remove);
+    row.append(name,meta,actions);
+    box.append(row);
+  }
+}
+
+async function listPublications(){
+  const data=await api("/api/publications");
+  const box=$("#publications-list");
+  box.replaceChildren();
+  if(!data.publications.length){box.textContent="Nenhuma publicação.";return}
+  for(const publication of data.publications){
+    const row=document.createElement("div");
+    row.className="list-row";
+    const name=document.createElement("strong");
+    name.textContent=`${publication.kind==="telegram"?"Telegram":"Telegraph"} — ${publication.title}`;
+    const meta=document.createElement("small");
+    meta.textContent=publication.kind==="telegram"?`chat ${publication.destination_chat_id} · mensagem ${publication.telegram_message_id}`:(publication.telegraph_url||publication.telegraph_path);
+    const actions=document.createElement("div");
+    actions.className="list-actions";
+    const open=document.createElement("button");
+    open.textContent="Abrir vínculo";
+    open.onclick=async()=>{
+      const loaded=await loadDraft(publication.draft_id,{fromPublication:publication});
+      if(loaded) $("#publications-dialog").close();
+    };
+    actions.append(open);
+    row.append(name,meta,actions);
+    box.append(row);
+  }
+}
+
+function updatePublishLabels(){
+  $("#publish-telegram").textContent=state.editingPublication?.kind==="telegram"?"Telegram vinculado":"Telegram";
+  $("#publish-telegraph").textContent=state.editingPublication?.kind==="telegraph"?"Telegraph vinculado":"Telegraph";
+}
 
 async function postPublicationAction(where){
-  const v=await openForm("Após publicar",[field("result","Destino publicado — apenas visualização","text",where),field("action","Próxima ação","select","continue",[["continue","Continuar editando"],["archive","Arquivar este rascunho"],["new","Começar novo rascunho"]])]);if(!v)return;
-  if(v.action==="archive"&&state.draft){const result=await api(`/api/drafts/${state.draft.id}`,{method:"PATCH",body:{archived:true}});state.draft=result.draft;nameEl.value=state.draft.name;setStatus("arquivado");}
-  if(v.action==="new")await createDraft();
+  const value=await openForm("Após publicar",[
+    field("result","Resultado","text",where),
+    field("action","Próxima ação","select","continue",[["continue","Continuar editando"],["archive","Arquivar rascunho"],["new","Começar novo"]]),
+  ]);
+  if(!value) return;
+  if(value.action==="archive"&&state.draft){
+    const data=await api(`/api/drafts/${state.draft.id}`,{method:"PATCH",body:{archived:true}});
+    state.draft=data.draft;
+  }
+  if(value.action==="new") await createDraft();
+}
+
+function fillReview(title,plan){
+  $("#review-title").textContent=title;
+  $("#review-content").textContent=plan.preview??plan.content??"";
+  $("#review-metrics").textContent=`Representação: ${plan.label||plan.key||""}${plan.exact===false?" · adaptação necessária":""}`;
+  const warnings=$("#review-warnings");
+  warnings.replaceChildren();
+  const items=[
+    ...(plan.blocking||[]).map(message=>({type:"Bloqueio",message})),
+    ...(plan.adaptations||[]).map(message=>({type:"Adaptação",message:typeof message==="string"?message:message.message})),
+  ];
+  for(const item of items){
+    const box=document.createElement("div");
+    box.className="warning";
+    const titleNode=document.createElement("b");
+    titleNode.textContent=item.type;
+    const text=document.createElement("span");
+    text.textContent=item.message;
+    box.append(titleNode,text);
+    warnings.append(box);
+  }
+}
+
+function showReviewError(message){
+  const warnings=$("#review-warnings");
+  const box=document.createElement("div");
+  box.className="warning";
+  const title=document.createElement("b");
+  title.textContent="Operação não concluída";
+  const text=document.createElement("span");
+  text.textContent=message;
+  box.append(title,text);
+  warnings.prepend(box);
+}
+
+async function preparedOutputOverride(){
+  if(!state.outputOverride) return null;
+  const override=materializeOutputOverride(canonicalDocument());
+  await api("/api/conversion/canonical/review",{method:"POST",body:{document:override}});
+  return override;
 }
 
 async function reviewAndPublish(destination){
-  if(!state.draft)return;await commitNow("pre-publish");const editing=state.editingPublication?.kind===destination?state.editingPublication:null;let title=editing?.title||nameEl.value||(destination==="telegraph"?"Sem título":"Publicação Telegram");let target="";
-  if(!editing&&destination==="telegram"){const v=await openForm("Publicar no Telegram",[field("title","Nome interno da publicação","text",title),field("target","Chat ID ou @username; vazio = sua conversa com o bot","text","")]);if(!v)return;title=v.title;target=v.target;}else if(destination==="telegraph"){const v=await openForm(editing?"Atualizar Telegraph":"Publicar no Telegraph",[field("title","Título","text",title)]);if(!v)return;title=v.title;}
-  let preview;try{preview=await api(`/api/publish/${destination}/preview`,{method:"POST",body:{draft_id:state.draft.id}})}catch(e){showMessage("Não foi possível revisar",e.message);return;}const review=preview.review;$("#review-title").textContent=`Revisão — ${destination==="telegram"?"Telegram":"Telegraph"}`;$("#review-content").textContent=review.content;$("#review-metrics").textContent=Object.entries(review.metrics||{}).map(([k,v])=>`${k}: ${v}`).join(" · ");const warnings=$("#review-warnings");warnings.replaceChildren();[...(review.blocking||[]).map(message=>({type:"Bloqueio",message})),...(review.adaptations||[]).map(x=>({type:"Adaptação",message:x.message})),...(review.unsupported||[]).map(x=>({type:"Incompatibilidade",message:x.message}))].forEach(w=>{const div=document.createElement("div");div.className="warning";const b=document.createElement("b");b.textContent=w.type;const span=document.createElement("span");span.textContent=w.message;div.append(b,span);warnings.append(div)});const confirmBtn=$("#review-confirm");confirmBtn.disabled=!review.publishable;
-  state.reviewAction=async()=>{const body={title,confirmed_fingerprint:review.requires_confirmation?review.fingerprint:undefined};if(target)body.destination_chat_id=target;try{const result=editing?await api(`/api/publications/${editing.id}/${destination}`,{method:"PUT",body}):await api(`/api/publish/${destination}`,{method:"POST",body:{...body,draft_id:state.draft.id}});$("#review-dialog").close();state.editingPublication=result.publication;updatePublishLabels();const where=destination==="telegraph"?(result.publication.telegraph_url||"Telegraph"):`mensagem ${result.publication.telegram_message_id}`;await postPublicationAction(where);}catch(e){showMessage("Falha de publicação",e.data?.detail||e.message);}};$("#review-dialog").showModal();
+  if(!state.draft) return;
+  const saved=await commitNow("pre-publish");
+  if(!saved){
+    showMessage("Publicação interrompida","O rascunho não foi sincronizado com o servidor. A publicação não prosseguiu para evitar enviar uma revisão anterior.");
+    return;
+  }
+  let override=null;
+  try{override=await preparedOutputOverride()}
+  catch(error){showMessage("Saída temporária precisa de nova revisão",error.message);return}
+
+  const editing=state.editingPublication?.kind===destination?state.editingPublication:null;
+  let title=editing?.title||nameEl.value||(destination==="telegraph"?"Sem título":"Publicação Telegram");
+  let target="";
+
+  if(destination==="telegram"){
+    const preview=await api("/api/publish/telegram/preview",{method:"POST",body:{draft_id:state.draft.id,document_override:override}});
+    const representations=preview.representations;
+    const available=Object.values(representations.options||{}).filter(item=>item.available);
+    if(!available.length){showMessage("Telegram","Nenhuma representação Telegram publicável para este documento.");return}
+    let operation=editing?"edit":"new";
+    const value=await openForm("Publicação Telegram",[
+      field("title","Nome interno","text",title),
+      field("target","Chat ID/@username; vazio mantém destino atual ou usa sua conversa","text",editing?.destination_chat_id||""),
+      field("representation","Representação","select",representations.recommended,available.map(item=>[item.key,`${item.label}${item.exact?" — exata":" — adaptada"}`])),
+      ...(editing?[field("operation","Ação","select","edit",[["edit","Editar mensagem existente"],["republish","Republicar como nova mensagem"]])]:[]),
+      field("remember","Memorizar representação preferida","checkbox",false),
+    ]);
+    if(!value) return;
+    title=value.title;
+    target=value.target;
+    operation=value.operation||operation;
+    const plan=representations.options[value.representation];
+    fillReview(`Revisão — ${plan.label}`,plan);
+    const confirmButton=$("#review-confirm");
+    confirmButton.disabled=!plan.available||Boolean(plan.blocking?.length);
+    state.reviewAction=async()=>{
+      confirmButton.disabled=true;
+      try{
+        const body={
+          title,
+          representation:value.representation,
+          confirmed_fingerprint:plan.requires_confirmation?plan.fingerprint:undefined,
+          document_override:override,
+        };
+        if(target) body.destination_chat_id=target;
+        let result;
+        if(editing&&operation==="edit") result=await api(`/api/publications/${editing.id}/telegram`,{method:"PUT",body});
+        else if(editing&&operation==="republish") result=await api(`/api/publications/${editing.id}/telegram/republish`,{method:"POST",body});
+        else result=await api("/api/publish/telegram",{method:"POST",body:{...body,draft_id:state.draft.id}});
+        if(value.remember) await rememberPreference("telegram_representation",value.representation);
+        $("#review-dialog").close();
+        state.editingPublication=result.publication;
+        state.outputOverride=null;
+        updatePublishLabels();
+        await postPublicationAction(`mensagem ${result.publication.telegram_message_id}`);
+      }catch(error){
+        if(error.data?.review) fillReview(`Revisão — ${plan.label}`,error.data.review);
+        showReviewError(error.message);
+        confirmButton.disabled=false;
+      }
+    };
+    $("#review-dialog").showModal();
+    return;
+  }
+
+  const value=await openForm(editing?"Atualizar Telegraph":"Publicar no Telegraph",[
+    field("title","Título","text",title),
+    ...(editing?[field("operation","Ação","select","edit",[["edit","Atualizar página existente"],["new","Criar nova página"]])]:[]),
+  ]);
+  if(!value) return;
+  title=value.title;
+  const preview=await api("/api/publish/telegraph/preview",{method:"POST",body:{draft_id:state.draft.id,document_override:override}});
+  const review=preview.review;
+  fillReview("Revisão — Telegraph",review);
+  const confirmButton=$("#review-confirm");
+  confirmButton.disabled=!review.publishable;
+  state.reviewAction=async()=>{
+    confirmButton.disabled=true;
+    try{
+      const body={title,confirmed_fingerprint:review.requires_confirmation?review.fingerprint:undefined,document_override:override};
+      let result;
+      if(editing&&value.operation==="edit") result=await api(`/api/publications/${editing.id}/telegraph`,{method:"PUT",body});
+      else result=await api("/api/publish/telegraph",{method:"POST",body:{...body,draft_id:state.draft.id}});
+      $("#review-dialog").close();
+      state.editingPublication=result.publication;
+      state.outputOverride=null;
+      updatePublishLabels();
+      await postPublicationAction(result.publication.telegraph_url||"Telegraph");
+    }catch(error){
+      if(error.data?.review) fillReview("Revisão — Telegraph",error.data.review);
+      showReviewError(error.message);
+      confirmButton.disabled=false;
+    }
+  };
+  $("#review-dialog").showModal();
 }
 
-async function importChosen(file,encoding=null){const form=new FormData();form.append("file",file,file.name);if(encoding)form.append("encoding",encoding);try{const data=await api("/api/import",{method:"POST",body:form});await loadDraft(data.draft.id)}catch(e){if(e.data?.error==="encoding_choice_required"){const v=await openForm("Escolher encoding",[field("encoding","Encoding (não será adivinhado)","text","windows-1252")]);if(v)return importChosen(file,v.encoding);}showMessage("Falha na importação",e.message);}}
+async function importChosen(file){
+  const form=new FormData();
+  form.append("file",file,file.name);
+  let staged;
+  try{staged=await api("/api/import-workflow/stage",{method:"POST",body:form})}
+  catch(error){
+    if(error.data?.error!=="encoding_choice_required"){showMessage("Importação",error.message);return}
+    staged={pending_import:{id:error.data.pending_import_id},review:null};
+  }
+  const id=staged.pending_import.id;
+  let encoding=null;
+  let review=staged.review;
+  if(!review){
+    const value=await openForm("Escolher encoding",[field("encoding","Encoding — não será adivinhado","text","windows-1252")]);
+    if(!value) return;
+    encoding=value.encoding;
+    try{review=(await api(`/api/import-workflow/${id}/preview`,{method:"POST",body:{encoding}})).review}
+    catch(error){showMessage("Importação",error.message);return}
+  }
+  let confirmPartial=false;
+  if(review.requires_partial_confirmation||review.requires_confirmation){
+    const source=review.original_text||"";
+    const semantic=conversionSummary(source,{
+      converted_document:review.converted_document,
+      converted_markdown:review.converted_markdown,
+      residual_raw_markdown:review.residual_raw_markdown,
+      lossless_visual_conversion:review.lossless_visual_import,
+    });
+    const decision=await comparisonDialog({
+      title:"Revisão antes de criar o rascunho",
+      summary:semantic,
+      leftLabel:"Original preservado",
+      leftValue:source,
+      rightLabel:"Conversão proposta",
+      rightValue:review.converted_markdown||review.converted_text||"",
+      choices:[
+        {value:"confirm",label:"Criar rascunho com esta conversão parcial",detail:"O original byte a byte continua preservado no registro de importação."},
+        {value:"cancel",label:"Manter importação pendente",detail:"Nenhum rascunho definitivo será criado agora."},
+      ],
+      defaultChoice:"cancel",
+      confirmLabel:"Aplicar decisão",
+    });
+    if(!decision||decision.choice!=="confirm") return;
+    confirmPartial=true;
+  }
+  try{
+    const data=await api(`/api/import-workflow/${id}/complete`,{method:"POST",body:{encoding,confirm_partial:confirmPartial}});
+    await loadDraft(data.draft.id);
+  }catch(error){showMessage("Importação",error.message)}
+}
 
-function looksLikeMarkdown(text){return /(^|\n)#{1,6}\s|(^|\n)\s*[-+*]\s+|(^|\n)```|\*\*[^\n*]+\*\*|\[[^\]]+\]\([^)]+\)|(^|\n)>\s/.test(text);}
-function insertLiteralAtRange(range,text){try{range.deleteContents();const dom=document.createTextNode(text);rememberDomNodeId(dom);range.insertNode(dom);const caret=document.createRange();caret.setStart(dom,dom.nodeValue.length);caret.collapse(true);const sel=window.getSelection();sel.removeAllRanges();sel.addRange(caret);scheduleSave();}catch(_){const block=activeBlock();if(block&&!block.__node){block.append(renderTextNode(textNode(text)));scheduleSave();}}}
-async function handlePaste(event){const text=event.clipboardData?.getData("text/plain")||"";if(!text||!looksLikeMarkdown(text)){setTimeout(scheduleSave);return;}event.preventDefault();const sel=window.getSelection();const savedRange=sel?.rangeCount?sel.getRangeAt(0).cloneRange():null;const after=activeBlock();const v=await openForm("Texto colado com sintaxe Markdown",[field("source","Conteúdo detectado — apenas visualização","textarea",text),field("mode","Interpretar como","select","literal",[["literal","Texto literal"],["markdown","Markdown — revisar conversão"]])]);if(!v)return;if(v.mode==="literal"){if(savedRange)insertLiteralAtRange(savedRange,text);return;}try{const result=await api("/api/conversion/raw-markdown/review",{method:"POST",body:{source:text}});const review=result.review;const confirmation=await openForm("Revisão do Markdown colado",[field("original","Original — apenas visualização","textarea",review.original),field("converted","Convertido — apenas visualização","textarea",review.converted_markdown),field("residual","Resíduos incompatíveis","textarea",(review.residual_raw_markdown||[]).map(x=>x.text).join("\n\n")||"Nenhum"),field("apply","Decisão","select","apply",[["apply","Inserir conversão visual"],["literal","Inserir literalmente" ]])]);if(!confirmation)return;if(confirmation.apply==="literal"){if(savedRange)insertLiteralAtRange(savedRange,text);return;}let cursor=after;for(const block of review.converted_document?.blocks||[]){cursor=insertBlock(block,cursor);}}catch(error){showMessage("Markdown colado",error.message);}}
+function looksLikeMarkdown(text){
+  return /(^|\n)#{1,6}\s|(^|\n)\s*[-+*]\s+|(^|\n)```|\*\*[^\n*]+\*\*|\[[^\]]+\]\([^)]+\)|(^|\n)>\s/.test(text);
+}
 
-async function bootstrap(){if(!initData){setStatus("fora do Telegram");showMessage("Autenticação necessária","Abra este Mini App pelo Telegram. O servidor valida Telegram.WebApp.initData e não aceita identidade fornecida pelo navegador.");return;}try{const requested=new URLSearchParams(location.search).get("draft");if(requested){await loadDraft(requested);return;}const data=await api("/api/drafts");if(!data.drafts.length){await createDraft();return;}const latest=data.drafts[0];$("#resume-summary").textContent=`${latest.name} — ${new Date(latest.updated_at).toLocaleString()}`;const dialog=$("#resume-dialog");dialog.showModal();const buttons=$$("button[value]",dialog);buttons.forEach(b=>b.onclick=()=>{dialog.close(b.value)});dialog.addEventListener("close",async function once(){dialog.removeEventListener("close",once);if(dialog.returnValue==="continue")await loadDraft(latest.id);else await createDraft();});}catch(e){setStatus("erro");showMessage("Falha ao iniciar",e.message);}}
+async function handlePaste(event){
+  const text=event.clipboardData?.getData("text/plain")||"";
+  if(!text||!looksLikeMarkdown(text)){setTimeout(scheduleSave);return}
+  event.preventDefault();
+  const after=activeBlock();
+  const afterBlockId=after?.dataset.block||null;
+  const initial=await openForm("Texto colado com sintaxe Markdown",[
+    field("source","Conteúdo","textarea",text),
+    field("mode","Interpretar como","select","literal",[["literal","Texto literal"],["markdown","Markdown — revisar"]]),
+  ]);
+  if(!initial) return;
+  if(initial.mode==="literal"){
+    insertBlock(node("paragraph",{children:[textNode(initial.source)]}),after);
+    return;
+  }
+  try{
+    const result=await conversionReviewFlow(initial.source,{insertAfterBlockId:afterBlockId});
+    if(!result) return;
+    if(result.mode==="keep"){
+      insertBlock(node("paragraph",{children:[textNode(result.source)]}),after);
+      return;
+    }
+    if(result.mode==="output"){
+      state.outputOverride=result.operation;
+      showMessage("Saída temporária preparada","O Markdown colado será inserido após o bloco selecionado somente na próxima publicação. O rascunho principal permanece inalterado; outras edições posteriores continuam sendo incorporadas quando a saída for materializada.");
+      return;
+    }
+    let cursor=after;
+    for(const block of result.blocks||[]) cursor=insertBlock(block,cursor);
+    state.outputOverride=null;
+  }catch(error){showMessage("Markdown colado",error.message)}
+}
 
-function installDeleteTool(){const toolbar=$(".toolbar");if(!toolbar||$("#delete-block"))return;const button=document.createElement("button");button.className="tool";button.id="delete-block";button.type="button";button.title="Excluir bloco selecionado";button.textContent="⌫";button.onclick=deleteActiveBlock;const undo=$("#undo");if(undo)toolbar.insertBefore(button,undo);else toolbar.append(button);}
+async function bootstrap(){
+  if(!initData){setStatus("fora do Telegram");showMessage("Autenticação necessária","Abra este Mini App pelo Telegram.");return}
+  try{
+    state.preferences=(await api("/api/preferences/conversion")).preferences||{};
+    const requested=new URLSearchParams(location.search).get("draft");
+    if(requested){await loadDraft(requested);return}
+    const data=await api("/api/drafts");
+    if(!data.drafts.length){await createDraft();return}
+    const latest=data.drafts[0];
+    $("#resume-summary").textContent=`${latest.name} — ${new Date(latest.updated_at).toLocaleString()}`;
+    const dialog=$("#resume-dialog");
+    dialog.showModal();
+    $$('button[value]',dialog).forEach(button=>button.onclick=()=>dialog.close(button.value));
+    dialog.addEventListener("close",async function once(){
+      dialog.removeEventListener("close",once);
+      dialog.returnValue==="continue"?await loadDraft(latest.id):await createDraft();
+    });
+  }catch(error){
+    if(error.status!==401){setStatus("erro");showMessage("Falha ao iniciar",error.message)}
+  }
+}
+
+function installDeleteTool(){
+  if($("#delete-block")) return;
+  const button=document.createElement("button");
+  button.className="tool";
+  button.id="delete-block";
+  button.type="button";
+  button.textContent="⌫";
+  button.title="Excluir bloco";
+  button.onclick=deleteActiveBlock;
+  $("#undo")?.before(button);
+}
 
 editor.addEventListener("beforeinput",insertPendingText);
 editor.addEventListener("input",scheduleSave);
-editor.addEventListener("click",event=>{if(event.target.closest("a"))event.preventDefault()});
 editor.addEventListener("paste",event=>void handlePaste(event));
-editor.addEventListener("dragstart",event=>{const block=event.target?.closest?.("[data-block]");if(!block||block.parentElement!==editor)return;state.draggedBlock=block;event.dataTransfer.effectAllowed="move";event.dataTransfer.setData("text/plain",block.dataset.block||"");});
-editor.addEventListener("dragover",event=>{if(!state.draggedBlock)return;event.preventDefault();event.dataTransfer.dropEffect="move";});
-editor.addEventListener("drop",event=>{if(!state.draggedBlock)return;event.preventDefault();const target=event.target?.closest?.("[data-block]");const moved=state.draggedBlock;state.draggedBlock=null;if(!target||target===moved||target.parentElement!==editor)return;const rect=target.getBoundingClientRect();if(event.clientY<rect.top+rect.height/2)target.before(moved);else target.after(moved);scheduleSave();});
-editor.addEventListener("dragend",()=>{state.draggedBlock=null;});
+editor.addEventListener("dragstart",event=>{
+  const block=event.target?.closest?.("[data-block]");
+  if(!block||block.parentElement!==editor) return;
+  state.draggedBlock=block;
+  event.dataTransfer.effectAllowed="move";
+});
+editor.addEventListener("dragover",event=>{
+  if(state.draggedBlock){event.preventDefault();event.dataTransfer.dropEffect="move"}
+});
+editor.addEventListener("drop",event=>{
+  if(!state.draggedBlock) return;
+  event.preventDefault();
+  const target=event.target?.closest?.("[data-block]");
+  const moved=state.draggedBlock;
+  state.draggedBlock=null;
+  if(!target||target===moved||target.parentElement!==editor) return;
+  const rect=target.getBoundingClientRect();
+  event.clientY<rect.top+rect.height/2?target.before(moved):target.after(moved);
+  scheduleSave();
+});
+editor.addEventListener("dragend",()=>state.draggedBlock=null);
 
-$$('[data-format]').forEach(button=>button.addEventListener("click",()=>{closeMenus();wrapSelection(button.dataset.format)}));
-$$('[data-inline-form]').forEach(button=>button.addEventListener("click",()=>inlineForm(button.dataset.inlineForm)));
-$$('[data-block-action]').forEach(button=>button.addEventListener("click",()=>{closeMenus();replaceBlockKind(button.dataset.blockAction,button.dataset.level?Number(button.dataset.level):null)}));
-$$('[data-insert]').forEach(button=>button.addEventListener("click",()=>{closeMenus();insertBlock(node(button.dataset.insert))}));
-$$('[data-structured]').forEach(button=>button.addEventListener("click",()=>structuredAction(button.dataset.structured,button.dataset.preset||"")));
-$$('[data-media]').forEach(button=>button.addEventListener("click",()=>mediaAction(button.dataset.media)));
-$$('[data-local-media]').forEach(button=>button.addEventListener("click",()=>localMediaAction(button.dataset.localMedia)));
-$$('[data-button]').forEach(button=>button.addEventListener("click",()=>buttonAction(button.dataset.button)));
+$$('[data-format]').forEach(button=>button.onclick=()=>{closeMenus();wrapSelection(button.dataset.format)});
+$$('[data-inline-form]').forEach(button=>button.onclick=()=>void inlineForm(button.dataset.inlineForm));
+$$('[data-block-action]').forEach(button=>button.onclick=()=>{closeMenus();replaceBlockKind(button.dataset.blockAction,button.dataset.level?Number(button.dataset.level):null)});
+$$('[data-insert]').forEach(button=>button.onclick=()=>insertBlock(node(button.dataset.insert)));
+$$('[data-structured]').forEach(button=>button.onclick=()=>void structuredAction(button.dataset.structured,button.dataset.preset||""));
+$$('[data-media]').forEach(button=>button.onclick=()=>void mediaAction(button.dataset.media));
+$$('[data-local-media]').forEach(button=>button.onclick=()=>localMediaAction(button.dataset.localMedia));
+$$('[data-button]').forEach(button=>button.onclick=()=>void buttonAction(button.dataset.button));
 
-$("#native-location").onclick=nativeLocationAction;
-$("#media-file").addEventListener("change",async event=>{const file=event.target.files?.[0];const kind=state.pendingMediaKind;event.target.value="";state.pendingMediaKind=null;if(file&&kind)await uploadLocalMedia(file,kind)});
-$("#undo").onclick=async()=>{if(!state.draft)return;await commitNow("before-undo");const d=await api(`/api/drafts/${state.draft.id}/undo`,{method:"POST"});state.draft=d.draft;nameEl.value=state.draft.name;renderDocument(state.draft.document);state.lastSaved=JSON.stringify(state.draft.document);setStatus("desfeito")};
-$("#redo").onclick=async()=>{if(!state.draft)return;const candidates=state.draft.redo_candidates||[];if(!candidates.length){showMessage("Refazer","Não há revisão posterior neste ramo.");return;}const selected=candidates.length===1?candidates[0].id:(await openForm("Escolher ramo",[field("revision_id","Revisão","select",candidates[0].id,candidates.map(c=>[c.id,`${c.reason} — ${c.created_at}`]))]))?.revision_id;if(!selected)return;const d=await api(`/api/drafts/${state.draft.id}/redo`,{method:"POST",body:{revision_id:selected}});state.draft=d.draft;nameEl.value=state.draft.name;renderDocument(state.draft.document);state.lastSaved=JSON.stringify(state.draft.document);setStatus("refeito")};
-nameEl.addEventListener("change",async()=>{if(!state.draft)return;try{const d=await api(`/api/drafts/${state.draft.id}`,{method:"PATCH",body:{name:nameEl.value}});state.draft=d.draft;nameEl.value=state.draft.name;setStatus("renomeado")}catch(e){showMessage("Nome",e.message)}});
-$("#new-draft").onclick=createDraft;
+$("#native-location").onclick=()=>void nativeLocationAction();
+$("#media-file").onchange=async event=>{
+  const file=event.target.files?.[0];
+  const kind=state.pendingMediaKind;
+  event.target.value="";
+  state.pendingMediaKind=null;
+  if(file&&kind) await uploadLocalMedia(file,kind);
+};
+
+$("#undo").onclick=async()=>{
+  if(!state.draft) return;
+  if(!(await commitNow("before-undo"))){
+    await noticeDialog("Undo interrompido","A revisão atual não foi salva no servidor. O Undo não prosseguiu para não operar sobre uma revisão anterior.");
+    return;
+  }
+  const data=await api(`/api/drafts/${state.draft.id}/undo`,{method:"POST"});
+  state.draft=data.draft;
+  state.outputOverride=null;
+  nameEl.value=data.draft.name;
+  renderDocument(data.draft.document);
+  state.lastSaved=JSON.stringify(data.draft.document);
+  saveMirror();
+};
+
+$("#redo").onclick=async()=>{
+  if(!state.draft) return;
+  const candidates=state.draft.redo_candidates||[];
+  if(!candidates.length){showMessage("Refazer","Não há revisão posterior.");return}
+  const revisionId=candidates.length===1?candidates[0].id:(await openForm("Escolher ramo",[
+    field("revision_id","Revisão","select",candidates[0].id,candidates.map(item=>[item.id,`${item.reason} — ${item.created_at}`])),
+  ]))?.revision_id;
+  if(!revisionId) return;
+  const data=await api(`/api/drafts/${state.draft.id}/redo`,{method:"POST",body:{revision_id:revisionId}});
+  state.draft=data.draft;
+  state.outputOverride=null;
+  nameEl.value=data.draft.name;
+  renderDocument(data.draft.document);
+  state.lastSaved=JSON.stringify(data.draft.document);
+  saveMirror();
+};
+
+nameEl.onchange=async()=>{
+  if(!state.draft) return;
+  const data=await api(`/api/drafts/${state.draft.id}`,{method:"PATCH",body:{name:nameEl.value}});
+  state.draft=data.draft;
+  nameEl.value=data.draft.name;
+};
+
+$("#new-draft").onclick=()=>void createDraft();
 $("#open-drafts").onclick=async()=>{await listDrafts();$("#drafts-dialog").showModal()};
-$("#toggle-archived").onclick=async()=>{state.archivedView=!state.archivedView;$("#toggle-archived").textContent=state.archivedView?"Ver ativos":"Ver arquivados";await listDrafts()};
+$("#toggle-archived").onclick=async()=>{
+  state.archivedView=!state.archivedView;
+  $("#toggle-archived").textContent=state.archivedView?"Ver ativos":"Ver arquivados";
+  await listDrafts();
+};
 $("#open-publications").onclick=async()=>{await listPublications();$("#publications-dialog").showModal()};
 $("#import-file").onclick=()=>$("#file").click();
-$("#file").addEventListener("change",async event=>{const file=event.target.files?.[0];event.target.value="";if(file)await importChosen(file)});
-$("#publish-telegram").onclick=()=>reviewAndPublish("telegram");
-$("#publish-telegraph").onclick=()=>reviewAndPublish("telegraph");
-$("#review-confirm").onclick=()=>state.reviewAction?.();
-$$('[data-close]').forEach(button=>button.addEventListener("click",()=>button.closest("dialog")?.close()));
+$("#file").onchange=async event=>{
+  const file=event.target.files?.[0];
+  event.target.value="";
+  if(file) await importChosen(file);
+};
+$("#publish-telegram").onclick=()=>void reviewAndPublish("telegram");
+$("#publish-telegraph").onclick=()=>void reviewAndPublish("telegraph");
+$("#review-confirm").onclick=()=>void state.reviewAction?.();
+$$('[data-close]').forEach(button=>button.onclick=()=>button.closest("dialog")?.close());
 
-document.addEventListener("click",event=>{if(!event.target.closest(".toolbar details"))closeMenus()});
-document.addEventListener("visibilitychange",()=>{if(!document.hidden&&state.pendingLocationRequest)void checkLocationRequest(state.pendingLocationRequest,{silent:true})});
-window.addEventListener("pagehide",()=>{saveMirror()});
-state.sessionTimer=setInterval(saveSession,5*60*1000);
+window.addEventListener("mdtxtrt:auth-expired",()=>authExpired());
+document.addEventListener("visibilitychange",()=>{
+  if(!document.hidden&&state.pendingLocationRequest&&!state.authExpired) void pollLocation(state.pendingLocationRequest);
+});
+window.addEventListener("pagehide",saveMirror);
+state.sessionTimer=setInterval(()=>void saveSession(),5*60*1000);
 installDeleteTool();
-bootstrap();
+void bootstrap();

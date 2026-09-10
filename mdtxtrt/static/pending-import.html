@@ -3,33 +3,54 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <title>MDTXTRT — Importação</title>
+  <title>MDTXTRT — Revisar importação</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <style>
     :root{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color-scheme:light dark;--bg:var(--tg-theme-bg-color,#fff);--text:var(--tg-theme-text-color,#171717);--hint:var(--tg-theme-hint-color,#747474);--surface:var(--tg-theme-secondary-bg-color,#f3f4f6);--accent:var(--tg-theme-button-color,#2481cc);--accent-text:var(--tg-theme-button-text-color,#fff);--line:color-mix(in srgb,var(--hint) 28%,transparent)}
-    *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);min-height:100vh;display:grid;place-items:center;padding:18px}.card{width:min(560px,100%);border:1px solid var(--line);border-radius:16px;padding:18px;background:var(--surface)}h1{font-size:20px;margin:0 0 8px}p{line-height:1.45}.muted{color:var(--hint);font-size:13px}.field{display:grid;gap:6px;margin:18px 0}.field label{font-size:13px}.field input{font:inherit;border:1px solid var(--line);border-radius:9px;padding:10px;background:var(--bg);color:var(--text)}button{font:inherit;border:1px solid var(--accent);background:var(--accent);color:var(--accent-text);border-radius:9px;padding:10px 14px;cursor:pointer}button:disabled{opacity:.55}.error{color:#d33;white-space:pre-wrap}
+    *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);min-height:100vh;padding:16px}.card{width:min(920px,100%);margin:0 auto;border:1px solid var(--line);border-radius:16px;padding:18px;background:var(--surface)}h1{font-size:20px;margin:0 0 8px}h2{font-size:15px;margin:18px 0 7px}.muted{color:var(--hint);font-size:13px}.grid{display:grid;gap:12px}@media(min-width:760px){.grid.two{grid-template-columns:1fr 1fr}}textarea,input,select{width:100%;font:13px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;border:1px solid var(--line);border-radius:9px;padding:10px;background:var(--bg);color:var(--text)}textarea{min-height:210px;resize:vertical}.field{display:grid;gap:6px;margin:12px 0}.field label{font-size:12px;color:var(--hint)}.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}button{font:inherit;border:1px solid var(--line);background:var(--bg);color:var(--text);border-radius:9px;padding:10px 14px;cursor:pointer}.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-text)}button:disabled{opacity:.55}.error{color:#d33;white-space:pre-wrap}.warning{border:1px solid var(--line);border-radius:9px;padding:9px;margin:6px 0;background:var(--bg)}.hidden{display:none!important}.meta{overflow-wrap:anywhere}
   </style>
 </head>
 <body>
   <main class="card">
-    <h1>Concluir importação</h1>
-    <p id="summary">Carregando o arquivo preservado…</p>
-    <p class="muted">O MDTXTRT não adivinha o encoding. O arquivo original permanece armazenado enquanto você escolhe.</p>
-    <form id="form" hidden>
-      <div class="field"><label for="encoding">Encoding</label><input id="encoding" name="encoding" value="windows-1252" autocomplete="off" required></div>
-      <button id="complete" type="submit">Importar com este encoding</button>
-    </form>
+    <h1>Revisar importação</h1>
+    <p id="summary" class="meta">Carregando o arquivo preservado…</p>
+    <p class="muted">O arquivo original permanece no import pendente. Nenhum rascunho definitivo é criado enquanto uma conversão parcial aguarda sua confirmação.</p>
+
+    <section id="encoding-box" class="hidden">
+      <div class="field"><label for="encoding">Encoding — escolha explícita</label><input id="encoding" value="windows-1252" autocomplete="off"></div>
+      <button id="preview-encoding" type="button">Revisar com este encoding</button>
+    </section>
+
+    <section id="review" class="hidden">
+      <div class="grid two">
+        <div><h2>Original exato</h2><textarea id="original" readonly></textarea></div>
+        <div><h2>Conversão visual em Markdown</h2><textarea id="converted" readonly></textarea></div>
+      </div>
+      <h2>Incompatibilidades preservadas como Markdown cru</h2>
+      <div id="residual"></div>
+      <p id="review-status" class="muted"></p>
+      <div class="actions">
+        <button id="cancel" type="button">Manter pendente e sair</button>
+        <button id="complete" class="primary" type="button">Criar rascunho com esta revisão</button>
+      </div>
+    </section>
     <p id="error" class="error"></p>
   </main>
 <script type="module">
 const tg=window.Telegram?.WebApp;tg?.ready();tg?.expand();
 const id=new URLSearchParams(location.search).get("pending_import");
-const headers=()=>({"X-Telegram-Init-Data":tg?.initData||""});
-const summary=document.querySelector("#summary"),form=document.querySelector("#form"),error=document.querySelector("#error"),button=document.querySelector("#complete");
-async function api(path,options={}){const response=await fetch(path,{...options,headers:{...headers(),...(options.headers||{})}});let data={};try{data=await response.json()}catch{}if(!response.ok||data.ok===false)throw new Error(data.error||`HTTP ${response.status}`);return data}
+const $=s=>document.querySelector(s);
+const summary=$("#summary"),error=$("#error"),encodingBox=$("#encoding-box"),reviewBox=$("#review"),original=$("#original"),converted=$("#converted"),residual=$("#residual"),reviewStatus=$("#review-status"),complete=$("#complete");
+let currentReview=null;let currentEncoding=null;
+function headers(extra={}){return {"X-Telegram-Init-Data":tg?.initData||"",...extra}}
+async function api(path,options={}){const response=await fetch(path,{...options,headers:headers(options.headers||{})});let data={};try{data=await response.json()}catch{}if(!response.ok||data.ok===false){const e=new Error(data.error||`HTTP ${response.status}`);e.data=data;e.status=response.status;throw e}return data}
 function draftUrl(draftId){const url=new URL("/",location.origin);url.searchParams.set("draft",draftId);return url.toString()}
-async function load(){if(!id){error.textContent="Identificador de importação ausente.";return}try{const data=await api(`/api/imports/pending/${encodeURIComponent(id)}`);const pending=data.pending_import;if(pending.status==="completed"&&pending.draft_id){location.replace(draftUrl(pending.draft_id));return}summary.textContent=`${pending.filename} — ${pending.size} bytes — SHA-256 ${pending.sha256}`;form.hidden=false}catch(e){error.textContent=e.message}}
-form.addEventListener("submit",async event=>{event.preventDefault();button.disabled=true;error.textContent="";try{const data=await api(`/api/imports/pending/${encodeURIComponent(id)}/complete`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({encoding:document.querySelector("#encoding").value.trim()})});location.replace(draftUrl(data.draft.id))}catch(e){error.textContent=e.message;button.disabled=false}});
+function showReview(review){currentReview=review;currentEncoding=review.encoding||currentEncoding;encodingBox.classList.add("hidden");reviewBox.classList.remove("hidden");original.value=review.original_text||"";converted.value=review.converted_markdown||review.converted_text||"";residual.replaceChildren();for(const item of review.residual_raw_markdown||[]){const box=document.createElement("div");box.className="warning";const why=document.createElement("strong");why.textContent=item.reason||"Markdown cru";const pre=document.createElement("pre");pre.textContent=item.text||"";box.append(why,pre);residual.append(box)}if(!residual.children.length)residual.textContent="Nenhuma incompatibilidade preservada.";reviewStatus.textContent=review.requires_confirmation?"A conversão é parcial. O rascunho só será criado se você confirmar explicitamente este resultado.":"A conversão visual não deixou resíduos crus; a criação pode prosseguir.";complete.textContent=review.requires_confirmation?"Confirmar conversão parcial e criar rascunho":"Criar rascunho"}
+async function preview(encoding=null){error.textContent="";try{const data=await api(`/api/import-workflow/${encodeURIComponent(id)}/preview`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({encoding})});if(data.review.status==="completed"&&data.review.draft_id){location.replace(draftUrl(data.review.draft_id));return}showReview(data.review)}catch(e){if(e.data?.error==="encoding_choice_required"){encodingBox.classList.remove("hidden");reviewBox.classList.add("hidden");summary.textContent=`${e.data.filename||"Arquivo"}: escolha o encoding; ele não será adivinhado.`;return}error.textContent=e.message}}
+async function load(){if(!id){error.textContent="Identificador de importação ausente.";return}try{const pending=await api(`/api/imports/pending/${encodeURIComponent(id)}`);const p=pending.pending_import;if(p.status==="completed"&&p.draft_id){location.replace(draftUrl(p.draft_id));return}summary.textContent=`${p.filename} — ${p.size} bytes — SHA-256 ${p.sha256}`;await preview(null)}catch(e){error.textContent=e.message}}
+$("#preview-encoding").onclick=()=>{currentEncoding=$("#encoding").value.trim();preview(currentEncoding)};
+complete.onclick=async()=>{if(!currentReview)return;complete.disabled=true;error.textContent="";try{const data=await api(`/api/import-workflow/${encodeURIComponent(id)}/complete`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({encoding:currentEncoding,confirm_partial:Boolean(currentReview.requires_confirmation)})});location.replace(draftUrl(data.draft.id))}catch(e){if(e.data?.review){showReview(e.data.review)}error.textContent=e.message;complete.disabled=false}};
+$("#cancel").onclick=()=>{if(tg?.close)tg.close();else history.back()};
 load();
 </script>
 </body>

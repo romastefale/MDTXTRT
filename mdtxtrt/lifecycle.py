@@ -51,10 +51,7 @@ def _remap_media(value: Any, mapping: dict[str, str]) -> Any:
 def _prepare_definitive_delete(repository: SQLiteRepository, *, user_id: int, draft_id: str) -> None:
     repository.get_draft(draft_id, user_id=user_id)
     with repository.connect() as db:
-        db.execute(
-            "DELETE FROM media_replacements WHERE user_id=? AND draft_id=?",
-            (user_id, draft_id),
-        )
+        db.execute("DELETE FROM media_replacements WHERE user_id=? AND draft_id=?", (user_id, draft_id))
 
 
 async def delete_draft(request: web.Request) -> web.Response:
@@ -80,10 +77,7 @@ async def duplicate_draft(request: web.Request) -> web.Response:
     source_id = request.match_info["draft_id"]
     source = documents.get(user_id=identity.user_id, draft_id=source_id)
     requested_name = str(payload.get("name") or "").strip()
-    target = documents.create(
-        user_id=identity.user_id,
-        name=requested_name or f"{source['name']} — cópia",
-    )
+    target = documents.create(user_id=identity.user_id, name=requested_name or f"{source['name']} — cópia")
     try:
         mapping = assets.clone_draft_media(
             user_id=identity.user_id,
@@ -107,10 +101,7 @@ async def duplicate_draft(request: web.Request) -> web.Response:
 async def list_draft_imports(request: web.Request) -> web.Response:
     identity = _identity(request)
     documents: DocumentService = request.app["documents"]
-    items = documents.list_imports(
-        user_id=identity.user_id,
-        draft_id=request.match_info["draft_id"],
-    )
+    items = documents.list_imports(user_id=identity.user_id, draft_id=request.match_info["draft_id"])
     return web.json_response({"ok": True, "imports": items})
 
 
@@ -163,6 +154,21 @@ async def media_history(request: web.Request) -> web.Response:
     return web.json_response({"ok": True, "history": history})
 
 
+async def restore_media(request: web.Request) -> web.Response:
+    identity = _identity(request)
+    payload = await request.json()
+    version_id = str(payload.get("version_id") or "").strip()
+    if not version_id:
+        raise ValueError("media_version_id_required")
+    assets: AssetService = request.app["assets"]
+    media = assets.restore_media_version(
+        user_id=identity.user_id,
+        media_id=request.match_info["media_id"],
+        version_id=version_id,
+    )
+    return web.json_response({"ok": True, "media": media}, status=201)
+
+
 def attach_lifecycle_routes(app: web.Application) -> None:
     app.router.add_delete("/api/drafts/{draft_id}", delete_draft)
     app.router.add_post("/api/drafts/{draft_id}/duplicate", duplicate_draft)
@@ -171,3 +177,4 @@ def attach_lifecycle_routes(app: web.Application) -> None:
     app.router.add_get("/api/media/{media_id}/original", download_media_original)
     app.router.add_post("/api/media/{media_id}/replace", replace_media)
     app.router.add_get("/api/media/{media_id}/history", media_history)
+    app.router.add_post("/api/media/{media_id}/restore", restore_media)
