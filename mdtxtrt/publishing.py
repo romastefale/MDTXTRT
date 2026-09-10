@@ -25,6 +25,7 @@ from mdtxtrt.credentials import CredentialCipher
 from mdtxtrt.domain import CanonicalDocument, CanonicalNode
 from mdtxtrt.projections import ProjectionReview, telegram_projection, telegraph_projection
 from mdtxtrt.storage import SQLiteRepository
+from mdtxtrt.telegram_validation import rich_block_count, validate_telegram_document
 
 TELEGRAPH_CONTENT_LIMIT_BYTES = 64 * 1024
 _LOCAL_MEDIA_KINDS = {"photo", "video", "animation", "audio", "voice_note", "document"}
@@ -96,6 +97,21 @@ def _input_media(kind: str, data: bytes, filename: str):
     raise ValueError("unsupported_local_media_kind")
 
 
+def _apply_telegram_validation(review: ProjectionReview, document: CanonicalDocument) -> None:
+    # projections.py historically counted every inline node toward the 500-block
+    # limit. Bot API 10.3 defines that limit in terms of Rich blocks (including
+    # nested blocks/list items/table rows), not every inline formatting node.
+    review.blocking[:] = [
+        message for message in review.blocking
+        if not message.startswith("Documento excede 500 blocos/nós estruturais")
+    ]
+    review.metrics.pop("nodes", None)
+    review.metrics["blocks"] = rich_block_count(document)
+    for message in validate_telegram_document(document):
+        if message not in review.blocking:
+            review.blocking.append(message)
+
+
 class TelegramPublicationService:
     def __init__(self, repository: SQLiteRepository, assets: AssetService):
         self.repository = repository
@@ -140,6 +156,7 @@ class TelegramPublicationService:
             metadata=document.metadata,
         )
         review = telegram_projection(projected_document)
+        _apply_telegram_validation(review, projected_document)
         review.metrics["local_media_attachments"] = len(attachments)
         return revision_id, review, list(attachments.values())
 
