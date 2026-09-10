@@ -7,6 +7,7 @@ tg?.expand();
 const $=(selector,root=document)=>root.querySelector(selector);
 const $$=(selector,root=document)=>[...root.querySelectorAll(selector)];
 const editor=$("#editor");
+const telegramPreview=$("#telegram-preview");
 const statusEl=$("#status");
 const nameEl=$("#draft-name");
 const initData=tg?.initData||"";
@@ -37,6 +38,24 @@ const domNodeIds=new WeakMap();
 
 function setStatus(value){statusEl.textContent=value}
 function closeMenus(){$$(".toolbar details[open]").forEach(item=>item.removeAttribute("open"))}
+function updateFormatState(){
+  $$('[data-format]').forEach(button=>{
+    const active=state.pendingInline.has(button.dataset.format);
+    button.classList.toggle("active",active);
+    button.setAttribute("aria-pressed",active?"true":"false");
+  });
+}
+function selectView(view){
+  const preview=view==="preview";
+  $$('[role="tab"][data-view]').forEach(tab=>tab.setAttribute("aria-selected",tab.dataset.view===view?"true":"false"));
+  if(preview){
+    const clone=editor.cloneNode(true);
+    clone.removeAttribute("id"); clone.removeAttribute("contenteditable");
+    clone.querySelectorAll("[contenteditable]").forEach(node=>node.removeAttribute("contenteditable"));
+    telegramPreview.replaceChildren(...clone.childNodes);
+  }
+  editor.classList.toggle("hidden",preview); telegramPreview.classList.toggle("hidden",!preview); closeMenus();
+}
 function headers(){return {"X-Telegram-Init-Data":initData}}
 function mirrorKey(){return state.draft?`mdtxtrt:mirror:${state.draft.id}`:null}
 
@@ -561,7 +580,7 @@ function wrapSelection(kind,attrs={},explicit=null){
   }
   if(range.collapsed&&explicit===null){
     state.pendingInline.has(kind)?state.pendingInline.delete(kind):state.pendingInline.set(kind,attrs);
-    $$('[data-format]').forEach(button=>button.classList.toggle("active",state.pendingInline.has(button.dataset.format)));
+    updateFormatState();
     return;
   }
   const wrapper=document.createElement(inlineTags[kind]||(kind==="url"?"a":"span"));
@@ -1428,7 +1447,8 @@ async function bootstrap(){
 }
 
 function installDeleteTool(){
-  if($("#delete-block")) return;
+  const existing=$("#delete-block");
+  if(existing){existing.onclick=deleteActiveBlock;return}
   const button=document.createElement("button");
   button.className="tool";
   button.id="delete-block";
@@ -1472,6 +1492,7 @@ $$('[data-structured]').forEach(button=>button.onclick=()=>void structuredAction
 $$('[data-media]').forEach(button=>button.onclick=()=>void mediaAction(button.dataset.media));
 $$('[data-local-media]').forEach(button=>button.onclick=()=>localMediaAction(button.dataset.localMedia));
 $$('[data-button]').forEach(button=>button.onclick=()=>void buttonAction(button.dataset.button));
+$$('[role="tab"][data-view]').forEach(tab=>tab.onclick=()=>selectView(tab.dataset.view));
 
 $("#native-location").onclick=()=>void nativeLocationAction();
 $("#media-file").onchange=async event=>{
