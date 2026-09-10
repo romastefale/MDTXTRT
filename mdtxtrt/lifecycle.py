@@ -48,15 +48,25 @@ def _remap_media(value: Any, mapping: dict[str, str]) -> Any:
     return out
 
 
+def _prepare_definitive_delete(repository: SQLiteRepository, *, user_id: int, draft_id: str) -> None:
+    repository.get_draft(draft_id, user_id=user_id)
+    with repository.connect() as db:
+        db.execute(
+            "DELETE FROM media_replacements WHERE user_id=? AND draft_id=?",
+            (user_id, draft_id),
+        )
+
+
 async def delete_draft(request: web.Request) -> web.Response:
     identity = _identity(request)
     payload = await request.json() if request.can_read_body else {}
+    if payload.get("confirm") is not True:
+        raise ValueError("draft_delete_confirmation_required")
     documents: DocumentService = request.app["documents"]
-    documents.delete(
-        user_id=identity.user_id,
-        draft_id=request.match_info["draft_id"],
-        confirmed=payload.get("confirm") is True,
-    )
+    repository: SQLiteRepository = request.app["repository"]
+    draft_id = request.match_info["draft_id"]
+    _prepare_definitive_delete(repository, user_id=identity.user_id, draft_id=draft_id)
+    documents.delete(user_id=identity.user_id, draft_id=draft_id, confirmed=True)
     return web.json_response({"ok": True})
 
 
