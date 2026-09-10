@@ -6,15 +6,44 @@ import hashlib
 from typing import Any
 
 from aiogram import Bot
-from aiogram.types import InputRichMessage
+from aiogram.types import (
+    BufferedInputFile,
+    InputMediaAnimation,
+    InputMediaAudio,
+    InputMediaDocument,
+    InputMediaPhoto,
+    InputMediaVideo,
+    InputMediaVoiceNote,
+    InputRichMessage,
+    InputRichMessageMedia,
+)
 from telegraph import Telegraph
 from telegraph.utils import html_to_nodes, json_dumps
 
+from mdtxtrt.assets import AssetService
 from mdtxtrt.credentials import CredentialCipher
+from mdtxtrt.domain import CanonicalDocument, CanonicalNode
 from mdtxtrt.projections import ProjectionReview, telegram_projection, telegraph_projection
 from mdtxtrt.storage import SQLiteRepository
 
 TELEGRAPH_CONTENT_LIMIT_BYTES = 64 * 1024
+_LOCAL_MEDIA_KINDS = {"photo", "video", "animation", "audio", "voice_note", "document"}
+_MEDIA_SCHEME = {
+    "photo": "photo",
+    "video": "video",
+    "animation": "video",
+    "audio": "audio",
+    "voice_note": "audio",
+    "document": "document",
+}
+_MEDIA_PREFIX = {
+    "photo": "p",
+    "video": "v",
+    "animation": "a",
+    "audio": "u",
+    "voice_note": "n",
+    "document": "d",
+}
 
 
 class ProjectionConfirmationRequired(ValueError):
@@ -45,24 +74,89 @@ def _chat_id(value: str | int) -> str | int:
     return stripped
 
 
+def _attachment_id(kind: str, media_id: str) -> str:
+    compact = "".join(ch for ch in media_id if ch.isalnum())
+    return f"{_MEDIA_PREFIX[kind]}_{compact}"[:64]
+
+
+def _input_media(kind: str, data: bytes, filename: str):
+    upload = BufferedInputFile(data, filename=filename)
+    if kind == "photo":
+        return InputMediaPhoto(media=upload)
+    if kind == "video":
+        return InputMediaVideo(media=upload)
+    if kind == "animation":
+        return InputMediaAnimation(media=upload)
+    if kind == "audio":
+        return InputMediaAudio(media=upload)
+    if kind == "voice_note":
+        return InputMediaVoiceNote(media=upload)
+    if kind == "document":
+        return InputMediaDocument(media=upload)
+    raise ValueError("unsupported_local_media_kind")
+
+
 class TelegramPublicationService:
-    def __init__(self, repository: SQLiteRepository):
+    def __init__(self, repository: SQLiteRepository, assets: AssetService):
         self.repository = repository
+        self.assets = assets
+
+    def _prepare(
+        self,
+        *,
+        user_id: int,
+        draft_id: str,
+    ) -> tuple[str, ProjectionReview, list[InputRichMessageMedia]]:
+        revision_id, document = self.repository.get_active_document(draft_id=draft_id, user_id=user_id)
+        attachments: dict[tuple[str, str], InputRichMessageMedia] = {}
+
+        def transform(node: CanonicalNode) -> CanonicalNode:
+            attrs = dict(node.attrs)
+            if node.kind in _LOCAL_MEDIA_KINDS and attrs.get("media_blob_id"):
+                media_id = str(attrs["media_blob_id"])
+                blob = self.assets.get_media(user_id=user_id, media_id=media_id)
+                if blob.draft_id != draft_id:
+                    raise ValueError("media_does_not_belong_to_draft")
+                key = (node.kind, media_id)
+                identifier = _attachment_id(node.kind, media_id)
+                attrs["src"] = f"tg://{_MEDIA_SCHEME[node.kind]}?id={identifier}"
+                if key not in attachments:
+                    attachments[key] = InputRichMessageMedia(
+                        id=identifier,
+                        media=_input_media(node.kind, blob.data, blob.filename),
+                    )
+            return CanonicalNode(
+                id=node.id,
+                kind=node.kind,
+                text=node.text,
+                attrs=attrs,
+                children=tuple(transform(child) for child in node.children),
+            )
+
+        projected_document = CanonicalDocument(
+            id=document.id,
+            schema_version=document.schema_version,
+            blocks=tuple(transform(block) for block in document.blocks),
+            metadata=document.metadata,
+        )
+        review = telegram_projection(projected_document)
+        review.metrics["local_media_attachments"] = len(attachments)
+        return revision_id, review, list(attachments.values())
 
     def preview(self, *, user_id: int, draft_id: str) -> tuple[str, ProjectionReview]:
-        revision_id, document = self.repository.get_active_document(draft_id=draft_id, user_id=user_id)
-        return revision_id, telegram_projection(document)
+        revision_id, review, _attachments = self._prepare(user_id=user_id, draft_id=draft_id)
+        return revision_id, review
 
     async def publish(
         self, *, bot: Bot, user_id: int, draft_id: str, destination_chat_id: str | int,
         title: str, confirmed_fingerprint: str | None = None,
     ) -> dict[str, Any]:
-        revision_id, review = self.preview(user_id=user_id, draft_id=draft_id)
+        revision_id, review, attachments = self._prepare(user_id=user_id, draft_id=draft_id)
         _require_review(review, confirmed_fingerprint)
         target = _chat_id(destination_chat_id)
         message = await bot.send_rich_message(
             chat_id=target,
-            rich_message=InputRichMessage(html=review.content),
+            rich_message=InputRichMessage(html=review.content, media=attachments or None),
         )
         return self.repository.create_publication(
             user_id=user_id,
@@ -77,6 +171,7 @@ class TelegramPublicationService:
                 "fingerprint": review.fingerprint,
                 "telegram_message_id": int(message.message_id),
                 "destination_chat_id": str(destination_chat_id),
+                "local_media_attachments": len(attachments),
             },
         )
 
@@ -91,12 +186,12 @@ class TelegramPublicationService:
         message_id = publication.get("telegram_message_id")
         if not destination or message_id is None:
             raise ValueError("telegram_publication_missing_target")
-        revision_id, review = self.preview(user_id=user_id, draft_id=publication["draft_id"])
+        revision_id, review, attachments = self._prepare(user_id=user_id, draft_id=publication["draft_id"])
         _require_review(review, confirmed_fingerprint)
         await bot.edit_message_text(
             chat_id=_chat_id(destination),
             message_id=int(message_id),
-            rich_message=InputRichMessage(html=review.content),
+            rich_message=InputRichMessage(html=review.content, media=attachments or None),
         )
         return self.repository.update_publication(
             publication_id=publication_id,
@@ -108,6 +203,7 @@ class TelegramPublicationService:
                 "fingerprint": review.fingerprint,
                 "telegram_message_id": int(message_id),
                 "destination_chat_id": str(destination),
+                "local_media_attachments": len(attachments),
             },
         )
 
@@ -120,6 +216,19 @@ class TelegraphPublicationService:
     def preview(self, *, user_id: int, draft_id: str) -> tuple[str, ProjectionReview]:
         revision_id, document = self.repository.get_active_document(draft_id=draft_id, user_id=user_id)
         review = telegraph_projection(document)
+
+        def inspect_local_media(node: CanonicalNode) -> None:
+            if node.kind in _LOCAL_MEDIA_KINDS and node.attrs.get("media_blob_id"):
+                src = str(node.attrs.get("src") or "")
+                if not src.startswith(("https://", "http://")):
+                    review.blocking.append(
+                        f"Mídia local {node.id} precisa de link público explícito antes da publicação no Telegraph."
+                    )
+            for child in node.children:
+                inspect_local_media(child)
+
+        for block in document.blocks:
+            inspect_local_media(block)
         try:
             payload_bytes = len(json_dumps(html_to_nodes(review.content)).encode("utf-8"))
             review.metrics["content_bytes"] = payload_bytes
