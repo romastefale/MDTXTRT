@@ -1224,6 +1224,15 @@ function showReviewError(message){
   warnings.prepend(box);
 }
 
+function telegramErrorMessage(error){
+  if(error.data?.error==="telegram_validation_error"){
+    return `Não foi possível validar esta publicação para o Telegram: ${error.data.detail||"revise o conteúdo e o destino."}`;
+  }
+  if(error.data?.error==="storage_error") return "O armazenamento está indisponível. Tente novamente.";
+  if(error.data?.error==="blob_integrity_error") return "A integridade de um arquivo armazenado não pôde ser confirmada.";
+  return error.message;
+}
+
 async function preparedOutputOverride(){
   if(!state.outputOverride) return null;
   const override=materializeOutputOverride(canonicalDocument());
@@ -1247,7 +1256,9 @@ async function reviewAndPublish(destination){
   let target="";
 
   if(destination==="telegram"){
-    const preview=await api("/api/publish/telegram/preview",{method:"POST",body:{draft_id:state.draft.id,document_override:override}});
+    let preview;
+    try{preview=await api("/api/publish/telegram/preview",{method:"POST",body:{draft_id:state.draft.id,document_override:override}})}
+    catch(error){showMessage("Telegram",telegramErrorMessage(error));return}
     let representations=preview.representations;
     const available=Object.values(representations.options||{}).filter(item=>item.available);
     if(!available.length){showMessage("Telegram","Nenhuma representação Telegram publicável para este documento.");return}
@@ -1265,10 +1276,13 @@ async function reviewAndPublish(destination){
     operation=value.operation||operation;
     // The destination is part of preflight: never confirm a plan calculated for
     // the user's private chat and then send that plan to an unrelated target.
-    const contextualPreview=await api("/api/publish/telegram/preview",{
-      method:"POST",
-      body:{draft_id:state.draft.id,document_override:override,...(target?{destination_chat_id:target}:{})},
-    });
+    let contextualPreview;
+    try{
+      contextualPreview=await api("/api/publish/telegram/preview",{
+        method:"POST",
+        body:{draft_id:state.draft.id,document_override:override,...(target?{destination_chat_id:target}:{})},
+      });
+    }catch(error){showMessage("Telegram",telegramErrorMessage(error));return}
     representations=contextualPreview.representations;
     const plan=representations.options[value.representation];
     fillReview(`Revisão — ${plan.label}`,plan);
@@ -1296,7 +1310,7 @@ async function reviewAndPublish(destination){
         await postPublicationAction(`mensagem ${result.publication.telegram_message_id}`);
       }catch(error){
         if(error.data?.review) fillReview(`Revisão — ${plan.label}`,error.data.review);
-        showReviewError(error.message);
+        showReviewError(telegramErrorMessage(error));
         confirmButton.disabled=false;
       }
     };
@@ -1336,13 +1350,28 @@ async function reviewAndPublish(destination){
   $("#review-dialog").showModal();
 }
 
+const importErrors={
+  unsupported_import_format:"Use arquivo .md ou .txt.",
+  import_file_too_large:"Arquivo acima do limite (1 MB).",
+  missing_file:"Nenhum arquivo chegou ao servidor.",
+  unknown_encoding:"Encoding inválido para este arquivo.",
+  invalid_encoding_for_file:"Encoding inválido para este arquivo.",
+  internal_error:"Falha interna no servidor ao importar.",
+};
+function importErrorMessage(error){
+  return importErrors[error.data?.error]||error.message;
+}
+
 async function importChosen(file){
   const form=new FormData();
   form.append("file",file,file.name);
   let staged;
   try{staged=await api("/api/import-workflow/stage",{method:"POST",body:form})}
   catch(error){
-    if(error.data?.error!=="encoding_choice_required"){showMessage("Importação",error.message);return}
+    if(error.data?.error!=="encoding_choice_required"){
+      showMessage("Importação",importErrorMessage(error));
+      return;
+    }
     staged={pending_import:{id:error.data.pending_import_id},review:null};
   }
   const id=staged.pending_import.id;
@@ -1353,7 +1382,7 @@ async function importChosen(file){
     if(!value) return;
     encoding=value.encoding;
     try{review=(await api(`/api/import-workflow/${id}/preview`,{method:"POST",body:{encoding}})).review}
-    catch(error){showMessage("Importação",error.message);return}
+    catch(error){showMessage("Importação",importErrorMessage(error));return}
   }
   let confirmPartial=false;
   if(review.requires_partial_confirmation||review.requires_confirmation){
@@ -1384,7 +1413,7 @@ async function importChosen(file){
   try{
     const data=await api(`/api/import-workflow/${id}/complete`,{method:"POST",body:{encoding,confirm_partial:confirmPartial}});
     await loadDraft(data.draft.id);
-  }catch(error){showMessage("Importação",error.message)}
+  }catch(error){showMessage("Importação",importErrorMessage(error))}
 }
 
 function looksLikeMarkdown(text){

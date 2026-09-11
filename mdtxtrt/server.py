@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import sqlite3
 from importlib.metadata import version
 from pathlib import Path
 from typing import Any
@@ -11,7 +12,7 @@ from aiohttp import web
 from aiogram.exceptions import TelegramAPIError
 from telegraph.exceptions import TelegraphException
 
-from mdtxtrt.assets import AssetService
+from mdtxtrt.assets import AssetService, BlobIntegrityError
 from mdtxtrt.auth import AuthError, validate_init_data
 from mdtxtrt.bot import TelegramRuntime
 from mdtxtrt.config import Settings
@@ -22,6 +23,7 @@ from mdtxtrt.publishing import (
     TelegraphPublicationService,
 )
 from mdtxtrt.services import (
+    MAX_IMPORT_BYTES,
     DocumentService,
     EncodingChoiceRequired,
     ImportReviewRequired,
@@ -52,6 +54,12 @@ def _public_origin(settings: Settings) -> str:
     if parts.scheme not in {"http", "https"} or not parts.netloc:
         raise RuntimeError("WEB_APP_URL must be configured before creating public media links")
     return urlunsplit((parts.scheme, parts.netloc, "", "", ""))
+
+
+def _is_telegram_publication_path(path: str) -> bool:
+    return path.startswith("/api/publish/telegram") or (
+        path.startswith("/api/publications/") and "/telegram" in path
+    )
 
 
 @web.middleware
@@ -86,7 +94,17 @@ async def error_boundary(request: web.Request, handler):
     except TelegraphException as exc:
         log.warning("Telegraph rejected publication: %s", exc)
         return _error("telegraph_api_error", status=502, detail=str(exc))
-    except (ValueError, TypeError) as exc:
+    except BlobIntegrityError as exc:
+        log.error("BLOB integrity check failed: %s", exc)
+        return _error("blob_integrity_error", status=500, reason=str(exc))
+    except sqlite3.Error:
+        log.exception("SQLite request failure")
+        return _error("storage_error", status=503)
+    except ValueError as exc:
+        if _is_telegram_publication_path(request.path):
+            return _error("telegram_validation_error", status=422, detail=str(exc))
+        return _error(str(exc), status=400)
+    except TypeError as exc:
         return _error(str(exc), status=400)
     except RuntimeError as exc:
         log.exception("runtime boundary failure")
@@ -107,22 +125,11 @@ async def health(request: web.Request) -> web.Response:
         {
             "ok": True,
             "runtime": "mdtxtrt-rebuild-v7-static-hardening",
-            "target_bot_api_version": "10.3",
             "aiogram_version": version("aiogram"),
-            "rich_message_models_available": True,
             "telegram_ready": runtime.telegram_ready,
             "polling_ready": runtime.polling_ready,
             "last_telegram_error": runtime.last_operational_error,
-            "canonical_document": True,
-            "telegraph_per_user": True,
             "telegraph_key_configured": bool(settings.telegraph_key),
-            "local_media": True,
-            "native_location": True,
-            "persistent_pending_imports": True,
-            "telegram_representations": ["markdown", "html", "blocks"],
-            "positional_output_override": True,
-            "semantic_recovery_review": True,
-            "legacy_runtime_loaded": False,
         }
     )
 
@@ -209,7 +216,12 @@ async def import_file(request: web.Request) -> web.Response:
         raise ValueError("missing_file")
     filename = file_part.filename or "import.txt"
     mime_type = file_part.headers.get("Content-Type")
-    data = await file_part.read(decode=False)
+    chunks = bytearray()
+    while not file_part.at_eof():
+        chunks.extend(await file_part.read_chunk())
+        if len(chunks) > MAX_IMPORT_BYTES:
+            raise ValueError("import_file_too_large")
+    data = bytes(chunks)
     encoding = None
     encoding_part = await reader.next()
     if encoding_part is not None and encoding_part.name == "encoding":
