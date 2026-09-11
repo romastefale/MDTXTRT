@@ -1,7 +1,13 @@
-"""Telegraph publication adapter. Telegram Rich stays in publishing.py."""
+"""Telegraph publication adapter. Telegram Rich stays in publishing.py.
+
+Limits follow the official Telegraph HTTP API (https://telegra.ph/api):
+createAccount.short_name 1–32; createPage/editPage.title 1–256;
+createPage/editPage.content up to 64 KB of Node JSON.
+"""
 from __future__ import annotations
 
 import asyncio
+import hashlib
 from typing import Any
 
 from telegraph import Telegraph
@@ -9,11 +15,37 @@ from telegraph.utils import html_to_nodes, json_dumps
 
 from mdtxtrt.credentials import CredentialCipher
 from mdtxtrt.domain import CanonicalDocument, CanonicalNode
-from mdtxtrt.projections import telegraph_projection
+from mdtxtrt.projections import ProjectionReview, telegraph_projection
 from mdtxtrt.publishing import _LOCAL_MEDIA_KINDS, _override_payload, _require_review
 from mdtxtrt.storage import SQLiteRepository
 
 TELEGRAPH_CONTENT_LIMIT_BYTES = 64 * 1024
+TELEGRAPH_SHORT_NAME_LIMIT = 32
+TELEGRAPH_TITLE_LIMIT = 256
+
+
+def _account_token(account: Any) -> str:
+    token = str((account or {}).get("access_token") or "") if isinstance(account, dict) else str(getattr(account, "access_token", "") or "")
+    if not token:
+        raise RuntimeError("telegraph_missing_access_token")
+    return token
+
+
+def _page_locator(page: Any, *, fallback_url: str = "") -> tuple[str, str]:
+    if isinstance(page, dict):
+        path = str(page.get("path") or "")
+        url = str(page.get("url") or fallback_url or "")
+    else:
+        path = str(getattr(page, "path", "") or "")
+        url = str(getattr(page, "url", "") or fallback_url or "")
+    if not path or not url:
+        raise RuntimeError("telegraph_missing_page_locator")
+    return path, url
+
+
+def _clean_title(title: str, fallback: str) -> str:
+    cleaned = (title or fallback).strip()[:TELEGRAPH_TITLE_LIMIT]
+    return cleaned or fallback[:TELEGRAPH_TITLE_LIMIT] or "Sem título"
 
 
 class TelegraphPublicationService:
@@ -79,14 +111,12 @@ class TelegraphPublicationService:
         if envelope:
             return self.cipher.decrypt(envelope)
         short_hash = hashlib.sha256(f"mdtxtrt:{user_id}".encode("utf-8")).hexdigest()[:16]
+        short_name = f"mdtxtrt-{short_hash}"[:TELEGRAPH_SHORT_NAME_LIMIT]
 
         def create_account() -> str:
-            client = Telegraph()
-            account = client.create_account(short_name=f"mdtxtrt-{short_hash}")
-            token = str(account.get("access_token") or "")
-            if not token:
-                raise RuntimeError("Telegraph did not return an access token")
-            return token
+            # Official createAccount: https://telegra.ph/api#createAccount
+            # python273/telegraph 2.2.0 returns the Account dict (access_token).
+            return _account_token(Telegraph().create_account(short_name=short_name))
 
         token = await asyncio.to_thread(create_account)
         self.repository.set_telegraph_token_envelope(
@@ -111,7 +141,7 @@ class TelegraphPublicationService:
         )
         _require_review(review, confirmed_fingerprint)
         token = await self._token(user_id)
-        clean_title = (title or "Sem título").strip()[:256] or "Sem título"
+        clean_title = _clean_title(title, "Sem título")
 
         def create_page() -> dict[str, Any]:
             return Telegraph(access_token=token).create_page(
@@ -121,10 +151,7 @@ class TelegraphPublicationService:
             )
 
         page = await asyncio.to_thread(create_page)
-        path = str(page.get("path") or "")
-        url = str(page.get("url") or "")
-        if not path or not url:
-            raise RuntimeError("Telegraph did not return page path/url")
+        path, url = _page_locator(page)
         return self.repository.create_publication(
             user_id=user_id,
             draft_id=draft_id,
@@ -163,7 +190,7 @@ class TelegraphPublicationService:
         )
         _require_review(review, confirmed_fingerprint)
         token = await self._token(user_id)
-        clean_title = (title or publication["title"]).strip()[:256] or publication["title"]
+        clean_title = _clean_title(title, str(publication["title"]))
 
         def edit_page() -> dict[str, Any]:
             return Telegraph(access_token=token).edit_page(
@@ -174,8 +201,7 @@ class TelegraphPublicationService:
             )
 
         page = await asyncio.to_thread(edit_page)
-        url = str(page.get("url") or publication.get("telegraph_url") or "")
-        new_path = str(page.get("path") or path)
+        new_path, url = _page_locator(page, fallback_url=str(publication.get("telegraph_url") or ""))
         return self.repository.update_publication(
             publication_id=publication_id,
             user_id=user_id,
