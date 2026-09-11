@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import sqlite3
 from importlib.metadata import version
 from pathlib import Path
 from typing import Any
@@ -11,7 +12,7 @@ from aiohttp import web
 from aiogram.exceptions import TelegramAPIError
 from telegraph.exceptions import TelegraphException
 
-from mdtxtrt.assets import AssetService
+from mdtxtrt.assets import AssetService, BlobIntegrityError
 from mdtxtrt.auth import AuthError, validate_init_data
 from mdtxtrt.bot import TelegramRuntime
 from mdtxtrt.config import Settings
@@ -28,7 +29,7 @@ from mdtxtrt.services import (
     ImportReviewRequired,
     ImportService,
 )
-from mdtxtrt.telegram_validation import TelegramDestinationContext
+from mdtxtrt.telegram_validation import TelegramDestinationContext, telegram_validation_text
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 log = logging.getLogger("mdtxtrt.server")
@@ -53,6 +54,21 @@ def _public_origin(settings: Settings) -> str:
     if parts.scheme not in {"http", "https"} or not parts.netloc:
         raise RuntimeError("WEB_APP_URL must be configured before creating public media links")
     return urlunsplit((parts.scheme, parts.netloc, "", "", ""))
+
+
+_BLOB_HASH_DETAILS = {
+    "media_sha256_mismatch": "O arquivo de mídia não bate com o hash gravado.",
+    "import_sha256_mismatch": "O arquivo importado não bate com o hash gravado.",
+    "pending_import_sha256_mismatch": "A importação pendente não bate com o hash gravado.",
+}
+
+
+def _rich_message_models_available() -> bool:
+    try:
+        from aiogram.types import InputRichMessage, InputRichMessageMedia
+    except ImportError:
+        return False
+    return InputRichMessage is not None and InputRichMessageMedia is not None
 
 
 @web.middleware
@@ -87,11 +103,24 @@ async def error_boundary(request: web.Request, handler):
     except TelegraphException as exc:
         log.warning("Telegraph rejected publication: %s", exc)
         return _error("telegraph_api_error", status=502, detail=str(exc))
+    except BlobIntegrityError as exc:
+        code = str(exc) or "media_sha256_mismatch"
+        return _error(code, status=409, detail=_BLOB_HASH_DETAILS.get(code, code))
+    except sqlite3.Error:
+        log.exception("sqlite boundary failure")
+        return _error("sqlite_error", status=500, detail="Falha ao gravar no banco de dados.")
     except (ValueError, TypeError) as exc:
-        return _error(str(exc), status=400)
+        code = str(exc)
+        text = telegram_validation_text(code)
+        if text:
+            return _error(code, status=400, detail=text)
+        return _error(code, status=400)
     except RuntimeError as exc:
+        code = str(exc)
+        if code in _BLOB_HASH_DETAILS:
+            return _error(code, status=409, detail=_BLOB_HASH_DETAILS[code])
         log.exception("runtime boundary failure")
-        return _error(str(exc), status=503)
+        return _error(code, status=503)
     except Exception:
         log.exception("unhandled request failure")
         return _error("internal_error", status=500)
@@ -110,19 +139,11 @@ async def health(request: web.Request) -> web.Response:
             "runtime": "mdtxtrt-rebuild-v7-static-hardening",
             "target_bot_api_version": "10.3",
             "aiogram_version": version("aiogram"),
-            "rich_message_models_available": True,
+            "rich_message_models_available": _rich_message_models_available(),
             "telegram_ready": runtime.telegram_ready,
             "polling_ready": runtime.polling_ready,
             "last_telegram_error": runtime.last_operational_error,
-            "canonical_document": True,
-            "telegraph_per_user": True,
             "telegraph_key_configured": bool(settings.telegraph_key),
-            "local_media": True,
-            "native_location": True,
-            "persistent_pending_imports": True,
-            "telegram_representations": ["markdown", "html", "blocks"],
-            "positional_output_override": True,
-            "semantic_recovery_review": True,
             "legacy_runtime_loaded": False,
         }
     )
