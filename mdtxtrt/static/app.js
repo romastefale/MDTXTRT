@@ -1336,13 +1336,28 @@ async function reviewAndPublish(destination){
   $("#review-dialog").showModal();
 }
 
+const importErrors={
+  unsupported_import_format:"Use arquivo .md ou .txt.",
+  import_file_too_large:"Arquivo acima do limite (1 MB).",
+  missing_file:"Nenhum arquivo chegou ao servidor.",
+  unknown_encoding:"Encoding inválido para este arquivo.",
+  invalid_encoding_for_file:"Encoding inválido para este arquivo.",
+  internal_error:"Falha interna no servidor ao importar.",
+};
+function importErrorMessage(error){
+  return importErrors[error.data?.error]||error.message;
+}
+
 async function importChosen(file){
   const form=new FormData();
   form.append("file",file,file.name);
   let staged;
   try{staged=await api("/api/import-workflow/stage",{method:"POST",body:form})}
   catch(error){
-    if(error.data?.error!=="encoding_choice_required"){showMessage("Importação",error.message);return}
+    if(error.data?.error!=="encoding_choice_required"){
+      showMessage("Importação",importErrorMessage(error));
+      return;
+    }
     staged={pending_import:{id:error.data.pending_import_id},review:null};
   }
   const id=staged.pending_import.id;
@@ -1353,7 +1368,7 @@ async function importChosen(file){
     if(!value) return;
     encoding=value.encoding;
     try{review=(await api(`/api/import-workflow/${id}/preview`,{method:"POST",body:{encoding}})).review}
-    catch(error){showMessage("Importação",error.message);return}
+    catch(error){showMessage("Importação",importErrorMessage(error));return}
   }
   let confirmPartial=false;
   if(review.requires_partial_confirmation||review.requires_confirmation){
@@ -1384,7 +1399,7 @@ async function importChosen(file){
   try{
     const data=await api(`/api/import-workflow/${id}/complete`,{method:"POST",body:{encoding,confirm_partial:confirmPartial}});
     await loadDraft(data.draft.id);
-  }catch(error){showMessage("Importação",error.message)}
+  }catch(error){showMessage("Importação",importErrorMessage(error))}
 }
 
 function looksLikeMarkdown(text){
