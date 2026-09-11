@@ -22,6 +22,7 @@ from mdtxtrt.publishing import (
     TelegraphPublicationService,
 )
 from mdtxtrt.services import (
+    MAX_IMPORT_BYTES,
     DocumentService,
     EncodingChoiceRequired,
     ImportReviewRequired,
@@ -209,7 +210,12 @@ async def import_file(request: web.Request) -> web.Response:
         raise ValueError("missing_file")
     filename = file_part.filename or "import.txt"
     mime_type = file_part.headers.get("Content-Type")
-    data = await file_part.read(decode=False)
+    chunks = bytearray()
+    while not file_part.at_eof():
+        chunks.extend(await file_part.read_chunk())
+        if len(chunks) > MAX_IMPORT_BYTES:
+            raise ValueError("import_file_too_large")
+    data = bytes(chunks)
     encoding = None
     encoding_part = await reader.next()
     if encoding_part is not None and encoding_part.name == "encoding":
