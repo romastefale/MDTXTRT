@@ -17,7 +17,13 @@ from aiogram.types import BotCommand, InputRichMessage, MenuButtonWebApp, Messag
 
 from mdtxtrt.assets import AssetService
 from mdtxtrt.config import Settings
-from mdtxtrt.services import EncodingChoiceRequired, ImportReviewRequired, ImportService
+from mdtxtrt.services import (
+    MAX_IMPORT_BYTES,
+    SUPPORTED_IMPORT_SUFFIXES,
+    EncodingChoiceRequired,
+    ImportReviewRequired,
+    ImportService,
+)
 
 log = logging.getLogger("mdtxtrt.bot")
 
@@ -112,12 +118,15 @@ class TelegramRuntime:
         if not message.from_user or not message.document:
             return
         filename = message.document.file_name or "import.txt"
-        if Path(filename).suffix.lower() not in {".md", ".txt"}:
+        if Path(filename).suffix.lower() not in SUPPORTED_IMPORT_SUFFIXES:
             await message.answer("Formato não suportado. Use arquivo .md ou .txt.")
             return
         buffer = BytesIO()
         await self.bot.download(message.document, destination=buffer)
         data = buffer.getvalue()
+        if len(data) > MAX_IMPORT_BYTES:
+            await message.answer("Arquivo acima do limite (1 MB).")
+            return
         user_id = int(message.from_user.id)
         source_key = f"telegram:{message.chat.id}:{message.message_id}"
         pending = self.imports.stage_file(

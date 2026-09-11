@@ -1342,7 +1342,18 @@ async function importChosen(file){
   let staged;
   try{staged=await api("/api/import-workflow/stage",{method:"POST",body:form})}
   catch(error){
-    if(error.data?.error!=="encoding_choice_required"){showMessage("Importação",error.message);return}
+    if(error.data?.error!=="encoding_choice_required"){
+      const importErrors={
+        unsupported_import_format:"Use arquivo .md ou .txt.",
+        import_file_too_large:"Arquivo acima do limite (1 MB).",
+        missing_file:"Nenhum arquivo chegou ao servidor.",
+        unknown_encoding:"Encoding inválido para este arquivo.",
+        invalid_encoding_for_file:"Encoding inválido para este arquivo.",
+        internal_error:"Falha interna no servidor ao importar.",
+      };
+      showMessage("Importação",importErrors[error.data?.error]||error.message);
+      return;
+    }
     staged={pending_import:{id:error.data.pending_import_id},review:null};
   }
   const id=staged.pending_import.id;
