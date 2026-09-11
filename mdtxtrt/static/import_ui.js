@@ -8,7 +8,7 @@ const importErrors={
   invalid_encoding_for_file:"Encoding inválido para este arquivo.",
   internal_error:"Falha interna no servidor ao importar.",
 };
-function importErrorMessage(error){
+export function importErrorMessage(error){
   return importErrors[error.data?.error]||error.message;
 }
 

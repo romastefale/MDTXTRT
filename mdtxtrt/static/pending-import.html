@@ -5,9 +5,37 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <title>MDTXTRT — Revisar importação</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&amp;display=swap" rel="stylesheet">
   <style>
-    :root{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color-scheme:light dark;--bg:var(--tg-theme-bg-color,#fff);--text:var(--tg-theme-text-color,#171717);--hint:var(--tg-theme-hint-color,#747474);--surface:var(--tg-theme-secondary-bg-color,#f3f4f6);--accent:var(--tg-theme-button-color,#2481cc);--accent-text:var(--tg-theme-button-text-color,#fff);--line:color-mix(in srgb,var(--hint) 28%,transparent)}
-    *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);min-height:100vh;padding:16px}.card{width:min(920px,100%);margin:0 auto;border:1px solid var(--line);border-radius:16px;padding:18px;background:var(--surface)}h1{font-size:20px;margin:0 0 8px}h2{font-size:15px;margin:18px 0 7px}.muted{color:var(--hint);font-size:13px}.grid{display:grid;gap:12px}@media(min-width:760px){.grid.two{grid-template-columns:1fr 1fr}}textarea,input,select{width:100%;font:13px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;border:1px solid var(--line);border-radius:9px;padding:10px;background:var(--bg);color:var(--text)}textarea{min-height:210px;resize:vertical}.field{display:grid;gap:6px;margin:12px 0}.field label{font-size:12px;color:var(--hint)}.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}button{font:inherit;border:1px solid var(--line);background:var(--bg);color:var(--text);border-radius:9px;padding:10px 14px;cursor:pointer}.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-text)}button:disabled{opacity:.55}.error{color:#d33;white-space:pre-wrap}.warning{border:1px solid var(--line);border-radius:9px;padding:9px;margin:6px 0;background:var(--bg)}.hidden{display:none!important}.meta{overflow-wrap:anywhere}
+    :root{font-family:"IBM Plex Sans","Segoe UI",system-ui,sans-serif;color-scheme:light dark;--bg:#fff;--text:#111;--hint:#5c5c5c;--surface:#f4f4f4;--accent:#111;--accent-text:#fff;--line:#e6e6e6}
+    html[data-theme="dark"]{--bg:#000;--text:#f2f2f2;--hint:#9a9a9a;--surface:#111;--accent:#f2f2f2;--accent-text:#000;--line:#222}
+    @media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#000;--text:#f2f2f2;--hint:#9a9a9a;--surface:#111;--accent:#f2f2f2;--accent-text:#000;--line:#222}}
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100dvh;background:var(--bg);color:var(--text);font-family:"IBM Plex Sans","Segoe UI",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+    button,input,select,textarea{font:inherit;color:inherit;border-radius:0}
+    button{cursor:pointer;box-shadow:none}
+    body{padding:max(16px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) max(16px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left))}
+    .card{width:min(920px,100%);margin:0 auto;border:1px solid var(--line);border-radius:0;padding:18px;background:var(--surface)}
+    h1{font-size:16px;font-weight:600;margin:0 0 8px}
+    h2{font-size:13px;font-weight:600;margin:18px 0 7px}
+    .muted{color:var(--hint);font-size:12px}
+    .grid{display:grid;gap:12px}
+    @media(min-width:760px){.grid.two{grid-template-columns:1fr 1fr}}
+    textarea,input,select{width:100%;font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:13px;line-height:1.4;border:1px solid var(--line);border-radius:0;padding:10px;background:var(--bg);color:var(--text)}
+    textarea{min-height:210px;resize:vertical}
+    .field{display:grid;gap:5px;margin:12px 0}
+    .field label{font-size:11px;color:var(--hint)}
+    .actions{display:flex;gap:1px;flex-wrap:wrap;margin-top:16px;background:var(--line);padding:1px}
+    .actions button{border:0;background:var(--bg);color:var(--text);border-radius:0;min-height:42px;padding:10px 14px}
+    .primary{background:var(--accent);color:var(--accent-text)}
+    button:disabled{opacity:.55}
+    .error{color:#d33;white-space:pre-wrap;font-size:13px}
+    .warning{border:1px solid var(--line);border-radius:0;padding:9px;margin:6px 0;background:var(--bg)}
+    .warning pre{white-space:pre-wrap;font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:12px;margin:6px 0 0}
+    .hidden{display:none!important}
+    .meta{overflow-wrap:anywhere;font-size:13px}
   </style>
 </head>
 <body>
@@ -37,19 +65,33 @@
     <p id="error" class="error"></p>
   </main>
 <script type="module">
+import {importErrorMessage} from "/static/import_ui.js";
 const tg=window.Telegram?.WebApp;tg?.ready();tg?.expand();
 const id=new URLSearchParams(location.search).get("pending_import");
 const $=s=>document.querySelector(s);
 const summary=$("#summary"),error=$("#error"),encodingBox=$("#encoding-box"),reviewBox=$("#review"),original=$("#original"),converted=$("#converted"),residual=$("#residual"),reviewStatus=$("#review-status"),complete=$("#complete");
 let currentReview=null;let currentEncoding=null;
 function headers(extra={}){return {"X-Telegram-Init-Data":tg?.initData||"",...extra}}
-async function api(path,options={}){const response=await fetch(path,{...options,headers:headers(options.headers||{})});let data={};try{data=await response.json()}catch{}if(!response.ok||data.ok===false){const e=new Error(data.error||`HTTP ${response.status}`);e.data=data;e.status=response.status;throw e}return data}
+async function api(path,options={}){
+  const requestHeaders={...headers(options.headers||{})};
+  const next={...options,headers:requestHeaders};
+  const response=await fetch(path,next);
+  let data={};
+  try{data=await response.json()}catch{}
+  if(!response.ok||data.ok===false){
+    const e=new Error(data.detail||data.error||`HTTP ${response.status}`);
+    e.data=data;
+    e.status=response.status;
+    throw e;
+  }
+  return data;
+}
 function draftUrl(draftId){const url=new URL("/",location.origin);url.searchParams.set("draft",draftId);return url.toString()}
 function showReview(review){currentReview=review;currentEncoding=review.encoding||currentEncoding;encodingBox.classList.add("hidden");reviewBox.classList.remove("hidden");original.value=review.original_text||"";converted.value=review.converted_markdown||review.converted_text||"";residual.replaceChildren();for(const item of review.residual_raw_markdown||[]){const box=document.createElement("div");box.className="warning";const why=document.createElement("strong");why.textContent=item.reason||"Markdown cru";const pre=document.createElement("pre");pre.textContent=item.text||"";box.append(why,pre);residual.append(box)}if(!residual.children.length)residual.textContent="Nenhuma incompatibilidade preservada.";reviewStatus.textContent=review.requires_confirmation?"A conversão é parcial. O rascunho só será criado se você confirmar explicitamente este resultado.":"A conversão visual não deixou resíduos crus; a criação pode prosseguir.";complete.textContent=review.requires_confirmation?"Confirmar conversão parcial e criar rascunho":"Criar rascunho"}
-async function preview(encoding=null){error.textContent="";try{const data=await api(`/api/import-workflow/${encodeURIComponent(id)}/preview`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({encoding})});if(data.review.status==="completed"&&data.review.draft_id){location.replace(draftUrl(data.review.draft_id));return}showReview(data.review)}catch(e){if(e.data?.error==="encoding_choice_required"){encodingBox.classList.remove("hidden");reviewBox.classList.add("hidden");summary.textContent=`${e.data.filename||"Arquivo"}: escolha o encoding; ele não será adivinhado.`;return}error.textContent=e.message}}
-async function load(){if(!id){error.textContent="Identificador de importação ausente.";return}try{const pending=await api(`/api/imports/pending/${encodeURIComponent(id)}`);const p=pending.pending_import;if(p.status==="completed"&&p.draft_id){location.replace(draftUrl(p.draft_id));return}summary.textContent=`${p.filename} — ${p.size} bytes — SHA-256 ${p.sha256}`;await preview(null)}catch(e){error.textContent=e.message}}
+async function preview(encoding=null){error.textContent="";try{const data=await api(`/api/import-workflow/${encodeURIComponent(id)}/preview`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({encoding})});if(data.review.status==="completed"&&data.review.draft_id){location.replace(draftUrl(data.review.draft_id));return}showReview(data.review)}catch(e){if(e.data?.error==="encoding_choice_required"){encodingBox.classList.remove("hidden");reviewBox.classList.add("hidden");summary.textContent=`${e.data.filename||"Arquivo"}: escolha o encoding; ele não será adivinhado.`;return}error.textContent=importErrorMessage(e)}}
+async function load(){if(!id){error.textContent="Identificador de importação ausente.";return}try{const pending=await api(`/api/imports/pending/${encodeURIComponent(id)}`);const p=pending.pending_import;if(p.status==="completed"&&p.draft_id){location.replace(draftUrl(p.draft_id));return}summary.textContent=`${p.filename} — ${p.size} bytes — SHA-256 ${p.sha256}`;await preview(null)}catch(e){error.textContent=importErrorMessage(e)}}
 $("#preview-encoding").onclick=()=>{currentEncoding=$("#encoding").value.trim();preview(currentEncoding)};
-complete.onclick=async()=>{if(!currentReview)return;complete.disabled=true;error.textContent="";try{const data=await api(`/api/import-workflow/${encodeURIComponent(id)}/complete`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({encoding:currentEncoding,confirm_partial:Boolean(currentReview.requires_confirmation)})});location.replace(draftUrl(data.draft.id))}catch(e){if(e.data?.review){showReview(e.data.review)}error.textContent=e.message;complete.disabled=false}};
+complete.onclick=async()=>{if(!currentReview)return;complete.disabled=true;error.textContent="";try{const data=await api(`/api/import-workflow/${encodeURIComponent(id)}/complete`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({encoding:currentEncoding,confirm_partial:Boolean(currentReview.requires_confirmation)})});location.replace(draftUrl(data.draft.id))}catch(e){if(e.data?.review){showReview(e.data.review)}error.textContent=importErrorMessage(e);complete.disabled=false}};
 $("#cancel").onclick=()=>{if(tg?.close)tg.close();else history.back()};
 load();
 </script>
