@@ -9,8 +9,17 @@ class CanonicalFrontendDesignTests(unittest.TestCase):
     def test_toolbar_is_a_fixed_thirteen_column_grid(self):
         index = INDEX.read_text()
         self.assertIn("grid-template-columns:repeat(13,minmax(0,1fr))", index)
+        self.assertIn("grid-template-columns:repeat(6,minmax(0,1fr))", index)
         self.assertNotIn(".toolbar{display:flex", index)
         self.assertNotIn("overflow-x:auto", index)
+
+    def test_pr54_is_one_flat_stylesheet_instead_of_an_override_layer(self):
+        index = INDEX.read_text()
+        self.assertEqual(index.count("<style>"), 1)
+        self.assertEqual(index.count("</style>"), 1)
+        self.assertNotIn("blur", index)
+        self.assertNotIn("border-radius:9px", index)
+        self.assertNotIn("font-weight:760", index)
 
     def test_view_tabs_expose_accessible_state(self):
         index, script = INDEX.read_text(), APP.read_text()
@@ -33,7 +42,7 @@ class CanonicalFrontendDesignTests(unittest.TestCase):
         self.assertIn('--bg:#fff;--text:#111;--hint:#5c5c5c', index)
         self.assertIn('/* Visual do layout #54', index)
         self.assertIn('.bottom .action{height:46px', index)
-        self.assertIn('dialog{border-radius:0}', index)
+        self.assertIn('dialog{border-radius:0;', index)
 
 if __name__ == "__main__":
     unittest.main()

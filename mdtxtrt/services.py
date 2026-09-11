@@ -14,6 +14,10 @@ from mdtxtrt.pending_imports import PendingImport, PendingImportStore
 from mdtxtrt.storage import SQLiteRepository
 
 
+SUPPORTED_IMPORT_SUFFIXES = {".md", ".txt"}
+MAX_IMPORT_BYTES = 1_000_000
+
+
 @dataclass(frozen=True, slots=True)
 class EncodingChoiceRequired(Exception):
     filename: str
@@ -195,8 +199,10 @@ class ImportService:
         source_key: str | None = None,
     ) -> PendingImport:
         suffix = Path(filename).suffix.lower()
-        if suffix not in {".md", ".txt"}:
+        if suffix not in SUPPORTED_IMPORT_SUFFIXES:
             raise ValueError("unsupported_import_format")
+        if len(data) > MAX_IMPORT_BYTES:
+            raise ValueError("import_file_too_large")
         return self.pending.stage(
             user_id=user_id,
             filename=filename,
