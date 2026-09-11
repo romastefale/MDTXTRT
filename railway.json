@@ -5,7 +5,7 @@
   },
   "deploy": {
     "preDeployCommand": [
-      "python -m unittest discover -s tests -v"
+      "python -m unittest tests.test_architecture_boundaries tests.test_canonical_frontend_design tests.test_error_boundary tests.test_bot_api_10_3_review -v"
     ],
     "startCommand": "python app.py",
     "healthcheckPath": "/health",

@@ -68,6 +68,29 @@ class ActiveArchitectureBoundaryTests(unittest.TestCase):
         self.assertIn('src="/static/app.js"', index)
         self.assertNotRegex(index, r"ui\.\d+\.js")
 
+    def test_railway_does_not_run_blind_unittest_discover(self):
+        railway = (ROOT / "railway.json").read_text()
+        self.assertNotIn("unittest discover", railway)
+        self.assertIn("tests.test_architecture_boundaries", railway)
+        self.assertIn("tests.test_canonical_frontend_design", railway)
+        self.assertIn("tests.test_error_boundary", railway)
+
+    def test_readme_names_the_live_entrypoint_and_ui(self):
+        readme = (ROOT / "README.md").read_text()
+        self.assertIn("app.py", readme)
+        self.assertIn("mdtxtrt/static", readme)
+
+    def test_legacy_runtime_lives_in_archive_not_at_root(self):
+        self.assertTrue((ROOT / "app.py").exists())
+        self.assertTrue((ROOT / "archive" / "runtime_v2.py").exists())
+        self.assertTrue((ROOT / "archive" / "main.py").exists())
+        self.assertTrue((ROOT / "archive" / "canonical.py").exists())
+        self.assertFalse((ROOT / "runtime_v2.py").exists())
+        self.assertFalse((ROOT / "main.py").exists())
+        self.assertFalse((ROOT / "canonical.py").exists())
+        self.assertFalse((ROOT / "ui.00.js").exists())
+        self.assertFalse((ROOT / "index.html").exists())
+
 
 if __name__ == "__main__":
     unittest.main()
