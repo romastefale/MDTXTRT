@@ -29,11 +29,17 @@ class CanonicalFrontendDesignTests(unittest.TestCase):
 
     def test_pr54_visual_language_is_applied_to_canonical_ui(self):
         index = INDEX.read_text()
+        self.assertEqual(index.count("<style>"), 1)
         self.assertIn('family=IBM+Plex+Mono', index)
         self.assertIn('--bg:#fff;--text:#111;--hint:#5c5c5c', index)
         self.assertIn('/* Visual do layout #54', index)
         self.assertIn('.bottom .action{height:46px', index)
-        self.assertIn('dialog{border-radius:0}', index)
+        self.assertIn("dialog{border-radius:0", index)
+        self.assertIn("grid-template-columns:repeat(6,minmax(0,1fr))", index)
+        self.assertNotIn("backdrop-filter", index)
+        self.assertNotIn("border-radius:9", index)
+        self.assertNotIn("font-weight:760", index)
+        self.assertNotIn(".bottom{grid-template-columns:repeat(3", index)
 
 if __name__ == "__main__":
     unittest.main()
