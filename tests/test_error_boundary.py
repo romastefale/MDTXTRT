@@ -90,7 +90,7 @@ class ErrorBoundaryTests(unittest.IsolatedAsyncioTestCase):
 
 class HealthSignalTests(unittest.IsolatedAsyncioTestCase):
     def test_health_source_does_not_hardcode_unmeasured_features(self):
-        source = (ROOT / "mdtxtrt/server.py").read_text()
+        source = (ROOT / "mdtxtrt/health.py").read_text() + (ROOT / "mdtxtrt/server.py").read_text()
         for fragment in UNMEASURED_HEALTH_FLAGS:
             self.assertNotIn(fragment, source)
 
@@ -138,7 +138,7 @@ class HealthSignalTests(unittest.IsolatedAsyncioTestCase):
                 ),
             }
         )
-        with patch("mdtxtrt.server._rich_message_models_available", return_value=False):
+        with patch("mdtxtrt.health.rich_message_models_available", return_value=False):
             payload = _payload(await health(request))
         self.assertFalse(payload["rich_message_models_available"])
         self.assertTrue(payload["telegraph_key_configured"])
