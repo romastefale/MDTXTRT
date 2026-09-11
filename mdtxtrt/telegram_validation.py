@@ -65,10 +65,21 @@ class TelegramDestinationContext:
 def _optional_positive_int(value: Any, name: str) -> int | None:
     if value in {None, ""}:
         return None
-    parsed = int(value)
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{name}_must_be_integer") from exc
     if parsed <= 0:
         raise ValueError(f"{name}_must_be_positive")
     return parsed
+
+
+def telegram_validation_text(code: str) -> str | None:
+    if code.endswith("_must_be_integer"):
+        return f"{code[:-len('_must_be_integer')]} deve ser um inteiro."
+    if code.endswith("_must_be_positive"):
+        return f"{code[:-len('_must_be_positive')]} deve ser um inteiro positivo."
+    return None
 
 
 def _walk(node: CanonicalNode):
