@@ -27,5 +27,13 @@ class CanonicalFrontendDesignTests(unittest.TestCase):
         self.assertIn("--tg-content-safe-area-inset-top", index)
         self.assertIn("--tg-content-safe-area-inset-bottom", index)
 
+    def test_pr54_visual_language_is_applied_to_canonical_ui(self):
+        index = INDEX.read_text()
+        self.assertIn('family=IBM+Plex+Mono', index)
+        self.assertIn('--bg:#fff;--text:#111;--hint:#5c5c5c', index)
+        self.assertIn('/* Visual do layout #54', index)
+        self.assertIn('.bottom .action{height:46px', index)
+        self.assertIn('dialog{border-radius:0}', index)
+
 if __name__ == "__main__":
     unittest.main()
