@@ -14,10 +14,11 @@ from mdtxtrt.lifecycle import attach_lifecycle_routes
 from mdtxtrt.pending_imports import PendingImportStore
 from mdtxtrt.preferences import PreferenceStore, attach_preference_routes
 from mdtxtrt.public_media_security import public_media_response_policy
-from mdtxtrt.publishing import TelegramPublicationService, TelegraphPublicationService
+from mdtxtrt.publishing import TelegramPublicationService
 from mdtxtrt.server import create_web_app
 from mdtxtrt.services import DocumentService, ImportService
 from mdtxtrt.storage import SQLiteRepository
+from mdtxtrt.telegraph_publishing import TelegraphPublicationService
 
 
 def build_application(settings: Settings | None = None) -> web.Application:

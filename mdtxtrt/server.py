@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import logging
 import sqlite3
-from importlib.metadata import version
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit, urlunsplit
@@ -16,11 +15,11 @@ from mdtxtrt.assets import AssetService, BlobIntegrityError
 from mdtxtrt.auth import AuthError, validate_init_data
 from mdtxtrt.bot import TelegramRuntime
 from mdtxtrt.config import Settings
+from mdtxtrt.health import health
 from mdtxtrt.publishing import (
     ProjectionConfirmationRequired,
     ProjectionRejected,
     TelegramPublicationService,
-    TelegraphPublicationService,
 )
 from mdtxtrt.services import (
     MAX_IMPORT_BYTES,
@@ -30,6 +29,7 @@ from mdtxtrt.services import (
     ImportService,
 )
 from mdtxtrt.telegram_validation import TelegramDestinationContext, telegram_validation_text
+from mdtxtrt.telegraph_publishing import TelegraphPublicationService
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 log = logging.getLogger("mdtxtrt.server")
@@ -61,14 +61,6 @@ _BLOB_HASH_DETAILS = {
     "import_sha256_mismatch": "O arquivo importado não bate com o hash gravado.",
     "pending_import_sha256_mismatch": "A importação pendente não bate com o hash gravado.",
 }
-
-
-def _rich_message_models_available() -> bool:
-    try:
-        from aiogram.types import InputRichMessage, InputRichMessageMedia
-    except ImportError:
-        return False
-    return InputRichMessage is not None and InputRichMessageMedia is not None
 
 
 @web.middleware
@@ -128,25 +120,6 @@ async def error_boundary(request: web.Request, handler):
 
 async def index(_request: web.Request) -> web.FileResponse:
     return web.FileResponse(STATIC_DIR / "index.html")
-
-
-async def health(request: web.Request) -> web.Response:
-    settings: Settings = request.app["settings"]
-    runtime: TelegramRuntime = request.app["telegram_runtime"]
-    return web.json_response(
-        {
-            "ok": True,
-            "runtime": "mdtxtrt-rebuild-v7-static-hardening",
-            "target_bot_api_version": "10.3",
-            "aiogram_version": version("aiogram"),
-            "rich_message_models_available": _rich_message_models_available(),
-            "telegram_ready": runtime.telegram_ready,
-            "polling_ready": runtime.polling_ready,
-            "last_telegram_error": runtime.last_operational_error,
-            "telegraph_key_configured": bool(settings.telegraph_key),
-            "legacy_runtime_loaded": False,
-        }
-    )
 
 
 async def list_drafts(request: web.Request) -> web.Response:
