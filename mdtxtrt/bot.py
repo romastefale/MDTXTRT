@@ -121,6 +121,10 @@ class TelegramRuntime:
         if Path(filename).suffix.lower() not in SUPPORTED_IMPORT_SUFFIXES:
             await message.answer("Formato não suportado. Use arquivo .md ou .txt.")
             return
+        declared_size = message.document.file_size
+        if declared_size is not None and declared_size > MAX_IMPORT_BYTES:
+            await message.answer("Arquivo acima do limite (1 MB).")
+            return
         buffer = BytesIO()
         await self.bot.download(message.document, destination=buffer)
         data = buffer.getvalue()
