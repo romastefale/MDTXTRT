@@ -30,11 +30,11 @@
     .view-tabs{display:grid;grid-template-columns:1fr 1fr;padding:0;margin-bottom:-1px;border-top:1px solid var(--line)}
     .view-tab{border:0;border-bottom:2px solid transparent;background:transparent;color:var(--hint);height:40px;padding:0 12px;font-size:13px;font-weight:400}
     .view-tab[aria-selected="true"]{border-bottom-color:var(--text);color:var(--text)}
-    .toolbar{display:grid;grid-template-columns:repeat(13,minmax(0,1fr));gap:1px;overflow:hidden;padding:4px 6px;border-top:1px solid var(--line);background:var(--bg)}
+    .toolbar{display:grid;grid-template-columns:repeat(13,minmax(44px,1fr));gap:1px;overflow-x:auto;overflow-y:hidden;padding:4px 6px;border-top:1px solid var(--line);background:var(--bg);-webkit-overflow-scrolling:touch}
     .toolbar details{position:relative;min-width:0}
     .toolbar summary{list-style:none}
     .toolbar summary::-webkit-details-marker{display:none}
-    .tool{width:100%;min-width:0;height:32px;padding:0 2px;display:inline-flex;align-items:center;justify-content:center;gap:2px;overflow:hidden;font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:10px;font-weight:400;white-space:nowrap}
+    .tool{width:100%;min-width:44px;height:44px;padding:0;display:inline-flex;align-items:center;justify-content:center;overflow:hidden}.tool svg{width:24px;height:24px;display:block;flex:0 0 24px}
     .tool.active,.tool[aria-pressed="true"]{background:var(--accent);color:var(--accent-text)}
     .menu{position:fixed;left:8px;right:8px;max-height:min(62vh,460px);overflow:auto;z-index:50;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;padding:1px;background:var(--line);border:1px solid var(--line);box-shadow:0 12px 32px rgba(0,0,0,.18);border-radius:0}
     .menu button{text-align:left;border:0;background:var(--bg);min-height:48px;padding:7px 8px;border-radius:0;font-size:12px}
@@ -84,9 +84,10 @@
     .telegram-preview .node-card button{display:none}
     .danger{color:#d33}
     .hidden{display:none!important}
-    @media(max-width:520px){.draft-name{max-width:42vw}.menu{grid-template-columns:repeat(2,minmax(0,1fr))}.bottom .action{height:40px}}
-    @media(max-width:380px){.head{gap:4px}.toolbar{gap:0;padding:4px 2px}.tool{height:28px;font-size:9px}.status{display:none}.bottom .action{font-size:10px}}
-    @media(max-height:560px){.head{height:36px}.view-tab{height:34px}.toolbar{padding-block:3px}.tool{height:28px}.bottom .action{height:38px}.editor,.telegram-preview{padding-top:12px}}
+    @media(max-width:520px){
+      .draft-name{max-width:42vw}
+      .menu{grid-template-columns:repeat(2,minmax(0,1fr))}
+    }
     @media(min-width:760px){.menu{left:auto;right:18px;width:620px}.editor,.telegram-preview{padding-top:28px}}
   </style>
 </head>
@@ -103,12 +104,12 @@
       <button class="view-tab" role="tab" aria-selected="false" aria-controls="telegram-preview" data-view="preview">Prévia Telegram</button>
     </div>
     <nav class="toolbar" aria-label="Ferramentas de edição">
-      <button class="tool" data-format="bold" title="Negrito"><b>B</b></button>
-      <button class="tool" data-format="italic" title="Itálico"><i>I</i></button>
-      <button class="tool" data-format="underline" title="Sublinhado"><u>U</u></button>
-      <button class="tool" data-format="strikethrough" title="Riscado"><s>S</s></button>
-      <button class="tool" data-format="code" title="Código inline">&lt;/&gt;</button>
-      <details><summary class="tool">Texto ▾</summary><div class="menu">
+      <button class="tool" data-format="bold" type="button" title="Negrito" aria-label="Negrito"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 12h9a4 4 0 0 1 0 8H7a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h7a4 4 0 0 1 0 8" /></svg></button>
+      <button class="tool" data-format="italic" type="button" title="Itálico" aria-label="Itálico"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="19" x2="10" y1="4" y2="4" /> <line x1="14" x2="5" y1="20" y2="20" /> <line x1="15" x2="9" y1="4" y2="20" /></svg></button>
+      <button class="tool" data-format="underline" type="button" title="Sublinhado" aria-label="Sublinhado"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4v6a6 6 0 0 0 12 0V4" /> <line x1="4" x2="20" y1="20" y2="20" /></svg></button>
+      <button class="tool" data-format="strikethrough" type="button" title="Riscado" aria-label="Riscado"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 4H9a3 3 0 0 0-2.83 4" /> <path d="M14 12a4 4 0 0 1 0 8H6" /> <line x1="4" x2="20" y1="12" y2="12" /></svg></button>
+      <button class="tool" data-format="code" type="button" title="Código inline" aria-label="Código inline"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 18 6-6-6-6" /> <path d="m8 6-6 6 6 6" /></svg></button>
+      <details><summary class="tool" title="Texto" aria-label="Texto"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v16" /> <path d="M4 7V5a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v2" /> <path d="M9 20h6" /></svg></summary><div class="menu">
         <button data-format="marked"><b>Marcado</b><small>realce de texto</small></button>
         <button data-format="spoiler"><b>Spoiler</b><small>texto ocultável</small></button>
         <button data-format="subscript"><b>Subscrito</b><small>índice inferior</small></button>
@@ -120,7 +121,7 @@
         <button data-inline-form="math_inline"><b>Fórmula inline</b><small>LaTeX</small></button>
         <button data-inline-form="anchor_link"><b>Link interno</b><small>âncora ou referência</small></button>
       </div></details>
-      <details><summary class="tool">Bloco ▾</summary><div class="menu">
+      <details><summary class="tool" title="Bloco" aria-label="Bloco"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 12h12" /> <path d="M6 20V4" /> <path d="M18 20V4" /></svg></summary><div class="menu">
         <button data-block-action="paragraph"><b>Parágrafo</b><small>bloco normal</small></button>
         <button data-block-action="heading" data-level="1"><b>H1</b><small>título principal</small></button>
         <button data-block-action="heading" data-level="2"><b>H2</b><small>seção</small></button>
@@ -136,12 +137,12 @@
         <button data-insert="divider"><b>Divisor</b><small>linha horizontal</small></button>
         <button id="delete-block"><b>Excluir bloco</b><small>remove o bloco ativo</small></button>
       </div></details>
-      <details><summary class="tool">Lista ▾</summary><div class="menu">
+      <details><summary class="tool" title="Lista" aria-label="Lista"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 5h.01" /> <path d="M3 12h.01" /> <path d="M3 19h.01" /> <path d="M8 5h13" /> <path d="M8 12h13" /> <path d="M8 19h13" /></svg></summary><div class="menu">
         <button data-structured="list" data-preset="unordered"><b>Marcadores</b><small>lista não ordenada</small></button>
         <button data-structured="list" data-preset="ordered"><b>Numerada</b><small>lista ordenada</small></button>
         <button data-structured="list" data-preset="task"><b>Tarefas</b><small>checkboxes</small></button>
       </div></details>
-      <details><summary class="tool">Estrutura ▾</summary><div class="menu">
+      <details><summary class="tool" title="Estrutura" aria-label="Estrutura"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v18" /> <rect width="18" height="18" x="3" y="3" rx="2" /> <path d="M3 9h18" /> <path d="M3 15h18" /></svg></summary><div class="menu">
         <button data-structured="table"><b>Tabela</b><small>bordas, listras, compacta</small></button>
         <button data-structured="details"><b>Detalhes</b><small>recolhível/expandido</small></button>
         <button data-structured="math_block"><b>Fórmula</b><small>LaTeX em bloco</small></button>
@@ -150,7 +151,7 @@
         <button id="native-location"><b>Localização Telegram</b><small>Location/Venue nativa</small></button>
         <button data-structured="map"><b>Mapa manual</b><small>fallback por coordenadas</small></button>
       </div></details>
-      <details><summary class="tool">Mídia ▾</summary><div class="menu">
+      <details><summary class="tool" title="Mídia" aria-label="Mídia"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2" ry="2" /> <circle cx="9" cy="9" r="2" /> <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" /></svg></summary><div class="menu">
         <button data-local-media="photo"><b>Foto local</b><small>BLOB preservado + SHA-256</small></button>
         <button data-local-media="video"><b>Vídeo local</b><small>BLOB preservado + SHA-256</small></button>
         <button data-local-media="animation"><b>Animação local</b><small>BLOB preservado + SHA-256</small></button>
@@ -166,7 +167,7 @@
         <button data-structured="collage"><b>Collage</b><small>fotos/vídeos</small></button>
         <button data-structured="slideshow"><b>Slideshow</b><small>fotos/vídeos</small></button>
       </div></details>
-      <details><summary class="tool">Botão ▾</summary><div class="menu">
+      <details><summary class="tool" title="Botão" aria-label="Botão"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="12" x="2" y="6" rx="2" /></svg></summary><div class="menu">
         <button data-button="url"><b>URL</b><small>link</small></button>
         <button data-button="callback_data"><b>Callback</b><small>1–64 bytes</small></button>
         <button data-button="web_app"><b>Mini App</b><small>web_app</small></button>
@@ -178,8 +179,8 @@
         <button data-button="disabled"><b>Desativado</b><small>sem ação</small></button>
         <button data-structured="button_row"><b>Linha de botões</b><small>alinhamento</small></button>
       </div></details>
-      <button class="tool" id="undo" title="Desfazer">↶</button>
-      <button class="tool" id="redo" title="Refazer">↷</button>
+      <button class="tool" id="undo" type="button" title="Desfazer" aria-label="Desfazer"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5" /> <path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11" /></svg></button>
+      <button class="tool" id="redo" type="button" title="Refazer" aria-label="Refazer"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 14 5-5-5-5" /> <path d="M20 9H9.5A5.5 5.5 0 0 0 4 14.5A5.5 5.5 0 0 0 9.5 20H13" /></svg></button>
     </nav>
   </header>
 
