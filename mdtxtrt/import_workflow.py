@@ -9,7 +9,7 @@ from aiohttp import web
 
 from mdtxtrt.auth import validate_init_data
 from mdtxtrt.config import Settings
-from mdtxtrt.services import EncodingChoiceRequired, ImportReviewRequired, ImportService
+from mdtxtrt.services import MAX_IMPORT_BYTES, EncodingChoiceRequired, ImportReviewRequired, ImportService
 
 
 def _identity(request: web.Request):
@@ -48,7 +48,12 @@ async def stage_import(request: web.Request) -> web.Response:
         raise ValueError("missing_file")
     filename = part.filename or "import.txt"
     mime_type = part.headers.get("Content-Type")
-    data = await part.read(decode=False)
+    chunks = bytearray()
+    while not part.at_eof():
+        chunks.extend(await part.read_chunk())
+        if len(chunks) > MAX_IMPORT_BYTES:
+            raise ValueError("import_file_too_large")
+    data = bytes(chunks)
     service: ImportService = request.app["imports"]
     pending = service.stage_file(
         user_id=identity.user_id,
