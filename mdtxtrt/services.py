@@ -15,7 +15,8 @@ from mdtxtrt.storage import SQLiteRepository
 
 
 SUPPORTED_IMPORT_SUFFIXES = {".md", ".txt"}
-MAX_IMPORT_BYTES = 1_000_000
+# Bot API: maximum file size to download is 20 MB.
+MAX_IMPORT_BYTES = 20 * 1024 * 1024
 
 
 @dataclass(frozen=True, slots=True)

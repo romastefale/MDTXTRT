@@ -1502,6 +1502,23 @@ function installDeleteTool(){
 }
 
 editor.addEventListener("beforeinput",event=>{ensureTypingBlock();insertPendingText(event);});
+editor.addEventListener("keydown",event=>{
+  if(event.key!=="Enter"||event.shiftKey||event.isComposing||event.ctrlKey||event.metaKey||event.altKey) return;
+  const block=activeBlock();
+  if(!block||block.__node||block.parentElement!==editor) return;
+  event.preventDefault();
+  const selection=window.getSelection();
+  if(!selection?.rangeCount) return;
+  const range=selection.getRangeAt(0);
+  range.deleteContents();
+  const br=document.createElement("br");
+  range.insertNode(br);
+  range.setStartAfter(br);
+  range.collapse(true);
+  selection.removeAllRanges();
+  selection.addRange(range);
+  scheduleSave();
+});
 editor.addEventListener("focusin",ensureTypingBlock);
 editor.addEventListener("input",scheduleSave);
 editor.addEventListener("paste",event=>void handlePaste(event));

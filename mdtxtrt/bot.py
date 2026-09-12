@@ -118,7 +118,7 @@ class TelegramRuntime:
         await self.bot.download(document, destination=buffer)
         data = buffer.getvalue()
         if len(data) > MAX_IMPORT_BYTES:
-            raise ValueError("Arquivo acima do limite (1 MB).")
+            raise ValueError("Arquivo acima do limite do Telegram (20 MB).")
         return data.decode("utf-8")
 
     async def _source_for_tgrich(self, message: Message) -> str:
@@ -222,13 +222,13 @@ class TelegramRuntime:
             return
         declared_size = message.document.file_size
         if declared_size is not None and declared_size > MAX_IMPORT_BYTES:
-            await message.answer("Arquivo acima do limite (1 MB).")
+            await message.answer("Arquivo acima do limite do Telegram (20 MB).")
             return
         buffer = BytesIO()
         await self.bot.download(message.document, destination=buffer)
         data = buffer.getvalue()
         if len(data) > MAX_IMPORT_BYTES:
-            await message.answer("Arquivo acima do limite (1 MB).")
+            await message.answer("Arquivo acima do limite do Telegram (20 MB).")
             return
         user_id = int(message.from_user.id)
         source_key = f"telegram:{message.chat.id}:{message.message_id}"
