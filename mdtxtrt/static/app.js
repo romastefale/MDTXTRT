@@ -1555,10 +1555,24 @@ $("#toggle-archived").onclick=async()=>{
 };
 $("#open-publications").onclick=async()=>{await listPublications();$("#publications-dialog").showModal()};
 const importChosen=createImportChosen({api,showMessage,loadDraft,openForm,field,conversionSummary});
-$("#import-file").onclick=()=>$("#file").click();
+$("#import-file").onclick=event=>{
+  event.stopPropagation();
+  const input=$("#file");
+  input.click();
+  const hideMenu=()=>{
+    window.removeEventListener("focus",hideMenu);
+    const menu=$("#library-menu");
+    if(menu) menu.hidden=true;
+    syncBackButton();
+  };
+  window.addEventListener("focus",hideMenu);
+};
 $("#file").onchange=async event=>{
   const file=event.target.files?.[0];
   event.target.value="";
+  const menu=$("#library-menu");
+  if(menu) menu.hidden=true;
+  syncBackButton();
   if(file) await importChosen(file);
 };
 $("#publish-telegram").onclick=()=>void reviewAndPublish("telegram");
@@ -1568,7 +1582,7 @@ $("#open-library").onclick=event=>{
   $("#library-menu").hidden=!$("#library-menu").hidden;
   syncBackButton();
 };
-["new-draft","open-drafts","open-publications","import-file"].forEach(id=>{
+["new-draft","open-drafts","open-publications"].forEach(id=>{
   $("#"+id).addEventListener("click",()=>{$("#library-menu").hidden=true;syncBackButton()});
 });
 document.addEventListener("click",event=>{
