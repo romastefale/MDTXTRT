@@ -6,10 +6,13 @@ INDEX = ROOT / "mdtxtrt" / "static" / "index.html"
 APP = ROOT / "mdtxtrt" / "static" / "app.js"
 
 class CanonicalFrontendDesignTests(unittest.TestCase):
-    def test_toolbar_is_a_fixed_thirteen_column_grid(self):
+    def test_toolbar_uses_fixed_icon_targets_without_horizontal_scroll(self):
         index = INDEX.read_text()
-        self.assertIn("grid-template-columns:repeat(13,minmax(44px,1fr))", index)
-        self.assertNotIn(".toolbar{display:flex", index)
+        self.assertIn(".toolbar{display:flex", index)
+        self.assertIn("min-width:44px", index)
+        self.assertIn('id="tool-more"', index)
+        self.assertNotIn("overflow-x:auto", index)
+        self.assertNotIn("repeat(13", index)
 
     def test_view_tabs_expose_accessible_state(self):
         index, script = INDEX.read_text(), APP.read_text()
