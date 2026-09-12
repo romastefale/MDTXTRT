@@ -2,7 +2,7 @@ import {comparisonDialog} from "/static/dialogs.js";
 
 const importErrors={
   unsupported_import_format:"Use arquivo .md ou .txt.",
-  import_file_too_large:"Arquivo acima do limite (1 MB).",
+  import_file_too_large:"Arquivo acima do limite do Telegram (20 MB).",
   missing_file:"Nenhum arquivo chegou ao servidor.",
   unknown_encoding:"Encoding inválido para este arquivo.",
   invalid_encoding_for_file:"Encoding inválido para este arquivo.",

@@ -44,7 +44,7 @@
     .menu small{display:block;color:var(--hint);margin-top:2px;font-size:10px}
     .editor-wrap{position:relative;flex:1;min-height:0;width:100%;margin:0;padding:0;overflow:auto}
     .editor,.telegram-preview{width:min(900px,100%);min-height:100%;margin:0 auto;padding:16px 16px 76px;outline:none;font-size:16px;line-height:1.55}
-    .editor{font-family:"IBM Plex Mono",ui-monospace,monospace}
+    .editor{font-family:"IBM Plex Mono",ui-monospace,monospace;white-space:pre-wrap;word-break:break-word}
     .telegram-preview{max-width:680px;font-family:"IBM Plex Sans","Segoe UI",system-ui,sans-serif;white-space:pre-wrap;word-break:break-word}
     .editor:empty:before{content:"Comece a escrever…";color:var(--hint)}
     .editor [data-block],.telegram-preview [data-block]{position:relative;margin:0 0 12px;outline:none}
@@ -211,7 +211,7 @@
     <button id="new-draft" type="button"><b>Novo</b><small>rascunho vazio</small></button>
     <button id="open-drafts" type="button"><b>Rascunhos</b><small>continuar</small></button>
     <button id="open-publications" type="button"><b>Publicações</b><small>histórico</small></button>
-    <button id="import-file" type="button"><b>Importar .md/.txt</b><small>até 1 MB</small></button>
+    <button id="import-file" type="button"><b>Importar .md/.txt</b><small>até 20 MB</small></button>
   </div>
 </div>
 
