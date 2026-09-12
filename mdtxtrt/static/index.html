@@ -54,9 +54,13 @@
     .node-card strong{font-size:13px}
     .node-card .summary{font-size:13px;color:var(--hint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .node-card button{grid-column:2;grid-row:1/3;border:0;background:transparent;color:var(--text);font-weight:600}
-    .bottom{z-index:30;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:1px;overflow:hidden;background:var(--line);border-top:1px solid var(--line);padding:0 0 max(env(safe-area-inset-bottom),var(--tg-content-safe-area-inset-bottom,0px))}
-    .bottom .action{height:46px;min-width:0;padding-inline:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border:0;border-radius:0;background:var(--bg);font-size:11px;font-weight:400}
+    .bottom{z-index:30;display:grid;grid-template-columns:44px 1fr;gap:1px;background:var(--line);border-top:1px solid var(--line);padding:0 0 max(env(safe-area-inset-bottom),var(--tg-content-safe-area-inset-bottom,0px))}
+    .bottom .action{height:48px;min-width:0;border:0;border-radius:0;background:var(--bg);font-size:13px;font-weight:400;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .bottom .primary{background:var(--accent);color:var(--accent-text)}
+    .destination{display:grid;grid-template-columns:1fr 1fr;gap:1px;min-width:0}
+    #open-library{padding:0;display:inline-flex;align-items:center;justify-content:center}
+    #open-library svg{width:24px;height:24px;display:block;flex:0 0 24px}
+    .menu[hidden]{display:none!important}
     dialog{border-radius:0;width:min(680px,calc(100% - 24px));max-height:82vh;border:1px solid var(--line);background:var(--bg);color:var(--text);padding:0;box-shadow:0 28px 80px #0004}
     dialog::backdrop{background:rgba(0,0,0,.42)}
     .dialog-head{display:flex;align-items:center;gap:10px;min-height:52px;padding:0 14px;border-bottom:1px solid var(--line)}
@@ -190,15 +194,20 @@
   </main>
 
   <footer class="bottom">
-    <button class="action" id="new-draft">Novo</button>
-    <button class="action" id="open-drafts">Rascunhos</button>
-    <button class="action" id="open-publications">Publicações</button>
-    <button class="action" id="import-file">Importar .md/.txt</button>
-    <button class="action primary" id="publish-telegram">Telegram</button>
-    <button class="action primary" id="publish-telegraph">Telegraph</button>
+    <button class="action" id="open-library" type="button" title="Rascunhos e importar" aria-label="Rascunhos e importar"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" /></svg></button>
+    <div class="destination" role="group" aria-label="Destino de publicação">
+      <button class="action primary" id="publish-telegram" type="button">Telegram</button>
+      <button class="action primary" id="publish-telegraph" type="button">Telegraph</button>
+    </div>
     <input id="file" type="file" accept=".md,.txt,text/plain" hidden>
     <input id="media-file" type="file" hidden>
   </footer>
+  <div id="library-menu" class="menu" hidden>
+    <button id="new-draft" type="button"><b>Novo</b><small>rascunho vazio</small></button>
+    <button id="open-drafts" type="button"><b>Rascunhos</b><small>continuar</small></button>
+    <button id="open-publications" type="button"><b>Publicações</b><small>histórico</small></button>
+    <button id="import-file" type="button"><b>Importar .md/.txt</b><small>até 1 MB</small></button>
+  </div>
 </div>
 
 <dialog id="resume-dialog">
