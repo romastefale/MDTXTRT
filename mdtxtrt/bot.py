@@ -68,6 +68,8 @@ class TelegramRuntime:
         self.router.message.register(self.start, Command("start"))
         self.router.message.register(self.help, Command("help"))
         self.router.message.register(self.import_command, Command("import"))
+        self.router.message.register(self.tgrich, Command("tgrich"))
+        self.router.message.register(self.mdrich, Command("mdrich"))
         self.router.message.register(self.native_location, F.location | F.venue)
         self.router.message.register(self.document, F.document)
 
@@ -92,6 +94,8 @@ class TelegramRuntime:
             "<tr><th>Comando</th><th>Função</th></tr>"
             "<tr><td>/start</td><td>Abrir o editor</td></tr>"
             "<tr><td>/import</td><td>Importar arquivo .md ou .txt</td></tr>"
+            "<tr><td>/tgrich</td><td>Markdown para rich text no chat</td></tr>"
+            "<tr><td>/mdrich</td><td>Exportar a mensagem respondida em .md</td></tr>"
             "<tr><td>/help</td><td>Mostrar esta ajuda</td></tr>"
             "</table>"
         )
@@ -99,6 +103,93 @@ class TelegramRuntime:
 
     async def import_command(self, message: Message) -> None:
         await message.answer("Envie um arquivo .md ou .txt. Ele será criado como rascunho separado da sua conta após a revisão necessária.")
+
+    def _command_arg(self, message: Message) -> str:
+        text = (message.text or message.caption or "").strip()
+        if not text:
+            return ""
+        parts = text.split(None, 1)
+        if parts and parts[0].startswith("/"):
+            return parts[1] if len(parts) > 1 else ""
+        return text
+
+    async def _read_document_text(self, document) -> str:
+        buffer = BytesIO()
+        await self.bot.download(document, destination=buffer)
+        data = buffer.getvalue()
+        if len(data) > MAX_IMPORT_BYTES:
+            raise ValueError("Arquivo acima do limite (1 MB).")
+        return data.decode("utf-8")
+
+    async def _source_for_tgrich(self, message: Message) -> str:
+        arg = self._command_arg(message)
+        if arg:
+            return arg
+        target = message.reply_to_message
+        if target and target.document:
+            name = target.document.file_name or ""
+            if Path(name).suffix.lower() in SUPPORTED_IMPORT_SUFFIXES:
+                return await self._read_document_text(target.document)
+        if target:
+            raw = getattr(target, "md_text", None) or target.text or target.caption or ""
+            if str(raw).strip():
+                return str(raw)
+        if message.document:
+            name = message.document.file_name or ""
+            if Path(name).suffix.lower() in SUPPORTED_IMPORT_SUFFIXES:
+                return await self._read_document_text(message.document)
+        raise ValueError("Responda a um arquivo .md ou .txt, anexe um, ou envie /tgrich seguido do texto.")
+
+    async def tgrich(self, message: Message) -> None:
+        from mdtxtrt.conversion import from_markdown
+        from mdtxtrt.projections import telegram_projection
+        try:
+            source = await self._source_for_tgrich(message)
+            if not source.strip():
+                await message.answer("Documento vazio.")
+                return
+            review = telegram_projection(from_markdown(source))
+            if not review.publishable:
+                await message.answer("Não publicável no chat: " + "; ".join(review.blocking))
+                return
+            await message.answer_rich(InputRichMessage(html=review.content or "<p></p>"))
+        except ValueError as exc:
+            await message.answer(str(exc))
+        except Exception:
+            log.exception("tgrich")
+            await message.answer("Não foi possível converter o arquivo.")
+
+    async def mdrich(self, message: Message) -> None:
+        from aiogram.types import BufferedInputFile
+        from mdtxtrt.conversion import from_markdown, to_markdown
+        try:
+            target = message.reply_to_message
+            if not target and message.document:
+                name = message.document.file_name or ""
+                if Path(name).suffix.lower() not in SUPPORTED_IMPORT_SUFFIXES:
+                    raise ValueError("Responda a uma mensagem com /mdrich.")
+                source = await self._read_document_text(message.document)
+            elif not target:
+                raise ValueError("Responda a uma mensagem com /mdrich.")
+            elif target.document:
+                name = target.document.file_name or ""
+                if Path(name).suffix.lower() in SUPPORTED_IMPORT_SUFFIXES:
+                    source = await self._read_document_text(target.document)
+                else:
+                    source = getattr(target, "md_text", None) or target.caption or target.text or ""
+            else:
+                source = getattr(target, "md_text", None) or target.text or target.caption or ""
+            source = str(source or "")
+            if not source.strip():
+                await message.answer("Nada para exportar.")
+                return
+            md = to_markdown(from_markdown(source))
+            await message.answer_document(BufferedInputFile(md.encode("utf-8"), filename="export.md"))
+        except ValueError as exc:
+            await message.answer(str(exc))
+        except Exception:
+            log.exception("mdrich")
+            await message.answer("Não foi possível exportar o .md.")
 
     async def _pending_import_link(self, message: Message, pending_id: str, filename: str, reason: str) -> None:
         if not self.settings.web_app_url:
@@ -116,6 +207,14 @@ class TelegramRuntime:
 
     async def document(self, message: Message) -> None:
         if not message.from_user or not message.document:
+            return
+        caption = (message.caption or "").strip()
+        cmd = caption.split()[0].split("@")[0].lower() if caption.startswith("/") else ""
+        if cmd == "/tgrich":
+            await self.tgrich(message)
+            return
+        if cmd == "/mdrich":
+            await self.mdrich(message)
             return
         filename = message.document.file_name or "import.txt"
         if Path(filename).suffix.lower() not in SUPPORTED_IMPORT_SUFFIXES:
@@ -242,6 +341,8 @@ class TelegramRuntime:
                     [
                         BotCommand(command="start", description="Abrir MDTXTRT"),
                         BotCommand(command="import", description="Importar .md/.txt"),
+                        BotCommand(command="tgrich", description="Markdown para rich text"),
+                        BotCommand(command="mdrich", description="Exportar mensagem em .md"),
                         BotCommand(command="help", description="Ajuda"),
                     ]
                 )

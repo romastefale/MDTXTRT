@@ -26,8 +26,27 @@ function setAppHeight(){
   const h=tg?.viewportStableHeight||window.innerHeight;
   document.documentElement.style.setProperty("--app-height",`${h}px`);
 }
+function layoutToolbar(){
+  const bar=$(".toolbar");
+  const fam=$("#toolbar-families");
+  const more=$("#tool-more");
+  const bucket=$("#tool-more-body");
+  if(!bar||!fam||!more||!bucket) return;
+  for(const el of [...bucket.querySelectorAll(":scope > details")]) fam.appendChild(el);
+  more.hidden=true;
+  const fits=()=>bar.scrollWidth<=bar.clientWidth+1;
+  if(fits()) return;
+  more.hidden=false;
+  const items=[...fam.querySelectorAll(":scope > details")];
+  for(let i=items.length-1;i>=0;i-=1){
+    if(fits()) break;
+    bucket.prepend(items[i]);
+  }
+  if(!bucket.children.length) more.hidden=true;
+}
 setAppHeight();
-tg?.onEvent?.("viewportChanged",setAppHeight);
+layoutToolbar();
+tg?.onEvent?.("viewportChanged",()=>{setAppHeight();layoutToolbar()});
 
 let backClick=null;
 function bindBackButton(open){
@@ -1609,4 +1628,6 @@ document.addEventListener("visibilitychange",()=>{
 window.addEventListener("pagehide",saveMirror);
 state.sessionTimer=setInterval(()=>void saveSession(),5*60*1000);
 installDeleteTool();
+if(window.ResizeObserver) new ResizeObserver(layoutToolbar).observe($(".toolbar"));
+window.addEventListener("resize",layoutToolbar);
 void bootstrap();
