@@ -57,7 +57,7 @@ def _content_title(document: CanonicalDocument, fallback: str) -> str:
             "audio": "Áudio",
             "voice_note": "Mensagem de voz",
             "document": "Documento",
-            "map": "Mapa",
+            "map": "Mapa", "location": "Localização", "venue": "Venue",
             "collage": "Collage",
             "slideshow": "Slideshow",
             "button_row": "Botões",

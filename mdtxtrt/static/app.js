@@ -268,7 +268,7 @@ function renderInline(value){
 const simpleBlocks=new Set(["paragraph","heading","code_block","footer","blockquote","expandable_blockquote","pullquote"]);
 const labels={
   divider:"Divisor",list:"Lista",table:"Tabela",details:"Detalhes",math_block:"Fórmula",
-  anchor:"Âncora",reference:"Referência",map:"Localização",photo:"Foto",video:"Vídeo",
+  anchor:"Âncora",reference:"Referência",map:"Localização",location:"Localização",venue:"Venue",photo:"Foto",video:"Vídeo",
   animation:"Animação",audio:"Áudio",voice_note:"Mensagem de voz",document:"Documento",
   collage:"Collage",slideshow:"Slideshow",button_row:"Linha de botões",raw_markdown:"Markdown cru",
 };
@@ -293,7 +293,7 @@ function blockElement(value){
 
 function nodeSummary(value){
   if(value.kind==="divider") return "Divisor horizontal";
-  if(value.kind==="map") return `${value.attrs?.name||"Mapa"}: ${value.attrs?.lat??"?"}, ${value.attrs?.long??"?"}`;
+  if(["map","location","venue"].includes(value.kind)) return `${value.attrs?.name||value.attrs?.address||"Localização"}: ${value.attrs?.lat??"?"}, ${value.attrs?.long??"?"}`;
   if(["photo","video","animation","audio","voice_note","document"].includes(value.kind)) return value.attrs?.caption||value.attrs?.filename||value.attrs?.src||value.kind;
   if(value.kind==="list") return `${value.children?.length||0} itens`;
   if(value.kind==="table") return `${value.children?.length||0} linhas`;
@@ -801,7 +801,7 @@ async function buildStructured(kind,preset="",existing=null){
     value=await openForm("Referência",[field("name","Nome","text",existing?.attrs?.name||""),field("text","Texto","textarea",existing?plainNode(existing):"")]);
     return value?{...(existing||node(kind)),kind,attrs:{name:value.name},children:[textNode(value.text)]}:null;
   }
-  if(kind==="map"){
+  if(["map","location","venue"].includes(kind)){
     showMessage("Localização","Esta localização veio da interface nativa do Telegram. Para alterar, apague o bloco e envie outra Location ou Venue.");
     return null;
   }
@@ -929,9 +929,11 @@ async function pollLocation(id){
     try{
       const data=await api(`/api/location-requests/${id}`);
       if(data.request?.status==="fulfilled"){
-        insertBlock(node("map",{attrs:{
-          name:data.request.name||data.request.address||"Localização",
-          address:data.request.address||"",
+        const name=data.request.name||"";
+        const address=data.request.address||"";
+        insertBlock(node(name&&address?"venue":"location",{attrs:{
+          name,
+          address,
           lat:Number(data.request.latitude),
           long:Number(data.request.longitude),
           source:"telegram_native_location",

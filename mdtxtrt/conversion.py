@@ -410,7 +410,7 @@ def to_text(document: CanonicalDocument) -> str:
                 out.append(f"{marker} {_plain(item)}")
         elif block.kind == "table":
             out.extend(" | ".join(_plain(cell) for cell in row.children) for row in block.children)
-        elif block.kind == "map":
+        elif block.kind in {"map", "location", "venue"}:
             name = str(block.attrs.get("name") or "Localização")
             out.append(f"{name}: {block.attrs.get('lat', '')}, {block.attrs.get('long', '')}")
         elif block.kind in {"photo", "video", "animation", "audio", "voice_note", "document"}:
