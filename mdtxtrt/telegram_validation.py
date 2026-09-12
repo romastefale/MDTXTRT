@@ -8,15 +8,8 @@ from urllib.parse import urlparse
 from mdtxtrt.domain import CanonicalDocument, CanonicalNode
 
 _BUTTON_TYPES = {
-    "url",
-    "callback_data",
-    "web_app",
-    "login_url",
-    "switch_inline_query",
-    "switch_inline_query_current_chat",
-    "switch_inline_query_chosen_chat",
-    "copy_text",
-    "disabled",
+    "url", "callback_data", "web_app", "login_url", "switch_inline_query",
+    "switch_inline_query_current_chat", "switch_inline_query_chosen_chat", "copy_text", "disabled",
 }
 _BUTTON_STYLES = {"", "danger", "success", "primary", "link"}
 _BLOCK_KINDS = {
@@ -26,16 +19,12 @@ _BLOCK_KINDS = {
     "video", "voice_note", "document", "button_row", "raw_markdown",
 }
 _EXCLUDED_FROM_BLOCK_COUNT = {"table_cell", "table_header", "button"}
+_LOCAL_VISUAL_MEDIA = {"photo", "video"}
 
 
 @dataclass(frozen=True, slots=True)
 class TelegramDestinationContext:
-    """Destination facts used by both preflight and the final API call.
-
-    Unknown is deliberately not treated as private: accepting a ``web_app`` button
-    without knowing the chat type recreates the late-rejection bug this boundary is
-    intended to prevent.
-    """
+    """Destination facts used by both preflight and the final API call."""
 
     chat_id: str | int
     chat_type: str = "unknown"
@@ -89,17 +78,29 @@ def _walk(node: CanonicalNode):
 
 
 def rich_block_count(document: CanonicalDocument) -> int:
-    count = 0
-    for block in document.blocks:
-        for node in _walk(block):
-            if node.kind in _BLOCK_KINDS and node.kind not in _EXCLUDED_FROM_BLOCK_COUNT:
-                count += 1
-    return count
+    return sum(
+        1 for block in document.blocks for node in _walk(block)
+        if node.kind in _BLOCK_KINDS and node.kind not in _EXCLUDED_FROM_BLOCK_COUNT
+    )
 
 
 def _valid_http_or_tg(value: str) -> bool:
     parsed = urlparse(value)
     return parsed.scheme in {"http", "https", "tg"} and bool(parsed.netloc or parsed.scheme == "tg")
+
+
+def _positive_span(value: Any) -> int:
+    try:
+        return max(1, int(value or 1))
+    except (TypeError, ValueError):
+        return 1
+
+
+def _effective_table_width(row: CanonicalNode) -> int:
+    return sum(
+        _positive_span(cell.attrs.get("colspan"))
+        for cell in row.children if cell.kind in {"table_cell", "table_header"}
+    )
 
 
 def validate_telegram_document(
@@ -165,30 +166,48 @@ def validate_telegram_document(
                 blocking.append(f"Botão {node.id}: botão desabilitado não pode definir uma ação.")
             if kind == "web_app" and destination and destination.chat_type != "private":
                 blocking.append(f"Botão {node.id}: web_app exige conversa privada com o bot.")
+            if destination and destination.direct_messages_topic_id and kind in {
+                "switch_inline_query", "switch_inline_query_current_chat", "switch_inline_query_chosen_chat"
+            }:
+                blocking.append(f"Botão {node.id}: {kind} não é suportado em mensagens diretas de canal.")
+            if destination and destination.chat_type == "channel" and kind == "switch_inline_query_current_chat":
+                blocking.append(f"Botão {node.id}: switch_inline_query_current_chat não é suportado em canais.")
 
     for block in document.blocks:
         for node in _walk(block):
             if node.kind == "map":
                 lat, lon = node.attrs.get("lat"), node.attrs.get("long")
                 zoom = node.attrs.get("zoom", 13)
+                width, height = node.attrs.get("width"), node.attrs.get("height")
                 try:
                     if not -90 <= float(lat) <= 90 or not -180 <= float(lon) <= 180:
                         raise ValueError
-                    if not 0 <= int(zoom) <= 20:
-                        blocking.append(f"Mapa {node.id}: zoom deve estar entre 0 e 20.")
                 except (TypeError, ValueError):
                     blocking.append(f"Mapa {node.id}: coordenadas devem ser numéricas e válidas.")
+                try:
+                    if not 0 <= int(zoom) <= 24:
+                        blocking.append(f"Mapa {node.id}: zoom deve estar entre 0 e 24.")
+                except (TypeError, ValueError):
+                    blocking.append(f"Mapa {node.id}: zoom deve ser um inteiro entre 0 e 24.")
+                if width not in {None, ""} or height not in {None, ""}:
+                    try:
+                        w, h = int(width), int(height)
+                        if not 0 <= w <= 10000 or not 0 <= h <= 10000 or w + h > 10000:
+                            blocking.append(f"Mapa {node.id}: largura e altura devem estar entre 0 e 10000 e não exceder 10000 no total.")
+                        if w > 0 and h > 0 and max(w / h, h / w) > 20:
+                            blocking.append(f"Mapa {node.id}: proporção entre largura e altura não pode exceder 20.")
+                    except (TypeError, ValueError):
+                        blocking.append(f"Mapa {node.id}: largura e altura devem ser inteiros válidos.")
             elif node.kind in {"collage", "slideshow"}:
                 media = [child for child in node.children if child.kind in _LOCAL_VISUAL_MEDIA]
                 if len(media) != len(node.children) or not 2 <= len(media) <= 10:
                     blocking.append(f"{node.kind.title()} {node.id}: exige de 2 a 10 fotos ou vídeos.")
             elif node.kind == "table":
                 rows = [child for child in node.children if child.kind == "table_row"]
-                widths = [len(row.children) for row in rows]
-                if not rows or any(width == 0 for width in widths) or len(set(widths)) > 1:
-                    blocking.append(f"Tabela {node.id}: linhas devem ter a mesma quantidade não nula de células.")
+                widths = [_effective_table_width(row) for row in rows]
+                if not rows or any(width == 0 for width in widths):
+                    blocking.append(f"Tabela {node.id}: linhas devem conter células.")
+                if any(width > 20 for width in widths):
+                    blocking.append(f"Tabela {node.id}: excede 20 colunas após considerar colspan.")
 
     return blocking
-
-
-_LOCAL_VISUAL_MEDIA = {"photo", "video"}
