@@ -139,7 +139,7 @@ function saveMirror(){
   if(!state.draft) return;
   localStorage.setItem(mirrorKey(),JSON.stringify({
     revision_id:state.draft.active_revision_id,
-    document:canonicalDocument(),
+    document:snapshotDocument(),
     saved_at:Date.now(),
   }));
 }
@@ -384,14 +384,34 @@ function normalizeTopLevel(){
   });
 }
 
-function canonicalDocument(){
-  normalizeTopLevel();
+function snapshotDocument(){
   return {
     schema_version:state.draft?.document?.schema_version||1,
     id:state.draft?.document?.id||uid(),
     blocks:[...editor.children].map(serializeBlock),
     metadata:clone(state.draft?.document?.metadata||{}),
   };
+}
+
+function canonicalDocument(){
+  normalizeTopLevel();
+  return snapshotDocument();
+}
+
+function ensureTypingBlock(){
+  if(!editor.children.length) editor.append(blockElement(node("paragraph")));
+  const selection=window.getSelection();
+  if(!selection) return;
+  const anchor=selection.anchorNode;
+  const inside=anchor&&(anchor===editor?false:Boolean((anchor.nodeType===1?anchor:anchor.parentElement)?.closest?.("[data-block]")));
+  if(inside) return;
+  const block=[...editor.children].find(child=>!child.__node)||editor.lastElementChild;
+  if(!block||block.__node) return;
+  const range=document.createRange();
+  range.selectNodeContents(block);
+  range.collapse(false);
+  selection.removeAllRanges();
+  selection.addRange(range);
 }
 
 function canonicalComparable(value){
@@ -476,7 +496,6 @@ function conversionSummary(source,review){
 function scheduleSave(){
   if(!state.draft||state.authExpired) return;
   setStatus("editando");
-  saveMirror();
   clearTimeout(state.saveTimer);
   state.saveTimer=setTimeout(()=>void commitNow("typing-pause"),2000);
 }
@@ -1482,7 +1501,8 @@ function installDeleteTool(){
   $("#undo")?.before(button);
 }
 
-editor.addEventListener("beforeinput",insertPendingText);
+editor.addEventListener("beforeinput",event=>{ensureTypingBlock();insertPendingText(event);});
+editor.addEventListener("focusin",ensureTypingBlock);
 editor.addEventListener("input",scheduleSave);
 editor.addEventListener("paste",event=>void handlePaste(event));
 editor.addEventListener("dragstart",event=>{
