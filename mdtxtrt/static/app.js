@@ -268,7 +268,7 @@ function renderInline(value){
 const simpleBlocks=new Set(["paragraph","heading","code_block","footer","blockquote","expandable_blockquote","pullquote"]);
 const labels={
   divider:"Divisor",list:"Lista",table:"Tabela",details:"Detalhes",math_block:"Fórmula",
-  anchor:"Âncora",reference:"Referência",map:"Mapa",photo:"Foto",video:"Vídeo",
+  anchor:"Âncora",reference:"Referência",map:"Localização",photo:"Foto",video:"Vídeo",
   animation:"Animação",audio:"Áudio",voice_note:"Mensagem de voz",document:"Documento",
   collage:"Collage",slideshow:"Slideshow",button_row:"Linha de botões",raw_markdown:"Markdown cru",
 };
@@ -802,8 +802,8 @@ async function buildStructured(kind,preset="",existing=null){
     return value?{...(existing||node(kind)),kind,attrs:{name:value.name},children:[textNode(value.text)]}:null;
   }
   if(kind==="map"){
-    value=await openForm("Mapa manual",[field("name","Nome","text",existing?.attrs?.name||""),field("lat","Latitude","number",existing?.attrs?.lat||""),field("long","Longitude","number",existing?.attrs?.long||""),field("zoom","Zoom","number",existing?.attrs?.zoom||14)]);
-    return value?{...(existing||node(kind)),kind,attrs:{name:value.name,lat:Number(value.lat),long:Number(value.long),zoom:Number(value.zoom)},children:[]}:null;
+    showMessage("Localização","Esta localização veio da interface nativa do Telegram. Para alterar, apague o bloco e envie outra Location ou Venue.");
+    return null;
   }
   if(["collage","slideshow"].includes(kind)){
     value=await openForm(labels[kind],[field("caption","Legenda","text",existing?.attrs?.caption||""),field("media","photo|URL ou video|URL por linha","textarea",existing?(existing.children||[]).map(media=>`${media.kind}|${media.attrs?.src||""}`).join("\n"):"")]);
@@ -934,7 +934,6 @@ async function pollLocation(id){
           address:data.request.address||"",
           lat:Number(data.request.latitude),
           long:Number(data.request.longitude),
-          zoom:14,
           source:"telegram_native_location",
         }}));
         state.pendingLocationRequest=null;

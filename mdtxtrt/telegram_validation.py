@@ -170,12 +170,9 @@ def validate_telegram_document(
         for node in _walk(block):
             if node.kind == "map":
                 lat, lon = node.attrs.get("lat"), node.attrs.get("long")
-                zoom = node.attrs.get("zoom", 13)
                 try:
                     if not -90 <= float(lat) <= 90 or not -180 <= float(lon) <= 180:
                         raise ValueError
-                    if not 0 <= int(zoom) <= 20:
-                        blocking.append(f"Mapa {node.id}: zoom deve estar entre 0 e 20.")
                 except (TypeError, ValueError):
                     blocking.append(f"Mapa {node.id}: coordenadas devem ser numéricas e válidas.")
             elif node.kind in {"collage", "slideshow"}:
