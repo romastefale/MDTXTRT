@@ -45,7 +45,6 @@ function layoutToolbar(){
   if(!bucket.children.length) more.hidden=true;
 }
 setAppHeight();
-layoutToolbar();
 tg?.onEvent?.("viewportChanged",()=>{setAppHeight();layoutToolbar()});
 
 let backClick=null;
