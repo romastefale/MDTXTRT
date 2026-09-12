@@ -34,6 +34,7 @@ from mdtxtrt.telegram_validation import (
 )
 
 _LOCAL_MEDIA_KINDS = {"photo", "video", "animation", "audio", "voice_note", "document"}
+_NATIVE_LOCATION_KINDS = {"map", "location", "venue"}
 _MEDIA_SCHEME = {
     "photo": "photo",
     "video": "video",
@@ -107,6 +108,77 @@ def _input_media(kind: str, data: bytes, filename: str):
     if kind == "document":
         return InputMediaDocument(media=upload)
     raise ValueError("unsupported_local_media_kind")
+
+
+def _native_location_nodes(document: CanonicalDocument) -> list[CanonicalNode]:
+    """Return top-level native Telegram Location/Venue operations in document order."""
+    return [block for block in document.blocks if block.kind in _NATIVE_LOCATION_KINDS]
+
+
+def _without_native_locations(document: CanonicalDocument) -> CanonicalDocument:
+    """Keep native locations out of rich-message projection; they are Bot API operations."""
+    return CanonicalDocument(
+        id=document.id,
+        schema_version=document.schema_version,
+        blocks=tuple(block for block in document.blocks if block.kind not in _NATIVE_LOCATION_KINDS),
+        metadata=document.metadata,
+    )
+
+
+def _native_location_payload(node: CanonicalNode) -> dict[str, Any]:
+    attrs = dict(node.attrs)
+    try:
+        latitude = float(attrs["lat"])
+        longitude = float(attrs["long"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ValueError("native_location_coordinates_required") from exc
+    if not (-90 <= latitude <= 90 and -180 <= longitude <= 180):
+        raise ValueError("native_location_coordinates_invalid")
+    title = str(attrs.get("name") or attrs.get("title") or "").strip()
+    address = str(attrs.get("address") or "").strip()
+    kind = "venue" if node.kind == "venue" or title or address else "location"
+    if kind == "venue" and (not title or not address):
+        raise ValueError("native_venue_title_and_address_required")
+    return {
+        "kind": kind,
+        "latitude": latitude,
+        "longitude": longitude,
+        "title": title,
+        "address": address,
+    }
+
+
+async def _send_native_locations(
+    bot: Bot,
+    *,
+    chat_id: str | int,
+    nodes: list[CanonicalNode],
+    destination: TelegramDestinationContext,
+) -> list[int]:
+    message_ids: list[int] = []
+    for node in nodes:
+        payload = _native_location_payload(node)
+        common = {
+            "chat_id": chat_id,
+            "message_thread_id": destination.message_thread_id,
+            "direct_messages_topic_id": destination.direct_messages_topic_id,
+        }
+        if payload["kind"] == "venue":
+            message = await bot.send_venue(
+                **common,
+                latitude=payload["latitude"],
+                longitude=payload["longitude"],
+                title=payload["title"],
+                address=payload["address"],
+            )
+        else:
+            message = await bot.send_location(
+                **common,
+                latitude=payload["latitude"],
+                longitude=payload["longitude"],
+            )
+        message_ids.append(int(message.message_id))
+    return message_ids
 
 
 def _apply_telegram_validation(
@@ -201,15 +273,19 @@ class TelegramPublicationService:
                 children=tuple(transform(child) for child in node.children),
             )
 
-        projected_document = CanonicalDocument(
+        transformed = CanonicalDocument(
             id=document.id,
             schema_version=document.schema_version,
             blocks=tuple(transform(block) for block in document.blocks),
             metadata=document.metadata,
         )
+        projected_document = _without_native_locations(transformed)
         review = telegram_projection(projected_document)
         _apply_telegram_validation(review, projected_document, destination)
+        for native in _native_location_nodes(transformed):
+            _native_location_payload(native)
         review.metrics["local_media_attachments"] = len(attachments)
+        review.metrics["native_locations"] = len(_native_location_nodes(transformed))
         return revision_id, projected_document, review, list(attachments.values())
 
     def _preferred_representation(self, user_id: int) -> str | None:
@@ -288,12 +364,20 @@ class TelegramPublicationService:
         destination = destination or TelegramDestinationContext(destination_chat_id)
         if str(destination.chat_id) != str(destination_chat_id):
             raise ValueError("destination_context_chat_id_mismatch")
+        source_revision_id, source_document = self._source_document(
+            user_id=user_id,
+            draft_id=draft_id,
+            document_override=document_override,
+        )
+        native_nodes = _native_location_nodes(source_document)
         revision_id, document, html_review, attachments = self._prepare(
             user_id=user_id,
             draft_id=draft_id,
             document_override=document_override,
             destination=destination,
         )
+        if source_revision_id != revision_id:
+            raise RuntimeError("publication_revision_changed_during_prepare")
         plan = self._select_plan(
             user_id=user_id,
             document=document,
@@ -303,18 +387,35 @@ class TelegramPublicationService:
         )
         _require_representation(plan, confirmed_fingerprint)
         target = _chat_id(destination_chat_id)
-        message = await bot.send_rich_message(
+        message_ids: list[int] = []
+        has_rich_content = bool(document.blocks or attachments)
+        if has_rich_content:
+            message = await bot.send_rich_message(
+                chat_id=target,
+                rich_message=self._message(plan, attachments),
+                message_thread_id=destination.message_thread_id,
+                direct_messages_topic_id=destination.direct_messages_topic_id,
+            )
+            message_ids.append(int(message.message_id))
+        native_message_ids = await _send_native_locations(
+            bot,
             chat_id=target,
-            rich_message=self._message(plan, attachments),
-            message_thread_id=destination.message_thread_id,
-            direct_messages_topic_id=destination.direct_messages_topic_id,
+            nodes=native_nodes,
+            destination=destination,
         )
+        message_ids.extend(native_message_ids)
+        if not message_ids:
+            raise ValueError("telegram_publication_empty")
+        primary_message_id = message_ids[0]
         event = {
-            "representation": plan.key,
+            "representation": plan.key if has_rich_content else "native_location",
             "fingerprint": plan.fingerprint,
-            "telegram_message_id": int(message.message_id),
+            "telegram_message_id": primary_message_id,
+            "telegram_message_ids": message_ids,
+            "native_location_message_ids": native_message_ids,
             "destination_chat_id": str(destination_chat_id),
             "local_media_attachments": len(attachments),
+            "native_locations": len(native_nodes),
             "destination_context": destination.public(),
             **_override_payload(document_override),
         }
@@ -325,7 +426,7 @@ class TelegramPublicationService:
             kind="telegram",
             title=(title or "Publicação Telegram").strip()[:256] or "Publicação Telegram",
             destination_chat_id=str(destination_chat_id),
-            telegram_message_id=int(message.message_id),
+            telegram_message_id=primary_message_id,
             event_payload=event,
         )
 
@@ -344,6 +445,9 @@ class TelegramPublicationService:
         publication = self.repository.get_publication(publication_id=publication_id, user_id=user_id)
         if publication["kind"] != "telegram":
             raise ValueError("publication_is_not_telegram")
+        previous_event = dict(publication.get("event_payload") or {})
+        if previous_event.get("native_location_message_ids"):
+            raise ValueError("native_location_publication_requires_republish")
         destination = publication.get("destination_chat_id")
         message_id = publication.get("telegram_message_id")
         if not destination or message_id is None:
@@ -357,6 +461,12 @@ class TelegramPublicationService:
             document_override=document_override,
             destination=destination_context,
         )
+        if _native_location_nodes(self._source_document(
+            user_id=user_id,
+            draft_id=publication["draft_id"],
+            document_override=document_override,
+        )[1]):
+            raise ValueError("native_location_publication_requires_republish")
         plan = self._select_plan(
             user_id=user_id,
             document=document,
@@ -381,10 +491,8 @@ class TelegramPublicationService:
                 "telegram_message_id": int(message_id),
                 "destination_chat_id": str(destination),
                 "local_media_attachments": len(attachments),
-                "destination_context": (
-                    destination_context.public()
-                    if destination_context else TelegramDestinationContext(destination).public()
-                ),
+                "native_locations": 0,
+                "destination_context": destination_context.public(),
                 **_override_payload(document_override),
             },
         )
