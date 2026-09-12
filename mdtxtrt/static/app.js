@@ -1509,6 +1509,19 @@ $("#file").onchange=async event=>{
 };
 $("#publish-telegram").onclick=()=>void reviewAndPublish("telegram");
 $("#publish-telegraph").onclick=()=>void reviewAndPublish("telegraph");
+$("#open-library").onclick=event=>{
+  event.stopPropagation();
+  $("#library-menu").hidden=!$("#library-menu").hidden;
+};
+["new-draft","open-drafts","open-publications","import-file"].forEach(id=>{
+  $("#"+id).addEventListener("click",()=>{$("#library-menu").hidden=true});
+});
+document.addEventListener("click",event=>{
+  const menu=$("#library-menu");
+  if(!menu||menu.hidden) return;
+  if(event.target.closest("#library-menu,#open-library")) return;
+  menu.hidden=true;
+});
 $("#review-confirm").onclick=()=>void state.reviewAction?.();
 $$('[data-close]').forEach(button=>button.onclick=()=>button.closest("dialog")?.close());
 
