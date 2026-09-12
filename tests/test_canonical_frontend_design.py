@@ -10,9 +10,11 @@ class CanonicalFrontendDesignTests(unittest.TestCase):
         index = INDEX.read_text()
         self.assertIn(".toolbar{display:flex", index)
         self.assertIn("min-width:44px", index)
-        self.assertIn('id="tool-more"', index)
+        self.assertIn('title="Texto"', index)
+        self.assertIn('title="Bloco"', index)
         self.assertNotIn("overflow-x:auto", index)
         self.assertNotIn("repeat(13", index)
+        self.assertNotIn('id="tool-more"', index)
 
     def test_view_tabs_expose_accessible_state(self):
         index, script = INDEX.read_text(), APP.read_text()
