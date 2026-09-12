@@ -216,7 +216,7 @@ class _TelegramHTML:
             return f'<tg-reference name="{_esc(node.attrs.get("name", ""))}">{body}</tg-reference>'
         if kind == "math_block":
             return f"<tg-math-block>{_esc(node.text or _plain(node))}</tg-math-block>"
-        if kind == "map":
+        if kind in {"map", "location", "venue"}:
             self.issue(self.adaptations, node, "Localização nativa não é emitida como mapa HTML.")
             name = str(node.attrs.get("name") or "Localização")
             coords = f"{node.attrs.get('lat', '')}, {node.attrs.get('long', '')}".strip(", ")
@@ -384,7 +384,7 @@ class _TelegraphHTML:
             for row in node.children:
                 rows.append(" | ".join(_plain(cell).strip() for cell in row.children))
             return f"<pre>{_esc(chr(10).join(rows))}</pre>"
-        if node.kind == "map":
+        if node.kind in {"map", "location", "venue"}:
             self.adapt(node, "Mapa foi reduzido a nome/coordenadas no Telegraph; nenhum provedor externo foi presumido.")
             name = str(node.attrs.get("name") or "Localização")
             coords = f"{node.attrs.get('lat', '')}, {node.attrs.get('long', '')}".strip(", ")

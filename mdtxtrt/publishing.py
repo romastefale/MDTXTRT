@@ -136,7 +136,7 @@ def _native_location_payload(node: CanonicalNode) -> dict[str, Any]:
         raise ValueError("native_location_coordinates_invalid")
     title = str(attrs.get("name") or attrs.get("title") or "").strip()
     address = str(attrs.get("address") or "").strip()
-    kind = "venue" if node.kind == "venue" or title or address else "location"
+    kind = "venue" if node.kind == "venue" or (title and address) else "location"
     if kind == "venue" and (not title or not address):
         raise ValueError("native_venue_title_and_address_required")
     return {

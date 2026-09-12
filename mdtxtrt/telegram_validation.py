@@ -168,7 +168,7 @@ def validate_telegram_document(
 
     for block in document.blocks:
         for node in _walk(block):
-            if node.kind == "map":
+            if node.kind in {"map", "location", "venue"}:
                 lat, lon = node.attrs.get("lat"), node.attrs.get("long")
                 try:
                     if not -90 <= float(lat) <= 90 or not -180 <= float(lon) <= 180:
