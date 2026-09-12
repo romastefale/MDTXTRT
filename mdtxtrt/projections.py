@@ -217,7 +217,10 @@ class _TelegramHTML:
         if kind == "math_block":
             return f"<tg-math-block>{_esc(node.text or _plain(node))}</tg-math-block>"
         if kind == "map":
-            return f"<tg-map{_attrs([('lat', node.attrs.get('lat')), ('long', node.attrs.get('long')), ('zoom', node.attrs.get('zoom'))])}/>"
+            self.issue(self.adaptations, node, "Localização nativa não é emitida como mapa HTML.")
+            name = str(node.attrs.get("name") or "Localização")
+            coords = f"{node.attrs.get('lat', '')}, {node.attrs.get('long', '')}".strip(", ")
+            return f"<p>{_esc(name)} — {_esc(coords)}</p>"
         if kind in self.MEDIA_TAGS:
             return self.media(node)
         if kind in {"collage", "slideshow"}:
