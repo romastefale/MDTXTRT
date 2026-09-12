@@ -4,6 +4,57 @@ import {createImportChosen} from "/static/import_ui.js";
 const tg=window.Telegram?.WebApp;
 tg?.ready();
 tg?.expand();
+tg?.disableVerticalSwipes?.();
+
+function applyTheme(){
+  const p=tg?.themeParams||{};
+  const root=document.documentElement;
+  if(p.bg_color) root.style.setProperty("--bg",p.bg_color);
+  if(p.text_color) root.style.setProperty("--text",p.text_color);
+  if(p.hint_color) root.style.setProperty("--hint",p.hint_color);
+  if(p.secondary_bg_color) root.style.setProperty("--surface",p.secondary_bg_color);
+  if(p.button_color) root.style.setProperty("--accent",p.button_color);
+  if(p.button_text_color) root.style.setProperty("--accent-text",p.button_text_color);
+  tg?.setHeaderColor?.(p.bg_color||"secondary_bg_color");
+  tg?.setBackgroundColor?.(p.bg_color||"#ffffff");
+  tg?.setBottomBarColor?.(p.bg_color||"#ffffff");
+}
+applyTheme();
+tg?.onEvent?.("themeChanged",applyTheme);
+
+function setAppHeight(){
+  const h=tg?.viewportStableHeight||window.innerHeight;
+  document.documentElement.style.setProperty("--app-height",`${h}px`);
+}
+setAppHeight();
+tg?.onEvent?.("viewportChanged",setAppHeight);
+
+let backClick=null;
+function bindBackButton(open){
+  if(!tg?.BackButton) return;
+  if(backClick){
+    tg.BackButton.offClick(backClick);
+    backClick=null;
+  }
+  if(open){
+    backClick=()=>{
+      document.querySelectorAll("dialog[open]").forEach(d=>d.close());
+      const lib=document.getElementById("library-menu");
+      if(lib) lib.hidden=true;
+      bindBackButton(false);
+    };
+    tg.BackButton.onClick(backClick);
+    tg.BackButton.show();
+  }else{
+    tg.BackButton.hide();
+  }
+}
+
+function syncBackButton(){
+  const dialogOpen=[...document.querySelectorAll("dialog")].some(d=>d.open);
+  const lib=document.getElementById("library-menu");
+  bindBackButton(dialogOpen||(Boolean(lib)&&!lib.hidden));
+}
 
 const $=(selector,root=document)=>root.querySelector(selector);
 const $$=(selector,root=document)=>[...root.querySelectorAll(selector)];
@@ -1214,6 +1265,7 @@ function fillReview(title,plan){
 }
 
 function showReviewError(message){
+  tg?.HapticFeedback?.notificationOccurred("error");
   const warnings=$("#review-warnings");
   const box=document.createElement("div");
   box.className="warning";
@@ -1290,6 +1342,7 @@ async function reviewAndPublish(destination){
         else if(editing&&operation==="republish") result=await api(`/api/publications/${editing.id}/telegram/republish`,{method:"POST",body});
         else result=await api("/api/publish/telegram",{method:"POST",body:{...body,draft_id:state.draft.id}});
         if(value.remember) await rememberPreference("telegram_representation",value.representation);
+        tg?.HapticFeedback?.notificationOccurred("success");
         $("#review-dialog").close();
         state.editingPublication=result.publication;
         state.outputOverride=null;
@@ -1323,6 +1376,7 @@ async function reviewAndPublish(destination){
       let result;
       if(editing&&value.operation==="edit") result=await api(`/api/publications/${editing.id}/telegraph`,{method:"PUT",body});
       else result=await api("/api/publish/telegraph",{method:"POST",body:{...body,draft_id:state.draft.id}});
+      tg?.HapticFeedback?.notificationOccurred("success");
       $("#review-dialog").close();
       state.editingPublication=result.publication;
       state.outputOverride=null;
@@ -1512,18 +1566,27 @@ $("#publish-telegraph").onclick=()=>void reviewAndPublish("telegraph");
 $("#open-library").onclick=event=>{
   event.stopPropagation();
   $("#library-menu").hidden=!$("#library-menu").hidden;
+  syncBackButton();
 };
 ["new-draft","open-drafts","open-publications","import-file"].forEach(id=>{
-  $("#"+id).addEventListener("click",()=>{$("#library-menu").hidden=true});
+  $("#"+id).addEventListener("click",()=>{$("#library-menu").hidden=true;syncBackButton()});
 });
 document.addEventListener("click",event=>{
   const menu=$("#library-menu");
   if(!menu||menu.hidden) return;
   if(event.target.closest("#library-menu,#open-library")) return;
   menu.hidden=true;
+  syncBackButton();
 });
 $("#review-confirm").onclick=()=>void state.reviewAction?.();
 $$('[data-close]').forEach(button=>button.onclick=()=>button.closest("dialog")?.close());
+document.querySelectorAll("dialog").forEach(d=>d.addEventListener("close",syncBackButton));
+const nativeShowModal=HTMLDialogElement.prototype.showModal;
+HTMLDialogElement.prototype.showModal=function(...args){
+  const result=nativeShowModal.apply(this,args);
+  bindBackButton(true);
+  return result;
+};
 
 window.addEventListener("mdtxtrt:auth-expired",()=>authExpired());
 document.addEventListener("visibilitychange",()=>{
