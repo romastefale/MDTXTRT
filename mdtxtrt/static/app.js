@@ -26,26 +26,14 @@ function setAppHeight(){
   const h=tg?.viewportStableHeight||window.innerHeight;
   document.documentElement.style.setProperty("--app-height",`${h}px`);
 }
-function layoutToolbar(){
-  const bar=$(".toolbar");
-  const fam=$("#toolbar-families");
-  const more=$("#tool-more");
-  const bucket=$("#tool-more-body");
-  if(!bar||!fam||!more||!bucket) return;
-  for(const el of [...bucket.querySelectorAll(":scope > details")]) fam.appendChild(el);
-  more.hidden=true;
-  const fits=()=>bar.scrollWidth<=bar.clientWidth+1;
-  if(fits()) return;
-  more.hidden=false;
-  const items=[...fam.querySelectorAll(":scope > details")];
-  for(let i=items.length-1;i>=0;i-=1){
-    if(fits()) break;
-    bucket.prepend(items[i]);
-  }
-  if(!bucket.children.length) more.hidden=true;
-}
 setAppHeight();
-tg?.onEvent?.("viewportChanged",()=>{setAppHeight();layoutToolbar()});
+tg?.onEvent?.("viewportChanged",()=>setAppHeight());
+
+function openDialog(dialog){
+  if(!dialog) return;
+  if(!dialog.open) HTMLDialogElement.prototype.showModal.call(dialog);
+  bindBackButton(true);
+}
 
 let backClick=null;
 function bindBackButton(open){
@@ -148,7 +136,7 @@ function showMessage(title,body){
   $("#message-title").textContent=title;
   $("#message-body").textContent=body;
   const dialog=$("#message-dialog");
-  if(!dialog.open) dialog.showModal();
+  openDialog(dialog);
 }
 
 function authExpired(){
@@ -398,22 +386,6 @@ function canonicalDocument(){
   return snapshotDocument();
 }
 
-function ensureTypingBlock(){
-  if(!editor.children.length) editor.append(blockElement(node("paragraph")));
-  const selection=window.getSelection();
-  if(!selection) return;
-  const anchor=selection.anchorNode;
-  const inside=anchor&&(anchor===editor?false:Boolean((anchor.nodeType===1?anchor:anchor.parentElement)?.closest?.("[data-block]")));
-  if(inside) return;
-  const block=[...editor.children].find(child=>!child.__node)||editor.lastElementChild;
-  if(!block||block.__node) return;
-  const range=document.createRange();
-  range.selectNodeContents(block);
-  range.collapse(false);
-  selection.removeAllRanges();
-  selection.addRange(range);
-}
-
 function canonicalComparable(value){
   return {
     kind:value?.kind||"",
@@ -651,7 +623,7 @@ async function openForm(title,fields){
       resolve(value);
     };
     dialog.addEventListener("close",done);
-    dialog.showModal();
+    openDialog(dialog);
   });
 }
 
@@ -1392,7 +1364,7 @@ async function reviewAndPublish(destination){
         confirmButton.disabled=false;
       }
     };
-    $("#review-dialog").showModal();
+    openDialog($("#review-dialog"));
     return;
   }
 
@@ -1426,7 +1398,7 @@ async function reviewAndPublish(destination){
       confirmButton.disabled=false;
     }
   };
-  $("#review-dialog").showModal();
+  openDialog($("#review-dialog"));
 }
 
 function looksLikeMarkdown(text){
@@ -1477,7 +1449,7 @@ async function bootstrap(){
     const latest=data.drafts[0];
     $("#resume-summary").textContent=`${latest.name} — ${new Date(latest.updated_at).toLocaleString()}`;
     const dialog=$("#resume-dialog");
-    dialog.showModal();
+    openDialog(dialog);
     $$('button[value]',dialog).forEach(button=>button.onclick=()=>dialog.close(button.value));
     dialog.addEventListener("close",async function once(){
       dialog.removeEventListener("close",once);
@@ -1501,8 +1473,7 @@ function installDeleteTool(){
   $("#undo")?.before(button);
 }
 
-editor.addEventListener("beforeinput",event=>{ensureTypingBlock();insertPendingText(event);});
-editor.addEventListener("focusin",ensureTypingBlock);
+editor.addEventListener("beforeinput",insertPendingText);
 editor.addEventListener("input",scheduleSave);
 editor.addEventListener("paste",event=>void handlePaste(event));
 editor.addEventListener("dragstart",event=>{
@@ -1586,26 +1557,15 @@ nameEl.onchange=async()=>{
 };
 
 $("#new-draft").onclick=()=>void createDraft();
-$("#open-drafts").onclick=async()=>{await listDrafts();$("#drafts-dialog").showModal()};
+$("#open-drafts").onclick=async()=>{await listDrafts();openDialog($("#drafts-dialog"))};
 $("#toggle-archived").onclick=async()=>{
   state.archivedView=!state.archivedView;
   $("#toggle-archived").textContent=state.archivedView?"Ver ativos":"Ver arquivados";
   await listDrafts();
 };
-$("#open-publications").onclick=async()=>{await listPublications();$("#publications-dialog").showModal()};
+$("#open-publications").onclick=async()=>{await listPublications();openDialog($("#publications-dialog"))};
 const importChosen=createImportChosen({api,showMessage,loadDraft,openForm,field,conversionSummary});
-$("#import-file").onclick=event=>{
-  event.stopPropagation();
-  const input=$("#file");
-  input.click();
-  const hideMenu=()=>{
-    window.removeEventListener("focus",hideMenu);
-    const menu=$("#library-menu");
-    if(menu) menu.hidden=true;
-    syncBackButton();
-  };
-  window.addEventListener("focus",hideMenu);
-};
+$("#import-file").addEventListener("click",event=>event.stopPropagation());
 $("#file").onchange=async event=>{
   const file=event.target.files?.[0];
   event.target.value="";
@@ -1634,13 +1594,6 @@ document.addEventListener("click",event=>{
 $("#review-confirm").onclick=()=>void state.reviewAction?.();
 $$('[data-close]').forEach(button=>button.onclick=()=>button.closest("dialog")?.close());
 document.querySelectorAll("dialog").forEach(d=>d.addEventListener("close",syncBackButton));
-const nativeShowModal=HTMLDialogElement.prototype.showModal;
-HTMLDialogElement.prototype.showModal=function(...args){
-  const result=nativeShowModal.apply(this,args);
-  bindBackButton(true);
-  return result;
-};
-
 window.addEventListener("mdtxtrt:auth-expired",()=>authExpired());
 document.addEventListener("visibilitychange",()=>{
   if(!document.hidden&&state.pendingLocationRequest&&!state.authExpired) void pollLocation(state.pendingLocationRequest);
@@ -1648,6 +1601,4 @@ document.addEventListener("visibilitychange",()=>{
 window.addEventListener("pagehide",saveMirror);
 state.sessionTimer=setInterval(()=>void saveSession(),5*60*1000);
 installDeleteTool();
-if(window.ResizeObserver) new ResizeObserver(layoutToolbar).observe($(".toolbar"));
-window.addEventListener("resize",layoutToolbar);
 void bootstrap();

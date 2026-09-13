@@ -90,14 +90,12 @@ class TelegramRuntime:
     async def help(self, message: Message) -> None:
         body = (
             "<h1>MDTXTRT</h1>"
-            "<table bordered striped compact>"
-            "<tr><th>Comando</th><th>Função</th></tr>"
-            "<tr><td>/start</td><td>Abrir o editor</td></tr>"
-            "<tr><td>/import</td><td>Importar arquivo .md ou .txt</td></tr>"
-            "<tr><td>/tgrich</td><td>Markdown para rich text no chat</td></tr>"
-            "<tr><td>/mdrich</td><td>Exportar a mensagem respondida em .md</td></tr>"
-            "<tr><td>/help</td><td>Mostrar esta ajuda</td></tr>"
-            "</table>"
+            "<p><code>/start</code> — abrir o editor Mini App.</p>"
+            "<p><code>/import</code> — enviar um .md ou .txt (até 20 MB) para virar rascunho.</p>"
+            "<p><code>/tgrich</code> — converter Markdown em rich text neste chat (texto, anexo ou resposta).</p>"
+            "<p><code>/mdrich</code> — exportar a mensagem respondida como arquivo .md.</p>"
+            "<p><code>/help</code> — esta lista.</p>"
+            "<p>No editor: Location/Venue pelo anexo nativo do Telegram (o bot abre no DM). Publicar no rodapé: Telegram ou Telegraph.</p>"
         )
         await message.answer_rich(InputRichMessage(html=body))
 

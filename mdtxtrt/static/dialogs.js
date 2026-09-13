@@ -90,7 +90,7 @@ export async function noticeDialog(title,message,{buttonLabel="OK"}={}){
   return new Promise(resolve=>{
     ok.onclick=()=>dialog.close();
     dialog.addEventListener("close",()=>resolve(),{once:true});
-    dialog.showModal();
+    dialog.showModal(); window.Telegram?.WebApp?.BackButton?.show?.();
   });
 }
 
@@ -105,7 +105,7 @@ export async function confirmDialog(title,message,{confirmLabel="Confirmar",canc
     cancel.onclick=()=>{dialog.returnValue="cancel";dialog.close()};
     confirm.onclick=()=>{dialog.returnValue="confirm";dialog.close()};
     dialog.addEventListener("close",()=>resolve(dialog.returnValue==="confirm"),{once:true});
-    dialog.showModal();
+    dialog.showModal(); window.Telegram?.WebApp?.BackButton?.show?.();
   });
 }
 
@@ -145,7 +145,7 @@ export async function choiceDialog(title,message,options,{defaultValue=null,conf
       if(dialog.returnValue!=="confirm"){resolve(null);return}
       resolve(group.querySelector("input:checked")?.value??null);
     },{once:true});
-    dialog.showModal();
+    dialog.showModal(); window.Telegram?.WebApp?.BackButton?.show?.();
   });
 }
 
@@ -237,6 +237,6 @@ export async function comparisonDialog({
         remember:Boolean(remember?.checked),
       });
     },{once:true});
-    dialog.showModal();
+    dialog.showModal(); window.Telegram?.WebApp?.BackButton?.show?.();
   });
 }

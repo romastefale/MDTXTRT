@@ -14,8 +14,11 @@ class CanonicalFrontendDesignTests(unittest.TestCase):
         self.assertIn('title="Bloco"', index)
         self.assertNotIn("overflow-x:auto", index)
         self.assertNotIn("repeat(13", index)
-        self.assertIn('id="tool-more"', index)
-        self.assertIn("layoutToolbar", APP.read_text())
+        self.assertIn("flex-wrap:wrap", index)
+        self.assertNotIn('id="tool-more"', index)
+        self.assertNotIn("layoutToolbar", APP.read_text())
+        self.assertIn('id="file" class="file-input"', index)
+        self.assertNotIn("HTMLDialogElement.prototype.showModal=", APP.read_text())
 
     def test_view_tabs_expose_accessible_state(self):
         index, script = INDEX.read_text(), APP.read_text()
