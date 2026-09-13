@@ -919,6 +919,8 @@ async function nativeLocationAction(){
     if(data.bot_url){
       if(tg?.openTelegramLink) tg.openTelegramLink(data.bot_url);
       else window.location.href=data.bot_url;
+    }else{
+      showMessage("Localização","O bot ainda não está ligado. Envie a Location no chat do bot ou tente de novo.");
     }
     void pollLocation(data.request.id);
   }catch(error){showMessage("Localização",error.message)}
