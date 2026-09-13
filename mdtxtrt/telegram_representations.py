@@ -26,6 +26,7 @@ class RepresentationPlan:
     exact: bool
     preview: str
     adaptations: list[str] = field(default_factory=list)
+    unsupported: list[str] = field(default_factory=list)
     blocking: list[str] = field(default_factory=list)
     content: str | None = None
     blocks: list[dict[str, Any]] | None = None
@@ -33,7 +34,13 @@ class RepresentationPlan:
 
     @property
     def requires_confirmation(self) -> bool:
-        return bool(self.adaptations)
+        """Whether the user must explicitly accept a lossy/adapted representation."""
+        return bool(self.adaptations or self.unsupported)
+
+    @property
+    def requires_review(self) -> bool:
+        """Every publishable plan is bound to its exact reviewed fingerprint."""
+        return self.available and not self.blocking
 
     @property
     def fingerprint(self) -> str:
@@ -44,6 +51,7 @@ class RepresentationPlan:
             "content": self.content,
             "blocks": self.blocks,
             "adaptations": self.adaptations,
+            "unsupported": self.unsupported,
             "blocking": self.blocking,
             "context": self.fingerprint_context,
         }
@@ -58,10 +66,12 @@ class RepresentationPlan:
             "exact": self.exact,
             "preview": self.preview,
             "adaptations": list(self.adaptations),
+            "unsupported": list(self.unsupported),
             "blocking": list(self.blocking),
             "requires_confirmation": self.requires_confirmation,
+            "requires_review": self.requires_review,
             "fingerprint": self.fingerprint,
-            "destination_context": dict(self.fingerprint_context),
+            "destination_context": dict(self.fingerprint_context.get("destination") or {}),
         }
 
 
@@ -158,6 +168,83 @@ def _block_text(node: CanonicalNode, adaptations: list[str]) -> Any:
     return values[0] if len(values) == 1 else values
 
 
+def _button_text(node: CanonicalNode, adaptations: list[str]) -> Any:
+    if not node.children:
+        return node.text or ""
+    allowed = {"text", "plain", "custom_emoji", "datetime"}
+    for child in node.children:
+        if child.kind not in allowed:
+            raise ValueError(f"blocks_button_text_unsupported:{child.kind}:{child.id}")
+    values = [_rich_text(child, adaptations) for child in node.children]
+    return values[0] if len(values) == 1 else values
+
+
+def _button_payload(node: CanonicalNode, adaptations: list[str]) -> dict[str, Any]:
+    if node.kind != "button":
+        raise ValueError(f"blocks_button_child_unsupported:{node.kind}:{node.id}")
+    kind = str(node.attrs.get("type") or "url")
+    result: dict[str, Any] = {"text": _button_text(node, adaptations)}
+    style = str(node.attrs.get("style") or "").strip()
+    if style:
+        result["style"] = style
+    if kind == "url":
+        result["url"] = str(node.attrs.get("url") or "")
+    elif kind == "callback_data":
+        result["callback_data"] = str(node.attrs.get("data") or "")
+    elif kind == "web_app":
+        result["web_app"] = {"url": str(node.attrs.get("url") or "")}
+    elif kind == "login_url":
+        result["login_url"] = {"url": str(node.attrs.get("url") or "")}
+    elif kind == "switch_inline_query":
+        result["switch_inline_query"] = str(node.attrs.get("query") or "")
+    elif kind == "switch_inline_query_current_chat":
+        result["switch_inline_query_current_chat"] = str(node.attrs.get("query") or "")
+    elif kind == "switch_inline_query_chosen_chat":
+        result["switch_inline_query_chosen_chat"] = {"query": str(node.attrs.get("query") or "")}
+    elif kind == "copy_text":
+        result["copy_text"] = {"text": str(node.attrs.get("copy_text") or "")}
+    elif kind == "disabled":
+        result["disabled"] = {}
+    else:
+        raise ValueError(f"blocks_button_type_unsupported:{kind}:{node.id}")
+    return result
+
+
+def _table_cell_payload(node: CanonicalNode, adaptations: list[str]) -> dict[str, Any]:
+    if node.kind not in {"table_cell", "table_header"}:
+        raise ValueError(f"blocks_table_cell_unsupported:{node.kind}:{node.id}")
+    result: dict[str, Any] = {
+        "align": str(node.attrs.get("align") or "left"),
+        "valign": str(node.attrs.get("valign") or "top"),
+        "text": _block_text(node, adaptations),
+    }
+    if node.kind == "table_header":
+        result["is_header"] = True
+    for key in ("colspan", "rowspan"):
+        value = node.attrs.get(key)
+        if value not in {None, ""}:
+            parsed = int(value)
+            if parsed > 1:
+                result[key] = parsed
+    return result
+
+
+def _input_block_count(block: dict[str, Any]) -> int:
+    # Bot API 10.3 counts nested blocks plus list items and table rows toward
+    # the global 500-block Rich Message limit.
+    count = 1
+    for nested in block.get("blocks", []):
+        count += _input_block_count(nested)
+    if block.get("type") == "list":
+        for item in block.get("items", []):
+            count += 1  # the list item itself
+            for nested in item.get("blocks", []):
+                count += _input_block_count(nested)
+    if block.get("type") == "table":
+        count += len(block.get("cells", []))
+    return count
+
+
 def _blocks_for_node(node: CanonicalNode, adaptations: list[str]) -> list[dict[str, Any]]:
     if node.kind == "paragraph":
         return [{"type": "paragraph", "text": _block_text(node, adaptations)}]
@@ -214,6 +301,32 @@ def _blocks_for_node(node: CanonicalNode, adaptations: list[str]) -> list[dict[s
                 entry["value"] = int(item.attrs.get("value") or index)
             items.append(entry)
         return [{"type": "list", "items": items}]
+    if node.kind == "table":
+        rows: list[list[dict[str, Any]]] = []
+        for row in node.children:
+            if row.kind != "table_row":
+                raise ValueError(f"blocks_table_row_unsupported:{row.kind}:{row.id}")
+            rows.append([_table_cell_payload(cell, adaptations) for cell in row.children])
+        result: dict[str, Any] = {"type": "table", "cells": rows}
+        if node.attrs.get("bordered") is not None:
+            result["is_bordered"] = bool(node.attrs.get("bordered"))
+        if node.attrs.get("striped") is not None:
+            result["is_striped"] = bool(node.attrs.get("striped"))
+        if node.attrs.get("compact") is not None:
+            result["is_compact"] = bool(node.attrs.get("compact"))
+        caption = str(node.attrs.get("caption") or "").strip()
+        if caption:
+            result["caption"] = caption
+        return [result]
+    if node.kind == "button_row":
+        result: dict[str, Any] = {
+            "type": "buttons",
+            "buttons": [_button_payload(button, adaptations) for button in node.children],
+        }
+        align = str(node.attrs.get("align") or "").strip()
+        if align:
+            result["align"] = align
+        return [result]
     if node.kind == "details":
         nested: list[dict[str, Any]] = []
         for child in node.children:
@@ -260,7 +373,15 @@ _BLOCK_KEYS: dict[str, frozenset[str]] = {
     "pullquote": frozenset({"type", "text", "credit"}),
     "list": frozenset({"type", "items"}),
     "details": frozenset({"type", "summary", "blocks", "is_open"}),
+    "table": frozenset({"type", "cells", "is_bordered", "is_striped", "caption", "is_compact"}),
+    "buttons": frozenset({"type", "buttons", "align"}),
 }
+_TABLE_CELL_KEYS = frozenset({"align", "valign", "text", "is_header", "colspan", "rowspan"})
+_BUTTON_KEYS = frozenset({
+    "text", "style", "url", "callback_data", "web_app", "login_url",
+    "switch_inline_query", "switch_inline_query_current_chat",
+    "switch_inline_query_chosen_chat", "copy_text", "disabled",
+})
 _LIST_ITEM_KEYS = frozenset({"blocks", "has_checkbox", "is_checked", "value", "type"})
 
 
@@ -311,6 +432,39 @@ def _validate_input_block(block: dict[str, Any]) -> None:
                 )
             for nested in item.get("blocks", []):
                 _validate_input_block(nested)
+    if kind == "table":
+        cells = block.get("cells", [])
+        if not isinstance(cells, list) or not cells:
+            raise ValueError("blocks_table_cells_required")
+        for row in cells:
+            if not isinstance(row, list) or not row:
+                raise ValueError("blocks_table_row_invalid_shape")
+            for cell in row:
+                if not isinstance(cell, dict):
+                    raise ValueError("blocks_table_cell_invalid_shape")
+                unexpected_cell = set(cell) - set(_TABLE_CELL_KEYS)
+                if unexpected_cell:
+                    raise ValueError(f"blocks_table_cell_unexpected_fields:{','.join(sorted(unexpected_cell))}")
+                if cell.get("align") not in {"left", "center", "right"}:
+                    raise ValueError("blocks_table_cell_align_invalid")
+                if cell.get("valign") not in {"top", "middle", "bottom"}:
+                    raise ValueError("blocks_table_cell_valign_invalid")
+                if "text" in cell:
+                    _validate_rich_text(cell["text"])
+    if kind == "buttons":
+        buttons = block.get("buttons", [])
+        if not isinstance(buttons, list) or not 1 <= len(buttons) <= 8:
+            raise ValueError("blocks_buttons_count_invalid")
+        for button in buttons:
+            if not isinstance(button, dict):
+                raise ValueError("blocks_button_invalid_shape")
+            unexpected_button = set(button) - set(_BUTTON_KEYS)
+            if unexpected_button:
+                raise ValueError(f"blocks_button_unexpected_fields:{','.join(sorted(unexpected_button))}")
+            _validate_rich_text(button.get("text", ""))
+            actions = [key for key in _BUTTON_KEYS - {"text", "style"} if key in button]
+            if len(actions) != 1:
+                raise ValueError("blocks_button_requires_exactly_one_action")
 
 
 def _blocks_plan(document: CanonicalDocument) -> RepresentationPlan:
@@ -321,6 +475,9 @@ def _blocks_plan(document: CanonicalDocument) -> RepresentationPlan:
             blocks.extend(_blocks_for_node(block, adaptations))
         for block in blocks:
             _validate_input_block(block)
+        generated_count = sum(_input_block_count(block) for block in blocks)
+        if generated_count > 500:
+            raise ValueError(f"blocks_limit_exceeded:{generated_count}")
     except (ValueError, TypeError) as exc:
         return RepresentationPlan(
             key="blocks",
@@ -372,11 +529,12 @@ def _html_as_markdown_fallback(html_review: ProjectionReview) -> RepresentationP
     adaptations.extend(item.get("message", "") for item in html_review.adaptations if item.get("message"))
     return RepresentationPlan(
         key="markdown",
-        label="Rich Markdown",
+        label="Rich Markdown + HTML",
         available=html_review.publishable,
         exact=not html_review.unsupported and not html_review.blocking,
         preview=html_review.content,
         adaptations=adaptations,
+        unsupported=[item.get("message", "") for item in html_review.unsupported if item.get("message")],
         blocking=list(html_review.blocking),
         content=html_review.content,
     )
@@ -397,6 +555,7 @@ def plan_telegram_representations(
         exact=not html_result.unsupported and not html_result.adaptations and not html_result.blocking,
         preview=html_result.content,
         adaptations=[item.get("message", "") for item in html_result.adaptations if item.get("message")],
+        unsupported=[item.get("message", "") for item in html_result.unsupported if item.get("message")],
         blocking=list(html_result.blocking),
         content=html_result.content,
     )
@@ -417,7 +576,12 @@ def plan_telegram_representations(
 
     blocks_plan = _blocks_plan(document)
     options = {"markdown": markdown_plan, "html": html_plan, "blocks": blocks_plan}
+    # Destination and whole-message constraints belong to the publication, not
+    # to one representation. Merge the global blocking set into every option
+    # so selecting Blocks cannot bypass preflight performed during HTML projection.
+    global_blocking = list(html_result.blocking)
     for option in options.values():
+        option.blocking = list(dict.fromkeys([*option.blocking, *global_blocking]))
         option.fingerprint_context = dict(fingerprint_context or {})
 
     preferred_key = str(preferred or "").strip().lower()

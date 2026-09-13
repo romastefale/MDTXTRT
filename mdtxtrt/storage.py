@@ -1,12 +1,13 @@
 """SQLite persistence for user-owned drafts, immutable revisions and publications."""
 from __future__ import annotations
 
+from contextlib import contextmanager
 from datetime import datetime, timezone
 import hashlib
 import json
 import sqlite3
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 from uuid import uuid4
 
 from mdtxtrt.domain import CanonicalDocument
@@ -20,12 +21,24 @@ class SQLiteRepository:
     def __init__(self, path: str):
         self.path = str(Path(path))
 
-    def connect(self) -> sqlite3.Connection:
-        db = sqlite3.connect(self.path)
-        db.row_factory = sqlite3.Row
-        db.execute("PRAGMA foreign_keys = ON")
-        db.execute("PRAGMA journal_mode = WAL")
-        return db
+    @contextmanager
+    def connect(self) -> Iterator[sqlite3.Connection]:
+        db = sqlite3.connect(self.path, timeout=30.0)
+        try:
+            db.row_factory = sqlite3.Row
+            db.execute("PRAGMA foreign_keys = ON")
+            db.execute("PRAGMA journal_mode = WAL")
+            db.execute("PRAGMA synchronous = NORMAL")
+            db.execute("PRAGMA busy_timeout = 5000")
+            try:
+                yield db
+            except BaseException:
+                db.rollback()
+                raise
+            else:
+                db.commit()
+        finally:
+            db.close()
 
     def initialize(self) -> None:
         with self.connect() as db:

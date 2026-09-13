@@ -9,7 +9,7 @@ Predecessores: #43, #57 e PR #58
 
 ## Contexto
 
-O PR #58 criou a fundação `mdtxtrt/`, mas declarou explicitamente que a integração completa de Telegram/Telegraph, mídia, Location/Venue e importação pelo bot ainda não estava concluída. Esta rodada continua essa fundação sem voltar ao runtime legado e sem introduzir `install(main)`, monkey patch, wrappers de comportamento ou concatenação de `ui.N.js`.
+O PR #58 criou a fundação `mdtxtrt/`, mas declarou explicitamente que a integração completa de Telegram/Telegraph, mídia, Location/Venue e importação pelo bot ainda não estava concluída. Esta rodada continua essa fundação com composição explícita e módulos próprios.
 
 O usuário também alterou `new` durante o desenvolvimento desta branch. Os commits atuais de `new` foram incorporados à história da branch sem force e sem sobrescrever o conteúdo mais recente de `README.md` e `COMPATIBILITY.md`.
 
@@ -27,7 +27,7 @@ A composição de produção passa por `app.py` e instancia explicitamente:
 - `TelegramRuntime`;
 - o servidor aiohttp criado por `mdtxtrt.server.create_web_app`.
 
-`Procfile` inicia `python app.py`. O caminho novo não importa `main.py`, `runtime_v2.py` ou os módulos de composição legados.
+`Procfile` inicia `python app.py`, que permanece como raiz explícita da composição de produção.
 
 ## Telegram Bot API 10.3
 

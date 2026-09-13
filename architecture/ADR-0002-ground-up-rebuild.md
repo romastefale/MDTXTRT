@@ -14,7 +14,7 @@ O estudo forense também demonstra um problema de classe arquitetural: decisão 
 
 A nova linha parte diretamente do commit `3259f34c5d4c49a191dad0452b87c1ba98c67578` de `new`.
 
-A implementação legada continua no repositório, mas o pacote `mdtxtrt/` não importa `main` e não usa `install(...)`, monkey patch, service locator dinâmico ou wrapper para sobrescrever módulos existentes.
+A composição de produção é explícita a partir de `app.py`, e o pacote `mdtxtrt/` mantém suas próprias fronteiras de runtime, UI e documento canônico.
 
 ### Fonte canônica
 
@@ -38,7 +38,7 @@ Cursor, seleção, scroll e bloco ativo são persistidos em `editor_sessions`, f
 
 ## Limites desta edição
 
-Esta edição estabelece as fronteiras e mecanismos aprovados, mas não declara implementadas as 40 decisões funcionais completas nem projeções integrais Telegram/Telegraph. Formatação inline Rich, revisão de incompatibilidades, mídia/BLOB lifecycle completo, publicação Telegram/Telegraph e integração final do `/import` do bot continuam como trabalho da mesma arquitetura, sem voltar ao legado.
+Esta edição estabelece as fronteiras e mecanismos aprovados, mas não declara implementadas as 40 decisões funcionais completas nem projeções integrais Telegram/Telegraph. Formatação inline Rich, revisão de incompatibilidades, mídia/BLOB lifecycle completo, publicação Telegram/Telegraph e integração final do `/import` do bot continuam como trabalho da mesma arquitetura.
 
 Nenhum teste foi criado ou executado pelo ChatGPT, conforme a regra permanente da #43.
 

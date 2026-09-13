@@ -69,9 +69,9 @@ Limite ainda conhecido: um encerramento abrupto exatamente depois da criação d
 
 Após publicação/edição bem-sucedida, a UI oferece explicitamente continuar editando, arquivar o rascunho ou começar um novo.
 
-## UI modular sem monkey patch
+## UI modular
 
-`static/lifecycle_ui.js` é um controlador explícito da UI atual para ações de ciclo de vida. Ele é carregado declarativamente por `index.html`; não importa nem altera `main.py`, não substitui funções do runtime e não segue a sequência `ui.N.js` usada pela arquitetura legada.
+`static/lifecycle_ui.js` é um controlador explícito da UI atual para ações de ciclo de vida e é carregado declarativamente por `index.html`.
 
 ## PR e concorrência
 

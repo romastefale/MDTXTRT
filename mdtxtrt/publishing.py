@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 from typing import Any
 
 from aiogram import Bot
@@ -13,6 +14,7 @@ from aiogram.types import (
     InputMediaPhoto,
     InputMediaVideo,
     InputMediaVoiceNote,
+    InputFile,
     InputRichMessage,
     InputRichMessageMedia,
 )
@@ -27,11 +29,14 @@ from mdtxtrt.telegram_representations import (
     TelegramRepresentationSet,
     plan_telegram_representations,
 )
+
 from mdtxtrt.telegram_validation import (
     TelegramDestinationContext,
     rich_block_count,
     validate_telegram_document,
 )
+
+log = logging.getLogger("mdtxtrt.publishing")
 
 _LOCAL_MEDIA_KINDS = {"photo", "video", "animation", "audio", "voice_note", "document"}
 _NATIVE_LOCATION_KINDS = {"map", "location", "venue"}
@@ -72,10 +77,16 @@ def _require_review(review: ProjectionReview, confirmed_fingerprint: str | None)
         raise ProjectionConfirmationRequired(review)
 
 
-def _require_representation(plan: RepresentationPlan, confirmed_fingerprint: str | None) -> None:
+def _require_representation(
+    plan: RepresentationPlan,
+    confirmed_fingerprint: str | None,
+    adaptations_confirmed: bool = False,
+) -> None:
     if not plan.available or plan.blocking:
         raise ProjectionRejected(plan)
-    if plan.requires_confirmation and confirmed_fingerprint != plan.fingerprint:
+    if plan.requires_review and confirmed_fingerprint != plan.fingerprint:
+        raise ProjectionConfirmationRequired(plan)
+    if plan.requires_confirmation and not adaptations_confirmed:
         raise ProjectionConfirmationRequired(plan)
 
 
@@ -93,6 +104,17 @@ def _attachment_id(kind: str, media_id: str) -> str:
     return f"{_MEDIA_PREFIX[kind]}_{compact}"[:64]
 
 
+class _UploadableInputMediaVoiceNote(InputMediaVoiceNote):
+    """aiogram 3.31 adapter for multipart voice notes inside InputRichMessageMedia.
+
+    aiogram models this field as ``str`` even though Bot API also accepts
+    ``attach://`` uploads. The standard session serializer handles InputFile
+    recursively, so widening the field locally preserves multipart behavior
+    without mutating aiogram or replacing global library models.
+    """
+    media: str | InputFile
+
+
 def _input_media(kind: str, data: bytes, filename: str):
     upload = BufferedInputFile(data, filename=filename)
     if kind == "photo":
@@ -104,7 +126,7 @@ def _input_media(kind: str, data: bytes, filename: str):
     if kind == "audio":
         return InputMediaAudio(media=upload)
     if kind == "voice_note":
-        return InputMediaVoiceNote(media=upload)
+        return _UploadableInputMediaVoiceNote(media=upload)
     if kind == "document":
         return InputMediaDocument(media=upload)
     raise ValueError("unsupported_local_media_kind")
@@ -154,6 +176,7 @@ async def _send_native_locations(
     chat_id: str | int,
     nodes: list[CanonicalNode],
     destination: TelegramDestinationContext,
+    sent_message_ids: list[int] | None = None,
 ) -> list[int]:
     message_ids: list[int] = []
     for node in nodes:
@@ -177,7 +200,10 @@ async def _send_native_locations(
                 latitude=payload["latitude"],
                 longitude=payload["longitude"],
             )
-        message_ids.append(int(message.message_id))
+        message_id = int(message.message_id)
+        message_ids.append(message_id)
+        if sent_message_ids is not None:
+            sent_message_ids.append(message_id)
     return message_ids
 
 
@@ -242,13 +268,14 @@ class TelegramPublicationService:
         draft_id: str,
         document_override: dict[str, Any] | None = None,
         destination: TelegramDestinationContext | None = None,
-    ) -> tuple[str, CanonicalDocument, ProjectionReview, list[InputRichMessageMedia]]:
+    ) -> tuple[str, CanonicalDocument, ProjectionReview, list[InputRichMessageMedia], dict[str, Any]]:
         revision_id, document = self._source_document(
             user_id=user_id,
             draft_id=draft_id,
             document_override=document_override,
         )
         attachments: dict[tuple[str, str], InputRichMessageMedia] = {}
+        attachment_descriptors: dict[tuple[str, str], dict[str, Any]] = {}
 
         def transform(node: CanonicalNode) -> CanonicalNode:
             attrs = dict(node.attrs)
@@ -265,6 +292,15 @@ class TelegramPublicationService:
                         id=identifier,
                         media=_input_media(node.kind, blob.data, blob.filename),
                     )
+                    attachment_descriptors[key] = {
+                        "kind": node.kind,
+                        "media_blob_id": media_id,
+                        "attachment_id": identifier,
+                        "sha256": blob.sha256,
+                        "filename": blob.filename,
+                        "mime_type": blob.mime_type,
+                        "size": len(blob.data),
+                    }
             return CanonicalNode(
                 id=node.id,
                 kind=node.kind,
@@ -279,14 +315,21 @@ class TelegramPublicationService:
             blocks=tuple(transform(block) for block in document.blocks),
             metadata=document.metadata,
         )
+        native_nodes = _native_location_nodes(transformed)
+        native_operations = [_native_location_payload(node) for node in native_nodes]
         projected_document = _without_native_locations(transformed)
         review = telegram_projection(projected_document)
         _apply_telegram_validation(review, projected_document, destination)
-        for native in _native_location_nodes(transformed):
-            _native_location_payload(native)
         review.metrics["local_media_attachments"] = len(attachments)
-        review.metrics["native_locations"] = len(_native_location_nodes(transformed))
-        return revision_id, projected_document, review, list(attachments.values())
+        review.metrics["native_locations"] = len(native_nodes)
+        execution_context = {
+            "source_revision_id": revision_id,
+            "effective_document_sha256": hashlib.sha256(transformed.to_json().encode("utf-8")).hexdigest(),
+            "destination": destination.public() if destination else {},
+            "attachments": sorted(attachment_descriptors.values(), key=lambda item: item["attachment_id"]),
+            "native_operations": native_operations,
+        }
+        return revision_id, projected_document, review, list(attachments.values()), execution_context
 
     def _preferred_representation(self, user_id: int) -> str | None:
         if self.preferences is None:
@@ -302,7 +345,7 @@ class TelegramPublicationService:
         document_override: dict[str, Any] | None = None,
         destination: TelegramDestinationContext | None = None,
     ) -> tuple[str, TelegramRepresentationSet]:
-        revision_id, document, html_review, _attachments = self._prepare(
+        revision_id, document, html_review, _attachments, execution_context = self._prepare(
             user_id=user_id,
             draft_id=draft_id,
             document_override=document_override,
@@ -312,7 +355,7 @@ class TelegramPublicationService:
             document,
             html_review=html_review,
             preferred=self._preferred_representation(user_id),
-            fingerprint_context=destination.public() if destination else {},
+            fingerprint_context=execution_context,
         )
         return revision_id, plans
 
@@ -323,13 +366,13 @@ class TelegramPublicationService:
         document: CanonicalDocument,
         html_review: ProjectionReview,
         representation: str | None,
-        destination: TelegramDestinationContext | None = None,
+        fingerprint_context: dict[str, Any],
     ) -> RepresentationPlan:
         plans = plan_telegram_representations(
             document,
             html_review=html_review,
             preferred=self._preferred_representation(user_id),
-            fingerprint_context=destination.public() if destination else {},
+            fingerprint_context=fingerprint_context,
         )
         key = str(representation or "auto").strip().lower()
         if key == "auto":
@@ -357,6 +400,7 @@ class TelegramPublicationService:
         destination_chat_id: str | int,
         title: str,
         confirmed_fingerprint: str | None = None,
+        adaptations_confirmed: bool = False,
         representation: str | None = None,
         document_override: dict[str, Any] | None = None,
         destination: TelegramDestinationContext | None = None,
@@ -370,7 +414,7 @@ class TelegramPublicationService:
             document_override=document_override,
         )
         native_nodes = _native_location_nodes(source_document)
-        revision_id, document, html_review, attachments = self._prepare(
+        revision_id, document, html_review, attachments, execution_context = self._prepare(
             user_id=user_id,
             draft_id=draft_id,
             document_override=document_override,
@@ -383,52 +427,62 @@ class TelegramPublicationService:
             document=document,
             html_review=html_review,
             representation=representation,
-            destination=destination,
+            fingerprint_context=execution_context,
         )
-        _require_representation(plan, confirmed_fingerprint)
-        target = _chat_id(destination_chat_id)
+        _require_representation(plan, confirmed_fingerprint, adaptations_confirmed)
+        target = _chat_id(destination.chat_id)
         message_ids: list[int] = []
+        native_message_ids: list[int] = []
         has_rich_content = bool(document.blocks or attachments)
-        if has_rich_content:
-            message = await bot.send_rich_message(
+        try:
+            if has_rich_content:
+                message = await bot.send_rich_message(
+                    chat_id=target,
+                    rich_message=self._message(plan, attachments),
+                    message_thread_id=destination.message_thread_id,
+                    direct_messages_topic_id=destination.direct_messages_topic_id,
+                )
+                message_ids.append(int(message.message_id))
+            native_message_ids = await _send_native_locations(
+                bot,
                 chat_id=target,
-                rich_message=self._message(plan, attachments),
-                message_thread_id=destination.message_thread_id,
-                direct_messages_topic_id=destination.direct_messages_topic_id,
+                nodes=native_nodes,
+                destination=destination,
+                sent_message_ids=message_ids,
             )
-            message_ids.append(int(message.message_id))
-        native_message_ids = await _send_native_locations(
-            bot,
-            chat_id=target,
-            nodes=native_nodes,
-            destination=destination,
-        )
-        message_ids.extend(native_message_ids)
-        if not message_ids:
-            raise ValueError("telegram_publication_empty")
-        primary_message_id = message_ids[0]
-        event = {
-            "representation": plan.key if has_rich_content else "native_location",
-            "fingerprint": plan.fingerprint,
-            "telegram_message_id": primary_message_id,
-            "telegram_message_ids": message_ids,
-            "native_location_message_ids": native_message_ids,
-            "destination_chat_id": str(destination_chat_id),
-            "local_media_attachments": len(attachments),
-            "native_locations": len(native_nodes),
-            "destination_context": destination.public(),
-            **_override_payload(document_override),
-        }
-        return self.repository.create_publication(
-            user_id=user_id,
-            draft_id=draft_id,
-            revision_id=revision_id,
-            kind="telegram",
-            title=(title or "Publicação Telegram").strip()[:256] or "Publicação Telegram",
-            destination_chat_id=str(destination_chat_id),
-            telegram_message_id=primary_message_id,
-            event_payload=event,
-        )
+            if not message_ids:
+                raise ValueError("telegram_publication_empty")
+            primary_message_id = message_ids[0]
+            event = {
+                "representation": plan.key if has_rich_content else "native_location",
+                "fingerprint": plan.fingerprint,
+                "telegram_message_id": primary_message_id,
+                "telegram_message_ids": list(message_ids),
+                "native_location_message_ids": native_message_ids,
+                "destination_chat_id": str(destination.chat_id),
+                "local_media_attachments": len(attachments),
+                "native_locations": len(native_nodes),
+                "destination_context": destination.public(),
+                **_override_payload(document_override),
+            }
+            return self.repository.create_publication(
+                user_id=user_id,
+                draft_id=draft_id,
+                revision_id=revision_id,
+                kind="telegram",
+                title=(title or "Publicação Telegram").strip()[:256] or "Publicação Telegram",
+                destination_chat_id=str(destination.chat_id),
+                telegram_message_id=primary_message_id,
+                event_payload=event,
+            )
+        except Exception:
+            if message_ids:
+                for start in range(0, len(message_ids), 100):
+                    try:
+                        await bot.delete_messages(chat_id=target, message_ids=message_ids[start:start + 100])
+                    except Exception:
+                        log.exception("failed to compensate partial Telegram publication")
+            raise
 
     async def edit(
         self,
@@ -438,6 +492,7 @@ class TelegramPublicationService:
         publication_id: str,
         title: str,
         confirmed_fingerprint: str | None = None,
+        adaptations_confirmed: bool = False,
         representation: str | None = None,
         document_override: dict[str, Any] | None = None,
         destination_context: TelegramDestinationContext | None = None,
@@ -445,17 +500,27 @@ class TelegramPublicationService:
         publication = self.repository.get_publication(publication_id=publication_id, user_id=user_id)
         if publication["kind"] != "telegram":
             raise ValueError("publication_is_not_telegram")
-        previous_event = dict(publication.get("event_payload") or {})
-        if previous_event.get("native_location_message_ids"):
+        if any(
+            (event.get("payload") or {}).get("native_location_message_ids")
+            for event in publication.get("events", [])
+        ):
             raise ValueError("native_location_publication_requires_republish")
         destination = publication.get("destination_chat_id")
         message_id = publication.get("telegram_message_id")
         if not destination or message_id is None:
             raise ValueError("telegram_publication_missing_target")
-        destination_context = destination_context or TelegramDestinationContext(destination)
-        if str(destination_context.chat_id) != str(destination):
+        expected_destination: str | int = destination
+        for event in reversed(publication.get("events", [])):
+            payload = event.get("payload") or {}
+            context = payload.get("destination_context") or {}
+            candidate = context.get("chat_id") or payload.get("destination_chat_id")
+            if candidate not in {None, ""} and str(candidate).lstrip("-").isdigit():
+                expected_destination = candidate
+                break
+        destination_context = destination_context or TelegramDestinationContext(expected_destination)
+        if str(expected_destination).lstrip("-").isdigit() and str(destination_context.chat_id) != str(expected_destination):
             raise ValueError("destination_context_chat_id_mismatch")
-        revision_id, document, html_review, attachments = self._prepare(
+        revision_id, document, html_review, attachments, execution_context = self._prepare(
             user_id=user_id,
             draft_id=publication["draft_id"],
             document_override=document_override,
@@ -472,11 +537,12 @@ class TelegramPublicationService:
             document=document,
             html_review=html_review,
             representation=representation,
-            destination=destination_context,
+            fingerprint_context=execution_context,
         )
-        _require_representation(plan, confirmed_fingerprint)
+        _require_representation(plan, confirmed_fingerprint, adaptations_confirmed)
+        target = _chat_id(destination_context.chat_id)
         await bot.edit_message_text(
-            chat_id=_chat_id(destination),
+            chat_id=target,
             message_id=int(message_id),
             rich_message=self._message(plan, attachments),
         )
@@ -485,11 +551,12 @@ class TelegramPublicationService:
             user_id=user_id,
             revision_id=revision_id,
             title=(title or publication["title"]).strip()[:256] or publication["title"],
+            destination_chat_id=str(destination_context.chat_id),
             event_payload={
                 "representation": plan.key,
                 "fingerprint": plan.fingerprint,
                 "telegram_message_id": int(message_id),
-                "destination_chat_id": str(destination),
+                "destination_chat_id": str(destination_context.chat_id),
                 "local_media_attachments": len(attachments),
                 "native_locations": 0,
                 "destination_context": destination_context.public(),
@@ -506,6 +573,7 @@ class TelegramPublicationService:
         title: str | None = None,
         destination_chat_id: str | int | None = None,
         confirmed_fingerprint: str | None = None,
+        adaptations_confirmed: bool = False,
         representation: str | None = None,
         document_override: dict[str, Any] | None = None,
         destination: TelegramDestinationContext | None = None,
@@ -523,6 +591,7 @@ class TelegramPublicationService:
             destination_chat_id=target,
             title=(title or str(publication["title"])),
             confirmed_fingerprint=confirmed_fingerprint,
+            adaptations_confirmed=adaptations_confirmed,
             representation=representation,
             document_override=document_override,
             destination=destination,
