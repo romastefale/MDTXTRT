@@ -88,6 +88,7 @@ const state={
   saveTimer:null,
   sessionTimer:null,
   pendingInline:new Map(),
+  editorSelection:null,
   editingPublication:null,
   archivedView:false,
   reviewAction:null,
@@ -108,9 +109,66 @@ const domNodeIds=new WeakMap();
 
 function setStatus(value){statusEl.textContent=value}
 function closeMenus(){$$(".toolbar details[open]").forEach(item=>item.removeAttribute("open"))}
+function editorRange(selection=window.getSelection()){
+  if(!selection?.rangeCount) return null;
+  const range=selection.getRangeAt(0);
+  const container=range.commonAncestorContainer.nodeType===Node.ELEMENT_NODE
+    ?range.commonAncestorContainer:range.commonAncestorContainer.parentElement;
+  if(!container||(container!==editor&&!editor.contains(container))) return null;
+  return range;
+}
+
+function rememberEditorSelection(){
+  const range=editorRange();
+  if(!range) return false;
+  state.editorSelection=range.cloneRange();
+  return true;
+}
+
+function restoreEditorSelection(){
+  const range=state.editorSelection;
+  if(!range) return false;
+  const start=range.startContainer.nodeType===Node.ELEMENT_NODE?range.startContainer:range.startContainer.parentElement;
+  const end=range.endContainer.nodeType===Node.ELEMENT_NODE?range.endContainer:range.endContainer.parentElement;
+  if(!start||!end||!start.isConnected||!end.isConnected||!editor.contains(start)||!editor.contains(end)){
+    state.editorSelection=null;
+    return false;
+  }
+  try{
+    const selection=window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range.cloneRange());
+    return true;
+  }catch{
+    state.editorSelection=null;
+    return false;
+  }
+}
+
+function inlineKindsAt(nodeValue){
+  const kinds=new Set();
+  let element=nodeValue?.nodeType===Node.ELEMENT_NODE?nodeValue:nodeValue?.parentElement;
+  while(element&&element!==editor){
+    const kind=inlineKind(element);
+    if(kind) kinds.add(kind);
+    if(element.dataset?.block) break;
+    element=element.parentElement;
+  }
+  return kinds;
+}
+
+function selectedInlineKinds(){
+  const range=editorRange()||state.editorSelection;
+  if(!range) return new Set();
+  const start=inlineKindsAt(range.startContainer);
+  const end=inlineKindsAt(range.endContainer);
+  return new Set([...start].filter(kind=>end.has(kind)));
+}
+
 function updateFormatState(){
+  const selected=selectedInlineKinds();
   $$('[data-format]').forEach(button=>{
-    const active=state.pendingInline.has(button.dataset.format);
+    const active=state.pendingInline.has(button.dataset.format)||selected.has(button.dataset.format);
     button.classList.toggle("active",active);
     button.setAttribute("aria-pressed",active?"true":"false");
   });
@@ -325,6 +383,7 @@ function cardElement(value){
 
 function renderBlock(value){return simpleBlocks.has(value.kind)?blockElement(value):cardElement(value)}
 function renderDocument(documentValue){
+  state.editorSelection=null;
   editor.replaceChildren();
   (documentValue?.blocks||[]).forEach(block=>editor.append(renderBlock(block)));
   if(!editor.children.length) editor.append(blockElement(node("paragraph")));
@@ -524,7 +583,9 @@ async function commitNow(reason="edit"){
 
 function activeBlock(){
   const selection=window.getSelection();
-  const start=selection?.anchorNode?.nodeType===Node.ELEMENT_NODE?selection.anchorNode:selection?.anchorNode?.parentElement;
+  const live=editorRange(selection);
+  const source=live?.startContainer||state.editorSelection?.startContainer||null;
+  const start=source?.nodeType===Node.ELEMENT_NODE?source:source?.parentElement;
   return start?.closest?.("[data-block]")||null;
 }
 
@@ -586,6 +647,8 @@ function restoreSelection(session){
     const selection=window.getSelection();
     selection.removeAllRanges();
     selection.addRange(range);
+    rememberEditorSelection();
+    updateFormatState();
   }catch{block.focus()}
 }
 
@@ -656,6 +719,7 @@ async function openForm(title,fields){
 }
 
 function wrapSelection(kind,attrs={},explicit=null){
+  if(!editorRange()) restoreEditorSelection();
   const selection=window.getSelection();
   if(!selection?.rangeCount) return;
   const range=selection.getRangeAt(0);
@@ -677,9 +741,21 @@ function wrapSelection(kind,attrs={},explicit=null){
   wrapper.dataset.nodeId=uid();
   wrapper.__attrs=clone(attrs);
   if(kind==="url") wrapper.href=attrs.url||"#";
+  const wasCollapsed=range.collapsed;
   if(explicit!==null){range.deleteContents();wrapper.append(document.createTextNode(explicit))}
   else wrapper.append(range.extractContents());
   range.insertNode(wrapper);
+  const next=document.createRange();
+  if(explicit!==null||wasCollapsed){
+    next.setStartAfter(wrapper);
+    next.collapse(true);
+  }else{
+    next.selectNodeContents(wrapper);
+  }
+  selection.removeAllRanges();
+  selection.addRange(next);
+  rememberEditorSelection();
+  updateFormatState();
   scheduleSave();
 }
 
@@ -714,6 +790,7 @@ function insertPendingText(event){
 
 async function inlineForm(kind){
   closeMenus();
+  rememberEditorSelection();
   const selection=window.getSelection();
   const selected=selection?.rangeCount&&!selection.getRangeAt(0).collapsed?selection.getRangeAt(0).toString():"";
   let fields=[];
@@ -1509,9 +1586,15 @@ function installDeleteTool(){
   $("#undo")?.before(button);
 }
 
+document.addEventListener("selectionchange",()=>{
+  if(rememberEditorSelection()) updateFormatState();
+});
 editor.addEventListener("beforeinput",event=>{ensureTypingBlock();insertPendingText(event);});
-editor.addEventListener("focusin",ensureTypingBlock);
-editor.addEventListener("input",scheduleSave);
+editor.addEventListener("focusin",()=>{ensureTypingBlock();rememberEditorSelection();updateFormatState()});
+editor.addEventListener("keyup",()=>{rememberEditorSelection();updateFormatState()});
+editor.addEventListener("mouseup",()=>{rememberEditorSelection();updateFormatState()});
+editor.addEventListener("touchend",()=>{rememberEditorSelection();updateFormatState()});
+editor.addEventListener("input",()=>{rememberEditorSelection();updateFormatState();scheduleSave()});
 editor.addEventListener("paste",event=>void handlePaste(event));
 editor.addEventListener("dragstart",event=>{
   const block=event.target?.closest?.("[data-block]");
@@ -1535,6 +1618,9 @@ editor.addEventListener("drop",event=>{
 });
 editor.addEventListener("dragend",()=>state.draggedBlock=null);
 
+$(".toolbar")?.addEventListener("pointerdown",event=>{
+  if(event.target.closest("button,summary")) rememberEditorSelection();
+});
 $$('[data-format]').forEach(button=>button.onclick=()=>{closeMenus();wrapSelection(button.dataset.format)});
 $$('[data-inline-form]').forEach(button=>button.onclick=()=>void inlineForm(button.dataset.inlineForm));
 $$('[data-block-action]').forEach(button=>button.onclick=()=>{closeMenus();replaceBlockKind(button.dataset.blockAction,button.dataset.level?Number(button.dataset.level):null)});
