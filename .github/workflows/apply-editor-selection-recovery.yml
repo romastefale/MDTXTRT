@@ -1,0 +1,31 @@
+name: Apply editor selection recovery
+
+on:
+  push:
+    branches:
+      - fix/editor-selection-regressions
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply recovery patch
+        run: git apply --check .github/editor-selection-recovery.patch && git apply .github/editor-selection-recovery.patch
+      - name: Validate frontend recovery
+        run: |
+          node --check mdtxtrt/static/app.js
+          python -W error -m unittest tests.test_canonical_frontend_design -v
+      - name: Remove transport files and commit exact change
+        run: |
+          rm .github/editor-selection-recovery.patch .github/workflows/apply-editor-selection-recovery.yml
+          git config user.name "MDTXTRT Editor Recovery"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          git commit -m "fix: restore stable editor selection behavior"
+          git push origin HEAD:fix/editor-selection-regressions
