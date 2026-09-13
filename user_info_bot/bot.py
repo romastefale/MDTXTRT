@@ -1,4 +1,4 @@
-"""Inline user-info. Consulta only."""
+"""Inline user-info. Responde na hora, edita depois."""
 
 from __future__ import annotations
 
@@ -14,15 +14,18 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.filters import CommandStart
 from aiogram.types import (
+    ChosenInlineResult,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
     InlineQuery,
     InlineQueryResultArticle,
-    InlineQueryResultPhoto,
+    InputMediaPhoto,
     InputTextMessageContent,
     Message,
 )
 
 from ages import estimate_created
-from card import BRAND, html_card, perfil_button, rich_markdown
+from card import BRAND, handle_line, html_card, perfil_button
 import mtproto
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -58,14 +61,38 @@ def parse_query(raw: str) -> tuple[str | None, int | None]:
     return None, None
 
 
+def skeleton(raw: str) -> str:
+    username, user_id = parse_query(raw)
+    handle = handle_line({"username": username, "id": user_id})
+    lines = [f"<i>@{html.escape(BRAND)}</i>"]
+    if handle:
+        lines.append(f"<b>{html.escape(handle)}</b>")
+    lines.append("…")
+    return "\n\n".join(lines)
+
+
+def skeleton_markup(raw: str) -> InlineKeyboardMarkup:
+    username, user_id = parse_query(raw)
+    if username:
+        url = f"https://t.me/{username}"
+    elif user_id is not None:
+        url = f"tg://user?id={user_id}"
+    else:
+        url = f"https://t.me/{BRAND}"
+    return InlineKeyboardMarkup(
+        inline_keyboard=[[InlineKeyboardButton(text="Perfil", url=url)]]
+    )
+
+
 async def fetch_public_page(username: str) -> dict:
     out = {"title": "", "bio": "", "photo": ""}
     headers = {"User-Agent": UA}
     urls = [f"https://t.me/{username}", f"https://t.me/s/{username}"]
+    timeout = aiohttp.ClientTimeout(total=4)
     async with aiohttp.ClientSession(headers=headers) as session:
         for url in urls:
             try:
-                async with session.get(url, timeout=aiohttp.ClientTimeout(total=8)) as resp:
+                async with session.get(url, timeout=timeout) as resp:
                     if resp.status != 200:
                         continue
                     text = await resp.text(errors="ignore")
@@ -90,7 +117,7 @@ async def fetch_public_page(username: str) -> dict:
 
 
 async def bot_profile(bot: Bot, username: str | None, user_id: int | None) -> dict:
-    data = {"id": user_id, "username": username, "name": "", "bio": "", "type": ""}
+    data = {"id": user_id, "username": username, "name": "", "bio": ""}
     target = user_id if user_id is not None else (f"@{username}" if username else None)
     if target is None:
         return data
@@ -105,7 +132,6 @@ async def bot_profile(bot: Bot, username: str | None, user_id: int | None) -> di
         " ".join(p for p in [chat.first_name, chat.last_name] if p) or chat.title or ""
     )
     data["bio"] = (chat.bio or chat.description or "").strip()
-    data["type"] = str(chat.type or "")
     return data
 
 
@@ -128,7 +154,7 @@ async def resolve(bot: Bot, raw: str) -> dict | None:
         name = name.split(":", 1)[-1].strip()
     uid = mt.get("id") or api.get("id") or user_id
     uname = pick(mt.get("username"), api.get("username"), username)
-    profile = {
+    return {
         "id": uid,
         "username": uname,
         "name": name,
@@ -136,22 +162,6 @@ async def resolve(bot: Bot, raw: str) -> dict | None:
         "photo": public.get("photo") or "",
         "created": estimate_created(uid if isinstance(uid, int) else None),
     }
-    if not profile["name"] and not profile["username"] and profile["id"] is None:
-        return None
-    return profile
-
-
-def article_content(p: dict):
-    try:
-        from aiogram.types import InputRichMessage
-
-        return InputRichMessage(markdown=rich_markdown(p))
-    except Exception:
-        return InputTextMessageContent(
-            message_text=html_card(p),
-            parse_mode=ParseMode.HTML,
-            disable_web_page_preview=True,
-        )
 
 
 async def on_start(message: Message):
@@ -160,7 +170,7 @@ async def on_start(message: Message):
     )
 
 
-async def on_inline(inline_query: InlineQuery, bot: Bot):
+async def on_inline(inline_query: InlineQuery):
     raw = (inline_query.query or "").strip()
     if not raw:
         await inline_query.answer(
@@ -173,53 +183,66 @@ async def on_inline(inline_query: InlineQuery, bot: Bot):
                     ),
                 )
             ],
-            cache_time=1,
+            cache_time=0,
             is_personal=True,
         )
+        return
+    await inline_query.answer(
+        [
+            InlineQueryResultArticle(
+                id="card",
+                title=raw,
+                description="Enviar",
+                input_message_content=InputTextMessageContent(
+                    message_text=skeleton(raw),
+                    parse_mode=ParseMode.HTML,
+                    disable_web_page_preview=True,
+                ),
+                reply_markup=skeleton_markup(raw),
+            )
+        ],
+        cache_time=0,
+        is_personal=True,
+    )
+
+
+async def on_chosen(chosen: ChosenInlineResult, bot: Bot):
+    mid = chosen.inline_message_id
+    raw = (chosen.query or "").strip()
+    if not mid or not raw:
         return
     profile = await resolve(bot, raw)
     if not profile:
-        await inline_query.answer(
-            [
-                InlineQueryResultArticle(
-                    id="miss",
-                    title="Nao achei",
-                    input_message_content=InputTextMessageContent(
-                        message_text=f"Nao achei: {raw}"
-                    ),
-                )
-            ],
-            cache_time=5,
-            is_personal=True,
+        await bot.edit_message_text(
+            inline_message_id=mid,
+            text=f"<i>@{html.escape(BRAND)}</i>\n\nNao achei: {html.escape(raw)}",
+            parse_mode=ParseMode.HTML,
         )
         return
-    title = profile.get("username") or profile.get("name") or str(profile.get("id"))
+    text = html_card(profile)
     markup = perfil_button(profile)
-    content = article_content(profile)
-    results = []
-    if profile.get("photo"):
-        results.append(
-            InlineQueryResultPhoto(
-                id="card-photo",
-                photo_url=profile["photo"],
-                thumbnail_url=profile["photo"],
-                title=title,
-                caption=html_card(profile),
-                parse_mode=ParseMode.HTML,
+    photo = profile.get("photo") or ""
+    try:
+        if photo:
+            await bot.edit_message_media(
+                inline_message_id=mid,
+                media=InputMediaPhoto(
+                    media=photo,
+                    caption=text,
+                    parse_mode=ParseMode.HTML,
+                ),
                 reply_markup=markup,
             )
-        )
-    results.append(
-        InlineQueryResultArticle(
-            id="card",
-            title=title,
-            description=profile.get("created") or "Perfil",
-            input_message_content=content,
-            reply_markup=markup,
-            thumbnail_url=profile.get("photo") or None,
-        )
+            return
+    except Exception as exc:
+        log.info("edit photo falhou: %s", exc)
+    await bot.edit_message_text(
+        inline_message_id=mid,
+        text=text,
+        parse_mode=ParseMode.HTML,
+        reply_markup=markup,
+        disable_web_page_preview=True,
     )
-    await inline_query.answer(results, cache_time=20, is_personal=True)
 
 
 async def main():
@@ -230,10 +253,13 @@ async def main():
     dp = Dispatcher()
     dp.message.register(on_start, CommandStart())
     dp.inline_query.register(on_inline)
+    dp.chosen_inline_result.register(on_chosen)
     me = await bot.get_me()
     log.info("inline: @%s brand=@%s", me.username, BRAND)
     try:
-        await dp.start_polling(bot, allowed_updates=["message", "inline_query"])
+        await dp.start_polling(
+            bot, allowed_updates=["message", "inline_query", "chosen_inline_result"]
+        )
     finally:
         await mtproto.stop()
 
