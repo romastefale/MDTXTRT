@@ -95,7 +95,10 @@ const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 const domNodeIds=new WeakMap();
 
 function setStatus(value){statusEl.textContent=value}
-function closeMenus(){$$(".toolbar details[open]").forEach(item=>item.removeAttribute("open"))}
+function closeMenus(){
+  $$(".toolbar .tool-group .menu").forEach(menu=>{menu.hidden=true});
+  $$('.toolbar .tool-group .tool[aria-expanded]').forEach(button=>button.setAttribute("aria-expanded","false"));
+}
 function updateFormatState(){
   $$('[data-format]').forEach(button=>{
     const active=state.pendingInline.has(button.dataset.format);
@@ -1585,11 +1588,25 @@ $("#open-library").onclick=event=>{
   $("#"+id).addEventListener("click",()=>{$("#library-menu").hidden=true;syncBackButton()});
 });
 document.addEventListener("click",event=>{
+  if(!event.target.closest(".toolbar .tool-group")) closeMenus();
   const menu=$("#library-menu");
   if(!menu||menu.hidden) return;
   if(event.target.closest("#library-menu,#open-library")) return;
   menu.hidden=true;
   syncBackButton();
+});
+$$(".toolbar .tool-group > .tool").forEach(button=>{
+  button.addEventListener("click",event=>{
+    event.stopPropagation();
+    const menu=button.parentElement.querySelector(":scope > .menu");
+    if(!menu) return;
+    const open=!menu.hidden;
+    closeMenus();
+    if(!open){
+      menu.hidden=false;
+      button.setAttribute("aria-expanded","true");
+    }
+  });
 });
 $("#review-confirm").onclick=()=>void state.reviewAction?.();
 $$('[data-close]').forEach(button=>button.onclick=()=>button.closest("dialog")?.close());

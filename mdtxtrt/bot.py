@@ -80,7 +80,7 @@ class TelegramRuntime:
             await message.answer("MDTXTRT está ativo, mas WEB_APP_URL não foi configurada.")
             return
         body = (
-            '<h1>MDTXTRT</h1><p>Editor Rich para Telegram Bot API 10.3 e Telegraph.</p>'
+            '<h1>MDTXTRT</h1><p>Editor Rich para Telegram e Telegraph. Comandos: /import /tgrich /mdrich /help.</p>'
             '<tg-button-row align="center">'
             f'<tg-button type="web_app" style="success" url="{_attr(self.settings.web_app_url)}">Abrir editor</tg-button>'
             '</tg-button-row>'

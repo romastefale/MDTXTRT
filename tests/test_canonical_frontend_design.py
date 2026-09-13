@@ -18,6 +18,8 @@ class CanonicalFrontendDesignTests(unittest.TestCase):
         self.assertNotIn('id="tool-more"', index)
         self.assertNotIn("layoutToolbar", APP.read_text())
         self.assertIn('id="file" class="file-input"', index)
+        self.assertIn('class="tool-group"', index)
+        self.assertNotIn("<details><summary", index)
         self.assertNotIn("HTMLDialogElement.prototype.showModal=", APP.read_text())
 
     def test_view_tabs_expose_accessible_state(self):
