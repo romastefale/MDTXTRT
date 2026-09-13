@@ -32,6 +32,24 @@ class CanonicalFrontendDesignTests(unittest.TestCase):
         self.assertIn("--tg-content-safe-area-inset-top", index)
         self.assertIn("--tg-content-safe-area-inset-bottom", index)
 
+
+    def test_editor_preserves_selection_across_toolbar_and_dialog_actions(self):
+        script = APP.read_text()
+        self.assertIn("editorSelection:null", script)
+        self.assertIn("function rememberEditorSelection()", script)
+        self.assertIn("function restoreEditorSelection()", script)
+        self.assertIn('document.addEventListener("selectionchange"', script)
+        self.assertIn('$(".toolbar")?.addEventListener("pointerdown"', script)
+        self.assertIn("if(!editorRange()) restoreEditorSelection();", script)
+        self.assertIn("rememberEditorSelection();\n  const selection=window.getSelection();", script)
+
+    def test_format_state_tracks_actual_selection_not_only_future_typing(self):
+        script = APP.read_text()
+        self.assertIn("function selectedInlineKinds()", script)
+        self.assertIn("selected.has(button.dataset.format)", script)
+        self.assertIn('editor.addEventListener("keyup"', script)
+        self.assertIn('editor.addEventListener("touchend"', script)
+
     def test_pr54_visual_language_is_applied_to_canonical_ui(self):
         index = INDEX.read_text()
         self.assertEqual(index.count("<style>"), 1)
