@@ -2,7 +2,6 @@
 
 from datetime import datetime, timezone
 
-# id -> unix ms. Tabela publica do GetIDs.
 AGES = {
     2768409: 1383264000000,
     7679610: 1388448000000,
@@ -53,16 +52,21 @@ _IDS = sorted(AGES)
 
 
 def estimate_created(user_id: int | None) -> str:
-    if user_id is None or user_id <= 0:
+    dt = estimate_datetime(user_id)
+    if not dt:
         return ""
+    return f"{dt.day:02d}/{dt.month:02d}/{dt.year}"
+
+
+def estimate_datetime(user_id: int | None) -> datetime | None:
+    if user_id is None or user_id <= 0:
+        return None
     uid = int(user_id)
     first, last = _IDS[0], _IDS[-1]
-    if uid < first:
-        dt = datetime.fromtimestamp(AGES[first] / 1000, tz=timezone.utc)
-        return f"antes de {dt.month:02d}/{dt.year}"
-    if uid > last:
-        dt = datetime.fromtimestamp(AGES[last] / 1000, tz=timezone.utc)
-        return f"depois de {dt.month:02d}/{dt.year}"
+    if uid <= first:
+        return datetime.fromtimestamp(AGES[first] / 1000, tz=timezone.utc)
+    if uid >= last:
+        return datetime.fromtimestamp(AGES[last] / 1000, tz=timezone.utc)
     lo = first
     for hi in _IDS:
         if uid <= hi:
@@ -70,9 +74,7 @@ def estimate_created(user_id: int | None) -> str:
             if hi == lo:
                 mid = t0
             else:
-                ratio = (uid - lo) / (hi - lo)
-                mid = t0 + ratio * (t1 - t0)
-            dt = datetime.fromtimestamp(mid / 1000, tz=timezone.utc)
-            return f"~{dt.month:02d}/{dt.year}"
+                mid = t0 + ((uid - lo) / (hi - lo)) * (t1 - t0)
+            return datetime.fromtimestamp(mid / 1000, tz=timezone.utc)
         lo = hi
-    return ""
+    return None
