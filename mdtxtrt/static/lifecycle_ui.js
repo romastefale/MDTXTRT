@@ -240,7 +240,7 @@ function editMediaProperties(card){
     }
     dialog.remove();
   },{once:true});
-  dialog.showModal();
+  dialog.showModal(); window.Telegram?.WebApp?.BackButton?.show?.();
 }
 
 async function chooseMediaVersion(card){
@@ -317,7 +317,7 @@ async function chooseMediaVersion(card){
   dialog.append(head,body);
   document.body.append(dialog);
   dialog.addEventListener("close",()=>dialog.remove(),{once:true});
-  dialog.showModal();
+  dialog.showModal(); window.Telegram?.WebApp?.BackButton?.show?.();
 }
 
 function enhanceMediaCards(){

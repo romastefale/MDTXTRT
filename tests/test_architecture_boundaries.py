@@ -74,6 +74,7 @@ class ActiveArchitectureBoundaryTests(unittest.TestCase):
         self.assertIn("tests.test_architecture_boundaries", railway)
         self.assertIn("tests.test_canonical_frontend_design", railway)
         self.assertIn("tests.test_error_boundary", railway)
+        self.assertIn("tests.test_publication_order", railway)
 
     def test_readme_names_the_live_entrypoint_and_ui(self):
         readme = (ROOT / "README.md").read_text()

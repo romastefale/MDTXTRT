@@ -5,6 +5,7 @@ const tg=window.Telegram?.WebApp;
 tg?.ready();
 tg?.expand();
 tg?.disableVerticalSwipes?.();
+tg?.disableClosingConfirmation?.();
 
 function applyTheme(){
   const p=tg?.themeParams||{};
@@ -26,26 +27,14 @@ function setAppHeight(){
   const h=tg?.viewportStableHeight||window.innerHeight;
   document.documentElement.style.setProperty("--app-height",`${h}px`);
 }
-function layoutToolbar(){
-  const bar=$(".toolbar");
-  const fam=$("#toolbar-families");
-  const more=$("#tool-more");
-  const bucket=$("#tool-more-body");
-  if(!bar||!fam||!more||!bucket) return;
-  for(const el of [...bucket.querySelectorAll(":scope > details")]) fam.appendChild(el);
-  more.hidden=true;
-  const fits=()=>bar.scrollWidth<=bar.clientWidth+1;
-  if(fits()) return;
-  more.hidden=false;
-  const items=[...fam.querySelectorAll(":scope > details")];
-  for(let i=items.length-1;i>=0;i-=1){
-    if(fits()) break;
-    bucket.prepend(items[i]);
-  }
-  if(!bucket.children.length) more.hidden=true;
-}
 setAppHeight();
-tg?.onEvent?.("viewportChanged",()=>{setAppHeight();layoutToolbar()});
+tg?.onEvent?.("viewportChanged",()=>setAppHeight());
+
+function openDialog(dialog){
+  if(!dialog) return;
+  if(!dialog.open) HTMLDialogElement.prototype.showModal.call(dialog);
+  bindBackButton(true);
+}
 
 let backClick=null;
 function bindBackButton(open){
@@ -107,7 +96,10 @@ const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 const domNodeIds=new WeakMap();
 
 function setStatus(value){statusEl.textContent=value}
-function closeMenus(){$$(".toolbar details[open]").forEach(item=>item.removeAttribute("open"))}
+function closeMenus(){
+  $$(".toolbar .tool-group .menu").forEach(menu=>{menu.hidden=true});
+  $$('.toolbar .tool-group .tool[aria-expanded]').forEach(button=>button.setAttribute("aria-expanded","false"));
+}
 function updateFormatState(){
   $$('[data-format]').forEach(button=>{
     const active=state.pendingInline.has(button.dataset.format);
@@ -148,7 +140,7 @@ function showMessage(title,body){
   $("#message-title").textContent=title;
   $("#message-body").textContent=body;
   const dialog=$("#message-dialog");
-  if(!dialog.open) dialog.showModal();
+  openDialog(dialog);
 }
 
 function authExpired(){
@@ -398,22 +390,6 @@ function canonicalDocument(){
   return snapshotDocument();
 }
 
-function ensureTypingBlock(){
-  if(!editor.children.length) editor.append(blockElement(node("paragraph")));
-  const selection=window.getSelection();
-  if(!selection) return;
-  const anchor=selection.anchorNode;
-  const inside=anchor&&(anchor===editor?false:Boolean((anchor.nodeType===1?anchor:anchor.parentElement)?.closest?.("[data-block]")));
-  if(inside) return;
-  const block=[...editor.children].find(child=>!child.__node)||editor.lastElementChild;
-  if(!block||block.__node) return;
-  const range=document.createRange();
-  range.selectNodeContents(block);
-  range.collapse(false);
-  selection.removeAllRanges();
-  selection.addRange(range);
-}
-
 function canonicalComparable(value){
   return {
     kind:value?.kind||"",
@@ -496,6 +472,7 @@ function conversionSummary(source,review){
 function scheduleSave(){
   if(!state.draft||state.authExpired) return;
   setStatus("editando");
+  if(tg?.enableClosingConfirmation) tg.enableClosingConfirmation();
   clearTimeout(state.saveTimer);
   state.saveTimer=setTimeout(()=>void commitNow("typing-pause"),2000);
 }
@@ -514,6 +491,7 @@ async function commitNow(reason="edit"){
     state.lastSaved=JSON.stringify(state.draft.document);
     saveMirror();
     setStatus("salvo");
+    tg?.disableClosingConfirmation?.();
     return true;
   }catch(error){
     setStatus("não salvo");
@@ -651,7 +629,7 @@ async function openForm(title,fields){
       resolve(value);
     };
     dialog.addEventListener("close",done);
-    dialog.showModal();
+    openDialog(dialog);
   });
 }
 
@@ -938,7 +916,12 @@ async function nativeLocationAction(){
     const data=await api("/api/location-requests",{method:"POST",body:{draft_id:state.draft.id}});
     state.pendingLocationRequest=data.request.id;
     sessionStorage.setItem("mdtxtrt:location-request",data.request.id);
-    if(data.bot_url&&tg?.openTelegramLink) tg.openTelegramLink(data.bot_url);
+    if(data.bot_url){
+      if(tg?.openTelegramLink) tg.openTelegramLink(data.bot_url);
+      else window.location.href=data.bot_url;
+    }else{
+      showMessage("Localização","O bot ainda não está ligado. Envie a Location no chat do bot ou tente de novo.");
+    }
     void pollLocation(data.request.id);
   }catch(error){showMessage("Localização",error.message)}
 }
@@ -1392,7 +1375,7 @@ async function reviewAndPublish(destination){
         confirmButton.disabled=false;
       }
     };
-    $("#review-dialog").showModal();
+    openDialog($("#review-dialog"));
     return;
   }
 
@@ -1426,7 +1409,7 @@ async function reviewAndPublish(destination){
       confirmButton.disabled=false;
     }
   };
-  $("#review-dialog").showModal();
+  openDialog($("#review-dialog"));
 }
 
 function looksLikeMarkdown(text){
@@ -1477,7 +1460,7 @@ async function bootstrap(){
     const latest=data.drafts[0];
     $("#resume-summary").textContent=`${latest.name} — ${new Date(latest.updated_at).toLocaleString()}`;
     const dialog=$("#resume-dialog");
-    dialog.showModal();
+    openDialog(dialog);
     $$('button[value]',dialog).forEach(button=>button.onclick=()=>dialog.close(button.value));
     dialog.addEventListener("close",async function once(){
       dialog.removeEventListener("close",once);
@@ -1501,8 +1484,7 @@ function installDeleteTool(){
   $("#undo")?.before(button);
 }
 
-editor.addEventListener("beforeinput",event=>{ensureTypingBlock();insertPendingText(event);});
-editor.addEventListener("focusin",ensureTypingBlock);
+editor.addEventListener("beforeinput",insertPendingText);
 editor.addEventListener("input",scheduleSave);
 editor.addEventListener("paste",event=>void handlePaste(event));
 editor.addEventListener("dragstart",event=>{
@@ -1586,26 +1568,15 @@ nameEl.onchange=async()=>{
 };
 
 $("#new-draft").onclick=()=>void createDraft();
-$("#open-drafts").onclick=async()=>{await listDrafts();$("#drafts-dialog").showModal()};
+$("#open-drafts").onclick=async()=>{await listDrafts();openDialog($("#drafts-dialog"))};
 $("#toggle-archived").onclick=async()=>{
   state.archivedView=!state.archivedView;
   $("#toggle-archived").textContent=state.archivedView?"Ver ativos":"Ver arquivados";
   await listDrafts();
 };
-$("#open-publications").onclick=async()=>{await listPublications();$("#publications-dialog").showModal()};
+$("#open-publications").onclick=async()=>{await listPublications();openDialog($("#publications-dialog"))};
 const importChosen=createImportChosen({api,showMessage,loadDraft,openForm,field,conversionSummary});
-$("#import-file").onclick=event=>{
-  event.stopPropagation();
-  const input=$("#file");
-  input.click();
-  const hideMenu=()=>{
-    window.removeEventListener("focus",hideMenu);
-    const menu=$("#library-menu");
-    if(menu) menu.hidden=true;
-    syncBackButton();
-  };
-  window.addEventListener("focus",hideMenu);
-};
+$("#import-file").addEventListener("click",event=>event.stopPropagation());
 $("#file").onchange=async event=>{
   const file=event.target.files?.[0];
   event.target.value="";
@@ -1625,22 +1596,29 @@ $("#open-library").onclick=event=>{
   $("#"+id).addEventListener("click",()=>{$("#library-menu").hidden=true;syncBackButton()});
 });
 document.addEventListener("click",event=>{
+  if(!event.target.closest(".toolbar .tool-group")) closeMenus();
   const menu=$("#library-menu");
   if(!menu||menu.hidden) return;
   if(event.target.closest("#library-menu,#open-library")) return;
   menu.hidden=true;
   syncBackButton();
 });
+$$(".toolbar .tool-group > .tool").forEach(button=>{
+  button.addEventListener("click",event=>{
+    event.stopPropagation();
+    const menu=button.parentElement.querySelector(":scope > .menu");
+    if(!menu) return;
+    const open=!menu.hidden;
+    closeMenus();
+    if(!open){
+      menu.hidden=false;
+      button.setAttribute("aria-expanded","true");
+    }
+  });
+});
 $("#review-confirm").onclick=()=>void state.reviewAction?.();
 $$('[data-close]').forEach(button=>button.onclick=()=>button.closest("dialog")?.close());
 document.querySelectorAll("dialog").forEach(d=>d.addEventListener("close",syncBackButton));
-const nativeShowModal=HTMLDialogElement.prototype.showModal;
-HTMLDialogElement.prototype.showModal=function(...args){
-  const result=nativeShowModal.apply(this,args);
-  bindBackButton(true);
-  return result;
-};
-
 window.addEventListener("mdtxtrt:auth-expired",()=>authExpired());
 document.addEventListener("visibilitychange",()=>{
   if(!document.hidden&&state.pendingLocationRequest&&!state.authExpired) void pollLocation(state.pendingLocationRequest);
@@ -1648,6 +1626,4 @@ document.addEventListener("visibilitychange",()=>{
 window.addEventListener("pagehide",saveMirror);
 state.sessionTimer=setInterval(()=>void saveSession(),5*60*1000);
 installDeleteTool();
-if(window.ResizeObserver) new ResizeObserver(layoutToolbar).observe($(".toolbar"));
-window.addEventListener("resize",layoutToolbar);
 void bootstrap();

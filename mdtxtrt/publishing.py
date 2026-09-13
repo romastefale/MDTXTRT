@@ -53,6 +53,56 @@ _MEDIA_PREFIX = {
 }
 
 
+def _node_plain(node: CanonicalNode) -> str:
+    parts = [node.text or ""]
+    for child in node.children:
+        parts.append(_node_plain(child))
+    return "".join(parts)
+
+
+def _rich_blocks_are_blank(blocks: tuple[CanonicalNode, ...] | list[CanonicalNode]) -> bool:
+    for block in blocks:
+        if block.kind in _NATIVE_LOCATION_KINDS:
+            continue
+        if block.kind in _LOCAL_MEDIA_KINDS:
+            return False
+        if block.kind != "paragraph":
+            return False
+        if _node_plain(block).strip():
+            return False
+    return True
+
+
+def _media_attachment_ids(blocks: list[CanonicalNode]) -> set[str]:
+    found: set[str] = set()
+
+    def walk(node: CanonicalNode) -> None:
+        if node.kind in _LOCAL_MEDIA_KINDS and node.attrs.get("media_blob_id"):
+            found.add(_attachment_id(node.kind, str(node.attrs["media_blob_id"])))
+        for child in node.children:
+            walk(child)
+
+    for block in blocks:
+        walk(block)
+    return found
+
+
+def _publication_runs(document: CanonicalDocument) -> list[tuple[str, list[CanonicalNode]]]:
+    runs: list[tuple[str, list[CanonicalNode]]] = []
+    buffer: list[CanonicalNode] = []
+    for block in document.blocks:
+        if block.kind in _NATIVE_LOCATION_KINDS:
+            if buffer:
+                runs.append(("rich", buffer))
+                buffer = []
+            runs.append(("location", [block]))
+        else:
+            buffer.append(block)
+    if buffer:
+        runs.append(("rich", buffer))
+    return runs
+
+
 class ProjectionConfirmationRequired(ValueError):
     def __init__(self, review: Any):
         super().__init__("projection_confirmation_required")
@@ -388,27 +438,51 @@ class TelegramPublicationService:
         _require_representation(plan, confirmed_fingerprint)
         target = _chat_id(destination_chat_id)
         message_ids: list[int] = []
-        has_rich_content = bool(document.blocks or attachments)
-        if has_rich_content:
+        native_message_ids: list[int] = []
+        projected_by_id = {block.id: block for block in document.blocks}
+        thread = {
+            "message_thread_id": destination.message_thread_id,
+            "direct_messages_topic_id": destination.direct_messages_topic_id,
+        }
+        for kind, nodes in _publication_runs(source_document):
+            if kind == "location":
+                sent = await _send_native_locations(
+                    bot, chat_id=target, nodes=nodes, destination=destination
+                )
+                native_message_ids.extend(sent)
+                message_ids.extend(sent)
+                continue
+            slice_blocks = tuple(projected_by_id[node.id] for node in nodes if node.id in projected_by_id)
+            media_ids = _media_attachment_ids(nodes)
+            slice_media = [item for item in attachments if item.id in media_ids]
+            if _rich_blocks_are_blank(slice_blocks) and not slice_media:
+                continue
+            slice_document = CanonicalDocument(
+                id=document.id,
+                schema_version=document.schema_version,
+                blocks=slice_blocks,
+                metadata=document.metadata,
+            )
+            slice_review = telegram_projection(slice_document)
+            if plan.key == "html":
+                rich_message = InputRichMessage(html=slice_review.content or "", media=slice_media or None)
+            elif plan.key == "markdown":
+                rich_message = InputRichMessage(markdown=slice_review.content or "", media=slice_media or None)
+            elif plan.key == "blocks":
+                rich_message = InputRichMessage(blocks=slice_review.blocks or [], media=slice_media or None)
+            else:
+                raise ValueError("unsupported_telegram_representation")
             message = await bot.send_rich_message(
                 chat_id=target,
-                rich_message=self._message(plan, attachments),
-                message_thread_id=destination.message_thread_id,
-                direct_messages_topic_id=destination.direct_messages_topic_id,
+                rich_message=rich_message,
+                **thread,
             )
             message_ids.append(int(message.message_id))
-        native_message_ids = await _send_native_locations(
-            bot,
-            chat_id=target,
-            nodes=native_nodes,
-            destination=destination,
-        )
-        message_ids.extend(native_message_ids)
         if not message_ids:
             raise ValueError("telegram_publication_empty")
         primary_message_id = message_ids[0]
         event = {
-            "representation": plan.key if has_rich_content else "native_location",
+            "representation": plan.key if len(message_ids) > len(native_message_ids) else "native_location",
             "fingerprint": plan.fingerprint,
             "telegram_message_id": primary_message_id,
             "telegram_message_ids": message_ids,

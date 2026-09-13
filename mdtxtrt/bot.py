@@ -80,7 +80,7 @@ class TelegramRuntime:
             await message.answer("MDTXTRT está ativo, mas WEB_APP_URL não foi configurada.")
             return
         body = (
-            '<h1>MDTXTRT</h1><p>Editor Rich para Telegram Bot API 10.3 e Telegraph.</p>'
+            '<h1>MDTXTRT</h1><p>Editor Rich para Telegram e Telegraph. Comandos: /import /tgrich /mdrich /help.</p>'
             '<tg-button-row align="center">'
             f'<tg-button type="web_app" style="success" url="{_attr(self.settings.web_app_url)}">Abrir editor</tg-button>'
             '</tg-button-row>'
@@ -90,14 +90,12 @@ class TelegramRuntime:
     async def help(self, message: Message) -> None:
         body = (
             "<h1>MDTXTRT</h1>"
-            "<table bordered striped compact>"
-            "<tr><th>Comando</th><th>Função</th></tr>"
-            "<tr><td>/start</td><td>Abrir o editor</td></tr>"
-            "<tr><td>/import</td><td>Importar arquivo .md ou .txt</td></tr>"
-            "<tr><td>/tgrich</td><td>Markdown para rich text no chat</td></tr>"
-            "<tr><td>/mdrich</td><td>Exportar a mensagem respondida em .md</td></tr>"
-            "<tr><td>/help</td><td>Mostrar esta ajuda</td></tr>"
-            "</table>"
+            "<p><code>/start</code> — abrir o editor Mini App.</p>"
+            "<p><code>/import</code> — enviar um .md ou .txt (até 20 MB) para virar rascunho.</p>"
+            "<p><code>/tgrich</code> — converter Markdown em rich text neste chat (texto, anexo ou resposta).</p>"
+            "<p><code>/mdrich</code> — exportar a mensagem respondida como arquivo .md.</p>"
+            "<p><code>/help</code> — esta lista.</p>"
+            "<p>No editor: Location/Venue pelo anexo nativo do Telegram (o bot abre no DM). Publicar no rodapé: Telegram ou Telegraph.</p>"
         )
         await message.answer_rich(InputRichMessage(html=body))
 
@@ -337,15 +335,15 @@ class TelegramRuntime:
                 me = await self.bot.get_me()
                 self.bot_username = me.username
                 await self.bot.delete_webhook(drop_pending_updates=False)
-                await self.bot.set_my_commands(
-                    [
-                        BotCommand(command="start", description="Abrir MDTXTRT"),
-                        BotCommand(command="import", description="Importar .md/.txt"),
-                        BotCommand(command="tgrich", description="Markdown para rich text"),
-                        BotCommand(command="mdrich", description="Exportar mensagem em .md"),
-                        BotCommand(command="help", description="Ajuda"),
-                    ]
-                )
+                commands = [
+                    BotCommand(command="start", description="Abrir MDTXTRT"),
+                    BotCommand(command="import", description="Importar .md/.txt"),
+                    BotCommand(command="tgrich", description="Markdown para rich text"),
+                    BotCommand(command="mdrich", description="Exportar mensagem em .md"),
+                    BotCommand(command="help", description="Ajuda"),
+                ]
+                await self.bot.set_my_commands(commands)
+                await self.bot.set_my_commands(commands, language_code="pt")
                 if self.settings.web_app_url:
                     await self.bot.set_chat_menu_button(
                         menu_button=MenuButtonWebApp(
