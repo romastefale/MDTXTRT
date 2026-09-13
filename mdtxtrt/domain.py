@@ -74,6 +74,15 @@ class CanonicalDocument:
         if self.schema_version != self.CURRENT_SCHEMA_VERSION:
             raise ValueError(f"unsupported canonical schema {self.schema_version}")
         object.__setattr__(self, "blocks", tuple(self.blocks))
+        seen: set[str] = set()
+        def visit(node: CanonicalNode) -> None:
+            if node.id in seen:
+                raise ValueError(f"duplicate_canonical_node_id:{node.id}")
+            seen.add(node.id)
+            for child in node.children:
+                visit(child)
+        for block in self.blocks:
+            visit(block)
         object.__setattr__(self, "metadata", _json_copy(self.metadata))
 
     @classmethod

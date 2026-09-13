@@ -1,6 +1,6 @@
-"""Telegram bot boundary for the rebuilt runtime.
+"""Telegram bot boundary for the MDTXTRT runtime.
 
-The dispatcher owns handlers directly. It does not import or mutate legacy modules.
+The dispatcher owns handlers directly.
 """
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from aiogram import Bot, Dispatcher, F, Router
 from aiogram.filters import Command
-from aiogram.types import BotCommand, InputRichMessage, MenuButtonWebApp, Message, WebAppInfo
+from aiogram.types import BotCommand, CallbackQuery, InputRichMessage, MenuButtonWebApp, Message, WebAppInfo
 
 from mdtxtrt.assets import AssetService
 from mdtxtrt.config import Settings
@@ -72,6 +72,17 @@ class TelegramRuntime:
         self.router.message.register(self.mdrich, Command("mdrich"))
         self.router.message.register(self.native_location, F.location | F.venue)
         self.router.message.register(self.document, F.document)
+        self.router.callback_query.register(self.callback_query)
+
+    async def callback_query(self, query: CallbackQuery) -> None:
+        """Acknowledge callback buttons produced by the editor.
+
+        The canonical document stores callback_data as opaque application data;
+        MDTXTRT does not invent business actions for it. Acknowledging the query
+        guarantees that every callback button offered by the editor completes
+        the Telegram callback cycle instead of leaving the client waiting.
+        """
+        await query.answer("Ação recebida pelo MDTXTRT.")
 
     async def start(self, message: Message) -> None:
         if not message.from_user:

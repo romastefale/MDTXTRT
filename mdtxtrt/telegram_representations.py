@@ -33,7 +33,10 @@ class RepresentationPlan:
 
     @property
     def requires_confirmation(self) -> bool:
-        return bool(self.adaptations)
+        # Confirmation binds publication to the exact reviewed plan, not only
+        # to plans that contain adaptations. Unavailable/blocked plans cannot
+        # be published and therefore do not need a confirmation token.
+        return self.available and not self.blocking
 
     @property
     def fingerprint(self) -> str:

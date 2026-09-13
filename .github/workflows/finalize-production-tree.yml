@@ -1,0 +1,34 @@
+name: Finalize production tree
+
+on:
+  push:
+    branches:
+      - final/mdtxtrt-production
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    if: ${{ !contains(github.event.head_commit.message, '[final-tree-applied]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply exact final patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          base64 -d .final_three.patch.gz.b64 | gzip -d > /tmp/final.patch
+          git apply --check /tmp/final.patch
+          git apply /tmp/final.patch
+          test "$(git hash-object mdtxtrt/projections.py)" = "8f271a62b2793004c5a6c5c33e261a6f9485830e"
+          test "$(git hash-object mdtxtrt/telegram_representations.py)" = "7f6a6cc709d9769e53e8991a61a57d87c825c39c"
+          test "$(git hash-object mdtxtrt/static/app.js)" = "6d11c29cb8d2203b15f15bc26dfba499fdef1e4f"
+          rm -f .final_three.patch.gz.b64 .github/workflows/finalize-production-tree.yml
+          git config user.name "MDTXTRT Finalizer"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          git commit -m "release: apply exact final tree [final-tree-applied]"
+          git push origin HEAD:final/mdtxtrt-production

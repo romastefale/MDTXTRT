@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock
 from aiogram.types import InputMediaPhoto, InputRichMessageMedia
 
 from mdtxtrt.domain import CanonicalDocument, CanonicalNode
-from mdtxtrt.publishing import TelegramPublicationService
+from mdtxtrt.publishing import TelegramPublicationService, _input_media
 from mdtxtrt.telegram_representations import RepresentationPlan
 from mdtxtrt.telegram_validation import TelegramDestinationContext, validate_telegram_document
 
@@ -30,16 +30,18 @@ class BotApiReviewTests(unittest.IsolatedAsyncioTestCase):
 
     def test_structural_limits_are_rejected_before_send(self):
         invalid_map = CanonicalNode.create("map", attrs={"lat": 91, "long": 0, "zoom": 13})
-        uneven_table = CanonicalNode.create(
+        wide_table = CanonicalNode.create(
             "table",
             children=(
-                CanonicalNode.create("table_row", children=(CanonicalNode.create("table_cell"),)),
-                CanonicalNode.create("table_row", children=()),
+                CanonicalNode.create(
+                    "table_row",
+                    children=(CanonicalNode.create("table_cell", attrs={"colspan": 21}),),
+                ),
             ),
         )
-        errors = validate_telegram_document(document(invalid_map, uneven_table))
+        errors = validate_telegram_document(document(invalid_map, wide_table))
         self.assertTrue(any("coordenadas" in error for error in errors))
-        self.assertTrue(any("mesma quantidade" in error for error in errors))
+        self.assertTrue(any("20 colunas" in error for error in errors))
 
     def test_blocks_message_keeps_uploaded_media(self):
         plan = RepresentationPlan(
@@ -50,6 +52,13 @@ class BotApiReviewTests(unittest.IsolatedAsyncioTestCase):
         message = TelegramPublicationService._message(plan, [attachment])
         self.assertEqual(message.blocks[0].type, "paragraph")
         self.assertEqual(message.media, [attachment])
+
+    def test_voice_note_local_upload_remains_multipart_capable(self):
+        media = _input_media("voice_note", b"voice", "voice.ogg")
+        self.assertEqual(media.type, "voice_note")
+        self.assertEqual(media.media.__class__.__name__, "BufferedInputFile")
+        wrapper = InputRichMessageMedia(id="n_1", media=media)
+        self.assertIs(wrapper.media, media)
 
     async def test_startup_returns_while_telegram_connects_in_background(self):
         from mdtxtrt.bot import TelegramRuntime

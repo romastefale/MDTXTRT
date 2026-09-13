@@ -11,7 +11,7 @@ from aiohttp import web
 from aiogram.exceptions import TelegramAPIError
 from telegraph.exceptions import TelegraphException
 
-from mdtxtrt.assets import AssetService, BlobIntegrityError
+from mdtxtrt.assets import AssetService, BlobIntegrityError, MAX_STORED_MEDIA_BYTES
 from mdtxtrt.auth import AuthError, validate_init_data
 from mdtxtrt.bot import TelegramRuntime
 from mdtxtrt.config import Settings
@@ -33,6 +33,21 @@ from mdtxtrt.telegraph_publishing import TelegraphPublicationService
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 log = logging.getLogger("mdtxtrt.server")
+MAX_PHOTO_BYTES = 10 * 1024 * 1024
+MAX_MEDIA_BYTES = MAX_STORED_MEDIA_BYTES
+MAX_HTTP_BODY_BYTES = MAX_MEDIA_BYTES + 2 * 1024 * 1024
+
+
+async def _read_part_limited(part, limit: int) -> bytes:
+    chunks = bytearray()
+    while not part.at_eof():
+        chunk = await part.read_chunk()
+        if not chunk:
+            break
+        chunks.extend(chunk)
+        if len(chunks) > limit:
+            raise ValueError("media_file_too_large")
+    return bytes(chunks)
 
 
 def _identity(request: web.Request):
@@ -103,6 +118,8 @@ async def error_boundary(request: web.Request, handler):
         return _error("sqlite_error", status=500, detail="Falha ao gravar no banco de dados.")
     except (ValueError, TypeError) as exc:
         code = str(exc)
+        if code in {"media_file_too_large", "import_file_too_large"}:
+            return _error(code, status=413)
         text = telegram_validation_text(code)
         if text:
             return _error(code, status=400, detail=text)
@@ -254,6 +271,7 @@ async def upload_media(request: web.Request) -> web.Response:
     identity = _identity(request)
     reader = await request.multipart()
     draft_id: str | None = None
+    media_kind: str | None = None
     filename = "arquivo"
     mime_type: str | None = None
     data: bytes | None = None
@@ -263,14 +281,25 @@ async def upload_media(request: web.Request) -> web.Response:
             break
         if part.name == "draft_id":
             draft_id = (await part.text()).strip()
+        elif part.name == "kind":
+            media_kind = (await part.text()).strip() or None
         elif part.name == "file":
             filename = part.filename or "arquivo"
             mime_type = part.headers.get("Content-Type")
-            data = await part.read(decode=False)
+            limit = MAX_PHOTO_BYTES if media_kind == "photo" else MAX_MEDIA_BYTES
+            data = await _read_part_limited(part, limit)
     if not draft_id:
         raise ValueError("missing_draft_id")
+    if media_kind not in {"photo", "video", "animation", "audio", "voice_note", "document"}:
+        raise ValueError("unsupported_local_media_kind")
     if data is None:
         raise ValueError("missing_file")
+    # Multipart fields are not ordered by contract. A client can send the file
+    # before ``kind``, so enforce the kind-specific limit again after parsing.
+    if media_kind == "photo" and len(data) > MAX_PHOTO_BYTES:
+        raise ValueError("media_file_too_large")
+    if len(data) > MAX_MEDIA_BYTES:
+        raise ValueError("media_file_too_large")
     assets: AssetService = request.app["assets"]
     media = assets.store_media(
         user_id=identity.user_id,
@@ -341,21 +370,54 @@ async def list_publications(request: web.Request) -> web.Response:
     return web.json_response({"ok": True, "publications": repository.list_publications(user_id=identity.user_id)})
 
 
+def _stored_telegram_destination(publication: dict[str, Any], fallback: str | int) -> str | int:
+    """Prefer a previously resolved numeric chat id over a mutable username alias."""
+    for event in reversed(publication.get("events") or []):
+        payload = event.get("payload") or {}
+        context = payload.get("destination_context") or {}
+        for candidate in (context.get("chat_id"), payload.get("destination_chat_id")):
+            if candidate not in {None, ""} and str(candidate).lstrip("-").isdigit():
+                return int(candidate)
+    stored = publication.get("destination_chat_id")
+    return stored if stored not in {None, ""} else fallback
+
+
 async def _destination_context(
     request: web.Request, payload: dict[str, Any], default_chat_id: str | int
 ) -> TelegramDestinationContext:
-    """Resolve destination facts once, before representation selection and send."""
-    chat_id = payload.get("destination_chat_id", default_chat_id)
-    supplied = dict(payload.get("destination_context") or {})
-    supplied["chat_id"] = chat_id
-    if str(chat_id) == str(default_chat_id) and str(default_chat_id).lstrip("-").isdigit() and int(default_chat_id) > 0:
-        supplied["chat_type"] = "private"
+    """Resolve authoritative destination facts before planning or sending."""
+    requested_chat_id = payload.get("destination_chat_id", default_chat_id)
+    requested_thread = payload.get("message_thread_id")
+    requested_dm_topic = payload.get("direct_messages_topic_id")
+    runtime: TelegramRuntime = request.app["telegram_runtime"]
+
+    own_private = (
+        str(requested_chat_id) == str(default_chat_id)
+        and str(default_chat_id).lstrip("-").isdigit()
+        and int(default_chat_id) > 0
+        and requested_thread in {None, ""}
+    )
+    if own_private:
+        facts = {
+            "chat_id": int(default_chat_id),
+            "chat_type": "private",
+            "message_thread_id": None,
+            "direct_messages_topic_id": requested_dm_topic,
+            "can_send_messages": None,
+            "is_forum": None,
+        }
     else:
-        runtime: TelegramRuntime = request.app["telegram_runtime"]
-        chat = await runtime.bot.get_chat(chat_id)
+        chat = await runtime.bot.get_chat(requested_chat_id)
         chat_type = getattr(chat, "type", "unknown")
-        supplied["chat_type"] = getattr(chat_type, "value", str(chat_type))
-    return TelegramDestinationContext.from_dict(supplied, default_chat_id=chat_id)
+        facts = {
+            "chat_id": getattr(chat, "id", requested_chat_id),
+            "chat_type": getattr(chat_type, "value", str(chat_type)),
+            "message_thread_id": requested_thread,
+            "direct_messages_topic_id": requested_dm_topic,
+            "can_send_messages": None,
+            "is_forum": getattr(chat, "is_forum", None),
+        }
+    return TelegramDestinationContext.from_dict(facts, default_chat_id=requested_chat_id)
 
 
 async def telegram_preview(request: web.Request) -> web.Response:
@@ -384,9 +446,10 @@ async def telegram_publish(request: web.Request) -> web.Response:
         bot=runtime.bot,
         user_id=identity.user_id,
         draft_id=str(payload["draft_id"]),
-        destination_chat_id=payload.get("destination_chat_id", identity.user_id),
+        destination_chat_id=destination.chat_id,
         title=str(payload.get("title") or "Publicação Telegram"),
         confirmed_fingerprint=payload.get("confirmed_fingerprint"),
+        adaptations_confirmed=payload.get("adaptations_confirmed") is True,
         representation=payload.get("representation"),
         document_override=payload.get("document_override"),
         destination=destination,
@@ -402,15 +465,19 @@ async def telegram_edit(request: web.Request) -> web.Response:
     publication_record = request.app["repository"].get_publication(
         publication_id=request.match_info["publication_id"], user_id=identity.user_id
     )
-    destination = await _destination_context(
-        request, payload, publication_record.get("destination_chat_id") or identity.user_id
-    )
+    saved_destination = _stored_telegram_destination(publication_record, identity.user_id)
+    # Editing is destination-immutable. Ignore any client destination override;
+    # moving a publication belongs to the explicit republish operation.
+    edit_payload = dict(payload)
+    edit_payload["destination_chat_id"] = saved_destination
+    destination = await _destination_context(request, edit_payload, saved_destination)
     publication = await service.edit(
         bot=runtime.bot,
         user_id=identity.user_id,
         publication_id=request.match_info["publication_id"],
         title=str(payload.get("title") or ""),
         confirmed_fingerprint=payload.get("confirmed_fingerprint"),
+        adaptations_confirmed=payload.get("adaptations_confirmed") is True,
         representation=payload.get("representation"),
         document_override=payload.get("document_override"),
         destination_context=destination,
@@ -426,16 +493,18 @@ async def telegram_republish(request: web.Request) -> web.Response:
     previous = request.app["repository"].get_publication(
         publication_id=request.match_info["publication_id"], user_id=identity.user_id
     )
+    default_destination = _stored_telegram_destination(previous, identity.user_id)
     destination = await _destination_context(
-        request, payload, payload.get("destination_chat_id") or previous.get("destination_chat_id") or identity.user_id
+        request, payload, payload.get("destination_chat_id") or default_destination
     )
     publication = await service.republish(
         bot=runtime.bot,
         user_id=identity.user_id,
         publication_id=request.match_info["publication_id"],
         title=(str(payload.get("title") or "").strip() or None),
-        destination_chat_id=payload.get("destination_chat_id"),
+        destination_chat_id=destination.chat_id,
         confirmed_fingerprint=payload.get("confirmed_fingerprint"),
+        adaptations_confirmed=payload.get("adaptations_confirmed") is True,
         representation=payload.get("representation"),
         document_override=payload.get("document_override"),
         destination=destination,
@@ -497,7 +566,7 @@ def create_web_app(
     telegraph_publications: TelegraphPublicationService | None,
     telegram_runtime: TelegramRuntime,
 ) -> web.Application:
-    app = web.Application(middlewares=[error_boundary], client_max_size=0)
+    app = web.Application(middlewares=[error_boundary], client_max_size=MAX_HTTP_BODY_BYTES)
     app["settings"] = settings
     app["documents"] = documents
     app["imports"] = imports

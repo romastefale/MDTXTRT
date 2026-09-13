@@ -14,6 +14,8 @@ from uuid import uuid4
 
 from mdtxtrt.storage import SQLiteRepository
 
+MAX_STORED_MEDIA_BYTES = 50 * 1024 * 1024
+
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -113,6 +115,8 @@ class AssetService:
         replaces_media_id: str | None = None,
     ) -> dict[str, Any]:
         self.repository.get_draft(draft_id, user_id=user_id)
+        if len(data) > MAX_STORED_MEDIA_BYTES:
+            raise ValueError("media_file_too_large")
         if replaces_media_id:
             previous = self.get_media(user_id=user_id, media_id=replaces_media_id)
             if previous.draft_id != draft_id:
@@ -286,6 +290,7 @@ class AssetService:
         address: str | None = None,
     ) -> dict[str, Any] | None:
         with self.repository.connect() as db:
+            db.execute("BEGIN IMMEDIATE")
             row = db.execute(
                 """SELECT * FROM location_requests
                    WHERE user_id=? AND status='pending'
@@ -295,12 +300,18 @@ class AssetService:
             if row is None:
                 return None
             fulfilled = _now()
-            db.execute(
+            cursor = db.execute(
                 """UPDATE location_requests SET status='fulfilled',latitude=?,longitude=?,name=?,address=?,fulfilled_at=?
                    WHERE id=? AND user_id=? AND status='pending'""",
                 (float(latitude), float(longitude), name, address, fulfilled, row["id"], user_id),
             )
-        return self.get_location_request(user_id=user_id, request_id=str(row["id"]))
+            if cursor.rowcount != 1:
+                return None
+            claimed = db.execute(
+                "SELECT * FROM location_requests WHERE id=? AND user_id=?",
+                (row["id"], user_id),
+            ).fetchone()
+            return dict(claimed) if claimed is not None else None
 
     def get_location_request(self, *, user_id: int, request_id: str) -> dict[str, Any]:
         with self.repository.connect() as db:

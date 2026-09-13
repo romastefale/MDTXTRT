@@ -10,7 +10,7 @@ Predecessora direta: `architecture/ADR-0004-progress-90-round.md`
 
 ## Objetivo desta etapa
 
-Transformar as integrações v5/v6 já construídas em um fluxo utilizável de ponta a ponta, sem reintroduzir `install(main)`, monkey patch, concatenação `ui.N.js`, detector paralelo de formato ou dependência do runtime legado.
+Transformar as integrações v5/v6 já construídas em um fluxo utilizável de ponta a ponta, mantendo composição explícita, uma única superfície de frontend e um único detector de formato.
 
 Esta versão foi criada a partir do head `d8cfb4818b9997df8d2e20a628999ae61e4b2ec8` da continuação v5. A branch anterior permanece preservada.
 
@@ -83,7 +83,7 @@ Por ordem do usuário, não foram criados nem executados testes Python, não hou
 
 `static/app.js` é a implementação principal v6, em vez de uma camada que sobrescreva listeners/funções do editor anterior. Ele consome diretamente as APIs de conversão, importação, preferências e publicação desta versão.
 
-`static/lifecycle_ui.js` permanece um controlador explícito para ações especializadas de ciclo de vida: duplicação, original de import, propriedades e versionamento/substituição de mídia e ação de reabertura após expiração. Não importa nem altera `main.py` e não substitui funções do runtime.
+`static/lifecycle_ui.js` permanece um controlador explícito para ações especializadas de ciclo de vida: duplicação, original de import, propriedades e versionamento/substituição de mídia e ação de reabertura após expiração.
 
 ## Limites deliberadamente deixados para etapas futuras
 
