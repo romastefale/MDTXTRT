@@ -1,4 +1,4 @@
-"""Inline user-info: @bot @user ou @bot id. Perfil + foto pública."""
+"""Inline user-info: @bot @user ou @bot id. Perfil + foto publica."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ import re
 import sys
 
 import aiohttp
-from aiogram import Bot, Dispatcher, F
+from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.filters import CommandStart
@@ -29,14 +29,28 @@ log = logging.getLogger("user_info")
 
 TOKEN = (os.environ.get("USER_INFO_BOT_TOKEN") or os.environ.get("TELEGRAM_TOKEN") or "").strip()
 UA = "Mozilla/5.0 (compatible; UserInfoBot/1.0)"
-USERNAME_RE = re.compile(r"^(?:https?://)?(?:t\.me/|telegram\.me/)?@?([A-Za-z][A-Za-z0-9_]{3,31})$")
+USERNAME_RE = re.compile(
+    r"^(?:https?://)?(?:t\.me/|telegram\.me/)?@?([A-Za-z][A-Za-z0-9_]{3,31})$"
+)
 ID_RE = re.compile(r"^-?\d{5,20}$")
-OG_TITLE = re.compile(r'property=["']og:title["']\s+content=["']([^"']+)["']', re.I)
-OG_DESC = re.compile(r'property=["']og:description["']\s+content=["']([^"']+)["']', re.I)
-OG_IMAGE = re.compile(r'property=["']og:image["']\s+content=["']([^"']+)["']', re.I)
-OG_TITLE_REV = re.compile(r'content=["']([^"']+)["']\s+property=["']og:title["']', re.I)
-OG_DESC_REV = re.compile(r'content=["']([^"']+)["']\s+property=["']og:description["']', re.I)
-OG_IMAGE_REV = re.compile(r'content=["']([^"']+)["']\s+property=["']og:image["']', re.I)
+OG_TITLE = re.compile(
+    r"property=[\"']og:title[\"']\s+content=[\"']([^\"']+)[\"']", re.I
+)
+OG_DESC = re.compile(
+    r"property=[\"']og:description[\"']\s+content=[\"']([^\"']+)[\"']", re.I
+)
+OG_IMAGE = re.compile(
+    r"property=[\"']og:image[\"']\s+content=[\"']([^\"']+)[\"']", re.I
+)
+OG_TITLE_REV = re.compile(
+    r"content=[\"']([^\"']+)[\"']\s+property=[\"']og:title[\"']", re.I
+)
+OG_DESC_REV = re.compile(
+    r"content=[\"']([^\"']+)[\"']\s+property=[\"']og:description[\"']", re.I
+)
+OG_IMAGE_REV = re.compile(
+    r"content=[\"']([^\"']+)[\"']\s+property=[\"']og:image[\"']", re.I
+)
 
 
 def parse_query(raw: str) -> tuple[str | None, int | None]:
@@ -64,9 +78,9 @@ async def fetch_public_page(username: str) -> dict:
                     text = await resp.text(errors="ignore")
             except Exception:
                 continue
-            title = (OG_TITLE.search(text) or OG_TITLE_REV.search(text))
-            desc = (OG_DESC.search(text) or OG_DESC_REV.search(text))
-            image = (OG_IMAGE.search(text) or OG_IMAGE_REV.search(text))
+            title = OG_TITLE.search(text) or OG_TITLE_REV.search(text)
+            desc = OG_DESC.search(text) or OG_DESC_REV.search(text)
+            image = OG_IMAGE.search(text) or OG_IMAGE_REV.search(text)
             if title:
                 out["title"] = html.unescape(title.group(1)).strip()
             if desc:
@@ -101,7 +115,9 @@ async def api_profile(bot: Bot, username: str | None, user_id: int | None) -> di
     if chat:
         data["id"] = chat.id
         data["username"] = chat.username or username
-        data["name"] = " ".join(p for p in [chat.first_name, chat.last_name] if p) or chat.title or ""
+        data["name"] = (
+            " ".join(p for p in [chat.first_name, chat.last_name] if p) or chat.title or ""
+        )
         data["bio"] = (chat.bio or chat.description or "").strip()
         data["type"] = chat.type
         file_id = None
@@ -111,8 +127,7 @@ async def api_profile(bot: Bot, username: str | None, user_id: int | None) -> di
             try:
                 photos = await bot.get_user_profile_photos(data["id"], limit=1)
                 if photos.total_count and photos.photos:
-                    sizes = photos.photos[0]
-                    file_id = sizes[-1].file_id
+                    file_id = photos.photos[0][-1].file_id
             except Exception as exc:
                 log.info("getUserProfilePhotos falhou: %s", exc)
         if file_id:
@@ -153,7 +168,7 @@ def profile_html(p: dict) -> str:
         lines.append(html.escape(p["bio"][:400]))
     if not p.get("photo") and not p.get("file_id"):
         lines.append("")
-        lines.append("<i>Foto pública indisponível.</i>")
+        lines.append("<i>Foto publica indisponivel.</i>")
     return "\n".join(lines)
 
 
@@ -161,7 +176,9 @@ def keyboard(p: dict) -> InlineKeyboardMarkup | None:
     uname = p.get("username") or ""
     if uname:
         return InlineKeyboardMarkup(
-            inline_keyboard=[[InlineKeyboardButton(text="Abrir perfil", url=f"https://t.me/{uname}")]]
+            inline_keyboard=[
+                [InlineKeyboardButton(text="Abrir perfil", url=f"https://t.me/{uname}")]
+            ]
         )
     return None
 
@@ -170,7 +187,11 @@ async def resolve(bot: Bot, raw: str) -> dict | None:
     username, user_id = parse_query(raw)
     if username is None and user_id is None:
         return None
-    public = await fetch_public_page(username) if username else {"title": "", "bio": "", "photo": ""}
+    public = (
+        await fetch_public_page(username)
+        if username
+        else {"title": "", "bio": "", "photo": ""}
+    )
     api = await api_profile(bot, username, user_id)
     profile = merge(api, public)
     if not profile["name"] and username:
@@ -183,11 +204,10 @@ async def resolve(bot: Bot, raw: str) -> dict | None:
 async def on_start(message: Message):
     await message.answer(
         "Inline.\n\n"
-        "Em qualquer chat:
-"
-        "• <code>@este_bot @username</code>\n"
-        "• <code>@este_bot 123456789</code>\n\n"
-        "Envia o perfil. Se a foto for pública, envia a foto também.",
+        "Em qualquer chat:\n"
+        "\u2022 <code>@este_bot @username</code>\n"
+        "\u2022 <code>@este_bot 123456789</code>\n\n"
+        "Envia o perfil. Se a foto for publica, envia a foto tambem.",
         parse_mode=ParseMode.HTML,
     )
 
@@ -217,10 +237,10 @@ async def on_inline(inline_query: InlineQuery, bot: Bot):
             [
                 InlineQueryResultArticle(
                     id="miss",
-                    title="Não achei",
-                    description="Username/id inválido ou perfil fechado.",
+                    title="Nao achei",
+                    description="Username/id invalido ou perfil fechado.",
                     input_message_content=InputTextMessageContent(
-                        message_text=f"Não achei perfil público para: {raw}"
+                        message_text=f"Nao achei perfil publico para: {raw}"
                     ),
                 )
             ],
@@ -231,25 +251,25 @@ async def on_inline(inline_query: InlineQuery, bot: Bot):
 
     title = profile["name"] or profile.get("username") or str(profile.get("id"))
     text = profile_html(profile)
-    results = []
-    article = InlineQueryResultArticle(
-        id="profile",
-        title=title,
-        description=" ".join(
-            x for x in [
-                f"@{profile['username']}" if profile.get("username") else "",
-                f"ID {profile['id']}" if profile.get("id") is not None else "",
-            ] if x
-        ) or "Perfil público",
-        input_message_content=InputTextMessageContent(
-            message_text=text,
-            parse_mode=ParseMode.HTML,
-            disable_web_page_preview=False,
-        ),
-        reply_markup=keyboard(profile),
-        thumbnail_url=profile["photo"] or None,
-    )
-    results.append(article)
+    bits = []
+    if profile.get("username"):
+        bits.append(f"@{profile['username']}")
+    if profile.get("id") is not None:
+        bits.append(f"ID {profile['id']}")
+    results = [
+        InlineQueryResultArticle(
+            id="profile",
+            title=title,
+            description=" ".join(bits) or "Perfil publico",
+            input_message_content=InputTextMessageContent(
+                message_text=text,
+                parse_mode=ParseMode.HTML,
+                disable_web_page_preview=False,
+            ),
+            reply_markup=keyboard(profile),
+            thumbnail_url=profile["photo"] or None,
+        )
+    ]
     if profile.get("photo"):
         results.append(
             InlineQueryResultPhoto(
@@ -257,7 +277,7 @@ async def on_inline(inline_query: InlineQuery, bot: Bot):
                 photo_url=profile["photo"],
                 thumbnail_url=profile["photo"],
                 title=f"Foto de {title}",
-                description="Foto de perfil pública",
+                description="Foto de perfil publica",
                 caption=text,
                 parse_mode=ParseMode.HTML,
                 reply_markup=keyboard(profile),
@@ -280,7 +300,9 @@ async def main():
     dp.chosen_inline_result.register(on_chosen)
     me = await bot.get_me()
     log.info("inline pronto: @%s", me.username)
-    await dp.start_polling(bot, allowed_updates=["message", "inline_query", "chosen_inline_result"])
+    await dp.start_polling(
+        bot, allowed_updates=["message", "inline_query", "chosen_inline_result"]
+    )
 
 
 if __name__ == "__main__":
