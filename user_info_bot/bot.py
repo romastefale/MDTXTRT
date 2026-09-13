@@ -14,8 +14,6 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.filters import CommandStart
 from aiogram.types import (
-    InlineKeyboardButton,
-    InlineKeyboardMarkup,
     InlineQuery,
     InlineQueryResultArticle,
     InlineQueryResultPhoto,
@@ -24,6 +22,7 @@ from aiogram.types import (
 )
 
 from ages import estimate_created
+from card import BRAND, html_card, perfil_button, rich_markdown
 import mtproto
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -134,7 +133,6 @@ async def resolve(bot: Bot, raw: str) -> dict | None:
         "username": uname,
         "name": name,
         "bio": pick(mt.get("bio"), api.get("bio"), public.get("bio")),
-        "type": api.get("type") or "",
         "photo": public.get("photo") or "",
         "created": estimate_created(uid if isinstance(uid, int) else None),
     }
@@ -143,42 +141,22 @@ async def resolve(bot: Bot, raw: str) -> dict | None:
     return profile
 
 
-def profile_html(p: dict) -> str:
-    uname = p.get("username") or ""
-    name = html.escape(p.get("name") or uname or str(p.get("id") or "Perfil"))
-    lines = [f"<b>{name}</b>"]
-    if p.get("id") is not None:
-        lines.append(f"ID: <code>{p['id']}</code>")
-    if uname:
-        lines.append(f"Username: @{html.escape(uname)}")
-        lines.append(f"Link: https://t.me/{html.escape(uname)}")
-    elif p.get("id") is not None:
-        lines.append(f"Link: tg://user?id={p['id']}")
-    if p.get("created"):
-        lines.append(f"Criacao (estimada): {html.escape(p['created'])}")
-    if p.get("bio"):
-        lines.append("")
-        lines.append(html.escape(p["bio"][:400]))
-    if not p.get("photo"):
-        lines.append("")
-        lines.append("<i>Foto publica indisponivel.</i>")
-    return "\n".join(lines)
+def article_content(p: dict):
+    try:
+        from aiogram.types import InputRichMessage
 
-
-def keyboard(p: dict) -> InlineKeyboardMarkup | None:
-    uname = p.get("username") or ""
-    if not uname:
-        return None
-    return InlineKeyboardMarkup(
-        inline_keyboard=[[InlineKeyboardButton(text="Abrir perfil", url=f"https://t.me/{uname}")]]
-    )
+        return InputRichMessage(markdown=rich_markdown(p))
+    except Exception:
+        return InputTextMessageContent(
+            message_text=html_card(p),
+            parse_mode=ParseMode.HTML,
+            disable_web_page_preview=True,
+        )
 
 
 async def on_start(message: Message):
     await message.answer(
-        "Consulta inline.\n\n"
-        "<code>@este_bot @username</code>\n"
-        "<code>@este_bot 123456789</code>"
+        f"Consulta inline.\n\n<code>@{BRAND} @username</code>\n<code>@{BRAND} 123456789</code>"
     )
 
 
@@ -190,7 +168,6 @@ async def on_inline(inline_query: InlineQuery, bot: Bot):
                 InlineQueryResultArticle(
                     id="hint",
                     title="@username ou id",
-                    description="Ex.: @durov",
                     input_message_content=InputTextMessageContent(
                         message_text="Digite @username ou o id."
                     ),
@@ -207,7 +184,6 @@ async def on_inline(inline_query: InlineQuery, bot: Bot):
                 InlineQueryResultArticle(
                     id="miss",
                     title="Nao achei",
-                    description="Fechado ou invalido.",
                     input_message_content=InputTextMessageContent(
                         message_text=f"Nao achei: {raw}"
                     ),
@@ -217,39 +193,32 @@ async def on_inline(inline_query: InlineQuery, bot: Bot):
             is_personal=True,
         )
         return
-    title = profile["name"] or profile.get("username") or str(profile.get("id"))
-    text = profile_html(profile)
-    bits = []
-    if profile.get("username"):
-        bits.append(f"@{profile['username']}")
-    if profile.get("created"):
-        bits.append(profile["created"])
-    results = [
-        InlineQueryResultArticle(
-            id="profile",
-            title=title,
-            description=" ".join(bits) or "Perfil",
-            input_message_content=InputTextMessageContent(
-                message_text=text,
-                parse_mode=ParseMode.HTML,
-                disable_web_page_preview=False,
-            ),
-            reply_markup=keyboard(profile),
-            thumbnail_url=profile["photo"] or None,
-        )
-    ]
+    title = profile.get("username") or profile.get("name") or str(profile.get("id"))
+    markup = perfil_button(profile)
+    content = article_content(profile)
+    results = []
     if profile.get("photo"):
         results.append(
             InlineQueryResultPhoto(
-                id="photo",
+                id="card-photo",
                 photo_url=profile["photo"],
                 thumbnail_url=profile["photo"],
-                title=f"Foto de {title}",
-                caption=text,
+                title=title,
+                caption=html_card(profile),
                 parse_mode=ParseMode.HTML,
-                reply_markup=keyboard(profile),
+                reply_markup=markup,
             )
         )
+    results.append(
+        InlineQueryResultArticle(
+            id="card",
+            title=title,
+            description=profile.get("created") or "Perfil",
+            input_message_content=content,
+            reply_markup=markup,
+            thumbnail_url=profile.get("photo") or None,
+        )
+    )
     await inline_query.answer(results, cache_time=20, is_personal=True)
 
 
@@ -262,7 +231,7 @@ async def main():
     dp.message.register(on_start, CommandStart())
     dp.inline_query.register(on_inline)
     me = await bot.get_me()
-    log.info("inline: @%s", me.username)
+    log.info("inline: @%s brand=@%s", me.username, BRAND)
     try:
         await dp.start_polling(bot, allowed_updates=["message", "inline_query"])
     finally:
