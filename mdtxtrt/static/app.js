@@ -900,8 +900,11 @@ function localMediaAction(kind){
 }
 
 async function uploadLocalMedia(file,kind){
+  const maxBytes=kind==="photo"?10*1024*1024:50*1024*1024;
+  if(file.size>maxBytes){showMessage("Mídia local",`Arquivo excede o limite de ${kind==="photo"?10:50} MB.`);return}
   const form=new FormData();
   form.append("draft_id",state.draft.id);
+  form.append("kind",kind);
   form.append("file",file,file.name);
   try{
     const data=await api("/api/media",{method:"POST",body:form});
@@ -1356,12 +1359,13 @@ async function reviewAndPublish(destination){
     operation=value.operation||operation;
     // The destination is part of preflight: never confirm a plan calculated for
     // the user's private chat and then send that plan to an unrelated target.
+    const previewTarget=(editing&&operation==="edit")?editing.destination_chat_id:target;
     const contextualPreview=await api("/api/publish/telegram/preview",{
       method:"POST",
-      body:{draft_id:state.draft.id,document_override:override,...(target?{destination_chat_id:target}:{})},
+      body:{draft_id:state.draft.id,document_override:override,...(previewTarget?{destination_chat_id:previewTarget}:{})},
     });
     representations=contextualPreview.representations;
-    const plan=representations.options[value.representation];
+    let plan=representations.options[value.representation];
     fillReview(`Revisão — ${plan.label}`,plan);
     const confirmButton=$("#review-confirm");
     confirmButton.disabled=!plan.available||Boolean(plan.blocking?.length);
@@ -1371,10 +1375,11 @@ async function reviewAndPublish(destination){
         const body={
           title,
           representation:value.representation,
-          confirmed_fingerprint:plan.requires_confirmation?plan.fingerprint:undefined,
+          confirmed_fingerprint:plan.requires_review?plan.fingerprint:undefined,
+          adaptations_confirmed:plan.requires_confirmation?true:undefined,
           document_override:override,
         };
-        if(target) body.destination_chat_id=target;
+        if(target&&(!editing||operation==="republish")) body.destination_chat_id=target;
         let result;
         if(editing&&operation==="edit") result=await api(`/api/publications/${editing.id}/telegram`,{method:"PUT",body});
         else if(editing&&operation==="republish") result=await api(`/api/publications/${editing.id}/telegram/republish`,{method:"POST",body});
@@ -1387,9 +1392,12 @@ async function reviewAndPublish(destination){
         updatePublishLabels();
         await postPublicationAction(`mensagem ${result.publication.telegram_message_id}`);
       }catch(error){
-        if(error.data?.review) fillReview(`Revisão — ${plan.label}`,error.data.review);
+        if(error.data?.review){
+          plan=error.data.review;
+          fillReview(`Revisão — ${plan.label||value.representation}`,plan);
+          confirmButton.disabled=!plan.available||Boolean(plan.blocking?.length);
+        }else confirmButton.disabled=false;
         showReviewError(error.message);
-        confirmButton.disabled=false;
       }
     };
     $("#review-dialog").showModal();

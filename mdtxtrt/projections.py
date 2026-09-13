@@ -11,9 +11,9 @@ import hashlib
 import html
 import json
 from typing import Any, Callable
-from urllib.parse import quote
 
 from mdtxtrt.domain import CanonicalDocument, CanonicalNode
+from mdtxtrt.telegram_validation import rich_block_count
 
 
 @dataclass(slots=True)
@@ -96,10 +96,6 @@ def _plain(node: CanonicalNode) -> str:
 
 def _node_depth(node: CanonicalNode, depth: int = 1) -> int:
     return max([depth, *(_node_depth(child, depth + 1) for child in node.children)])
-
-
-def _node_count(node: CanonicalNode) -> int:
-    return 1 + sum(_node_count(child) for child in node.children)
 
 
 class _TelegramHTML:
@@ -276,13 +272,13 @@ def telegram_projection(document: CanonicalDocument) -> ProjectionReview:
     renderer = _TelegramHTML()
     content = "".join(renderer.block(block) for block in document.blocks)
     text_chars = sum(len(_plain(block)) for block in document.blocks)
-    block_count = sum(_node_count(block) for block in document.blocks)
+    block_count = rich_block_count(document)
     max_depth = max((_node_depth(block) for block in document.blocks), default=0)
     blocking: list[str] = []
     if text_chars > 32768:
         blocking.append(f"Texto lógico excede 32768 caracteres UTF-8 ({text_chars}).")
     if block_count > 500:
-        blocking.append(f"Documento excede 500 blocos/nós estruturais ({block_count}).")
+        blocking.append(f"Documento excede 500 blocos Rich ({block_count}).")
     if max_depth > 16:
         blocking.append(f"Documento excede 16 níveis de aninhamento ({max_depth}).")
     if renderer.media_count > 50:
