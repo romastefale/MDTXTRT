@@ -335,15 +335,15 @@ class TelegramRuntime:
                 me = await self.bot.get_me()
                 self.bot_username = me.username
                 await self.bot.delete_webhook(drop_pending_updates=False)
-                await self.bot.set_my_commands(
-                    [
-                        BotCommand(command="start", description="Abrir MDTXTRT"),
-                        BotCommand(command="import", description="Importar .md/.txt"),
-                        BotCommand(command="tgrich", description="Markdown para rich text"),
-                        BotCommand(command="mdrich", description="Exportar mensagem em .md"),
-                        BotCommand(command="help", description="Ajuda"),
-                    ]
-                )
+                commands = [
+                    BotCommand(command="start", description="Abrir MDTXTRT"),
+                    BotCommand(command="import", description="Importar .md/.txt"),
+                    BotCommand(command="tgrich", description="Markdown para rich text"),
+                    BotCommand(command="mdrich", description="Exportar mensagem em .md"),
+                    BotCommand(command="help", description="Ajuda"),
+                ]
+                await self.bot.set_my_commands(commands)
+                await self.bot.set_my_commands(commands, language_code="pt")
                 if self.settings.web_app_url:
                     await self.bot.set_chat_menu_button(
                         menu_button=MenuButtonWebApp(

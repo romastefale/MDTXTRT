@@ -5,6 +5,7 @@ const tg=window.Telegram?.WebApp;
 tg?.ready();
 tg?.expand();
 tg?.disableVerticalSwipes?.();
+tg?.disableClosingConfirmation?.();
 
 function applyTheme(){
   const p=tg?.themeParams||{};
@@ -471,6 +472,7 @@ function conversionSummary(source,review){
 function scheduleSave(){
   if(!state.draft||state.authExpired) return;
   setStatus("editando");
+  if(tg?.enableClosingConfirmation) tg.enableClosingConfirmation();
   clearTimeout(state.saveTimer);
   state.saveTimer=setTimeout(()=>void commitNow("typing-pause"),2000);
 }
@@ -489,6 +491,7 @@ async function commitNow(reason="edit"){
     state.lastSaved=JSON.stringify(state.draft.document);
     saveMirror();
     setStatus("salvo");
+    tg?.disableClosingConfirmation?.();
     return true;
   }catch(error){
     setStatus("não salvo");
@@ -913,7 +916,10 @@ async function nativeLocationAction(){
     const data=await api("/api/location-requests",{method:"POST",body:{draft_id:state.draft.id}});
     state.pendingLocationRequest=data.request.id;
     sessionStorage.setItem("mdtxtrt:location-request",data.request.id);
-    if(data.bot_url&&tg?.openTelegramLink) tg.openTelegramLink(data.bot_url);
+    if(data.bot_url){
+      if(tg?.openTelegramLink) tg.openTelegramLink(data.bot_url);
+      else window.location.href=data.bot_url;
+    }
     void pollLocation(data.request.id);
   }catch(error){showMessage("Localização",error.message)}
 }
