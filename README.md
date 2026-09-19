@@ -6,7 +6,7 @@ Você escreve uma vez. O mesmo texto vira mensagem rica no Telegram e página no
 
 ## O que é
 
-Um Mini App de edição visual. Aberto no Telegram, acompanha o tema do app. Aberto no navegador, acompanha o modo claro ou escuro do sistema. O fundo é CSS (os dois HTML de wash, um por modo) e cobre a tela inteira — Safari, Mini App e o restante.
+Um Mini App de edição visual. Aberto no Telegram, acompanha o tema do app. Aberto no navegador, acompanha o modo claro ou escuro do sistema. O fundo é o HTML em [`backgrounds`](backgrounds/) — `light.html` e `dark.html`.
 
 ## O que faz
 
@@ -25,4 +25,4 @@ Um Mini App de edição visual. Aberto no Telegram, acompanha o tema do app. Abe
 
 ## Visual
 
-Ícones da interface ficam em [`icons`](icons/). O fundo **não é imagem**: `--wash-light` e `--wash-dark` em `index.html` são os HTML de cada modo, pintados em camada fixa que ocupa 100% da tela.
+Ícones da interface ficam em [`icons`](icons/). O fundo fica em [`backgrounds`](backgrounds/): `light.html` e `dark.html`. Atualizar o arquivo lá é atualizar o fundo.

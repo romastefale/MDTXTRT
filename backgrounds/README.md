@@ -1,5 +1,10 @@
-# Planos de fundo
+# Fundos
 
-O fundo **não é mais imagem**. O app pinta os dois HTML de wash (claro e escuro) em CSS, em `html`, `body` e uma camada `position: fixed` que cobre a viewport inteira — inclusive Safari, Telegram Mini App, notch e home bar.
+Esta pasta **é** o fundo. `light.html` e `dark.html` são canônicos.
 
-Arquivos `light.*` / `dark.*` nesta pasta **não são lidos**. Trocar o fundo = editar as variáveis `--wash-light` e `--wash-dark` em `index.html`.
+Trocar o fundo = substituir esses dois arquivos. O app lê o que está aqui. Não edite o wash no `index.html`.
+
+- `light.html` — modo claro
+- `dark.html` — modo escuro
+
+São HTML de verdade (o documento inteiro), não imagem.

@@ -36,28 +36,10 @@
       --tg-top:0px;
       --kb:0px;
       --bar-h:52px; --top-blur:0;
-      --wash-light:
-        radial-gradient(92% 30% at -10% 0%, rgba(246,236,255,.72) 0%, rgba(248,243,255,.42) 44%, rgba(250,251,255,0) 78%),
-        radial-gradient(84% 30% at 112% 19%, rgba(255,237,245,.78) 0%, rgba(255,247,250,.42) 47%, rgba(250,252,255,0) 80%),
-        radial-gradient(100% 38% at -18% 40%, rgba(230,255,248,.88) 0%, rgba(239,255,251,.56) 39%, rgba(248,253,255,.18) 63%, rgba(250,252,255,0) 84%),
-        radial-gradient(96% 40% at 56% 49%, rgba(231,246,255,.88) 0%, rgba(240,249,255,.58) 46%, rgba(248,252,255,.18) 69%, rgba(250,252,255,0) 86%),
-        radial-gradient(82% 31% at 112% 72%, rgba(247,244,255,.52) 0%, rgba(250,248,255,.30) 49%, rgba(250,252,255,0) 82%),
-        radial-gradient(76% 28% at 108% 100%, rgba(255,247,242,.70) 0%, rgba(255,251,248,.38) 48%, rgba(250,252,255,0) 81%),
-        radial-gradient(42% 16% at 57% 98%, rgba(229,252,255,.46) 0%, rgba(242,253,255,.20) 54%, rgba(250,252,255,0) 82%),
-        linear-gradient(180deg, #faf8fe 0%, #f7fbff 28%, #f4fbff 52%, #f8fbff 78%, #fbfaff 100%);
-      --wash-dark:
-        radial-gradient(95% 32% at -12% 0%, rgba(48,27,51,.42) 0%, rgba(34,24,42,.24) 38%, rgba(18,20,29,0) 76%),
-        radial-gradient(86% 34% at 112% 17%, rgba(61,34,49,.42) 0%, rgba(43,27,41,.24) 42%, rgba(18,20,29,0) 78%),
-        radial-gradient(104% 42% at -23% 39%, rgba(19,72,66,.52) 0%, rgba(18,52,52,.34) 36%, rgba(17,31,39,.14) 62%, rgba(17,21,30,0) 83%),
-        radial-gradient(90% 33% at 114% 45%, rgba(48,31,43,.29) 0%, rgba(33,27,39,.16) 48%, rgba(17,21,30,0) 80%),
-        radial-gradient(94% 38% at -20% 78%, rgba(26,52,77,.43) 0%, rgba(21,39,58,.27) 42%, rgba(17,23,34,.11) 66%, rgba(17,20,29,0) 86%),
-        radial-gradient(84% 30% at 111% 91%, rgba(46,31,43,.26) 0%, rgba(33,27,39,.14) 49%, rgba(18,20,29,0) 82%),
-        linear-gradient(180deg, #12131c 0%, #111720 31%, #10171d 50%, #10151d 69%, #11131c 100%);
-      --wash: var(--wash-dark);
     }
     @media (prefers-color-scheme: light){
       :root{
-        --bg:#f8fbff; --wash:var(--wash-light); --text:#151515; --muted:#5c6478; --accent:#ff6a00;
+        --bg:#f8fbff; --text:#151515; --muted:#5c6478; --accent:#ff6a00;
         --bar:rgba(255,255,255,.46); --line:rgba(255,255,255,.7);
         --glass-frost:0.22; --glass-saturation:1.15;
         --glass:rgba(255,255,255,var(--glass-frost));
@@ -67,7 +49,7 @@
       }
     }
     html.light{
-      --bg:#f8fbff; --wash:var(--wash-light); --text:#151515; --muted:#5c6478; --accent:#ff6a00;
+      --bg:#f8fbff; --text:#151515; --muted:#5c6478; --accent:#ff6a00;
       --bar:rgba(255,255,255,.46); --line:rgba(255,255,255,.7);
       --glass-frost:0.22;
       --glass:rgba(255,255,255,var(--glass-frost));
@@ -76,7 +58,7 @@
       --glass-shadow-lg:inset 0 .5px 0 rgba(255,255,255,.5),0 4px 12px rgba(20,24,36,.05),0 16px 32px rgba(20,24,36,.08),0 28px 48px rgba(20,24,36,.06);
     }
     html.dark{
-      --bg:#12131c; --wash:var(--wash-dark); --text:#f5f5f7; --muted:#c5c8d8; --accent:#8b5cf6;
+      --bg:#12131c; --text:#f5f5f7; --muted:#c5c8d8; --accent:#8b5cf6;
       --bar:rgba(255,255,255,.08); --line:rgba(255,255,255,.18);
       --glass-frost:0.08; --glass:rgba(255,255,255,var(--glass-frost));
     }
@@ -84,23 +66,19 @@
     html.light{color-scheme:light}
     html.dark{color-scheme:dark}
     *{box-sizing:border-box}
-    html,body{margin:0;width:100%;min-height:100%;touch-action:pan-x pan-y;-ms-touch-action:pan-x pan-y;accent-color:var(--accent);caret-color:var(--accent)}
-    html{
-      background:var(--wash);
-      background-repeat:no-repeat;
-      background-size:100% 100%;
-    }
+    html,body{margin:0;width:100%;height:100%;min-height:100%;min-height:100dvh;touch-action:pan-x pan-y;-ms-touch-action:pan-x pan-y;accent-color:var(--accent);caret-color:var(--accent);background:none}
     body{
-      min-height:100dvh;
       padding:0!important;color:var(--text);
       font:16px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;
       overflow:hidden;
-      background:var(--wash);
-      background-repeat:no-repeat;
-      background-size:100% 100%;
-      background-attachment:fixed;
     }
-    .wash,.wash-layer,.wash-light,.wash-dark{display:none}
+    .wash{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+    .wash iframe{position:absolute;inset:0;width:100%;height:100%;border:0;pointer-events:none}
+    .wash-light{opacity:0}
+    .wash-dark{opacity:1}
+    @media (prefers-color-scheme: light){html:not(.dark) .wash-light{opacity:1} html:not(.dark) .wash-dark{opacity:0}}
+    html.light .wash-light{opacity:1} html.light .wash-dark{opacity:0}
+    html.dark .wash-light{opacity:0} html.dark .wash-dark{opacity:1}
     ::selection{background:color-mix(in srgb,var(--accent) 38%, transparent);color:inherit}
     button,input{font:inherit;color:inherit}
     button{cursor:pointer;-webkit-tap-highlight-color:transparent}
@@ -256,7 +234,10 @@
   </style>
 </head>
 <body>
-  
+  <div class="wash" aria-hidden="true">
+    <iframe class="wash-light" src="backgrounds/light.html" title="" tabindex="-1" loading="eager"></iframe>
+    <iframe class="wash-dark" src="backgrounds/dark.html" title="" tabindex="-1" loading="eager"></iframe>
+  </div>
   <svg class="glass-surface__filter" aria-hidden="true">
     <filter id="frosted" primitiveUnits="objectBoundingBox" color-interpolation-filters="sRGB" x="0" y="0" width="1" height="1">
       <feImage href="glass-map.png" x="0" y="0" width="1" height="1" result="map" preserveAspectRatio="none"/>
@@ -392,6 +373,10 @@
       if(!/\.svg(\?|$)/i.test(url)) el.classList.add('is-bitmap');
       else el.classList.remove('is-bitmap');
     }
+    function setWash(kind, url){
+      const el = document.querySelector('iframe.wash-' + kind);
+      if(el && url) el.src = url;
+    }
     function applyFolderManifest(man){
       $$('[data-icon]').forEach(el => {
         const name = el.getAttribute('data-icon');
@@ -399,6 +384,9 @@
         if(!name || !meta) return;
         applyIcon(el, 'icons/' + meta.file + '?v=' + meta.v);
       });
+      const bg = man.backgrounds || {};
+      setWash('light', 'backgrounds/' + (bg.light && bg.light.file ? bg.light.file : 'light.html') + '?v=' + ((bg.light && bg.light.v) || Date.now()));
+      setWash('dark', 'backgrounds/' + (bg.dark && bg.dark.file ? bg.dark.file : 'dark.html') + '?v=' + ((bg.dark && bg.dark.v) || Date.now()));
     }
     async function bindFolderAssets(){
       try{
@@ -413,6 +401,9 @@
         if(!name) return;
         probeFolder('icons/' + name, ICON_EXTS).then(url => applyIcon(el, url));
       });
+      const t = Date.now();
+      setWash('light', 'backgrounds/light.html?v=' + t);
+      setWash('dark', 'backgrounds/dark.html?v=' + t);
     }
     bindFolderAssets();
 
