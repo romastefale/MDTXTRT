@@ -156,7 +156,7 @@
     html.light .bar > button.on::before{background:color-mix(in srgb,var(--text) 12%, #fff)}
     .bar > button > *{position:relative;z-index:1}
     .seg svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
-    .canvas{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;padding:calc(var(--tg-top) + 128px) 16px calc(var(--bar-h) + var(--kb) + var(--safe-bottom) + 28px);position:relative}
+    .canvas{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;padding:calc(var(--tg-top) + 128px) 16px calc(var(--bar-h) + var(--kb) + var(--safe-bottom) + 44px);position:relative}
     body.tg .chrome-top{padding:calc(var(--tg-top) + 10px) 12px 10px}
     body.tg .topbar{margin-top:4px}
     body.tg .meta{margin:10px 20px 0}
@@ -178,7 +178,7 @@
     .block-label{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
     .bar-wrap{
       position:fixed;left:0;right:0;bottom:var(--kb);z-index:20;
-      padding:8px 12px calc(var(--safe-bottom) + 8px);
+      padding:8px 12px calc(var(--safe-bottom) + 22px);
       background:transparent;
     }
     .bar{
@@ -202,14 +202,14 @@
     .backdrop{position:fixed;inset:0;z-index:30;display:none;background:transparent;-webkit-backdrop-filter:none;backdrop-filter:none}
     .backdrop.on{display:block}
     .sheet{
-      position:fixed;left:var(--sheet-left,14px);right:auto;bottom:calc(var(--bar-h) + var(--kb) + var(--safe-bottom) + 12px);
+      position:fixed;left:var(--sheet-left,14px);right:auto;bottom:calc(var(--bar-h) + var(--kb) + var(--safe-bottom) + 26px);
       z-index:40;width:max-content;max-width:calc(100vw - 28px);
       max-height:calc(var(--vv-h, 100dvh) - var(--bar-h) - 24px);
       overflow-x:hidden;overflow-y:auto;-webkit-overflow-scrolling:touch;
       display:none;padding:8px;border:1px solid color-mix(in srgb,var(--text) 12%,transparent);border-radius:30px;
-      color:var(--text);background:color-mix(in srgb,var(--bg) 92%,transparent);
+      color:var(--text);background:color-mix(in srgb,var(--bg) 55%,transparent);
       box-shadow:inset 0 1px 0 rgba(255,255,255,.22),0 4px 14px rgba(0,0,0,.18),0 22px 48px rgba(0,0,0,.28);
-      -webkit-backdrop-filter:none;backdrop-filter:none;
+      -webkit-backdrop-filter:blur(22px) saturate(var(--glass-saturation,1.15));backdrop-filter:blur(22px) saturate(var(--glass-saturation,1.15));
       transform-origin:var(--sheet-origin,50%) 100%;animation:sheet-in .16s cubic-bezier(.2,.75,.25,1)
     }
     .sheet.is-top{
@@ -225,7 +225,7 @@
     .sheet-ico{width:42px;height:42px;border-radius:50%;flex:none;display:grid;place-items:center;background:color-mix(in srgb,var(--text) 11%,transparent);box-shadow:inset 0 1px 0 rgba(255,255,255,.12)}
     .sheet-ico .ui-icon,.sheet-ico svg{width:20px;height:20px}
     .sheet.on{display:block}
-    .sheet.frost{-webkit-backdrop-filter:none;backdrop-filter:none}
+    .sheet.frost{-webkit-backdrop-filter:blur(22px) saturate(var(--glass-saturation,1.15));backdrop-filter:blur(22px) saturate(var(--glass-saturation,1.15));background:color-mix(in srgb,var(--bg) 55%,transparent)}
     .sheet h3{margin:6px 8px 10px;font-size:17px}
     .sheet p,.hint{margin:0 8px 12px;font-size:13px;color:var(--muted)}
     .grid{display:grid;grid-template-columns:1fr 1fr;gap:5px}
