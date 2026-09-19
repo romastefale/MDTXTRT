@@ -26,6 +26,7 @@
       --accent:#8b5cf6;
       --bar:rgba(255,255,255,.08);
       --line:rgba(255,255,255,.18);
+      --wash-image:url("backgrounds/dark.PNG");
       --glass-frost:0.08;
       --glass-saturation:1.15;
       --glass:rgba(255,255,255,var(--glass-frost));
@@ -42,6 +43,7 @@
       :root{
         --bg:#e4eaf8; --text:#151515; --muted:#5c6478; --accent:#ff6a00;
         --bar:rgba(255,255,255,.46); --line:rgba(255,255,255,.7);
+        --wash-image:url("backgrounds/light.PNG");
         --glass-frost:0.22; --glass-saturation:1.15;
         --glass:rgba(255,255,255,var(--glass-frost));
         --glass-edge:transparent;
@@ -52,6 +54,7 @@
     html.light{
       --bg:#e4eaf8; --text:#151515; --muted:#5c6478; --accent:#ff6a00;
       --bar:rgba(255,255,255,.46); --line:rgba(255,255,255,.7);
+      --wash-image:url("backgrounds/light.PNG");
       --glass-frost:0.22;
       --glass:rgba(255,255,255,var(--glass-frost));
       --glass-edge:transparent;
@@ -61,13 +64,14 @@
     html.dark{
       --bg:#161b4a; --text:#f5f5f7; --muted:#c5c8d8; --accent:#8b5cf6;
       --bar:rgba(255,255,255,.08); --line:rgba(255,255,255,.18);
+      --wash-image:url("backgrounds/dark.PNG");
       --glass-frost:0.08; --glass:rgba(255,255,255,var(--glass-frost));
     }
     html{color-scheme:light dark}
     html.light{color-scheme:light}
     html.dark{color-scheme:dark}
     *{box-sizing:border-box}
-    html,body{width:100%;height:100%;min-height:100dvh;min-height:100lvh;min-height:-webkit-fill-available;touch-action:manipulation;-ms-touch-action:manipulation;background-color:var(--bg);accent-color:var(--accent);caret-color:var(--accent)}
+    html,body{width:100%;height:100%;min-height:100dvh;min-height:100lvh;min-height:-webkit-fill-available;touch-action:manipulation;-ms-touch-action:manipulation;background-color:var(--bg);background-image:var(--wash-image);background-size:100% 100%;background-position:center;background-repeat:no-repeat;accent-color:var(--accent);caret-color:var(--accent)}
     body{
       margin:0;color:var(--text);
       font:16px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;
