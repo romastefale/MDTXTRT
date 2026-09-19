@@ -7,6 +7,8 @@ import { fileURLToPath } from "node:url";
 const ROOT = fileURLToPath(new URL(".", import.meta.url));
 const PORT = Number(process.env.PORT) || 8080;
 const BOT_TOKEN_RE = /^\d{6,}:[A-Za-z0-9_-]{20,}$/;
+const APP_URL = "https://romastefale.github.io/MDTXTRT/";
+const PUBLIC_HOST = "https://mdtxtrt.up.railway.app";
 const ALLOW_ORIGINS = [
   "https://romastefale.github.io",
   "https://mdtxtrt.up.railway.app",
@@ -27,6 +29,20 @@ const MIME = {
   ".md": "text/markdown; charset=utf-8",
   ".ico": "image/x-icon",
 };
+
+const HELP_HTML = [
+  "<h1>MDTXTRT</h1>",
+  "<p>Você escreve <b>uma vez</b>. O mesmo texto vira mensagem no Telegram e página no Telegraph.</p>",
+  "<table><thead><tr><th>Onde</th><th>Faz</th></tr></thead><tbody>",
+  "<tr><td>Mini App</td><td>Edita o texto</td></tr>",
+  "<tr><td>Laranja</td><td>Publica</td></tr>",
+  "<tr><td>Telegram</td><td>Mensagem rica 10.3</td></tr>",
+  "<tr><td>Telegraph</td><td>Página pública</td></tr>",
+  "<tr><td>Arquivo</td><td>TXT e Markdown</td></tr>",
+  "</tbody></table>",
+  "<blockquote expandable><p>Verde abre o editor. Vermelho fecha este aviso.</p></blockquote>",
+  "<footer>Bot API 10.3 · um rascunho, dois destinos</footer>",
+].join("");
 
 function botToken() {
   const token = (process.env.TOKEN || "").trim();
@@ -106,6 +122,35 @@ async function readJson(req) {
   return JSON.parse(raw);
 }
 
+function editorMarkup() {
+  return {
+    inline_keyboard: [
+      [{ text: "Abrir editor", style: "success", web_app: { url: APP_URL } }],
+      [
+        { text: "Ajuda", style: "primary", callback_data: "ajuda" },
+        { text: "Fechar", style: "danger", callback_data: "fechar" },
+      ],
+    ],
+  };
+}
+
+async function sendGuide(token, chatId) {
+  const rich_message = { html: HELP_HTML, skip_entity_detection: true };
+  try {
+    return await telegramCall(token, "sendRichMessage", {
+      chat_id: chatId,
+      rich_message,
+      reply_markup: editorMarkup(),
+    });
+  } catch {
+    return telegramCall(token, "sendMessage", {
+      chat_id: chatId,
+      text: "MDTXTRT\nVocê escreve uma vez. O mesmo texto vira mensagem no Telegram e página no Telegraph.\n\nVerde abre o editor. Laranja publica.",
+      reply_markup: editorMarkup(),
+    });
+  }
+}
+
 async function sendRich(initData, html) {
   const token = botToken();
   if (!token) throw new Error("TOKEN do bot não configurado no Railway");
@@ -154,6 +199,64 @@ async function sendRich(initData, html) {
   }
 }
 
+async function handleUpdate(token, update) {
+  const cb = update.callback_query;
+  if (cb?.id) {
+    const data = String(cb.data || "");
+    const chatId = cb.message?.chat?.id;
+    if (data === "fechar") {
+      await telegramCall(token, "answerCallbackQuery", { callback_query_id: cb.id });
+      if (chatId && cb.message?.message_id) {
+        try {
+          await telegramCall(token, "deleteMessage", { chat_id: chatId, message_id: cb.message.message_id });
+        } catch {}
+      }
+      return;
+    }
+    await telegramCall(token, "answerCallbackQuery", { callback_query_id: cb.id });
+    if (chatId) await sendGuide(token, chatId);
+    return;
+  }
+  const msg = update.message;
+  if (!msg?.chat?.id) return;
+  const text = String(msg.text || "").trim();
+  const cmd = text.split(/\s+/)[0].split("@")[0].toLowerCase();
+  if (cmd === "/start" || cmd === "/editor" || cmd === "/ajuda" || cmd === "/help") {
+    await sendGuide(token, msg.chat.id);
+  }
+}
+
+async function syncBot(token) {
+  const host = (process.env.PUBLIC_URL || PUBLIC_HOST).replace(/\/$/, "");
+  try {
+    await telegramCall(token, "setMyCommands", {
+      commands: [
+        { command: "start", description: "Abrir o editor" },
+        { command: "editor", description: "Mini App" },
+        { command: "ajuda", description: "Como funciona" },
+      ],
+    });
+  } catch (err) {
+    console.error("setMyCommands", err instanceof Error ? err.message : err);
+  }
+  try {
+    await telegramCall(token, "setChatMenuButton", {
+      menu_button: { type: "web_app", text: "Editor", web_app: { url: APP_URL } },
+    });
+  } catch (err) {
+    console.error("setChatMenuButton", err instanceof Error ? err.message : err);
+  }
+  try {
+    await telegramCall(token, "setWebhook", {
+      url: `${host}/api/telegram/webhook`,
+      allowed_updates: ["message", "callback_query"],
+      drop_pending_updates: false,
+    });
+  } catch (err) {
+    console.error("setWebhook", err instanceof Error ? err.message : err);
+  }
+}
+
 function safeFile(urlPath) {
   const decoded = decodeURIComponent((urlPath || "/").split("?")[0]);
   let rel = decoded === "/" ? "index.html" : decoded.replace(/^\/+/, "");
@@ -178,6 +281,19 @@ const server = createServer(async (req, res) => {
       setCors(req, res);
       res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
       res.end(JSON.stringify({ ok: true, bot: Boolean(botToken()) }));
+      return;
+    }
+    if (url.pathname === "/api/telegram/webhook" && req.method === "POST") {
+      try {
+        const token = botToken();
+        const body = await readJson(req);
+        if (token) await handleUpdate(token, body);
+        res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ ok: true }));
+      } catch {
+        res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ ok: true }));
+      }
       return;
     }
     if (url.pathname === "/api/telegram/send" && req.method === "POST") {
@@ -226,4 +342,6 @@ const server = createServer(async (req, res) => {
 
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`MDTXTRT on ${PORT}`);
+  const token = botToken();
+  if (token) syncBot(token).catch((err) => console.error(err));
 });
