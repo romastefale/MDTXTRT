@@ -102,7 +102,7 @@ async function telegramCall(token, method, body) {
   const res = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
+    body: JSON.stringify(body || {}),
   });
   const json = await res.json();
   if (!json.ok) throw new Error(json.description || `Telegram ${method} falhou`);
@@ -279,8 +279,18 @@ const server = createServer(async (req, res) => {
     }
     if (url.pathname === "/api/health" && req.method === "GET") {
       setCors(req, res);
+      const token = botToken();
+      const payload = { ok: true, bot: Boolean(token) };
+      if (token) {
+        try {
+          const info = await telegramCall(token, "getWebhookInfo", {});
+          payload.webhook = info.url || "";
+        } catch {
+          payload.webhook = "";
+        }
+      }
       res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
-      res.end(JSON.stringify({ ok: true, bot: Boolean(botToken()) }));
+      res.end(JSON.stringify(payload));
       return;
     }
     if (url.pathname === "/api/telegram/webhook" && req.method === "POST") {
