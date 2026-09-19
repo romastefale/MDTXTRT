@@ -63,22 +63,22 @@
     "paragraph": {
       "file": "paragraph.svg",
       "ext": "svg",
-      "v": 1789822839948
+      "v": 1789854270467
     },
     "plus": {
       "file": "plus.svg",
       "ext": "svg",
-      "v": 1789822839948
+      "v": 1789854270467
     },
     "quote": {
       "file": "quote.svg",
       "ext": "svg",
-      "v": 1789822839948
+      "v": 1789854270467
     },
     "task": {
       "file": "task.svg",
       "ext": "svg",
-      "v": 1789822839948
+      "v": 1789854270467
     },
     "h1": {
       "file": "h1.svg",
@@ -93,7 +93,7 @@
     "undo": {
       "file": "undo.svg",
       "ext": "svg",
-      "v": 1789822839948
+      "v": 1789854270467
     },
     "document": {
       "file": "document.svg",
@@ -103,7 +103,7 @@
     "underline": {
       "file": "underline.svg",
       "ext": "svg",
-      "v": 1789822839948
+      "v": 1789854270467
     },
     "h6": {
       "file": "h6.svg",
@@ -113,7 +113,7 @@
     "redo": {
       "file": "redo.svg",
       "ext": "svg",
-      "v": 1789822839948
+      "v": 1789854270467
     },
     "link": {
       "file": "link.svg",
@@ -123,17 +123,17 @@
     "paste": {
       "file": "paste.svg",
       "ext": "svg",
-      "v": 1789822839948
+      "v": 1789854270467
     },
     "table": {
       "file": "table.svg",
       "ext": "svg",
-      "v": 1789822839948
+      "v": 1789854270467
     },
     "open": {
       "file": "open.svg",
       "ext": "svg",
-      "v": 1789854151779
+      "v": 1789854270467
     },
     "more": {
       "file": "more.svg",
@@ -153,7 +153,7 @@
     "send": {
       "file": "send.svg",
       "ext": "svg",
-      "v": 1789822839948
+      "v": 1789854270467
     }
   },
   "backgrounds": {
