@@ -1,0 +1,171 @@
+{
+  "icons": {
+    "heading": {
+      "file": "heading.svg",
+      "ext": "svg",
+      "v": 1789822839948
+    },
+    "h5": {
+      "file": "h5.svg",
+      "ext": "svg",
+      "v": 1789822839948
+    },
+    "footer": {
+      "file": "footer.svg",
+      "ext": "svg",
+      "v": 1789822839948
+    },
+    "italic": {
+      "file": "italic.svg",
+      "ext": "svg",
+      "v": 1789822839948
+    },
+    "list": {
+      "file": "list.svg",
+      "ext": "svg",
+      "v": 1789822839948
+    },
+    "edit": {
+      "file": "edit.svg",
+      "ext": "svg",
+      "v": 1789822839948
+    },
+    "h3": {
+      "file": "h3.svg",
+      "ext": "svg",
+      "v": 1789822839948
+    },
+    "bold": {
+      "file": "bold.svg",
+      "ext": "svg",
+      "v": 1789822839948
+    },
+    "h2": {
+      "file": "h2.svg",
+      "ext": "svg",
+      "v": 1789822839948
+    },
+    "import": {
+      "file": "import.svg",
+      "ext": "svg",
+      "v": 1789822839948
+    },
+    "details": {
+      "file": "details.svg",
+      "ext": "svg",
+      "v": 1789822839948
+    },
+    "h4": {
+      "file": "h4.svg",
+      "ext": "svg",
+      "v": 1789822839948
+    },
+    "paragraph": {
+      "file": "paragraph.svg",
+      "ext": "svg",
+      "v": 1789822839948
+    },
+    "plus": {
+      "file": "plus.svg",
+      "ext": "svg",
+      "v": 1789822839948
+    },
+    "quote": {
+      "file": "quote.svg",
+      "ext": "svg",
+      "v": 1789822839948
+    },
+    "task": {
+      "file": "task.svg",
+      "ext": "svg",
+      "v": 1789822839948
+    },
+    "h1": {
+      "file": "h1.svg",
+      "ext": "svg",
+      "v": 1789822839948
+    },
+    "file": {
+      "file": "file.svg",
+      "ext": "svg",
+      "v": 1789822839948
+    },
+    "undo": {
+      "file": "undo.svg",
+      "ext": "svg",
+      "v": 1789822839948
+    },
+    "document": {
+      "file": "document.svg",
+      "ext": "svg",
+      "v": 1789822839948
+    },
+    "underline": {
+      "file": "underline.svg",
+      "ext": "svg",
+      "v": 1789822839948
+    },
+    "h6": {
+      "file": "h6.svg",
+      "ext": "svg",
+      "v": 1789822839948
+    },
+    "redo": {
+      "file": "redo.svg",
+      "ext": "svg",
+      "v": 1789822839948
+    },
+    "link": {
+      "file": "link.svg",
+      "ext": "svg",
+      "v": 1789822839948
+    },
+    "paste": {
+      "file": "paste.svg",
+      "ext": "svg",
+      "v": 1789822839948
+    },
+    "table": {
+      "file": "table.svg",
+      "ext": "svg",
+      "v": 1789822839948
+    },
+    "open": {
+      "file": "open.svg",
+      "ext": "svg",
+      "v": 1789822839948
+    },
+    "more": {
+      "file": "more.svg",
+      "ext": "svg",
+      "v": 1789822839948
+    },
+    "buttons": {
+      "file": "buttons.svg",
+      "ext": "svg",
+      "v": 1789822839948
+    },
+    "copy": {
+      "file": "copy.svg",
+      "ext": "svg",
+      "v": 1789822839948
+    },
+    "send": {
+      "file": "send.svg",
+      "ext": "svg",
+      "v": 1789822839948
+    }
+  },
+  "backgrounds": {
+    "dark": {
+      "file": "dark.jpg",
+      "ext": "jpg",
+      "v": 1789821630095
+    },
+    "light": {
+      "file": "light.jpg",
+      "ext": "jpg",
+      "v": 1789821629871
+    }
+  }
+}

@@ -1,19 +1,21 @@
 # Ícones — leia-me
 
-Substitua os arquivos desta pasta para trocar os ícones da interface. Use o **mesmo nome** do botão. Não é preciso mudar nada fora daqui.
+Esta pasta **é** a fonte dos ícones. O app lê os arquivos que estão aqui no disco. Salve, substitua ou apague um arquivo nesta pasta — a interface passa a usar o que ficou.
+
+Use o **mesmo nome** do botão.
 
 ## Como trocar
 
 1. Exporte o ícone com o nome da lista abaixo.
-2. Coloque o arquivo nesta pasta, no lugar do antigo.
+2. Salve nesta pasta (no lugar do antigo, ou com outra extensão).
 3. Se quiser outro formato, apague o arquivo que o app está usando hoje (o `.svg` vence se existir).
 
-O app procura, nesta ordem: **`.svg` → `.png` → `.webp`**. Só o primeiro que existir entra.
+O app olha o que existe aqui, nesta ordem: **`.svg` → `.png` → `.webp`**. Só o primeiro que existir entra.
 
 Exemplos:
 
 - `bold.svg` — ícone de negrito
-- Apague `bold.svg` e coloque `bold.png` para usar o PNG
+- Apague `bold.svg` e salve `bold.png` para usar o PNG
 - `heading.webp` só vale se não houver `heading.svg` nem `heading.png`
 
 ## Formato

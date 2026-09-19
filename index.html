@@ -348,33 +348,51 @@
     let savedRange = null, hist = [], histI = -1, histLock = false, composing = false, saveTimer = null;
     const ICON_EXTS = ['svg','png','webp'];
     const BG_EXTS = ['jpg','jpeg','png','webp','avif'];
-    const assetCache = {};
     function assetExists(url){
       return new Promise(res => { const i = new Image(); i.onload = () => res(true); i.onerror = () => res(false); i.src = url; });
     }
-    async function resolveAsset(stem, exts){
-      if(assetCache[stem]) return assetCache[stem];
+    async function probeFolder(stem, exts){
+      const t = Date.now();
       for(const ext of exts){
-        const url = stem + '.' + ext;
-        if(await assetExists(url)){ assetCache[stem] = url; return url; }
+        const url = stem + '.' + ext + '?v=' + t;
+        if(await assetExists(url)) return url;
       }
-      const fallback = stem + '.' + exts[0];
-      assetCache[stem] = fallback;
-      return fallback;
+      return stem + '.' + exts[0] + '?v=' + t;
     }
-    function bindDropInAssets(){
+    function applyIcon(el, url){
+      el.style.setProperty('--ui-icon', 'url("' + url + '")');
+      if(!/\.svg(\?|$)/i.test(url)) el.classList.add('is-bitmap');
+      else el.classList.remove('is-bitmap');
+    }
+    function applyFolderManifest(man){
+      $$('[data-icon]').forEach(el => {
+        const name = el.getAttribute('data-icon');
+        const meta = man.icons && man.icons[name];
+        if(!name || !meta) return;
+        applyIcon(el, 'icons/' + meta.file + '?v=' + meta.v);
+      });
+      const light = man.backgrounds && man.backgrounds.light;
+      const dark = man.backgrounds && man.backgrounds.dark;
+      if(light){ const img = $('.wash-light'); if(img) img.src = 'backgrounds/' + light.file + '?v=' + light.v; }
+      if(dark){ const img = $('.wash-dark'); if(img) img.src = 'backgrounds/' + dark.file + '?v=' + dark.v; }
+    }
+    async function bindFolderAssets(){
+      try{
+        const res = await fetch('assets-manifest.json?t=' + Date.now(), { cache: 'no-store' });
+        if(res.ok){
+          applyFolderManifest(await res.json());
+          return;
+        }
+      }catch(e){}
       $$('[data-icon]').forEach(el => {
         const name = el.getAttribute('data-icon');
         if(!name) return;
-        resolveAsset('icons/' + name, ICON_EXTS).then(url => {
-          el.style.setProperty('--ui-icon', 'url("' + url + '")');
-          if(!/\.svg(\?|$)/i.test(url)) el.classList.add('is-bitmap');
-        });
+        probeFolder('icons/' + name, ICON_EXTS).then(url => applyIcon(el, url));
       });
-      resolveAsset('backgrounds/light', BG_EXTS).then(url => { const img = $('.wash-light'); if(img) img.src = url; });
-      resolveAsset('backgrounds/dark', BG_EXTS).then(url => { const img = $('.wash-dark'); if(img) img.src = url; });
+      probeFolder('backgrounds/light', BG_EXTS).then(url => { const img = $('.wash-light'); if(img) img.src = url; });
+      probeFolder('backgrounds/dark', BG_EXTS).then(url => { const img = $('.wash-dark'); if(img) img.src = url; });
     }
-    bindDropInAssets();
+    bindFolderAssets();
 
     function applyScheme(){
       const tg = window.Telegram?.WebApp;

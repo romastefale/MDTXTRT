@@ -1,6 +1,6 @@
 # Planos de fundo — leia-me
 
-Substitua os arquivos desta pasta para trocar o papel de parede. Use os nomes **`light`** (modo claro) e **`dark`** (modo escuro). Não é preciso mudar nada fora daqui.
+Esta pasta **é** a fonte dos papéis de parede. O app lê os arquivos que estão aqui no disco. Salve `light` e `dark` nesta pasta — o fundo da tela passa a ser esses arquivos.
 
 ## Como trocar
 
@@ -8,12 +8,12 @@ Substitua os arquivos desta pasta para trocar o papel de parede. Use os nomes **
 2. Salve nesta pasta como `light` e `dark`, com uma das extensões abaixo.
 3. Apague o arquivo antigo do mesmo nome se a extensão for outra.
 
-O app procura, nesta ordem: **`.jpg` → `.jpeg` → `.png` → `.webp` → `.avif`**. Só o primeiro que existir entra.
+O app olha o que existe aqui, nesta ordem: **`.jpg` → `.jpeg` → `.png` → `.webp` → `.avif`**. Só o primeiro que existir entra.
 
 Exemplos:
 
 - `light.jpg` e `dark.jpg` — o que o app usa agora
-- Para usar WebP no claro: apague `light.jpg` (e `light.jpeg`, se houver) e coloque `light.webp`
+- Para usar WebP no claro: apague `light.jpg` (e `light.jpeg`, se houver) e salve `light.webp`
 
 Não misture `bg-light` nem outros nomes. Só `light` e `dark`.
 
