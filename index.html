@@ -17,16 +17,16 @@
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:image" content="https://romastefale.github.io/MDTXTRT/x-banner.jpg" />
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <script>(function(){try{var t=window.Telegram&&window.Telegram.WebApp;var l=t&&t.colorScheme?t.colorScheme==="light":matchMedia("(prefers-color-scheme: light)").matches;document.documentElement.classList.toggle("light",l);document.documentElement.classList.toggle("dark",!l);var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute("content",l?"#eef0f4":"#101012");}catch(e){}})();</script>
+  <script>(function(){try{var t=window.Telegram&&window.Telegram.WebApp;var l=t&&t.colorScheme?t.colorScheme==="light":matchMedia("(prefers-color-scheme: light)").matches;document.documentElement.classList.toggle("light",l);document.documentElement.classList.toggle("dark",!l);var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute("content",l?"#e4eaf8":"#161b4a");}catch(e){}})();</script>
   <style>
     :root{
-      --bg:#101012;
+      --bg:#161b4a;
       --text:#f5f5f7;
-      --muted:#8e939c;
+      --muted:#c5c8d8;
       --accent:#ff6a00;
       --bar:rgba(255,255,255,.08);
       --line:rgba(255,255,255,.18);
-      --glass-frost:0.08;
+      --wash-image:url("bg-dark.jpg"); --glass-frost:0.08;
       --glass-saturation:1.15;
       --glass:rgba(255,255,255,var(--glass-frost));
       --glass-edge:transparent;
@@ -40,9 +40,9 @@
     }
     @media (prefers-color-scheme: light){
       :root{
-        --bg:#eef0f4; --text:#151515; --muted:#6a6f78;
+        --bg:#e4eaf8; --text:#151515; --muted:#5c6478;
         --bar:rgba(255,255,255,.46); --line:rgba(255,255,255,.7);
-        --glass-frost:0.22; --glass-saturation:1.15;
+        --wash-image:url("bg-light.jpg"); --glass-frost:0.22; --glass-saturation:1.15;
         --glass:rgba(255,255,255,var(--glass-frost));
         --glass-edge:transparent;
         --glass-shadow:inset 0 .5px 0 rgba(255,255,255,.45),0 1px 2px rgba(20,24,36,.04),0 8px 20px rgba(20,24,36,.07),0 18px 36px rgba(20,24,36,.05);
@@ -50,18 +50,18 @@
       }
     }
     html.light{
-      --bg:#eef0f4; --text:#151515; --muted:#6a6f78;
+      --bg:#e4eaf8; --text:#151515; --muted:#5c6478;
       --bar:rgba(255,255,255,.46); --line:rgba(255,255,255,.7);
-      --glass-frost:0.22;
+      --wash-image:url("bg-light.jpg"); --glass-frost:0.22;
       --glass:rgba(255,255,255,var(--glass-frost));
       --glass-edge:transparent;
       --glass-shadow:inset 0 .5px 0 rgba(255,255,255,.45),0 1px 2px rgba(20,24,36,.04),0 8px 20px rgba(20,24,36,.07),0 18px 36px rgba(20,24,36,.05);
       --glass-shadow-lg:inset 0 .5px 0 rgba(255,255,255,.5),0 4px 12px rgba(20,24,36,.05),0 16px 32px rgba(20,24,36,.08),0 28px 48px rgba(20,24,36,.06);
     }
     html.dark{
-      --bg:#101012; --text:#f5f5f7; --muted:#8e939c;
+      --bg:#161b4a; --text:#f5f5f7; --muted:#c5c8d8;
       --bar:rgba(255,255,255,.08); --line:rgba(255,255,255,.18);
-      --glass-frost:0.08; --glass:rgba(255,255,255,var(--glass-frost));
+      --wash-image:url("bg-dark.jpg"); --glass-frost:0.08; --glass:rgba(255,255,255,var(--glass-frost));
     }
     *{box-sizing:border-box}
     html,body{width:100%;height:100%;min-height:100dvh;touch-action:manipulation;-ms-touch-action:manipulation;background:var(--bg)}
@@ -70,14 +70,7 @@
       font:16px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;
       overflow:hidden;
     }
-    .wash{position:fixed;inset:0;width:100vw;height:100dvh;z-index:0;pointer-events:none;overflow:hidden}
-    .wash i{position:absolute;border-radius:50%;filter:blur(96px)}
-    .wash .a{width:88vw;height:88vw;left:-26%;top:-20%;background:#ff7a33;opacity:.48}
-    .wash .b{width:72vw;height:72vw;right:-24%;top:12%;background:#4f86ff;opacity:.4}
-    .wash .c{width:80vw;height:80vw;left:14%;bottom:-32%;background:#b25cff;opacity:.34}
-    html.light .wash .a{opacity:.34}
-    html.light .wash .b{opacity:.28}
-    html.light .wash .c{opacity:.22}
+    .wash{position:fixed;inset:0;width:100vw;height:100dvh;height:100svh;z-index:0;pointer-events:none;overflow:hidden;background:var(--wash-image) center / cover no-repeat}
     button,input{font:inherit;color:inherit}
     button{cursor:pointer;-webkit-tap-highlight-color:transparent}
     .frost{
@@ -205,7 +198,7 @@
       <feDisplacementMap in="blur" in2="map" scale="0.12" xChannelSelector="R" yChannelSelector="G"/>
     </filter>
   </svg>
-<div class="wash" aria-hidden="true"><i class="a"></i><i class="b"></i><i class="c"></i></div>
+<div class="wash" aria-hidden="true"></div>
   <div class="app">
     <div class="chrome-top">
       <div class="chrome-fog chrome-fog-top" aria-hidden="true"></div>
@@ -335,7 +328,7 @@
       const light = tg ? tg.colorScheme === 'light' : window.matchMedia('(prefers-color-scheme: light)').matches;
       document.documentElement.classList.toggle('light', light);
       document.documentElement.classList.toggle('dark', !light);
-      const theme = light ? '#eef0f4' : '#101012';
+      const theme = light ? '#e4eaf8' : '#161b4a';
       const meta = document.querySelector('meta[name="theme-color"]');
       if(meta) meta.setAttribute('content', theme);
       document.body.style.background = theme;
