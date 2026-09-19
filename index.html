@@ -36,7 +36,7 @@
       --safe-bottom:env(safe-area-inset-bottom,0px);
       --tg-top:0px;
       --kb:0px;
-      --bar-h:52px;
+      --bar-h:52px; --top-blur:0;
     }
     @media (prefers-color-scheme: light){
       :root{
@@ -91,18 +91,16 @@
     .glass-surface__filter{position:absolute;width:0;height:0;overflow:hidden;pointer-events:none}
     .app{
       position:relative;z-index:1;
-      width:100%;height:100%;max-width:none;margin:0;
-      padding:var(--tg-top) 0 calc(var(--bar-h) + var(--kb) + var(--safe-bottom) + 16px);
+      width:100%;height:100%;max-width:none;margin:0;padding:0;
       display:flex;flex-direction:column;
       overflow:hidden;background:transparent;
     }
-    .tg-slot{height:0;flex:none}
-    body.tg .tg-slot{height:var(--tg-top)}
-    .topbar{
-      flex:none;display:flex;align-items:center;justify-content:center;
-      margin:8px 12px 0;padding:8px 12px;min-height:36px;
-    }
-    .topbar{justify-content:center;padding:4px 12px}
+    .chrome-top{position:absolute;top:0;left:0;right:0;z-index:12;padding:var(--tg-top) 0 8px;pointer-events:none}
+    .chrome-top .topbar,.chrome-top .meta{pointer-events:auto}
+    .chrome-fog{position:absolute;left:0;right:0;pointer-events:none;backdrop-filter:blur(16px) saturate(1.18);-webkit-backdrop-filter:blur(16px) saturate(1.18)}
+    .chrome-fog-top{top:0;height:calc(100% + 28px);opacity:var(--top-blur,0);mask-image:linear-gradient(to bottom,#000 0%,#000 58%,transparent 100%);-webkit-mask-image:linear-gradient(to bottom,#000 0%,#000 58%,transparent 100%)}
+    .chrome-fog-bottom{bottom:0;height:calc(100% + 32px);mask-image:linear-gradient(to top,#000 0%,#000 48%,transparent 100%);-webkit-mask-image:linear-gradient(to top,#000 0%,#000 48%,transparent 100%)}
+    .topbar{position:relative;z-index:1;display:flex;align-items:center;justify-content:center;margin:8px 12px 0;padding:4px 12px;min-height:36px}
     .brand{font-weight:700;font-size:15px;letter-spacing:.08em;text-align:center;border:0;background:transparent;color:inherit;padding:8px 12px;border-radius:999px}
     .brand:active{opacity:.65}
     .field-label{display:block;font-size:11px;color:var(--muted);margin:10px 0 4px}
@@ -116,7 +114,7 @@
       background:transparent;display:grid;place-items:center;color:inherit
     }
     .iconbtn svg,.bar svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
-    .meta{display:flex;align-items:center;gap:8px;margin:8px 16px 0}
+    .meta{position:relative;z-index:1;display:flex;align-items:center;gap:8px;margin:8px 16px 0}
     .title{display:none}
     .stats{flex:1;font-size:11px;color:var(--muted);white-space:nowrap;text-align:center}
     .seg{display:flex;gap:2px;padding:2px;border-radius:999px}
@@ -126,7 +124,7 @@
     .seg button.active{background:rgba(255,255,255,.1)}
     html.light .seg button.active{background:rgba(0,0,0,.07)}
     .seg svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
-    .canvas{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;padding:8px 16px 20px;position:relative}
+    .canvas{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;padding:calc(var(--tg-top) + 108px) 16px calc(var(--bar-h) + var(--kb) + var(--safe-bottom) + 28px);position:relative}
     .editor,.preview{
       outline:none;min-height:100%;caret-color:var(--accent);
       -webkit-user-select:text;user-select:text
@@ -150,7 +148,7 @@
       padding:8px 12px calc(var(--safe-bottom) + 8px);
     }
     .bar{
-      max-width:none;margin:0;
+      position:relative;z-index:1;max-width:none;margin:0;
       display:flex;align-items:center;
       min-height:48px;padding:4px;border-radius:999px;
     }
@@ -209,11 +207,12 @@
   </svg>
 <div class="wash" aria-hidden="true"><i class="a"></i><i class="b"></i><i class="c"></i></div>
   <div class="app">
-    <div class="tg-slot" aria-hidden="true"></div>
-    <header class="topbar">
-      <button type="button" class="brand frost" id="connectBtn" aria-label="Ajustes">MDTXTRT</button>
-    </header>
-    <div class="meta">
+    <div class="chrome-top">
+      <div class="chrome-fog chrome-fog-top" aria-hidden="true"></div>
+      <header class="topbar">
+        <button type="button" class="brand" id="connectBtn" aria-label="Ajustes">MDTXTRT</button>
+      </header>
+      <div class="meta">
       <input id="docName" class="title" value="Ideia" aria-label="Nome">
       <div class="seg frost">
         <button type="button" id="undoBtn" aria-label="Desfazer"><svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-2"/></svg></button>
@@ -225,7 +224,8 @@
         <button id="previewTab" aria-label="Prévia"><svg viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></button>
       </div>
     </div>
-    <div class="canvas">
+    </div>
+    <div class="canvas" id="canvas">
       <article id="editor" class="editor" contenteditable="true" spellcheck="true" inputmode="text" enterkeyhint="enter" aria-label="Editor">
         <h1>MDTXTRT</h1>
         <p>Editor para <strong>Telegram</strong> e <strong>Telegraph</strong>.</p>
@@ -243,6 +243,7 @@
   </div>
 
   <div class="bar-wrap">
+    <div class="chrome-fog chrome-fog-bottom" aria-hidden="true"></div>
     <div class="bar frost" id="typebar">
       <button class="plus" id="plusBtn" aria-label="Mais"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
       <button type="button" data-cmd="bold" aria-label="Negrito"><svg viewBox="0 0 24 24"><path d="M7 5h6a4 4 0 1 1 0 8H7z"/><path d="M7 13h7a4 4 0 1 1 0 8H7z"/></svg></button>
@@ -757,6 +758,11 @@
     const fit = ()=>{ if(!vv) return; document.documentElement.style.setProperty('--kb', Math.max(0, window.innerHeight - vv.height - vv.offsetTop) + 'px'); };
     vv?.addEventListener('resize', fit); vv?.addEventListener('scroll', fit);
     loadLocal(); pushHist(); updateStats();
+    const canvasEl = document.getElementById('canvas');
+    canvasEl?.addEventListener('scroll', () => {
+      document.documentElement.style.setProperty('--top-blur', String(Math.min(1, canvasEl.scrollTop / 52)));
+    }, {passive:true});
+
   </script>
 </body>
 </html>
