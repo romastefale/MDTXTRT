@@ -35,6 +35,7 @@
       --safe-bottom:env(safe-area-inset-bottom,0px);
       --tg-top:0px;
       --kb:0px;
+      --vv-h:100dvh;
       --bar-h:52px; --top-blur:0;
     }
     @media (prefers-color-scheme: light){
@@ -124,7 +125,7 @@
     .chrome-fog-top{top:0;height:calc(100% + 28px);opacity:var(--top-blur,0);mask-image:linear-gradient(to bottom,#000 0%,#000 58%,transparent 100%);-webkit-mask-image:linear-gradient(to bottom,#000 0%,#000 58%,transparent 100%)}
     .chrome-fog-bottom{bottom:0;height:calc(100% + 32px);mask-image:linear-gradient(to top,#000 0%,#000 48%,transparent 100%);-webkit-mask-image:linear-gradient(to top,#000 0%,#000 48%,transparent 100%)}
     .topbar{position:relative;z-index:1;display:flex;align-items:center;justify-content:center;margin:8px 12px 0;padding:4px 12px;min-height:36px}
-    .brand{font-weight:700;font-size:15px;letter-spacing:.08em;text-align:center;border:0;background:transparent;color:inherit;padding:8px 12px;margin:0;border-radius:999px}
+    .brand{font-weight:700;font-size:15px;letter-spacing:.08em;text-align:center;border:0;background:transparent;color:inherit;padding:8px 12px;margin:0;border-radius:999px;font-family:inherit;appearance:none;-webkit-appearance:none}
     .field-label{display:block;font-size:11px;color:var(--muted);margin:10px 0 4px}
     .link-input{flex:1;min-width:0;height:40px;border-radius:12px;border:1px solid var(--line);background:transparent;padding:0 12px}
     .link-form{display:flex;gap:8px;align-items:center}
@@ -195,7 +196,9 @@
     .backdrop.on{display:block}
     .sheet{
       position:fixed;left:var(--sheet-left,14px);right:auto;bottom:calc(var(--bar-h) + var(--kb) + var(--safe-bottom) + 12px);
-      z-index:40;width:min(360px,calc(100vw - 28px));max-height:min(72dvh,560px);overflow:auto;
+      z-index:40;width:min(360px,calc(100vw - 28px));
+      max-height:calc(var(--vv-h, 100dvh) - var(--bar-h) - 24px);
+      overflow-x:hidden;overflow-y:auto;-webkit-overflow-scrolling:touch;
       display:none;padding:10px;border:1px solid color-mix(in srgb,var(--text) 12%,transparent);border-radius:30px;
       color:var(--text);background:color-mix(in srgb,var(--bg) 66%,transparent);
       box-shadow:inset 0 1px 0 rgba(255,255,255,.24),0 2px 6px rgba(0,0,0,.12),0 18px 48px rgba(0,0,0,.24);
@@ -203,8 +206,8 @@
       transform-origin:var(--sheet-origin,50%) 100%;animation:sheet-in .16s cubic-bezier(.2,.75,.25,1)
     }
     @keyframes sheet-in{from{opacity:0;transform:translateY(8px) scale(.98)}to{opacity:1;transform:none}}
-    .menu-list{display:flex;flex-direction:column;gap:2px}
-    .menu-list button{display:flex;align-items:center;justify-content:flex-start;text-align:left;width:100%;min-height:58px;border-radius:20px;border:0;background:transparent;box-shadow:none;padding:4px 12px 4px 6px;font-size:17px;gap:14px}
+    .menu-list{display:flex;flex-direction:column;gap:2px;min-height:0;overflow:auto}
+    .menu-list button{display:flex;align-items:center;justify-content:flex-start;text-align:left;width:100%;min-height:clamp(44px, calc((var(--vv-h) - var(--bar-h) - 32px) / 10), 58px);border-radius:20px;border:0;background:transparent;box-shadow:none;padding:4px 12px 4px 6px;font-size:17px;gap:14px}
     .menu-list button:hover{background:color-mix(in srgb,var(--text) 7%,transparent)}
     .menu-list button:active{background:color-mix(in srgb,var(--text) 12%,transparent)}
     .sheet-ico{width:42px;height:42px;border-radius:50%;flex:none;display:grid;place-items:center;background:color-mix(in srgb,var(--text) 11%,transparent);box-shadow:inset 0 1px 0 rgba(255,255,255,.12)}
@@ -250,7 +253,7 @@
     <div class="chrome-top">
       <div class="chrome-fog chrome-fog-top" aria-hidden="true"></div>
       <header class="topbar">
-        <p class="brand">MDTXTRT</p>
+        <button type="button" class="brand" id="brandBtn">MDTXTRT</button>
       </header>
       <div class="meta">
       <div class="seg frost">
@@ -288,7 +291,7 @@
       <button type="button" data-cmd="bold" aria-label="Negrito"><span class="ui-icon" data-icon="bold"></span></button>
       <button type="button" data-cmd="italic" aria-label="Itálico"><span class="ui-icon" data-icon="italic"></span></button>
       <button type="button" data-cmd="underline" aria-label="Sublinhado"><span class="ui-icon" data-icon="underline"></span></button>
-      <button type="button" id="quoteBtn" data-block="blockquote" aria-label="Citação"><span class="ui-icon" data-icon="quote"></span></button>
+      <button type="button" id="quoteBtn" aria-label="Citação"><span class="ui-icon" data-icon="quote"></span></button>
       <button type="button" id="linkBtn" aria-label="Link"><span class="ui-icon" data-icon="link"></span></button>
       <button type="button" id="headingBtn" aria-label="Título"><span class="ui-icon" data-icon="heading"></span></button>
       <button type="button" data-cmd="insertUnorderedList" aria-label="Lista"><span class="ui-icon" data-icon="list"></span></button>
@@ -309,19 +312,35 @@
       <button class="h-opt footer" data-block="footer"><span class="sheet-ico"><span class="ui-icon" data-icon="footer"></span></span>Rodapé Telegram</button>
     </div>
   </div>
+  <div class="sheet frost" id="quoteMenu">
+    <div class="menu-list">
+      <button data-block="blockquote"><span class="sheet-ico"><span class="ui-icon" data-icon="quote"></span></span>Citação</button>
+      <button data-insert="expandquote"><span class="sheet-ico"><span class="ui-icon" data-icon="more"></span></span>Citação 10.3</button>
+    </div>
+  </div>
+  <div class="sheet frost" id="importMenu">
+    <div class="menu-list">
+      <button id="importMdBtn"><span class="sheet-ico"><span class="ui-icon" data-icon="import"></span></span>Importar Markdown</button>
+      <button id="importTxtBtn"><span class="sheet-ico"><span class="ui-icon" data-icon="import"></span></span>Importar TXT</button>
+    </div>
+  </div>
 <div class="sheet frost" id="plusMenu">
     <div class="menu-list">
       <button data-insert="task"><span class="sheet-ico"><span class="ui-icon" data-icon="task"></span></span>Tarefa</button>
       <button data-insert="table"><span class="sheet-ico"><span class="ui-icon" data-icon="table"></span></span>Tabela</button>
-      <button data-insert="expandquote"><span class="sheet-ico"><span class="ui-icon" data-icon="more"></span></span>Citação 10.3</button>
       <button data-insert="details"><span class="sheet-ico"><span class="ui-icon" data-icon="details"></span></span>Details</button>
       <button data-insert="document"><span class="sheet-ico"><span class="ui-icon" data-icon="document"></span></span>Documento</button>
       <button data-insert="button"><span class="sheet-ico"><span class="ui-icon" data-icon="buttons"></span></span>Botões</button>
-      <button id="importSheetBtn"><span class="sheet-ico"><span class="ui-icon" data-icon="import"></span></span>Importar</button>
-      <button id="fileBtn"><span class="sheet-ico"><span class="ui-icon" data-icon="file"></span></span>Arquivo</button>
     </div>
   </div>
-  <div class="sheet frost" id="fileSheet">
+  <div class="sheet frost" id="publishSheet">
+    <h3>Publicar</h3>
+    <div class="stack">
+      <button id="telegramPublishBtn"><span>Telegram sendRichMessage</span></button>
+      <button id="telegraphPublishBtn"><span>Telegraph createPage</span></button>
+      <button id="openTelegramBtn"><span>sendData Mini App</span></button>
+      <button id="copyPayloadBtn"><span>Copiar JSON</span></button>
+    </div>
     <h3>Arquivo</h3>
     <div class="stack">
       <button id="exportTxtBtn"><span>Exportar TXT</span></button>
@@ -329,16 +348,6 @@
       <button id="exportRichBtn"><span>Exportar Rich 10.3</span></button>
       <button id="exportTelegraphBtn"><span>Exportar Telegraph</span></button>
       <button id="snapshotBtn"><span>Snapshot</span></button>
-    </div>
-  </div>
-  <div class="sheet frost" id="publishSheet">
-    <h3>Publicar</h3>
-    <p>Telegram via Railway (TOKEN) ou Telegraph createPage. Mini App: GitHub Pages ou mdtxtrt.up.railway.app.</p>
-    <div class="stack">
-      <button id="telegramPublishBtn"><span>Telegram sendRichMessage</span></button>
-      <button id="telegraphPublishBtn"><span>Telegraph createPage</span></button>
-      <button id="openTelegramBtn"><span>sendData Mini App</span></button>
-      <button id="copyPayloadBtn"><span>Copiar JSON</span></button>
     </div>
     <pre class="payload" id="payloadBox" hidden></pre>
   </div>
@@ -354,7 +363,7 @@
     const toast = $('#toast');
     const backdrop = $('#backdrop');
     const fileInput = $('#fileInput');
-    const sheets = ['#plusMenu','#fileSheet','#publishSheet','#headingMenu'];
+    const sheets = ['#plusMenu','#publishSheet','#headingMenu','#quoteMenu','#importMenu'];
     let savedRange = null, hist = [], histI = -1, histLock = false, composing = false, saveTimer = null;
     const ICON_EXTS = ['svg','png','webp','SVG','PNG','WEBP'];
     function assetExists(url){
@@ -766,7 +775,7 @@
           btn.classList.toggle('on', on);
         }catch{}
       });
-      $('#quoteBtn')?.classList.toggle('on', !!(el && el.closest('blockquote')));
+      $('#quoteBtn')?.classList.toggle('on', !!(el && el.closest('blockquote')) || $('#quoteMenu')?.classList.contains('on'));
       $('#headingBtn')?.classList.toggle('on', !!(headingEl || $('#headingMenu')?.classList.contains('on')));
       $('#linkBtn')?.classList.toggle('on', !!(el && el.closest('a')));
       $('#plusBtn')?.classList.toggle('on', $('#plusMenu')?.classList.contains('on'));
@@ -774,8 +783,8 @@
     });
     $('#typebar').addEventListener('mousedown', e => e.preventDefault());
     $$('#typebar [data-cmd]').forEach(btn => btn.addEventListener('click', ()=>exec(btn.dataset.cmd)));
-    $$('#typebar [data-block], #headingMenu [data-block]').forEach(btn => btn.addEventListener('click', ()=>formatBlock(btn.dataset.block)));
-    $$('#plusMenu [data-insert]').forEach(btn => btn.addEventListener('click', ()=>insertFeature(btn.dataset.insert)));
+    $$('#typebar [data-block], #headingMenu [data-block], #quoteMenu [data-block]').forEach(btn => btn.addEventListener('click', ()=>formatBlock(btn.dataset.block)));
+    $$('#plusMenu [data-insert], #quoteMenu [data-insert]').forEach(btn => btn.addEventListener('click', ()=>insertFeature(btn.dataset.insert)));
     $('#linkBtn').addEventListener('click', ()=>{
       restoreSel(); expandWord();
       const url = prompt('URL','https://'); if(!url) return;
@@ -789,10 +798,12 @@
     $('#redoBtn').addEventListener('mousedown', e => e.preventDefault());
     $('#plusBtn').addEventListener('click', e=>openPanel('#plusMenu', e.currentTarget));
     $('#headingBtn')?.addEventListener('click', e=>openPanel('#headingMenu', e.currentTarget));
-    $('#fileBtn').addEventListener('click', e=>openPanel('#fileSheet', e.currentTarget));
+    $('#quoteBtn')?.addEventListener('click', e=>openPanel('#quoteMenu', e.currentTarget));
     $('#publishBtn').addEventListener('click', e=>openPanel('#publishSheet', e.currentTarget));
+    $('#brandBtn')?.addEventListener('click', e=>openPanel('#importMenu', e.currentTarget));
     $('#editTab').addEventListener('click', ()=>setMode('edit'));
-        $('#importSheetBtn').addEventListener('click', ()=>{ fileInput.click(); closePanels(); });
+    $('#importMdBtn')?.addEventListener('click', ()=>{ fileInput.accept='.md,text/markdown'; fileInput.click(); closePanels(); });
+    $('#importTxtBtn')?.addEventListener('click', ()=>{ fileInput.accept='.txt,text/plain'; fileInput.click(); closePanels(); });
     $('#exportTxtBtn').addEventListener('click', ()=>{ download((docName.value||'doc')+'.txt', htmlToText(editor.innerHTML), 'text/plain'); closePanels(); });
     $('#exportMdBtn').addEventListener('click', ()=>{ download((docName.value||'doc')+'.md', htmlToMarkdown(editor.innerHTML), 'text/markdown'); closePanels(); });
     $('#exportRichBtn').addEventListener('click', ()=>{ download((docName.value||'doc')+'-rich.json', JSON.stringify(buildRich(),null,2), 'application/json'); closePanels(); });
@@ -889,8 +900,18 @@
       if(k==='z' && e.shiftKey || k==='y'){ e.preventDefault(); histRedo(); }
     });
     const vv = window.visualViewport;
-    const fit = ()=>{ if(!vv) return; document.documentElement.style.setProperty('--kb', Math.max(0, window.innerHeight - vv.height - vv.offsetTop) + 'px'); };
-    vv?.addEventListener('resize', fit); vv?.addEventListener('scroll', fit);
+    const fit = ()=>{
+      const vh = vv ? vv.height : window.innerHeight;
+      const top = vv ? vv.offsetTop : 0;
+      document.documentElement.style.setProperty('--kb', Math.max(0, window.innerHeight - vh - top) + 'px');
+      document.documentElement.style.setProperty('--vv-h', Math.max(0, vh) + 'px');
+    };
+    fit();
+    vv?.addEventListener('resize', fit);
+    vv?.addEventListener('scroll', fit);
+    window.addEventListener('resize', fit);
+    window.addEventListener('orientationchange', fit);
+    if(inTg) getTg()?.onEvent?.('viewportChanged', fit);
     loadLocal(); pushHist();
     const canvasEl = document.getElementById('canvas');
     canvasEl?.addEventListener('scroll', () => {
