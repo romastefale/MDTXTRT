@@ -108,14 +108,14 @@
       background:var(--glass);
       border:0;
       box-shadow:var(--glass-shadow);
-      backdrop-filter:blur(20px) saturate(var(--glass-saturation,1.15));
+      backdrop-filter:url(#frosted);
       -webkit-backdrop-filter:blur(20px) saturate(var(--glass-saturation,1.15));
     }
-    .seg.frost,.bar.frost,.sheet.frost{
+    .seg.frost,.bar.frost,.sheet.frost,.toast.frost{
       background:var(--glass);
       border:0;
       box-shadow:var(--glass-shadow);
-      backdrop-filter:blur(20px) saturate(var(--glass-saturation,1.15));
+      backdrop-filter:url(#frosted);
       -webkit-backdrop-filter:blur(20px) saturate(var(--glass-saturation,1.15));
     }
     .glass-surface__filter{position:absolute;width:0;height:0;overflow:hidden;pointer-events:none}
@@ -127,7 +127,7 @@
     }
     .chrome-top{position:absolute;top:0;left:0;right:0;z-index:12;padding:var(--tg-top) 0 8px;pointer-events:none}
     .chrome-top .topbar,.chrome-top .meta{pointer-events:auto}
-    .chrome-fog{position:absolute;left:0;right:0;pointer-events:none;backdrop-filter:blur(20px) saturate(var(--glass-saturation,1.15));-webkit-backdrop-filter:blur(20px) saturate(var(--glass-saturation,1.15))}
+    .chrome-fog{position:absolute;left:0;right:0;pointer-events:none;backdrop-filter:blur(16px) saturate(1.18);-webkit-backdrop-filter:blur(16px) saturate(1.18)}
     .chrome-fog-top{top:0;height:calc(100% + 28px);opacity:var(--top-blur,0);mask-image:linear-gradient(to bottom,#000 0%,#000 58%,transparent 100%);-webkit-mask-image:linear-gradient(to bottom,#000 0%,#000 58%,transparent 100%)}
     .chrome-fog-bottom{bottom:0;height:calc(100% + 32px);mask-image:linear-gradient(to top,#000 0%,#000 48%,transparent 100%);-webkit-mask-image:linear-gradient(to top,#000 0%,#000 48%,transparent 100%)}
     .topbar{position:relative;z-index:1;display:flex;align-items:center;justify-content:center;margin:8px 12px 0;padding:4px 12px;min-height:36px}
@@ -357,7 +357,7 @@
   </div>
   <input id="fileInput" type="file" accept=".txt,.md,text/plain,text/markdown" hidden>
   <div class="toast frost" id="toast"></div>
-  <script src="app.js?v=4"></script>
+  <script src="app.js?v=5"></script>
   <script>try{var t=window.Telegram&&window.Telegram.WebApp;if(t&&t.MainButton&&t.MainButton.hide)t.MainButton.hide();if(t&&t.SecondaryButton&&t.SecondaryButton.hide)t.SecondaryButton.hide();}catch(e){}</script>
 </body>
 </html>
