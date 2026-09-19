@@ -2,125 +2,12 @@
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" />
-  <meta name="color-scheme" content="light dark" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>MDTXTRT</title>
-  <meta name="description" content="md to rich text and telegraph editor — Mini App Telegram e Telegraph." />
-  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
-  <link rel="apple-touch-icon" href="logo.png" />
-  <meta property="og:title" content="MDTXTRT" />
-  <meta property="og:description" content="md to rich text and telegram editor" />
-  <meta property="og:image" content="https://romastefale.github.io/MDTXTRT/og.jpg" />
-  <meta property="og:url" content="https://romastefale.github.io/MDTXTRT/" />
-  <meta property="og:type" content="website" />
-  <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:image" content="https://romastefale.github.io/MDTXTRT/x-banner.jpg" />
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <script>(function(){try{var t=window.Telegram&&window.Telegram.WebApp;var inTg=t&&((t.initData&&t.initData.length)||(t.initDataUnsafe&&t.initDataUnsafe.user&&t.initDataUnsafe.user.id));var l=inTg&&t.colorScheme?t.colorScheme==="light":matchMedia("(prefers-color-scheme: light)").matches;document.documentElement.classList.toggle("light",l);document.documentElement.classList.toggle("dark",!l);}catch(e){}})();</script>
-  <style>
-    :root{
-      --bg:#12131c;
-      --text:#f5f5f7;
-      --muted:#c5c8d8;
-      --accent:#8b5cf6;
-      --bar:rgba(255,255,255,.08);
-      --line:rgba(255,255,255,.18);
-      --glass-frost:0.08;
-      --glass-saturation:1.15;
-      --glass:rgba(255,255,255,var(--glass-frost));
-      --glass-edge:transparent;
-      --glass-shadow:inset 0 .5px 0 rgba(255,255,255,.12),0 1px 2px rgba(0,0,0,.16),0 6px 18px rgba(0,0,0,.14),0 18px 40px rgba(0,0,0,.1);
-      --glass-shadow-lg:inset 0 .5px 0 rgba(255,255,255,.14),0 2px 6px rgba(0,0,0,.14),0 12px 28px rgba(0,0,0,.16),0 28px 56px rgba(0,0,0,.12);
-      --safe-top:env(safe-area-inset-top,0px);
-      --safe-bottom:env(safe-area-inset-bottom,0px);
-      --tg-top:0px;
-      --kb:0px;
-      --vv-h:100dvh;
-      --bar-h:52px; --top-blur:0;
-    }
-    html.light{ --bg:#f8fbff; --text:#151515; --muted:#5c6478; --accent:#ff6a00; --bar:rgba(255,255,255,.46); --line:rgba(255,255,255,.7); --glass-frost:0.22; --glass:rgba(255,255,255,var(--glass-frost)); }
-    html.dark{ --bg:#12131c; --text:#f5f5f7; --muted:#c5c8d8; --accent:#8b5cf6; --bar:rgba(255,255,255,.08); --line:rgba(255,255,255,.18); --glass-frost:0.08; --glass:rgba(255,255,255,var(--glass-frost)); }
-    *{box-sizing:border-box}
-    html,body{margin:0;width:100%;height:100%;overflow:hidden;background:none;color:var(--text);font:16px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
-    .sheet{position:fixed;left:var(--sheet-left,14px);right:auto;bottom:calc(var(--bar-h) + var(--kb) + var(--safe-bottom) + 12px);z-index:40;width:max-content;max-width:calc(100vw - 28px);display:none;padding:8px;border-radius:30px;background:color-mix(in srgb,var(--bg) 66%,transparent);backdrop-filter:blur(28px) saturate(1.35)}
-    .sheet.is-top{bottom:auto;top:var(--sheet-top,72px)}
-    .sheet.on{display:block}
-    .menu-list button{display:flex;align-items:center;gap:12px;width:auto;min-width:100%;white-space:nowrap;min-height:48px;border:0;background:transparent;border-radius:20px;padding:4px 18px 4px 6px;font-size:17px;color:inherit;text-align:left}
-    .sheet-ico{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;background:color-mix(in srgb,var(--text) 11%,transparent)}
-    .ui-icon{width:18px;height:18px;background-color:currentColor;-webkit-mask:var(--ui-icon) center/contain no-repeat;mask:var(--ui-icon) center/contain no-repeat}
-    .app{position:relative;z-index:1;height:100%;display:flex;flex-direction:column}
-    .topbar{display:flex;justify-content:center;padding:12px}
-    .brand{background:transparent;border:0;color:inherit;font-weight:700;letter-spacing:.08em}
-    .bar{position:fixed;left:12px;right:12px;bottom:8px;display:flex;gap:4px;padding:4px;border-radius:999px;background:rgba(255,255,255,.08)}
-    .bar button{flex:1;height:40px;border:0;background:transparent;color:inherit}
-    .backdrop{position:fixed;inset:0;z-index:30;display:none}
-    .backdrop.on{display:block}
-  </style>
+  <meta http-equiv="refresh" content="0;url=https://cdn.jsdelivr.net/gh/romastefale/MDTXTRT@5a2a435a794c4ec77d1964d1debfae535a10d3e6/index.html">
+  <script>location.replace('https://cdn.jsdelivr.net/gh/romastefale/MDTXTRT@5a2a435a794c4ec77d1964d1debfae535a10d3e6/index.html');</script>
 </head>
 <body>
-  <div class="app">
-    <header class="topbar"><button type="button" class="brand" id="brandBtn">MDTXTRT</button></header>
-    <div id="canvas" style="flex:1;overflow:auto;padding:80px 16px 80px">
-      <article id="editor" class="editor" contenteditable="true"><h1>MDTXTRT</h1><p>Editor para <strong>Telegram</strong> e <strong>Telegraph</strong>.</p></article>
-    </div>
-  </div>
-  <div class="bar" id="typebar">
-    <button id="plusBtn">+</button>
-    <button id="headingBtn">H</button>
-    <button id="quoteBtn">“</button>
-    <button id="publishBtn">➤</button>
-  </div>
-  <div class="backdrop" id="backdrop"></div>
-  <div class="sheet" id="importMenu">
-    <div class="menu-list">
-      <button id="importMdBtn"><span class="sheet-ico"></span>Importar Markdown</button>
-      <button id="importTxtBtn"><span class="sheet-ico"></span>Importar TXT</button>
-    </div>
-  </div>
-  <div class="sheet" id="plusMenu">
-    <div class="menu-list">
-      <button data-insert="task">Tarefa</button>
-      <button data-insert="table">Tabela</button>
-      <button data-insert="details">Details</button>
-      <button data-insert="document">Documento</button>
-      <button data-insert="button">Botões</button>
-    </div>
-  </div>
-  <div class="sheet" id="headingMenu"><div class="menu-list"><button data-block="h1">Título H1</button></div></div>
-  <div class="sheet" id="quoteMenu"><div class="menu-list"><button data-block="blockquote">Citação</button></div></div>
-  <div class="sheet" id="publishSheet">
-    <div class="menu-list">
-      <button id="telegramPublishBtn"><span class="sheet-ico"></span>Telegram</button>
-      <button id="telegraphPublishBtn"><span class="sheet-ico"></span>Telegraph</button>
-      <button id="exportTxtBtn"><span class="sheet-ico"></span>Exportar TXT</button>
-      <button id="exportMdBtn"><span class="sheet-ico"></span>Exportar Markdown</button>
-    </div>
-  </div>
-  <input id="fileInput" type="file" hidden>
-  <script>
-    const $=s=>document.querySelector(s);
-    const sheets=['#plusMenu','#publishSheet','#headingMenu','#quoteMenu','#importMenu'];
-    function openPanel(sel,anchor){
-      const panel=$(sel); const rect=anchor?.getBoundingClientRect?.();
-      sheets.forEach(s=>$(s).classList.remove('on','is-top'));
-      const placeTop=sel==='#importMenu';
-      panel.classList.toggle('is-top',placeTop);
-      if(placeTop&&rect) panel.style.setProperty('--sheet-top',Math.round(rect.bottom+8)+'px');
-      panel.style.visibility='hidden'; panel.classList.add('on');
-      const width=Math.min(panel.offsetWidth||280,innerWidth-28);
-      const center=rect?rect.left+rect.width/2:innerWidth/2;
-      const left=Math.max(14,Math.min(innerWidth-width-14,center-width/2));
-      panel.style.setProperty('--sheet-left',left+'px');
-      panel.style.visibility='';
-      $('#backdrop').classList.add('on');
-    }
-    function closePanels(){ sheets.forEach(s=>$(s).classList.remove('on','is-top')); $('#backdrop').classList.remove('on'); }
-    $('#backdrop').onclick=closePanels;
-    $('#brandBtn').onclick=e=>openPanel('#importMenu',e.currentTarget);
-    $('#plusBtn').onclick=e=>openPanel('#plusMenu',e.currentTarget);
-    $('#headingBtn').onclick=e=>openPanel('#headingMenu',e.currentTarget);
-    $('#quoteBtn').onclick=e=>openPanel('#quoteMenu',e.currentTarget);
-    $('#publishBtn').onclick=e=>openPanel('#publishSheet',e.currentTarget);
-  </script>
+  <p><a href="https://cdn.jsdelivr.net/gh/romastefale/MDTXTRT@5a2a435a794c4ec77d1964d1debfae535a10d3e6/index.html">Abrir editor</a></p>
 </body>
 </html>
