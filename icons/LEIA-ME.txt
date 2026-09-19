@@ -1,9 +1,0 @@
-Nomes dos arquivos (SVG, PNG ou WebP — o app tenta nessa ordem):
-plus bold italic underline quote heading list link
-undo redo edit send
-h1 h2 h3 h4 h5 h6 paragraph footer
-task table more details document buttons import file
-copy open settings paste
-
-Se os três existirem, vale o SVG. Apague o .svg para usar PNG ou WebP.
-Traço preto, fundo transparente. 24×24 funciona melhor. PNG colorido também vale.
