@@ -124,8 +124,7 @@
     .chrome-fog-top{top:0;height:calc(100% + 28px);opacity:var(--top-blur,0);mask-image:linear-gradient(to bottom,#000 0%,#000 58%,transparent 100%);-webkit-mask-image:linear-gradient(to bottom,#000 0%,#000 58%,transparent 100%)}
     .chrome-fog-bottom{bottom:0;height:calc(100% + 32px);mask-image:linear-gradient(to top,#000 0%,#000 48%,transparent 100%);-webkit-mask-image:linear-gradient(to top,#000 0%,#000 48%,transparent 100%)}
     .topbar{position:relative;z-index:1;display:flex;align-items:center;justify-content:center;margin:8px 12px 0;padding:4px 12px;min-height:36px}
-    .brand{font-weight:700;font-size:15px;letter-spacing:.08em;text-align:center;border:0;background:transparent;color:inherit;padding:8px 12px;border-radius:999px}
-    .brand:active{opacity:.65}
+    .brand{font-weight:700;font-size:15px;letter-spacing:.08em;text-align:center;border:0;background:transparent;color:inherit;padding:8px 12px;margin:0;border-radius:999px}
     .field-label{display:block;font-size:11px;color:var(--muted);margin:10px 0 4px}
     .link-input{flex:1;min-width:0;height:40px;border-radius:12px;border:1px solid var(--line);background:transparent;padding:0 12px}
     .link-form{display:flex;gap:8px;align-items:center}
@@ -137,9 +136,10 @@
       background:transparent;display:grid;place-items:center;color:inherit
     }
     .iconbtn svg,.bar svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
-    .meta{position:relative;z-index:1;display:flex;align-items:center;gap:8px;margin:8px 16px 0}
+    .meta{position:relative;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:8px;margin:8px 16px 0}
     .title{display:none}
     .stats{display:none}
+    .meta .seg:last-child{margin-left:auto}
     .seg{display:flex;align-items:center;gap:4px;padding:4px;height:44px;border-radius:999px}
     .seg button{
       width:36px;height:36px;border:0;border-radius:50%;background:transparent;display:grid;place-items:center
@@ -240,7 +240,7 @@
     <div class="chrome-top">
       <div class="chrome-fog chrome-fog-top" aria-hidden="true"></div>
       <header class="topbar">
-        <button type="button" class="brand" id="connectBtn" aria-label="Ajustes">MDTXTRT</button>
+        <p class="brand">MDTXTRT</p>
       </header>
       <div class="meta">
       <div class="seg frost">
@@ -323,7 +323,7 @@
   </div>
   <div class="sheet frost" id="publishSheet">
     <h3>Publicar</h3>
-    <p>Telegram Bot API 10.3 ou Telegraph createPage.</p>
+    <p>Telegram via Railway (TOKEN) ou Telegraph createPage. Mini App: GitHub Pages ou mdtxtrt.up.railway.app.</p>
     <div class="stack">
       <button id="telegramPublishBtn"><span>Telegram sendRichMessage</span></button>
       <button id="telegraphPublishBtn"><span>Telegraph createPage</span></button>
@@ -333,26 +333,6 @@
     <pre class="payload" id="payloadBox" hidden></pre>
   </div>
   <input id="fileInput" type="file" accept=".txt,.md,text/plain,text/markdown" hidden>
-  <div class="sheet frost" id="connectSheet">
-    <div class="connect-hero" aria-hidden="true"><img src="logo.png" width="88" height="88" alt=""></div>
-    <h3>Ligar Telegram</h3>
-    <p>Mini App nesta URL. No BotFather: /newapp → cole o endereço, depois abra t.me/mdtxtrtbot/rmdtxtml.</p>
-    <label class="field-label" for="miniUrl">URL da Mini App</label>
-    <div class="link-form">
-      <input id="miniUrl" class="link-input" readonly>
-      <button type="button" class="link-go" id="copyUrlBtn">Copiar</button>
-    </div>
-    <label class="field-label" for="botToken">Token do bot</label>
-    <input id="botToken" class="link-input" type="password" autocomplete="off" placeholder="123456:ABC…">
-    <label class="field-label" for="chatId">Chat ID ou @canal</label>
-    <input id="chatId" class="link-input" placeholder="@canal ou 123456">
-    <label class="field-label" for="botUser">Username do bot</label>
-    <input id="botUser" class="link-input" placeholder="mdtxtrtbot" value="mdtxtrtbot">
-    <div class="stack" style="margin-top:10px">
-      <button type="button" id="testTokenBtn"><span>Testar token</span></button>
-      <button type="button" id="openBotBtn"><span>Abrir no Telegram</span></button>
-    </div>
-  </div>
   <div class="toast frost" id="toast"></div>
 
   <script>
@@ -364,7 +344,7 @@
     const toast = $('#toast');
     const backdrop = $('#backdrop');
     const fileInput = $('#fileInput');
-    const sheets = ['#plusMenu','#fileSheet','#publishSheet','#connectSheet','#headingMenu'];
+    const sheets = ['#plusMenu','#fileSheet','#publishSheet','#headingMenu'];
     let savedRange = null, hist = [], histI = -1, histLock = false, composing = false, saveTimer = null;
     const ICON_EXTS = ['svg','png','webp'];
     const BG_EXTS = ['jpg','jpeg','png','webp','avif'];
@@ -420,16 +400,11 @@
       return Boolean(tg.initDataUnsafe?.user?.id);
     }
     const inTg = isInsideTelegram();
-    let lastPage = localStorage.getItem('rmdtxtml_last_page') || '';
-    const settings = (()=>{
-      try{ return JSON.parse(localStorage.getItem('rmdtxtml_bot')||'null') || {}; }catch{ return {}; }
-    })();
-    settings.token = settings.token || '';
-    settings.chatId = settings.chatId || '';
-    settings.botUsername = (settings.botUsername || 'mdtxtrtbot').replace(/^@/,'');
-    function persistSettings(){
-      localStorage.setItem('rmdtxtml_bot', JSON.stringify(settings));
+    const RAILWAY = 'https://mdtxtrt.up.railway.app';
+    function botApi(){
+      return location.hostname.endsWith('railway.app') ? location.origin : RAILWAY;
     }
+    let lastPage = localStorage.getItem('rmdtxtml_last_page') || '';
     if (inTg) {
       const tg = getTg();
       document.body.classList.add('tg');
@@ -793,21 +768,29 @@
     });
     $('#telegramPublishBtn').addEventListener('click', async ()=>{
       const p = showPayload(buildRich());
-      const raw = JSON.stringify(p);
-      if(inTg && getTg()?.sendData && new TextEncoder().encode(raw).length <= 4096){
-        getTg().sendData(raw); showToast('Enviado ao bot'); return;
+      const initData = getTg()?.initData || '';
+      if(!initData){
+        const raw = JSON.stringify(p);
+        if(inTg && getTg()?.sendData && new TextEncoder().encode(raw).length <= 4096){
+          getTg().sendData(raw); showToast('sendData Mini App'); return;
+        }
+        showToast('Abra pelo bot no Telegram'); return;
       }
-      if(!settings.token || !settings.chatId){ openPanel('#connectSheet'); showToast('Ligue o bot'); return; }
       try{
-        const res = await fetch('https://api.telegram.org/bot'+settings.token+'/sendRichMessage', {
-          method:'POST', headers:{'content-type':'application/json'},
-          body: JSON.stringify({ chat_id: settings.chatId, rich_message: p.rich_message })
+        const res = await fetch(botApi()+'/api/telegram/send', {
+          method:'POST',
+          headers:{'content-type':'application/json'},
+          body: JSON.stringify({ initData, html: p.rich_message.html })
         });
-        const json = await res.json();
-        if(!json.ok) throw new Error(json.description || 'sendRichMessage');
-        showToast('sendRichMessage 10.3');
+        const json = await res.json().catch(()=>({}));
+        if(!res.ok) throw new Error(json.error || 'Falha no Telegram');
+        showToast(json.via === 'sendRichMessage' ? 'sendRichMessage 10.3' : (json.via || 'Enviado'));
       }catch(err){
-        showToast('No Pages use Mini App sendData');
+        const raw = JSON.stringify(p);
+        if(inTg && getTg()?.sendData && new TextEncoder().encode(raw).length <= 4096){
+          getTg().sendData(raw); showToast('sendData Mini App'); return;
+        }
+        showToast(err.message || 'Falha no Telegram');
       }
     });
     $('#telegraphPublishBtn').addEventListener('click', async ()=>{
@@ -815,14 +798,14 @@
       try{
         let token = localStorage.getItem('rmdtxtml_tgph') || '';
         if(!token){
-          const acc = await telegraphCall('createAccount', {short_name:'MDTXTRT', author_name: settings.botUsername || 'MDTXTRT'});
+          const acc = await telegraphCall('createAccount', {short_name:'MDTXTRT', author_name:'MDTXTRT'});
           token = acc.access_token;
           localStorage.setItem('rmdtxtml_tgph', token);
         }
         const page = await telegraphCall('createPage', {
           access_token: token,
           title: payload.title,
-          author_name: settings.botUsername || 'MDTXTRT',
+          author_name: 'MDTXTRT',
           content: JSON.stringify(payload.content),
           return_content: 'false'
         });
@@ -840,36 +823,6 @@
         if(new TextEncoder().encode(raw).length > 4096){ showToast('Grande demais p/ sendData'); return; }
         getTg().sendData(raw); showToast('sendData');
       } else showToast('Abra pelo bot');
-    });
-    $('#connectBtn').addEventListener('click', ()=>openPanel('#connectSheet'));
-    $('#miniUrl').value = location.href.split('#')[0];
-    $('#botToken').value = settings.token;
-    $('#chatId').value = settings.chatId;
-    $('#botUser').value = settings.botUsername;
-    $('#botToken').addEventListener('input', e => { settings.token = e.target.value; persistSettings(); });
-    $('#chatId').addEventListener('input', e => { settings.chatId = e.target.value; persistSettings(); });
-    $('#botUser').addEventListener('input', e => { settings.botUsername = e.target.value.replace(/^@/,''); persistSettings(); });
-    $('#copyUrlBtn').addEventListener('click', async ()=>{
-      try{ await navigator.clipboard.writeText($('#miniUrl').value); showToast('URL copiada'); }
-      catch{ showToast('Copie a URL'); }
-    });
-    $('#testTokenBtn').addEventListener('click', async ()=>{
-      if(!settings.token){ showToast('Cole o token'); return; }
-      try{
-        const res = await fetch('https://api.telegram.org/bot'+settings.token+'/getMe');
-        const json = await res.json();
-        if(!json.ok) throw new Error(json.description || 'getMe');
-        settings.botUsername = json.result.username || settings.botUsername;
-        $('#botUser').value = settings.botUsername;
-        persistSettings();
-        showToast('@'+settings.botUsername);
-      }catch{ showToast('Token: teste pelo bot, CORS bloqueia aqui'); }
-    });
-    $('#openBotBtn').addEventListener('click', ()=>{
-      const user = settings.botUsername || 'mdtxtrtbot';
-      const href = 'https://t.me/'+user+'/rmdtxtml';
-      if(inTg) getTg().openTelegramLink?.(href);
-      else window.open(href,'_blank','noopener');
     });
     $('#copyPayloadBtn').addEventListener('click', async ()=>{
       const p = showPayload(buildRich());
