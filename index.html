@@ -17,13 +17,13 @@
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:image" content="https://romastefale.github.io/MDTXTRT/x-banner.jpg" />
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <script>(function(){try{var t=window.Telegram&&window.Telegram.WebApp;var inTg=t&&((t.initData&&t.initData.length)||(t.initDataUnsafe&&t.initDataUnsafe.user&&t.initDataUnsafe.user.id));var l=inTg&&t.colorScheme?t.colorScheme==="light":matchMedia("(prefers-color-scheme: light)").matches;if(inTg){document.documentElement.classList.toggle("light",l);document.documentElement.classList.toggle("dark",!l);}else{document.documentElement.classList.remove("light","dark");}var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute("content",l?"#e4eaf8":"#161b4a");}catch(e){}})();</script>
+  <script>(function(){try{var t=window.Telegram&&window.Telegram.WebApp;var inTg=t&&((t.initData&&t.initData.length)||(t.initDataUnsafe&&t.initDataUnsafe.user&&t.initDataUnsafe.user.id));var l=inTg&&t.colorScheme?t.colorScheme==="light":matchMedia("(prefers-color-scheme: light)").matches;document.documentElement.classList.toggle("light",l);document.documentElement.classList.toggle("dark",!l);var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute("content",l?"#e4eaf8":"#161b4a");}catch(e){}})();</script>
   <style>
     :root{
       --bg:#161b4a;
       --text:#f5f5f7;
       --muted:#c5c8d8;
-      --accent:#8b5cf6; color-scheme:dark;
+      --accent:#8b5cf6;
       --bar:rgba(255,255,255,.08);
       --line:rgba(255,255,255,.18);
       --wash-image:url("bg-dark.jpg"); --glass-frost:0.08;
@@ -40,7 +40,7 @@
     }
     @media (prefers-color-scheme: light){
       :root{
-        --bg:#e4eaf8; --text:#151515; --muted:#5c6478; --accent:#ff6a00; color-scheme:light;
+        --bg:#e4eaf8; --text:#151515; --muted:#5c6478; --accent:#ff6a00;
         --bar:rgba(255,255,255,.46); --line:rgba(255,255,255,.7);
         --wash-image:url("bg-light.jpg"); --glass-frost:0.22; --glass-saturation:1.15;
         --glass:rgba(255,255,255,var(--glass-frost));
@@ -50,7 +50,7 @@
       }
     }
     html.light{
-      --bg:#e4eaf8; --text:#151515; --muted:#5c6478; --accent:#ff6a00; color-scheme:light;
+      --bg:#e4eaf8; --text:#151515; --muted:#5c6478; --accent:#ff6a00;
       --bar:rgba(255,255,255,.46); --line:rgba(255,255,255,.7);
       --wash-image:url("bg-light.jpg"); --glass-frost:0.22;
       --glass:rgba(255,255,255,var(--glass-frost));
@@ -59,18 +59,26 @@
       --glass-shadow-lg:inset 0 .5px 0 rgba(255,255,255,.5),0 4px 12px rgba(20,24,36,.05),0 16px 32px rgba(20,24,36,.08),0 28px 48px rgba(20,24,36,.06);
     }
     html.dark{
-      --bg:#161b4a; --text:#f5f5f7; --muted:#c5c8d8; --accent:#8b5cf6; color-scheme:dark;
+      --bg:#161b4a; --text:#f5f5f7; --muted:#c5c8d8; --accent:#8b5cf6;
       --bar:rgba(255,255,255,.08); --line:rgba(255,255,255,.18);
       --wash-image:url("bg-dark.jpg"); --glass-frost:0.08; --glass:rgba(255,255,255,var(--glass-frost));
     }
+    html{color-scheme:light dark}
+    html.light{color-scheme:light}
+    html.dark{color-scheme:dark}
     *{box-sizing:border-box}
-    html,body{width:100%;height:100%;min-height:100dvh;min-height:100lvh;min-height:-webkit-fill-available;touch-action:manipulation;-ms-touch-action:manipulation;background-color:var(--bg);background-image:var(--wash-image);background-size:cover;background-position:center;background-repeat:no-repeat;accent-color:var(--accent);caret-color:var(--accent)}
+    html,body{width:100%;height:100%;min-height:100dvh;min-height:100lvh;min-height:-webkit-fill-available;touch-action:manipulation;-ms-touch-action:manipulation;background-color:var(--bg);accent-color:var(--accent);caret-color:var(--accent)}
     body{
       margin:0;color:var(--text);
       font:16px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;
       overflow:hidden;
     }
-    .wash{position:fixed;inset:0;width:100%;height:100%;min-width:100vw;min-height:100dvh;min-height:100lvh;z-index:0;pointer-events:none;overflow:hidden;background:var(--wash-image) center / cover no-repeat}
+    .wash{position:fixed;inset:0;width:100vw;width:100dvw;height:100%;min-height:100vh;min-height:100dvh;min-height:100lvh;z-index:0;pointer-events:none;overflow:hidden}
+    .wash-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;display:block}
+    .wash-light{opacity:0}.wash-dark{opacity:1}
+    @media (prefers-color-scheme: light){html:not(.dark) .wash-light{opacity:1} html:not(.dark) .wash-dark{opacity:0}}
+    html.light .wash-light{opacity:1} html.light .wash-dark{opacity:0}
+    html.dark .wash-light{opacity:0} html.dark .wash-dark{opacity:1}
     ::selection{background:color-mix(in srgb,var(--accent) 38%, transparent);color:inherit}
     button,input{font:inherit;color:inherit}
     button{cursor:pointer;-webkit-tap-highlight-color:transparent}
@@ -115,8 +123,9 @@
     .seg button{
       width:34px;height:28px;border:0;border-radius:999px;background:transparent;display:grid;place-items:center
     }
-    .seg button.active,.iconbtn.on,.bar > button.on{background:color-mix(in srgb,var(--accent) 22%, transparent);color:var(--accent)}
-    html.light .seg button.active,html.light .iconbtn.on,html.light .bar > button.on{background:color-mix(in srgb,var(--accent) 18%, #fff);color:var(--accent)}
+    .seg button.active{background:color-mix(in srgb,var(--text) 10%, transparent)}
+    .bar > button.on{background:color-mix(in srgb,var(--accent) 22%, transparent);color:var(--accent)}
+    html.light .bar > button.on{background:color-mix(in srgb,var(--accent) 18%, #fff);color:var(--accent)}
     .seg svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
     .canvas{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;padding:calc(var(--tg-top) + 108px) 16px calc(var(--bar-h) + var(--kb) + var(--safe-bottom) + 28px);position:relative}
     .editor,.preview{
@@ -150,7 +159,7 @@
       flex:1;min-width:0;height:40px;border:0;background:transparent;color:inherit;
       display:grid;place-items:center;border-radius:999px;padding:0
     }
-    .bar > button.on{color:var(--accent);background:color-mix(in srgb,var(--accent) 22%, transparent)}
+    
     .bar .plus,.bar .send{flex:0 0 40px}
     .send-dot{
       width:32px;height:32px;border-radius:999px;display:grid;place-items:center;
@@ -163,12 +172,17 @@
     .backdrop{position:fixed;inset:0;z-index:30;background:rgba(0,0,0,.28);display:none}
     .backdrop.on{display:block;backdrop-filter:blur(18px) saturate(140%);-webkit-backdrop-filter:blur(18px) saturate(140%)}
     .sheet{
-      position:fixed;left:12px;right:12px;bottom:calc(var(--bar-h) + var(--kb) + var(--safe-bottom) + 8px);
-      z-index:40;max-width:420px;margin:auto;max-height:56vh;overflow:auto;
-      display:none;padding:10px;border-radius:22px;
+      position:fixed;left:14px;right:14px;bottom:calc(var(--bar-h) + var(--kb) + var(--safe-bottom) + 10px);
+      z-index:40;max-width:360px;margin:auto;max-height:min(72vh,560px);overflow:auto;
+      display:none;padding:8px;border-radius:24px;
       box-shadow:var(--glass-shadow-lg);
-      background:color-mix(in srgb,var(--glass) 70%, transparent);
+      background:color-mix(in srgb,var(--bg) 18%, transparent);
     }
+    .menu-list{display:flex;flex-direction:column;gap:2px}
+    .menu-list button{min-height:44px;border-radius:14px;border:0;background:transparent;box-shadow:none;padding:0 8px 0 6px;font-size:16px;gap:12px}
+    .menu-list button:active{background:color-mix(in srgb,var(--text) 8%, transparent)}
+    .sheet-ico{width:32px;height:32px;border-radius:50%;flex:none;display:grid;place-items:center;background:color-mix(in srgb,var(--text) 10%, transparent)}
+    .sheet-ico svg{width:16px;height:16px}
     .sheet.on{display:block}
     .sheet h3{margin:0 0 8px;font-size:15px}
     .sheet p,.hint{margin:0 0 10px;font-size:12px;color:var(--muted)}
@@ -200,7 +214,7 @@
       <feDisplacementMap in="blur" in2="map" scale="0.12" xChannelSelector="R" yChannelSelector="G"/>
     </filter>
   </svg>
-<div class="wash" aria-hidden="true"></div>
+<div class="wash" aria-hidden="true"><img class="wash-img wash-light" src="bg-light.jpg" alt=""><img class="wash-img wash-dark" src="bg-dark.jpg" alt=""></div>
   <div class="app">
     <div class="chrome-top">
       <div class="chrome-fog chrome-fog-top" aria-hidden="true"></div>
@@ -253,19 +267,18 @@
 
   <div class="backdrop" id="backdrop"></div>
   <div class="sheet frost" id="plusMenu">
-    <h3>Inserir</h3>
-    <div class="grid">
-      <button data-block="h1">H1</button>
-      <button data-block="h2">H2</button>
-      <button data-block="h3">H3</button>
-      <button data-insert="task">Tarefa</button>
-      <button data-insert="table">Tabela</button>
-      <button data-insert="expandquote">Citação 10.3</button>
-      <button data-insert="details">Details</button>
-      <button data-insert="document">Documento</button>
-      <button data-insert="button">Botões</button>
-      <button id="importSheetBtn">Importar</button>
-      <button id="fileBtn">Arquivo</button>
+    <div class="menu-list">
+      <button data-block="h1"><span class="sheet-ico"><svg viewBox="0 0 24 24"><path d="M4 12h8"/><path d="M4 18V6"/><path d="M12 18V6"/><path d="m17 12 3-2v8"/></svg></span>H1</button>
+      <button data-block="h2"><span class="sheet-ico"><svg viewBox="0 0 24 24"><path d="M4 12h8"/><path d="M4 18V6"/><path d="M12 18V6"/><path d="M21 18h-4c0-4 4-3 4-6 0-1.5-2-2.5-4-1"/></svg></span>H2</button>
+      <button data-block="h3"><span class="sheet-ico"><svg viewBox="0 0 24 24"><path d="M4 12h8"/><path d="M4 18V6"/><path d="M12 18V6"/><path d="M17.5 10.5c1.7-1 3.5 0 3.5 1.5a2 2 0 0 1-2 2"/><path d="M17 17.5c2 1.5 4 .3 4-1.5a2 2 0 0 0-2-2"/></svg></span>H3</button>
+      <button data-insert="task"><span class="sheet-ico"><svg viewBox="0 0 24 24"><path d="M13 5h8"/><path d="M13 12h8"/><path d="M13 19h8"/><path d="m3 17 2 2 4-4"/><rect x="3" y="4" width="6" height="6" rx="1"/></svg></span>Tarefa</button>
+      <button data-insert="table"><span class="sheet-ico"><svg viewBox="0 0 24 24"><path d="M12 3v18"/><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/></svg></span>Tabela</button>
+      <button data-insert="expandquote"><span class="sheet-ico"><svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></span>Citação 10.3</button>
+      <button data-insert="details"><span class="sheet-ico"><svg viewBox="0 0 24 24"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/><path d="M18 14h-8"/><path d="M15 18h-5"/><path d="M10 6h8v4h-8V6Z"/></svg></span>Details</button>
+      <button data-insert="document"><span class="sheet-ico"><svg viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg></span>Documento</button>
+      <button data-insert="button"><span class="sheet-ico"><svg viewBox="0 0 24 24"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg></span>Botões</button>
+      <button id="importSheetBtn"><span class="sheet-ico"><svg viewBox="0 0 24 24"><path d="M12 3v12"/><path d="m17 8-5-5-5 5"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/></svg></span>Importar</button>
+      <button id="fileBtn"><span class="sheet-ico"><svg viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg></span>Arquivo</button>
     </div>
   </div>
   <div class="sheet frost" id="fileSheet">
@@ -328,12 +341,8 @@
       const tg = window.Telegram?.WebApp;
       const inTg = !!(tg && ((tg.initData && tg.initData.length) || tg.initDataUnsafe?.user?.id));
       const light = inTg && tg.colorScheme ? tg.colorScheme === 'light' : window.matchMedia('(prefers-color-scheme: light)').matches;
-      if(inTg){
-        document.documentElement.classList.toggle('light', light);
-        document.documentElement.classList.toggle('dark', !light);
-      } else {
-        document.documentElement.classList.remove('light','dark');
-      }
+      document.documentElement.classList.toggle('light', light);
+      document.documentElement.classList.toggle('dark', !light);
       const theme = light ? '#e4eaf8' : '#161b4a';
       const meta = document.querySelector('meta[name="theme-color"]');
       if(meta) meta.setAttribute('content', theme);
