@@ -1,28 +1,29 @@
 # MDTXTRT
 
-MDTXTRT é um editor de texto para **Telegram** e **Telegraph**.
-
-Você escreve uma vez. O mesmo texto vira mensagem rica no Telegram e página no Telegraph.
+Editor de texto para **Telegram** e **Telegraph**. Você escreve uma vez. O mesmo texto vira mensagem rica no Telegram e página no Telegraph.
 
 ## O que é
 
-Um Mini App de edição visual. Aberto no Telegram, acompanha o tema do app. Aberto no navegador, acompanha o modo claro ou escuro do sistema. O fundo é o HTML em [`backgrounds`](backgrounds/) — `light.html` e `dark.html`.
+Mini App de edição visual. No Telegram, acompanha o tema do app. No navegador, o claro/escuro do sistema.
+
+O fundo **é** [`backgrounds/light.html`](backgrounds/light.html) e [`backgrounds/dark.html`](backgrounds/dark.html). Não é imagem. Não está copiado no `index.html`. Trocar um desses dois arquivos é trocar o fundo.
 
 ## O que faz
 
-- Escreve com títulos (H1 a H6), corpo, rodapé do Telegram, listas, links e citações
+- Títulos (H1 a H6), corpo, rodapé do Telegram, listas, links e citações
 - Tarefas, tabela, citação expansível, documento e botões
 - Importa TXT, Markdown e HTML
 - Publica no Telegraph
-- Envia o texto rico para o Telegram quando está aberto como Mini App
+- Envia texto rico ao Telegram no Mini App
 - Copia o conteúdo e reabre a última página publicada
 
 ## Onde abrir
 
+- App: [romastefale.github.io/MDTXTRT](https://romastefale.github.io/MDTXTRT/)
 - Mini App: [@mdtxtrtbot](https://t.me/mdtxtrtbot)
-- [romastefale.github.io/MDTXTRT](https://romastefale.github.io/MDTXTRT/)
-- [mdtxtrt.up.railway.app](https://mdtxtrt.up.railway.app)
+- API do bot: [mdtxtrt.up.railway.app](https://mdtxtrt.up.railway.app)
 
 ## Visual
 
-Ícones da interface ficam em [`icons`](icons/). O fundo fica em [`backgrounds`](backgrounds/): `light.html` e `dark.html`. Atualizar o arquivo lá é atualizar o fundo.
+- Ícones: [`icons/`](icons/)
+- Fundo: [`backgrounds/`](backgrounds/) — só `light.html` e `dark.html`

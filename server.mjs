@@ -207,7 +207,12 @@ const server = createServer(async (req, res) => {
       return;
     }
     const type = MIME[extname(file).toLowerCase()] || "application/octet-stream";
-    res.writeHead(200, { "content-type": type, "cache-control": "public, max-age=600" });
+    const ext = extname(file).toLowerCase();
+    const live = ext === ".html" || ext === ".json";
+    res.writeHead(200, {
+      "content-type": type,
+      "cache-control": live ? "no-cache" : "public, max-age=600",
+    });
     if (req.method === "HEAD") {
       res.end();
       return;
