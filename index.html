@@ -26,6 +26,7 @@
       --accent:#8b5cf6;
       --bar:rgba(255,255,255,.08);
       --line:rgba(255,255,255,.18);
+      --wash-image:url("backgrounds/dark.jpg");
       --glass-frost:0.08;
       --glass-saturation:1.15;
       --glass:rgba(255,255,255,var(--glass-frost));
@@ -42,6 +43,7 @@
       :root{
         --bg:#e4eaf8; --text:#151515; --muted:#5c6478; --accent:#ff6a00;
         --bar:rgba(255,255,255,.46); --line:rgba(255,255,255,.7);
+        --wash-image:url("backgrounds/light.jpg");
         --glass-frost:0.22; --glass-saturation:1.15;
         --glass:rgba(255,255,255,var(--glass-frost));
         --glass-edge:transparent;
@@ -52,6 +54,7 @@
     html.light{
       --bg:#e4eaf8; --text:#151515; --muted:#5c6478; --accent:#ff6a00;
       --bar:rgba(255,255,255,.46); --line:rgba(255,255,255,.7);
+      --wash-image:url("backgrounds/light.jpg");
       --glass-frost:0.22;
       --glass:rgba(255,255,255,var(--glass-frost));
       --glass-edge:transparent;
@@ -61,24 +64,19 @@
     html.dark{
       --bg:#161b4a; --text:#f5f5f7; --muted:#c5c8d8; --accent:#8b5cf6;
       --bar:rgba(255,255,255,.08); --line:rgba(255,255,255,.18);
+      --wash-image:url("backgrounds/dark.jpg");
       --glass-frost:0.08; --glass:rgba(255,255,255,var(--glass-frost));
     }
     html{color-scheme:light dark}
     html.light{color-scheme:light}
     html.dark{color-scheme:dark}
     *{box-sizing:border-box}
-    html,body{width:100%;height:100%;min-height:100dvh;touch-action:manipulation;-ms-touch-action:manipulation;background-color:var(--bg);accent-color:var(--accent);caret-color:var(--accent)}
+    html,body{width:100%;height:100%;min-height:100dvh;touch-action:manipulation;-ms-touch-action:manipulation;background-color:var(--bg);background-image:var(--wash-image);background-size:100% 100%;background-position:center;background-repeat:no-repeat;accent-color:var(--accent);caret-color:var(--accent)}
     body{
       margin:0;color:var(--text);
       font:16px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;
       overflow:hidden;
     }
-    .wash{position:absolute;inset:0;z-index:0;pointer-events:none;overflow:hidden}
-    .wash-img{position:absolute;inset:0;width:100%;height:100%;object-fit:fill;object-position:center;display:block}
-    .wash-light{opacity:0}.wash-dark{opacity:1}
-    @media (prefers-color-scheme: light){html:not(.dark) .wash-light{opacity:1} html:not(.dark) .wash-dark{opacity:0}}
-    html.light .wash-light{opacity:1} html.light .wash-dark{opacity:0}
-    html.dark .wash-light{opacity:0} html.dark .wash-dark{opacity:1}
     ::selection{background:color-mix(in srgb,var(--accent) 38%, transparent);color:inherit}
     button,input{font:inherit;color:inherit}
     button{cursor:pointer;-webkit-tap-highlight-color:transparent}
@@ -241,7 +239,6 @@
       <feDisplacementMap in="blur" in2="map" scale="0.12" xChannelSelector="R" yChannelSelector="G"/>
     </filter>
   </svg>
-<div class="wash" aria-hidden="true"><img class="wash-img wash-light" src="backgrounds/light.jpg" alt=""><img class="wash-img wash-dark" src="backgrounds/dark.jpg" alt=""></div>
   <div class="app">
     <div class="chrome-top">
       <div class="chrome-fog chrome-fog-top" aria-hidden="true"></div>
