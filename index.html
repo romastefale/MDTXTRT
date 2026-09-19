@@ -3,9 +3,6 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" />
-  <meta name="theme-color" content="#12131c" />
-  <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f8fbff" />
-  <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#12131c" />
   <meta name="color-scheme" content="light dark" />
   <title>MDTXTRT</title>
   <meta name="description" content="md to rich text and telegraph editor — Mini App Telegram e Telegraph." />
@@ -19,7 +16,7 @@
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:image" content="https://romastefale.github.io/MDTXTRT/x-banner.jpg" />
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <script>(function(){try{var t=window.Telegram&&window.Telegram.WebApp;var inTg=t&&((t.initData&&t.initData.length)||(t.initDataUnsafe&&t.initDataUnsafe.user&&t.initDataUnsafe.user.id));var l=inTg&&t.colorScheme?t.colorScheme==="light":matchMedia("(prefers-color-scheme: light)").matches;document.documentElement.classList.toggle("light",l);document.documentElement.classList.toggle("dark",!l);var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute("content",l?"#f8fbff":"#12131c");}catch(e){}})();</script>
+  <script>(function(){try{var t=window.Telegram&&window.Telegram.WebApp;var inTg=t&&((t.initData&&t.initData.length)||(t.initDataUnsafe&&t.initDataUnsafe.user&&t.initDataUnsafe.user.id));var l=inTg&&t.colorScheme?t.colorScheme==="light":matchMedia("(prefers-color-scheme: light)").matches;document.documentElement.classList.toggle("light",l);document.documentElement.classList.toggle("dark",!l);}catch(e){}})();</script>
   <style>
     :root{
       --bg:#12131c;
@@ -87,70 +84,23 @@
     html.light{color-scheme:light}
     html.dark{color-scheme:dark}
     *{box-sizing:border-box}
-    html,body{width:100%;min-height:100%;min-height:100svh;min-height:100dvh;min-height:100lvh;min-height:-webkit-fill-available;touch-action:pan-x pan-y;-ms-touch-action:pan-x pan-y;accent-color:var(--accent);caret-color:var(--accent)}
+    html,body{margin:0;width:100%;min-height:100%;touch-action:pan-x pan-y;-ms-touch-action:pan-x pan-y;accent-color:var(--accent);caret-color:var(--accent)}
     html{
-      height:100%;
-      height:100lvh;
-      height:-webkit-fill-available;
-      background-color:var(--bg);
-      background-image:var(--wash);
+      background:var(--wash);
       background-repeat:no-repeat;
       background-size:100% 100%;
-      background-attachment:scroll;
     }
     body{
-      margin:0;padding:0!important;color:var(--text);
+      min-height:100dvh;
+      padding:0!important;color:var(--text);
       font:16px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;
-      min-height:100%;
-      min-height:100lvh;
-      min-height:-webkit-fill-available;
-      height:100%;
       overflow:hidden;
-      background-color:var(--bg);
-      background-image:var(--wash);
+      background:var(--wash);
       background-repeat:no-repeat;
       background-size:100% 100%;
-      background-attachment:scroll;
+      background-attachment:fixed;
     }
-    body::before{
-      content:"";
-      position:fixed;
-      z-index:-1;
-      left:0;right:0;top:0;
-      width:100%;
-      height:100lvh;
-      min-height:100%;
-      min-height:-webkit-fill-available;
-      pointer-events:none;
-      background-color:var(--bg);
-      background-image:var(--wash);
-      background-repeat:no-repeat;
-      background-size:100% 100%;
-    }
-    .wash{
-      position:fixed;
-      z-index:0;
-      pointer-events:none;
-      left:0;right:0;top:0;bottom:0;
-      width:100%;
-      height:100lvh;
-      min-height:100%;
-      min-height:-webkit-fill-available;
-      background:transparent;
-    }
-    .wash-layer{
-      position:absolute;
-      left:0;right:0;
-      top:calc(-1 * (env(safe-area-inset-top,0px) + var(--tg-top,0px) + 100px));
-      bottom:calc(-1 * (env(safe-area-inset-bottom,0px) + 160px));
-      background-repeat:no-repeat;
-      background-size:100% 100%;
-    }
-    .wash-light{background-image:var(--wash-light);opacity:0}
-    .wash-dark{background-image:var(--wash-dark);opacity:1}
-    @media (prefers-color-scheme: light){html:not(.dark) .wash-light{opacity:1} html:not(.dark) .wash-dark{opacity:0}}
-    html.light .wash-light{opacity:1} html.light .wash-dark{opacity:0}
-    html.dark .wash-light{opacity:0} html.dark .wash-dark{opacity:1}
+    .wash,.wash-layer,.wash-light,.wash-dark{display:none}
     ::selection{background:color-mix(in srgb,var(--accent) 38%, transparent);color:inherit}
     button,input{font:inherit;color:inherit}
     button{cursor:pointer;-webkit-tap-highlight-color:transparent}
@@ -314,7 +264,7 @@
       <feDisplacementMap in="blur" in2="map" scale="0.12" xChannelSelector="R" yChannelSelector="G"/>
     </filter>
   </svg>
-<div class="wash" aria-hidden="true"><div class="wash-layer wash-light"></div><div class="wash-layer wash-dark"></div></div>
+
   <div class="app">
     <div class="chrome-top">
       <div class="chrome-fog chrome-fog-top" aria-hidden="true"></div>
@@ -472,13 +422,9 @@
       const light = inTg && tg.colorScheme ? tg.colorScheme === 'light' : window.matchMedia('(prefers-color-scheme: light)').matches;
       document.documentElement.classList.toggle('light', light);
       document.documentElement.classList.toggle('dark', !light);
-      const theme = light ? '#f8fbff' : '#12131c';
-      const meta = document.querySelector('meta[name="theme-color"]');
-      if(meta) meta.setAttribute('content', theme);
       if(inTg){
-        tg?.setBackgroundColor?.(theme);
-        tg?.setHeaderColor?.(theme);
-        tg?.setBottomBarColor?.(theme);
+        const header = light ? '#f8fbff' : '#12131c';
+        tg?.setHeaderColor?.(header);
       }
     }
     applyScheme();
