@@ -5,11 +5,11 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" />
   <meta name="theme-color" content="#111214" />
   <meta name="color-scheme" content="dark light" />
-  <title>RMDtxtML</title>
+  <title>MDTXTRT</title>
   <meta name="description" content="md to rich text and telegraph editor — Mini App Telegram e Telegraph." />
   <link rel="icon" type="image/svg+xml" href="favicon.svg" />
   <link rel="apple-touch-icon" href="logo.png" />
-  <meta property="og:title" content="RMDtxtML" />
+  <meta property="og:title" content="MDTXTRT" />
   <meta property="og:description" content="@mdtxtrtbot · md to rich text and telegraph editor" />
   <meta property="og:image" content="https://romastefale.github.io/MDTXTRT/og.jpg" />
   <meta property="og:url" content="https://romastefale.github.io/MDTXTRT/" />
@@ -17,6 +17,7 @@
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:image" content="https://romastefale.github.io/MDTXTRT/x-banner.jpg" />
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script>(function(){try{var t=window.Telegram&&window.Telegram.WebApp;var l=t&&t.colorScheme?t.colorScheme==="light":matchMedia("(prefers-color-scheme: light)").matches;document.documentElement.classList.toggle("light",l);document.documentElement.classList.toggle("dark",!l);var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute("content",l?"#f3f3f5":"#101012");}catch(e){}})();</script>
   <style>
     :root{
       --bg:#101012;
@@ -46,13 +47,13 @@
       --bar:rgba(255,255,255,.04); --line:rgba(255,255,255,.1);
     }
     *{box-sizing:border-box}
-    html,body{height:100%;touch-action:manipulation;-ms-touch-action:manipulation}
+    html,body{width:100%;height:100%;min-height:100dvh;touch-action:manipulation;-ms-touch-action:manipulation;background:var(--bg)}
     body{
       margin:0;background:var(--bg);color:var(--text);
       font:16px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;
       overflow:hidden;
     }
-    .wash{position:fixed;inset:-10%;z-index:0;pointer-events:none;overflow:hidden}
+    .wash{position:fixed;inset:0;width:100vw;height:100dvh;z-index:0;pointer-events:none;overflow:hidden}
     .wash i{position:absolute;border-radius:50%;filter:blur(72px)}
     .wash .a{width:78vw;height:78vw;left:-22%;top:-16%;background:#ff7a33;opacity:.38}
     .wash .b{width:64vw;height:64vw;right:-20%;top:16%;background:#4f86ff;opacity:.32}
@@ -71,11 +72,10 @@
     }
     .app{
       position:relative;z-index:1;
-      height:100%;
-      max-width:430px;margin:0 auto;
+      width:100%;height:100%;max-width:none;margin:0;
       padding:var(--tg-top) 0 calc(var(--bar-h) + var(--kb) + var(--safe-bottom) + 16px);
       display:flex;flex-direction:column;
-      overflow:hidden;
+      overflow:hidden;background:transparent;
     }
     .tg-slot{height:0;flex:none}
     body.tg .tg-slot{height:var(--tg-top)}
@@ -83,11 +83,9 @@
       flex:none;display:flex;align-items:center;justify-content:center;
       margin:8px 12px 0;padding:8px 12px;min-height:36px;
     }
-    .topbar{justify-content:space-between;padding:4px 4px 4px 8px}
-    .brand{font-weight:700;font-size:15px;letter-spacing:-.02em;text-align:center;display:inline-flex;align-items:center;gap:7px}
-    .brand-mark{width:22px;height:22px;border-radius:6px;object-fit:cover;background:#000}
-    .status-chip{height:24px;min-width:64px;padding:0 8px;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--muted);font-size:10px;font-weight:650;letter-spacing:.06em;text-transform:uppercase}
-    .status-chip.is-live{color:var(--accent);border-color:color-mix(in oklab,var(--accent) 50%,var(--line))}
+    .topbar{justify-content:center;padding:4px 12px}
+    .brand{font-weight:700;font-size:15px;letter-spacing:.08em;text-align:center;border:0;background:transparent;color:inherit;padding:8px 12px;border-radius:999px}
+    .brand:active{opacity:.65}
     .field-label{display:block;font-size:11px;color:var(--muted);margin:10px 0 4px}
     .link-input{flex:1;min-width:0;height:40px;border-radius:12px;border:1px solid var(--line);background:transparent;padding:0 12px}
     .link-form{display:flex;gap:8px;align-items:center}
@@ -181,9 +179,7 @@
   <div class="app">
     <div class="tg-slot" aria-hidden="true"></div>
     <header class="topbar">
-      <button type="button" class="status-chip" id="statusChip">Web</button>
-      <div class="brand"><img class="brand-mark" src="mark.png" width="22" height="22" alt="">RMDtxtML</div>
-      <button type="button" class="iconbtn" id="connectBtn" aria-label="Ligar bot"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
+      <button type="button" class="brand" id="connectBtn" aria-label="Ajustes">MDTXTRT</button>
     </header>
     <div class="meta">
       <input id="docName" class="title" value="Ideia" aria-label="Nome">
@@ -199,7 +195,7 @@
     </div>
     <div class="canvas">
       <article id="editor" class="editor" contenteditable="true" spellcheck="true" inputmode="text" enterkeyhint="enter" aria-label="Editor">
-        <h1>RMDtxtML</h1>
+        <h1>MDTXTRT</h1>
         <p>Editor para <strong>Telegram</strong> e <strong>Telegraph</strong>.</p>
         <h2>Escrever uma vez</h2>
         <p>TXT e Markdown entram e saem. A publicação vai para Telegram (Bot API 10.3) ou Telegraph.</p>
@@ -306,7 +302,12 @@
       const light = tg ? tg.colorScheme === 'light' : window.matchMedia('(prefers-color-scheme: light)').matches;
       document.documentElement.classList.toggle('light', light);
       document.documentElement.classList.toggle('dark', !light);
-      if(tg?.themeParams?.bg_color) tg.setBackgroundColor(tg.themeParams.bg_color);
+      const theme = light ? '#f3f3f5' : '#101012';
+      const meta = document.querySelector('meta[name="theme-color"]');
+      if(meta) meta.setAttribute('content', theme);
+      document.body.style.background = theme;
+      tg?.setBackgroundColor?.(tg.themeParams?.bg_color || theme);
+      tg?.setHeaderColor?.(theme);
     }
     applyScheme();
     window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', applyScheme);
@@ -331,8 +332,6 @@
     if (inTg) {
       const tg = getTg();
       document.body.classList.add('tg');
-      $('#statusChip').textContent = 'Mini App';
-      $('#statusChip').classList.add('is-live');
       tg.ready(); tg.expand();
       const applySafe = () => {
         const top = Math.max(tg.contentSafeAreaInset?.top || 0, tg.safeAreaInset?.top || 0, 72);
@@ -639,14 +638,14 @@
       try{
         let token = localStorage.getItem('rmdtxtml_tgph') || '';
         if(!token){
-          const acc = await telegraphCall('createAccount', {short_name:'MDTXTRT', author_name: settings.botUsername || 'RMDtxtML'});
+          const acc = await telegraphCall('createAccount', {short_name:'MDTXTRT', author_name: settings.botUsername || 'MDTXTRT'});
           token = acc.access_token;
           localStorage.setItem('rmdtxtml_tgph', token);
         }
         const page = await telegraphCall('createPage', {
           access_token: token,
           title: payload.title,
-          author_name: settings.botUsername || 'RMDtxtML',
+          author_name: settings.botUsername || 'MDTXTRT',
           content: JSON.stringify(payload.content),
           return_content: 'false'
         });
@@ -666,7 +665,6 @@
       } else showToast('Abra pelo bot');
     });
     $('#connectBtn').addEventListener('click', ()=>openPanel('#connectSheet'));
-    $('#statusChip').addEventListener('click', ()=>openPanel('#connectSheet'));
     $('#miniUrl').value = location.href.split('#')[0];
     $('#botToken').value = settings.token;
     $('#chatId').value = settings.chatId;
