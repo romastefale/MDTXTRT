@@ -111,11 +111,18 @@
       backdrop-filter:url(#frosted);
       -webkit-backdrop-filter:blur(20px) saturate(var(--glass-saturation,1.15));
     }
-    .seg.frost,.bar.frost,.sheet.frost,.toast.frost{
+    .seg.frost{
       background:var(--glass);
       border:0;
       box-shadow:var(--glass-shadow);
       backdrop-filter:url(#frosted);
+      -webkit-backdrop-filter:blur(20px) saturate(var(--glass-saturation,1.15));
+    }
+    .bar.frost,.sheet.frost,.toast.frost{
+      background:var(--glass);
+      border:0;
+      box-shadow:var(--glass-shadow);
+      backdrop-filter:blur(20px) saturate(var(--glass-saturation,1.15));
       -webkit-backdrop-filter:blur(20px) saturate(var(--glass-saturation,1.15));
     }
     .glass-surface__filter{position:absolute;width:0;height:0;overflow:hidden;pointer-events:none}
@@ -129,7 +136,7 @@
     .chrome-top .topbar,.chrome-top .meta{pointer-events:auto}
     .chrome-fog{position:absolute;left:0;right:0;pointer-events:none;backdrop-filter:blur(16px) saturate(1.18);-webkit-backdrop-filter:blur(16px) saturate(1.18)}
     .chrome-fog-top{top:0;height:calc(100% + 28px);opacity:var(--top-blur,0);mask-image:linear-gradient(to bottom,#000 0%,#000 58%,transparent 100%);-webkit-mask-image:linear-gradient(to bottom,#000 0%,#000 58%,transparent 100%)}
-    .chrome-fog-bottom{display:none}
+    .chrome-fog-bottom{bottom:0;height:calc(100% + 24px);opacity:.85;mask-image:linear-gradient(to top,#000 0%,#000 42%,transparent 100%);-webkit-mask-image:linear-gradient(to top,#000 0%,#000 42%,transparent 100%)}
     .topbar{position:relative;z-index:1;display:flex;align-items:center;justify-content:center;margin:8px 12px 0;padding:4px 12px;min-height:36px}
     .brand{font-weight:700;font-size:15px;letter-spacing:.08em;text-align:center;border:0;background:transparent;color:inherit;padding:8px 12px;margin:0;border-radius:999px;font-family:inherit;appearance:none;-webkit-appearance:none}
     .field-label{display:block;font-size:11px;color:var(--muted);margin:10px 0 4px}
@@ -192,7 +199,7 @@
       position:relative;z-index:1;max-width:none;margin:0;
       display:flex;align-items:center;
       min-height:48px;padding:4px;border-radius:999px;
-      overflow:hidden;isolation:isolate;
+      overflow:hidden;
     }
     .bar > button{
       flex:1;min-width:0;height:40px;border:0;background:transparent;color:inherit;
@@ -301,6 +308,7 @@
     </div>
   </div>
   <div class="bar-wrap">
+    <div class="chrome-fog chrome-fog-bottom" aria-hidden="true"></div>
     <div class="bar frost" id="typebar">
       <button class="plus" id="plusBtn" aria-label="Mais"><span class="ui-icon" data-icon="plus"></span></button>
       <button type="button" data-cmd="bold" aria-label="Negrito"><span class="ui-icon" data-icon="bold"></span></button>
