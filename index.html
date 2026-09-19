@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" />
   <meta name="theme-color" content="#000000" />
-  <meta name="color-scheme" content="dark light" />
+  <meta name="color-scheme" content="light dark" />
   <title>MDTXTRT</title>
   <meta name="description" content="md to rich text and telegraph editor — Mini App Telegram e Telegraph." />
   <link rel="icon" type="image/svg+xml" href="favicon.svg" />
@@ -17,13 +17,13 @@
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:image" content="https://romastefale.github.io/MDTXTRT/x-banner.jpg" />
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <script>(function(){try{var t=window.Telegram&&window.Telegram.WebApp;var l=t&&t.colorScheme?t.colorScheme==="light":matchMedia("(prefers-color-scheme: light)").matches;document.documentElement.classList.toggle("light",l);document.documentElement.classList.toggle("dark",!l);var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute("content",l?"#e4eaf8":"#161b4a");}catch(e){}})();</script>
+  <script>(function(){try{var t=window.Telegram&&window.Telegram.WebApp;var inTg=t&&((t.initData&&t.initData.length)||(t.initDataUnsafe&&t.initDataUnsafe.user&&t.initDataUnsafe.user.id));var l=inTg&&t.colorScheme?t.colorScheme==="light":matchMedia("(prefers-color-scheme: light)").matches;if(inTg){document.documentElement.classList.toggle("light",l);document.documentElement.classList.toggle("dark",!l);}else{document.documentElement.classList.remove("light","dark");}var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute("content",l?"#e4eaf8":"#161b4a");}catch(e){}})();</script>
   <style>
     :root{
       --bg:#161b4a;
       --text:#f5f5f7;
       --muted:#c5c8d8;
-      --accent:#ff6a00;
+      --accent:#8b5cf6; color-scheme:dark;
       --bar:rgba(255,255,255,.08);
       --line:rgba(255,255,255,.18);
       --wash-image:url("bg-dark.jpg"); --glass-frost:0.08;
@@ -40,7 +40,7 @@
     }
     @media (prefers-color-scheme: light){
       :root{
-        --bg:#e4eaf8; --text:#151515; --muted:#5c6478;
+        --bg:#e4eaf8; --text:#151515; --muted:#5c6478; --accent:#ff6a00; color-scheme:light;
         --bar:rgba(255,255,255,.46); --line:rgba(255,255,255,.7);
         --wash-image:url("bg-light.jpg"); --glass-frost:0.22; --glass-saturation:1.15;
         --glass:rgba(255,255,255,var(--glass-frost));
@@ -50,7 +50,7 @@
       }
     }
     html.light{
-      --bg:#e4eaf8; --text:#151515; --muted:#5c6478;
+      --bg:#e4eaf8; --text:#151515; --muted:#5c6478; --accent:#ff6a00; color-scheme:light;
       --bar:rgba(255,255,255,.46); --line:rgba(255,255,255,.7);
       --wash-image:url("bg-light.jpg"); --glass-frost:0.22;
       --glass:rgba(255,255,255,var(--glass-frost));
@@ -59,18 +59,19 @@
       --glass-shadow-lg:inset 0 .5px 0 rgba(255,255,255,.5),0 4px 12px rgba(20,24,36,.05),0 16px 32px rgba(20,24,36,.08),0 28px 48px rgba(20,24,36,.06);
     }
     html.dark{
-      --bg:#161b4a; --text:#f5f5f7; --muted:#c5c8d8;
+      --bg:#161b4a; --text:#f5f5f7; --muted:#c5c8d8; --accent:#8b5cf6; color-scheme:dark;
       --bar:rgba(255,255,255,.08); --line:rgba(255,255,255,.18);
       --wash-image:url("bg-dark.jpg"); --glass-frost:0.08; --glass:rgba(255,255,255,var(--glass-frost));
     }
     *{box-sizing:border-box}
-    html,body{width:100%;height:100%;min-height:100dvh;touch-action:manipulation;-ms-touch-action:manipulation;background:var(--bg)}
+    html,body{width:100%;height:100%;min-height:100dvh;min-height:100lvh;min-height:-webkit-fill-available;touch-action:manipulation;-ms-touch-action:manipulation;background-color:var(--bg);background-image:var(--wash-image);background-size:cover;background-position:center;background-repeat:no-repeat;accent-color:var(--accent);caret-color:var(--accent)}
     body{
-      margin:0;background:var(--bg);color:var(--text);
+      margin:0;color:var(--text);
       font:16px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;
       overflow:hidden;
     }
-    .wash{position:fixed;inset:0;width:100vw;height:100dvh;height:100svh;z-index:0;pointer-events:none;overflow:hidden;background:var(--wash-image) center / cover no-repeat}
+    .wash{position:fixed;inset:0;width:100%;height:100%;min-width:100vw;min-height:100dvh;min-height:100lvh;z-index:0;pointer-events:none;overflow:hidden;background:var(--wash-image) center / cover no-repeat}
+    ::selection{background:color-mix(in srgb,var(--accent) 38%, transparent);color:inherit}
     button,input{font:inherit;color:inherit}
     button{cursor:pointer;-webkit-tap-highlight-color:transparent}
     .frost{
@@ -101,7 +102,7 @@
     .link-form{display:flex;gap:8px;align-items:center}
     .link-go{height:40px;padding:0 12px;border-radius:12px;border:1px solid var(--line);background:transparent}
     .connect-hero{display:grid;place-items:center;margin:4px 0 8px}
-    .connect-hero img{width:88px;height:88px;border-radius:18px;object-fit:cover;background:#000}
+    .connect-hero img{width:64px;height:64px;border-radius:16px;object-fit:cover;background:#000}
     .iconbtn{
       width:36px;height:36px;border:0;border-radius:999px;padding:0;
       background:transparent;display:grid;place-items:center;color:inherit
@@ -114,8 +115,8 @@
     .seg button{
       width:34px;height:28px;border:0;border-radius:999px;background:transparent;display:grid;place-items:center
     }
-    .seg button.active{background:rgba(255,255,255,.1)}
-    html.light .seg button.active{background:rgba(0,0,0,.07)}
+    .seg button.active,.iconbtn.on,.bar > button.on{background:color-mix(in srgb,var(--accent) 22%, transparent);color:var(--accent)}
+    html.light .seg button.active,html.light .iconbtn.on,html.light .bar > button.on{background:color-mix(in srgb,var(--accent) 18%, #fff);color:var(--accent)}
     .seg svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
     .canvas{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;padding:calc(var(--tg-top) + 108px) 16px calc(var(--bar-h) + var(--kb) + var(--safe-bottom) + 28px);position:relative}
     .editor,.preview{
@@ -149,7 +150,7 @@
       flex:1;min-width:0;height:40px;border:0;background:transparent;color:inherit;
       display:grid;place-items:center;border-radius:999px;padding:0
     }
-    .bar > button.on{color:var(--accent);background:rgba(255,255,255,.08)}
+    .bar > button.on{color:var(--accent);background:color-mix(in srgb,var(--accent) 22%, transparent)}
     .bar .plus,.bar .send{flex:0 0 40px}
     .send-dot{
       width:32px;height:32px;border-radius:999px;display:grid;place-items:center;
@@ -157,25 +158,26 @@
       box-shadow:inset 0 1px 0 rgba(255,255,255,.38),0 4px 16px color-mix(in oklab,var(--accent) 55%,transparent)
     }
     .send-dot svg{width:16px;height:16px}
+    .seg .send{width:36px;height:36px;border:0;background:transparent;display:grid;place-items:center;padding:0}
+    .seg .send-dot{width:28px;height:28px}
     .backdrop{position:fixed;inset:0;z-index:30;background:rgba(0,0,0,.28);display:none}
     .backdrop.on{display:block;backdrop-filter:blur(18px) saturate(140%);-webkit-backdrop-filter:blur(18px) saturate(140%)}
     .sheet{
       position:fixed;left:12px;right:12px;bottom:calc(var(--bar-h) + var(--kb) + var(--safe-bottom) + 8px);
-      z-index:40;max-width:none;margin:auto;max-height:52vh;overflow:auto;
-      display:none;padding:12px;border-radius:20px;
+      z-index:40;max-width:420px;margin:auto;max-height:56vh;overflow:auto;
+      display:none;padding:10px;border-radius:22px;
       box-shadow:var(--glass-shadow-lg);
-      backdrop-filter:blur(52px) saturate(200%);
-      -webkit-backdrop-filter:blur(52px) saturate(200%)
+      background:color-mix(in srgb,var(--glass) 70%, transparent);
     }
     .sheet.on{display:block}
     .sheet h3{margin:0 0 8px;font-size:15px}
     .sheet p,.hint{margin:0 0 10px;font-size:12px;color:var(--muted)}
-    .grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:5px}
     .grid button,.stack button{
-      min-height:40px;border-radius:12px;border:1px solid var(--glass-edge);
-      background:rgba(255,255,255,.06);box-shadow:inset 0 1px 0 rgba(255,255,255,.16);
+      min-height:36px;border-radius:14px;border:0;
+      background:rgba(255,255,255,.14);box-shadow:inset 0 1px 0 rgba(255,255,255,.22);
       display:flex;align-items:center;gap:8px;
-      padding:0 10px;font-size:13px;text-align:left
+      padding:0 8px;font-size:13px;text-align:left
     }
     .grid button svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
     .stack{display:flex;flex-direction:column;gap:6px}
@@ -214,7 +216,7 @@
       <span class="stats" id="docStats">0</span>
       <div class="seg frost">
         <button id="editTab" class="active" aria-label="Editar"><svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button>
-        <button id="previewTab" aria-label="Prévia"><svg viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></button>
+        <button class="send" id="publishBtn" aria-label="Publicar"><span class="send-dot"><svg viewBox="0 0 24 24"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg></span></button>
       </div>
     </div>
     </div>
@@ -242,10 +244,10 @@
       <button type="button" data-cmd="bold" aria-label="Negrito"><svg viewBox="0 0 24 24"><path d="M7 5h6a4 4 0 1 1 0 8H7z"/><path d="M7 13h7a4 4 0 1 1 0 8H7z"/></svg></button>
       <button type="button" data-cmd="italic" aria-label="Itálico"><svg viewBox="0 0 24 24"><path d="M14 4h-4M14 20h-4M15 4 9 20"/></svg></button>
       <button type="button" data-cmd="underline" aria-label="Sublinhado"><svg viewBox="0 0 24 24"><path d="M6 4v6a6 6 0 0 0 12 0V4"/><path d="M5 20h14"/></svg></button>
+      <button type="button" id="quoteBtn" data-block="blockquote" aria-label="Citação"><svg viewBox="0 0 24 24"><path d="M7 17H4a2 2 0 0 1-2-2v-3a6 6 0 0 1 6-6"/><path d="M19 17h-3a2 2 0 0 1-2-2v-3a6 6 0 0 1 6-6"/></svg></button>
       <button type="button" id="linkBtn" aria-label="Link"><svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.07 0l1.41-1.41a5 5 0 0 0-7.07-7.07L10 5.93"/><path d="M14 11a5 5 0 0 0-7.07 0L5.5 12.43a5 5 0 0 0 7.07 7.07L14 18.07"/></svg></button>
-      <button type="button" data-block="h2" aria-label="Título"><svg viewBox="0 0 24 24"><path d="M6 5v14M18 5v14M6 12h12"/></svg></button>
+      <button type="button" id="h2Btn" data-block="h2" aria-label="Título"><svg viewBox="0 0 24 24"><path d="M6 5v14M18 5v14M6 12h12"/></svg></button>
       <button type="button" data-cmd="insertUnorderedList" aria-label="Lista"><svg viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M4 6h.01M4 12h.01M4 18h.01"/></svg></button>
-      <button class="send" id="publishBtn" aria-label="Publicar"><span class="send-dot"><svg viewBox="0 0 24 24"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg></span></button>
     </div>
   </div>
 
@@ -253,7 +255,6 @@
   <div class="sheet frost" id="plusMenu">
     <h3>Inserir</h3>
     <div class="grid">
-      <button data-block="blockquote"><svg viewBox="0 0 24 24"><path d="M7 17H4a2 2 0 0 1-2-2v-3a6 6 0 0 1 6-6"/><path d="M19 17h-3a2 2 0 0 1-2-2v-3a6 6 0 0 1 6-6"/></svg>Citação</button>
       <button data-block="h1">H1</button>
       <button data-block="h2">H2</button>
       <button data-block="h3">H3</button>
@@ -325,15 +326,21 @@
 
     function applyScheme(){
       const tg = window.Telegram?.WebApp;
-      const light = tg ? tg.colorScheme === 'light' : window.matchMedia('(prefers-color-scheme: light)').matches;
-      document.documentElement.classList.toggle('light', light);
-      document.documentElement.classList.toggle('dark', !light);
+      const inTg = !!(tg && ((tg.initData && tg.initData.length) || tg.initDataUnsafe?.user?.id));
+      const light = inTg && tg.colorScheme ? tg.colorScheme === 'light' : window.matchMedia('(prefers-color-scheme: light)').matches;
+      if(inTg){
+        document.documentElement.classList.toggle('light', light);
+        document.documentElement.classList.toggle('dark', !light);
+      } else {
+        document.documentElement.classList.remove('light','dark');
+      }
       const theme = light ? '#e4eaf8' : '#161b4a';
       const meta = document.querySelector('meta[name="theme-color"]');
       if(meta) meta.setAttribute('content', theme);
-      document.body.style.background = theme;
-      tg?.setBackgroundColor?.(tg.themeParams?.bg_color || theme);
-      tg?.setHeaderColor?.(theme);
+      if(inTg){
+        tg?.setBackgroundColor?.(tg.themeParams?.bg_color || theme);
+        tg?.setHeaderColor?.(theme);
+      }
     }
     applyScheme();
     window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', applyScheme);
@@ -472,12 +479,9 @@
       }catch{}
     }
     function setMode(mode){
-      const edit = mode === 'edit';
-      $('#editTab').classList.toggle('active', edit);
-      $('#previewTab').classList.toggle('active', !edit);
-      editor.classList.toggle('off', !edit);
-      preview.classList.toggle('on', !edit);
-      if(!edit) preview.innerHTML = editor.innerHTML;
+      $('#editTab')?.classList.toggle('active', true);
+      editor.classList.remove('off');
+      preview?.classList.remove('on');
     }
     function escapeHTML(s){ return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
     function htmlToText(html){ const d = document.createElement('div'); d.innerHTML = html; return d.innerText; }
@@ -606,9 +610,14 @@
     document.addEventListener('selectionchange', ()=>{
       saveSel();
       $$('#typebar [data-cmd]').forEach(btn => {
-        if(btn.dataset.cmd === 'insertUnorderedList') return;
         try{ btn.classList.toggle('on', document.queryCommandState(btn.dataset.cmd)); }catch{}
       });
+      const node = document.getSelection()?.anchorNode;
+      const el = node && (node.nodeType === 1 ? node : node.parentElement);
+      $('#quoteBtn')?.classList.toggle('on', !!(el && el.closest('blockquote')));
+      $('#h2Btn')?.classList.toggle('on', !!(el && el.closest('h1,h2,h3')));
+      $('#linkBtn')?.classList.toggle('on', !!(el && el.closest('a')));
+      $('#plusBtn')?.classList.toggle('on', $('#plusMenu')?.classList.contains('on'));
     });
     $('#typebar').addEventListener('mousedown', e => e.preventDefault());
     $$('#typebar [data-cmd]').forEach(btn => btn.addEventListener('click', ()=>exec(btn.dataset.cmd)));
@@ -629,8 +638,7 @@
     $('#fileBtn').addEventListener('click', ()=>openPanel('#fileSheet'));
     $('#publishBtn').addEventListener('click', ()=>openPanel('#publishSheet'));
     $('#editTab').addEventListener('click', ()=>setMode('edit'));
-    $('#previewTab').addEventListener('click', ()=>setMode('preview'));
-    $('#importSheetBtn').addEventListener('click', ()=>{ fileInput.click(); closePanels(); });
+        $('#importSheetBtn').addEventListener('click', ()=>{ fileInput.click(); closePanels(); });
     $('#exportTxtBtn').addEventListener('click', ()=>{ download((docName.value||'doc')+'.txt', htmlToText(editor.innerHTML), 'text/plain'); closePanels(); });
     $('#exportMdBtn').addEventListener('click', ()=>{ download((docName.value||'doc')+'.md', htmlToMarkdown(editor.innerHTML), 'text/markdown'); closePanels(); });
     $('#exportRichBtn').addEventListener('click', ()=>{ download((docName.value||'doc')+'-rich.json', JSON.stringify(buildRich(),null,2), 'application/json'); closePanels(); });
