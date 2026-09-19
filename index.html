@@ -37,6 +37,8 @@
       --tg-top:0px;
       --kb:0px;
       --bar-h:52px; --top-blur:0;
+      --wash-light:url("backgrounds/light.jpg");
+      --wash-dark:url("backgrounds/dark.jpg");
     }
     @media (prefers-color-scheme: light){
       :root{
@@ -67,13 +69,23 @@
     html.light{color-scheme:light}
     html.dark{color-scheme:dark}
     *{box-sizing:border-box}
-    html,body{width:100%;height:100%;min-height:100dvh;min-height:100lvh;min-height:-webkit-fill-available;touch-action:manipulation;-ms-touch-action:manipulation;background-color:var(--bg);accent-color:var(--accent);caret-color:var(--accent)}
+    html,body{width:100%;height:100%;min-height:100dvh;touch-action:manipulation;-ms-touch-action:manipulation;accent-color:var(--accent);caret-color:var(--accent)}
+    html{
+      background-color:var(--bg);
+      background-image:var(--wash-dark);
+      background-size:cover;
+      background-position:center;
+      background-repeat:no-repeat;
+    }
+    html.light{background-image:var(--wash-light)}
+    html.dark{background-image:var(--wash-dark)}
+    @media (prefers-color-scheme: light){html:not(.dark){background-image:var(--wash-light)}}
     body{
       margin:0;color:var(--text);
       font:16px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;
-      overflow:hidden;
+      overflow:hidden;background:transparent;
     }
-    .wash{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden;width:100%;height:100%;min-width:100vw;min-height:100dvh;min-height:100lvh;min-height:-webkit-fill-available}
+    .wash{position:fixed;top:calc(0px - env(safe-area-inset-top,0px));right:calc(0px - env(safe-area-inset-right,0px));bottom:calc(0px - env(safe-area-inset-bottom,0px));left:calc(0px - env(safe-area-inset-left,0px));z-index:0;pointer-events:none;overflow:hidden}
     .wash-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;display:block}
     .wash-light{opacity:0}.wash-dark{opacity:1}
     @media (prefers-color-scheme: light){html:not(.dark) .wash-light{opacity:1} html:not(.dark) .wash-dark{opacity:0}}
@@ -379,8 +391,8 @@
       });
       const light = man.backgrounds && man.backgrounds.light;
       const dark = man.backgrounds && man.backgrounds.dark;
-      if(light){ const img = $('.wash-light'); if(img) img.src = 'backgrounds/' + light.file + '?v=' + light.v; }
-      if(dark){ const img = $('.wash-dark'); if(img) img.src = 'backgrounds/' + dark.file + '?v=' + dark.v; }
+      if(light){ const url = 'backgrounds/' + light.file + '?v=' + light.v; const img = $('.wash-light'); if(img) img.src = url; document.documentElement.style.setProperty('--wash-light', 'url("' + url + '")'); }
+      if(dark){ const url = 'backgrounds/' + dark.file + '?v=' + dark.v; const img = $('.wash-dark'); if(img) img.src = url; document.documentElement.style.setProperty('--wash-dark', 'url("' + url + '")'); }
     }
     async function bindFolderAssets(){
       try{
@@ -395,8 +407,8 @@
         if(!name) return;
         probeFolder('icons/' + name, ICON_EXTS).then(url => applyIcon(el, url));
       });
-      probeFolder('backgrounds/light', BG_EXTS).then(url => { const img = $('.wash-light'); if(img) img.src = url; });
-      probeFolder('backgrounds/dark', BG_EXTS).then(url => { const img = $('.wash-dark'); if(img) img.src = url; });
+      probeFolder('backgrounds/light', BG_EXTS).then(url => { const img = $('.wash-light'); if(img) img.src = url; document.documentElement.style.setProperty('--wash-light', 'url("' + url + '")'); });
+      probeFolder('backgrounds/dark', BG_EXTS).then(url => { const img = $('.wash-dark'); if(img) img.src = url; document.documentElement.style.setProperty('--wash-dark', 'url("' + url + '")'); });
     }
     bindFolderAssets();
 
