@@ -19,7 +19,12 @@ O app segue o modo claro/escuro do sistema (ou do Telegram). O fundo ocupa a tel
 
 ## O que faz
 
-- Editor rico (títulos, listas, tarefas, tabela, citação expansível 10.3)
+- Editor rico (H1–H6, rodapé Telegram, listas, tarefas, tabela, citação expansível 10.3)
 - Importar TXT, Markdown, HTML, snapshot
 - Publicar no Telegraph
 - Payload `sendRichMessage` para o bot
+
+## Pastas drop-in (sem mudar código)
+
+- **`icons/`** — coloque o arquivo com o nome do botão (`bold.svg`, `heading.png`…). Aceita SVG, PNG ou WebP. Lista em `icons/LEIA-ME.txt`.
+- **`backgrounds/`** — `light.jpg` e `dark.jpg` (também `.png` / `.webp` / `.avif`). Lista em `backgrounds/LEIA-ME.txt`.

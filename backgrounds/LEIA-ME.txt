@@ -1,0 +1,3 @@
+Coloque light.jpg e dark.jpg (ou .jpeg / .png / .webp / .avif).
+O app escolhe sozinho o arquivo que existir. Não precisa mudar código.
+Se houver .jpg e .png, vale o JPG. Apague o .jpg para usar outro formato.

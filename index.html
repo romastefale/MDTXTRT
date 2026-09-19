@@ -26,7 +26,7 @@
       --accent:#8b5cf6;
       --bar:rgba(255,255,255,.08);
       --line:rgba(255,255,255,.18);
-      --wash-image:url("bg-dark.jpg"); --glass-frost:0.08;
+      --wash-image:url("backgrounds/dark.jpg"); --glass-frost:0.08;
       --glass-saturation:1.15;
       --glass:rgba(255,255,255,var(--glass-frost));
       --glass-edge:transparent;
@@ -42,7 +42,7 @@
       :root{
         --bg:#e4eaf8; --text:#151515; --muted:#5c6478; --accent:#ff6a00;
         --bar:rgba(255,255,255,.46); --line:rgba(255,255,255,.7);
-        --wash-image:url("bg-light.jpg"); --glass-frost:0.22; --glass-saturation:1.15;
+        --wash-image:url("backgrounds/light.jpg"); --glass-frost:0.22; --glass-saturation:1.15;
         --glass:rgba(255,255,255,var(--glass-frost));
         --glass-edge:transparent;
         --glass-shadow:inset 0 .5px 0 rgba(255,255,255,.45),0 1px 2px rgba(20,24,36,.04),0 8px 20px rgba(20,24,36,.07),0 18px 36px rgba(20,24,36,.05);
@@ -52,7 +52,7 @@
     html.light{
       --bg:#e4eaf8; --text:#151515; --muted:#5c6478; --accent:#ff6a00;
       --bar:rgba(255,255,255,.46); --line:rgba(255,255,255,.7);
-      --wash-image:url("bg-light.jpg"); --glass-frost:0.22;
+      --wash-image:url("backgrounds/light.jpg"); --glass-frost:0.22;
       --glass:rgba(255,255,255,var(--glass-frost));
       --glass-edge:transparent;
       --glass-shadow:inset 0 .5px 0 rgba(255,255,255,.45),0 1px 2px rgba(20,24,36,.04),0 8px 20px rgba(20,24,36,.07),0 18px 36px rgba(20,24,36,.05);
@@ -61,7 +61,7 @@
     html.dark{
       --bg:#161b4a; --text:#f5f5f7; --muted:#c5c8d8; --accent:#8b5cf6;
       --bar:rgba(255,255,255,.08); --line:rgba(255,255,255,.18);
-      --wash-image:url("bg-dark.jpg"); --glass-frost:0.08; --glass:rgba(255,255,255,var(--glass-frost));
+      --wash-image:url("backgrounds/dark.jpg"); --glass-frost:0.08; --glass:rgba(255,255,255,var(--glass-frost));
     }
     html{color-scheme:light dark}
     html.light{color-scheme:light}
@@ -82,6 +82,27 @@
     ::selection{background:color-mix(in srgb,var(--accent) 38%, transparent);color:inherit}
     button,input{font:inherit;color:inherit}
     button{cursor:pointer;-webkit-tap-highlight-color:transparent}
+    .ui-icon{display:block;width:18px;height:18px;flex:none;background-color:currentColor;-webkit-mask:var(--ui-icon) center/contain no-repeat;mask:var(--ui-icon) center/contain no-repeat}
+    .ui-icon.is-bitmap{background-color:transparent;background-image:var(--ui-icon);background-size:contain;background-repeat:no-repeat;background-position:center;-webkit-mask:none;mask:none}
+    .seg button .ui-icon,.send-dot .ui-icon,.sheet-ico .ui-icon{width:16px;height:16px}
+    .editor h1,.editor h2,.editor h3,.editor h4,.editor h5,.editor h6,.preview h1,.preview h2,.preview h3,.preview h4,.preview h5,.preview h6{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;letter-spacing:-.03em;line-height:1.2;font-weight:650}
+    .editor h1,.preview h1{font-size:28px;font-weight:750;margin:0 0 .45em}
+    .editor h2,.preview h2{font-size:24px;margin:.95em 0 .4em}
+    .editor h3,.preview h3{font-size:20px;margin:.9em 0 .35em}
+    .editor h4,.preview h4{font-size:18px;margin:.85em 0 .3em}
+    .editor h5,.preview h5{font-size:14px;letter-spacing:.06em;text-transform:uppercase;margin:.85em 0 .3em}
+    .editor h6,.preview h6{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:.85em 0 .3em}
+    .editor .tg-footer,.preview .tg-footer,.editor footer{display:block;font-size:12px;color:var(--muted);margin:1.6em 0 .4em;padding-top:.7em;border-top:1px solid color-mix(in srgb,var(--text) 14%, transparent);font-weight:400}
+    .menu-list button.is-current{background:color-mix(in srgb,var(--accent) 16%, transparent);color:var(--accent)}
+    .heading-list .h-opt.h1{font-size:20px;font-weight:750;letter-spacing:-.03em}
+    .heading-list .h-opt.h2{font-size:17px;font-weight:650}
+    .heading-list .h-opt.h3{font-size:15px;font-weight:650}
+    .heading-list .h-opt.h4{font-size:14px;font-weight:650}
+    .heading-list .h-opt.h5{font-size:12px;font-weight:650;letter-spacing:.06em;text-transform:uppercase}
+    .heading-list .h-opt.h6{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+    .heading-list .h-opt.footer{font-size:12px;color:var(--muted)}
+    .heading-list .sheet-btn.is-current,.heading-list button.is-current{color:var(--accent)}
+
     .frost{
       position:relative;
       background:var(--glass);
@@ -135,9 +156,6 @@
     .preview{display:none}
     .preview.on{display:block}
     .editor.off{display:none}
-    .editor h1,.preview h1{font-size:22px;margin:0 0 .5em}
-    .editor h2,.preview h2{font-size:18px;margin:1em 0 .4em}
-    .editor h3,.preview h3{font-size:16px;margin:1em 0 .35em}
     .editor p,.preview p{margin:.7em 0}
     .editor blockquote,.preview blockquote{margin:1em 0;padding:0 0 0 12px;border-left:3px solid var(--accent)}
     .editor ul,.preview ul{padding-left:1.2em}
@@ -214,7 +232,7 @@
       <feDisplacementMap in="blur" in2="map" scale="0.12" xChannelSelector="R" yChannelSelector="G"/>
     </filter>
   </svg>
-<div class="wash" aria-hidden="true"><img class="wash-img wash-light" src="bg-light.jpg" alt=""><img class="wash-img wash-dark" src="bg-dark.jpg" alt=""></div>
+<div class="wash" aria-hidden="true"><img class="wash-img wash-light" src="backgrounds/light.jpg" alt=""><img class="wash-img wash-dark" src="backgrounds/dark.jpg" alt=""></div>
   <div class="app">
     <div class="chrome-top">
       <div class="chrome-fog chrome-fog-top" aria-hidden="true"></div>
@@ -224,13 +242,13 @@
       <div class="meta">
       <input id="docName" class="title" value="Ideia" aria-label="Nome">
       <div class="seg frost">
-        <button type="button" id="undoBtn" aria-label="Desfazer"><svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-2"/></svg></button>
-        <button type="button" id="redoBtn" aria-label="Refazer"><svg viewBox="0 0 24 24"><path d="m15 14 5-5-5-5"/><path d="M20 9H10a6 6 0 0 0 0 12h2"/></svg></button>
+        <button type="button" id="undoBtn" aria-label="Desfazer"><span class="ui-icon" data-icon="undo"></span></button>
+        <button type="button" id="redoBtn" aria-label="Refazer"><span class="ui-icon" data-icon="redo"></span></button>
       </div>
       <span class="stats" id="docStats">0</span>
       <div class="seg frost">
-        <button id="editTab" class="active" aria-label="Editar"><svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button>
-        <button class="send" id="publishBtn" aria-label="Publicar"><span class="send-dot"><svg viewBox="0 0 24 24"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg></span></button>
+        <button id="editTab" class="active" aria-label="Editar"><span class="ui-icon" data-icon="edit"></span></button>
+        <button class="send" id="publishBtn" aria-label="Publicar"><span class="send-dot"><span class="ui-icon" data-icon="send"></span></span></button>
       </div>
     </div>
     </div>
@@ -254,31 +272,41 @@
   <div class="bar-wrap">
     <div class="chrome-fog chrome-fog-bottom" aria-hidden="true"></div>
     <div class="bar frost" id="typebar">
-      <button class="plus" id="plusBtn" aria-label="Mais"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
-      <button type="button" data-cmd="bold" aria-label="Negrito"><svg viewBox="0 0 24 24"><path d="M7 5h6a4 4 0 1 1 0 8H7z"/><path d="M7 13h7a4 4 0 1 1 0 8H7z"/></svg></button>
-      <button type="button" data-cmd="italic" aria-label="Itálico"><svg viewBox="0 0 24 24"><path d="M14 4h-4M14 20h-4M15 4 9 20"/></svg></button>
-      <button type="button" data-cmd="underline" aria-label="Sublinhado"><svg viewBox="0 0 24 24"><path d="M6 4v6a6 6 0 0 0 12 0V4"/><path d="M5 20h14"/></svg></button>
-      <button type="button" id="quoteBtn" data-block="blockquote" aria-label="Citação"><svg viewBox="0 0 24 24"><path d="M7 17H4a2 2 0 0 1-2-2v-3a6 6 0 0 1 6-6"/><path d="M19 17h-3a2 2 0 0 1-2-2v-3a6 6 0 0 1 6-6"/></svg></button>
-      <button type="button" id="linkBtn" aria-label="Link"><svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.07 0l1.41-1.41a5 5 0 0 0-7.07-7.07L10 5.93"/><path d="M14 11a5 5 0 0 0-7.07 0L5.5 12.43a5 5 0 0 0 7.07 7.07L14 18.07"/></svg></button>
-      <button type="button" id="h2Btn" data-block="h2" aria-label="Título"><svg viewBox="0 0 24 24"><path d="M6 5v14M18 5v14M6 12h12"/></svg></button>
-      <button type="button" data-cmd="insertUnorderedList" aria-label="Lista"><svg viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M4 6h.01M4 12h.01M4 18h.01"/></svg></button>
+      <button class="plus" id="plusBtn" aria-label="Mais"><span class="ui-icon" data-icon="plus"></span></button>
+      <button type="button" data-cmd="bold" aria-label="Negrito"><span class="ui-icon" data-icon="bold"></span></button>
+      <button type="button" data-cmd="italic" aria-label="Itálico"><span class="ui-icon" data-icon="italic"></span></button>
+      <button type="button" data-cmd="underline" aria-label="Sublinhado"><span class="ui-icon" data-icon="underline"></span></button>
+      <button type="button" id="quoteBtn" data-block="blockquote" aria-label="Citação"><span class="ui-icon" data-icon="quote"></span></button>
+      <button type="button" id="linkBtn" aria-label="Link"><span class="ui-icon" data-icon="link"></span></button>
+      <button type="button" id="headingBtn" aria-label="Título"><span class="ui-icon" data-icon="heading"></span></button>
+      <button type="button" data-cmd="insertUnorderedList" aria-label="Lista"><span class="ui-icon" data-icon="list"></span></button>
     </div>
   </div>
 
   <div class="backdrop" id="backdrop"></div>
-  <div class="sheet frost" id="plusMenu">
+  
+  <div class="sheet frost" id="headingMenu">
+    <div class="menu-list heading-list">
+      <button class="h-opt h1" data-block="h1"><span class="sheet-ico"><span class="ui-icon" data-icon="h1"></span></span>Título H1</button>
+      <button class="h-opt h2" data-block="h2"><span class="sheet-ico"><span class="ui-icon" data-icon="h2"></span></span>Título H2</button>
+      <button class="h-opt h3" data-block="h3"><span class="sheet-ico"><span class="ui-icon" data-icon="h3"></span></span>Título H3</button>
+      <button class="h-opt h4" data-block="h4"><span class="sheet-ico"><span class="ui-icon" data-icon="h4"></span></span>Título H4</button>
+      <button class="h-opt h5" data-block="h5"><span class="sheet-ico"><span class="ui-icon" data-icon="h5"></span></span>Título H5</button>
+      <button class="h-opt h6" data-block="h6"><span class="sheet-ico"><span class="ui-icon" data-icon="h6"></span></span>Título H6</button>
+      <button data-block="p"><span class="sheet-ico"><span class="ui-icon" data-icon="paragraph"></span></span>Corpo</button>
+      <button class="h-opt footer" data-block="footer"><span class="sheet-ico"><span class="ui-icon" data-icon="footer"></span></span>Rodapé Telegram</button>
+    </div>
+  </div>
+<div class="sheet frost" id="plusMenu">
     <div class="menu-list">
-      <button data-block="h1"><span class="sheet-ico"><svg viewBox="0 0 24 24"><path d="M4 12h8"/><path d="M4 18V6"/><path d="M12 18V6"/><path d="m17 12 3-2v8"/></svg></span>H1</button>
-      <button data-block="h2"><span class="sheet-ico"><svg viewBox="0 0 24 24"><path d="M4 12h8"/><path d="M4 18V6"/><path d="M12 18V6"/><path d="M21 18h-4c0-4 4-3 4-6 0-1.5-2-2.5-4-1"/></svg></span>H2</button>
-      <button data-block="h3"><span class="sheet-ico"><svg viewBox="0 0 24 24"><path d="M4 12h8"/><path d="M4 18V6"/><path d="M12 18V6"/><path d="M17.5 10.5c1.7-1 3.5 0 3.5 1.5a2 2 0 0 1-2 2"/><path d="M17 17.5c2 1.5 4 .3 4-1.5a2 2 0 0 0-2-2"/></svg></span>H3</button>
-      <button data-insert="task"><span class="sheet-ico"><svg viewBox="0 0 24 24"><path d="M13 5h8"/><path d="M13 12h8"/><path d="M13 19h8"/><path d="m3 17 2 2 4-4"/><rect x="3" y="4" width="6" height="6" rx="1"/></svg></span>Tarefa</button>
-      <button data-insert="table"><span class="sheet-ico"><svg viewBox="0 0 24 24"><path d="M12 3v18"/><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/></svg></span>Tabela</button>
-      <button data-insert="expandquote"><span class="sheet-ico"><svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></span>Citação 10.3</button>
-      <button data-insert="details"><span class="sheet-ico"><svg viewBox="0 0 24 24"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/><path d="M18 14h-8"/><path d="M15 18h-5"/><path d="M10 6h8v4h-8V6Z"/></svg></span>Details</button>
-      <button data-insert="document"><span class="sheet-ico"><svg viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg></span>Documento</button>
-      <button data-insert="button"><span class="sheet-ico"><svg viewBox="0 0 24 24"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg></span>Botões</button>
-      <button id="importSheetBtn"><span class="sheet-ico"><svg viewBox="0 0 24 24"><path d="M12 3v12"/><path d="m17 8-5-5-5 5"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/></svg></span>Importar</button>
-      <button id="fileBtn"><span class="sheet-ico"><svg viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg></span>Arquivo</button>
+      <button data-insert="task"><span class="sheet-ico"><span class="ui-icon" data-icon="task"></span></span>Tarefa</button>
+      <button data-insert="table"><span class="sheet-ico"><span class="ui-icon" data-icon="table"></span></span>Tabela</button>
+      <button data-insert="expandquote"><span class="sheet-ico"><span class="ui-icon" data-icon="more"></span></span>Citação 10.3</button>
+      <button data-insert="details"><span class="sheet-ico"><span class="ui-icon" data-icon="details"></span></span>Details</button>
+      <button data-insert="document"><span class="sheet-ico"><span class="ui-icon" data-icon="document"></span></span>Documento</button>
+      <button data-insert="button"><span class="sheet-ico"><span class="ui-icon" data-icon="buttons"></span></span>Botões</button>
+      <button id="importSheetBtn"><span class="sheet-ico"><span class="ui-icon" data-icon="import"></span></span>Importar</button>
+      <button id="fileBtn"><span class="sheet-ico"><span class="ui-icon" data-icon="file"></span></span>Arquivo</button>
     </div>
   </div>
   <div class="sheet frost" id="fileSheet">
@@ -334,8 +362,37 @@
     const toast = $('#toast');
     const backdrop = $('#backdrop');
     const fileInput = $('#fileInput');
-    const sheets = ['#plusMenu','#fileSheet','#publishSheet','#connectSheet'];
+    const sheets = ['#plusMenu','#fileSheet','#publishSheet','#connectSheet','#headingMenu'];
     let savedRange = null, hist = [], histI = -1, histLock = false, composing = false, saveTimer = null;
+    const ICON_EXTS = ['svg','png','webp'];
+    const BG_EXTS = ['jpg','jpeg','png','webp','avif'];
+    const assetCache = {};
+    function assetExists(url){
+      return new Promise(res => { const i = new Image(); i.onload = () => res(true); i.onerror = () => res(false); i.src = url; });
+    }
+    async function resolveAsset(stem, exts){
+      if(assetCache[stem]) return assetCache[stem];
+      for(const ext of exts){
+        const url = stem + '.' + ext;
+        if(await assetExists(url)){ assetCache[stem] = url; return url; }
+      }
+      const fallback = stem + '.' + exts[0];
+      assetCache[stem] = fallback;
+      return fallback;
+    }
+    function bindDropInAssets(){
+      $$('[data-icon]').forEach(el => {
+        const name = el.getAttribute('data-icon');
+        if(!name) return;
+        resolveAsset('icons/' + name, ICON_EXTS).then(url => {
+          el.style.setProperty('--ui-icon', 'url("' + url + '")');
+          if(!/\.svg(\?|$)/i.test(url)) el.classList.add('is-bitmap');
+        });
+      });
+      resolveAsset('backgrounds/light', BG_EXTS).then(url => { const img = $('.wash-light'); if(img) img.src = url; });
+      resolveAsset('backgrounds/dark', BG_EXTS).then(url => { const img = $('.wash-dark'); if(img) img.src = url; });
+    }
+    bindDropInAssets();
 
     function applyScheme(){
       const tg = window.Telegram?.WebApp;
@@ -394,8 +451,17 @@
       toast.textContent = msg; toast.classList.add('on');
       clearTimeout(showToast.t); showToast.t = setTimeout(()=>toast.classList.remove('on'), 1600);
     }
-    function openPanel(sel){ sheets.forEach(s => $(s).classList.remove('on')); $(sel).classList.add('on'); backdrop.classList.add('on'); }
-    function closePanels(){ sheets.forEach(s => $(s).classList.remove('on')); backdrop.classList.remove('on'); }
+    function openPanel(sel){
+      sheets.forEach(s => $(s).classList.remove('on'));
+      $(sel).classList.add('on');
+      backdrop.classList.add('on');
+      document.dispatchEvent(new Event('selectionchange'));
+    }
+    function closePanels(){
+      sheets.forEach(s => $(s).classList.remove('on'));
+      backdrop.classList.remove('on');
+      document.dispatchEvent(new Event('selectionchange'));
+    }
     backdrop.addEventListener('click', closePanels);
 
     function saveSel(){
@@ -445,7 +511,60 @@
     }
     function formatBlock(tag){
       restoreSel();
-      document.execCommand('formatBlock', false, tag);
+      const node = document.getSelection()?.anchorNode;
+      const fromEl = node && (node.nodeType === 1 ? node : node.parentElement);
+      const block = fromEl && fromEl.closest('p,h1,h2,h3,h4,h5,h6,blockquote,footer,div,li');
+      const unwrapBold = el => {
+        el.querySelectorAll('strong,b').forEach(n => {
+          while(n.firstChild) n.parentNode.insertBefore(n.firstChild, n);
+          n.remove();
+        });
+      };
+      const placeCaret = el => {
+        const sel = window.getSelection();
+        if(!sel) return;
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        range.collapse(false);
+        sel.removeAllRanges();
+        sel.addRange(range);
+        savedRange = range.cloneRange();
+      };
+      const currentKind = () => {
+        if(!block || block === editor) return 'p';
+        if(block.classList.contains('tg-footer') || block.tagName === 'FOOTER') return 'footer';
+        return block.tagName.toLowerCase();
+      };
+      let nextKind = tag;
+      if(currentKind() === tag) nextKind = 'p';
+      const isFooter = nextKind === 'footer';
+      const nextTag = isFooter ? 'p' : nextKind;
+      const finish = el => {
+        if(isFooter){ el.classList.add('tg-footer'); unwrapBold(el); }
+        else {
+          el.classList.remove('tg-footer');
+          if(/^h[1-6]$/.test(nextKind)) unwrapBold(el);
+        }
+        placeCaret(el);
+      };
+      const replace = src => {
+        const next = document.createElement(nextTag);
+        next.innerHTML = src.innerHTML;
+        src.replaceWith(next);
+        finish(next);
+      };
+      if(!block || block === editor || block.tagName === 'LI'){
+        document.execCommand('formatBlock', false, nextTag);
+        const afterNode = document.getSelection()?.anchorNode;
+        const afterEl = afterNode && (afterNode.nodeType === 1 ? afterNode : afterNode.parentElement);
+        const after = afterEl && afterEl.closest('p,h1,h2,h3,h4,h5,h6,blockquote,footer,div');
+        if(after && after !== editor){
+          if(after.tagName.toLowerCase() !== nextTag) replace(after);
+          else finish(after);
+        }
+      } else {
+        replace(block);
+      }
       saveSel(); pushHist(); markDirty(); closePanels();
     }
     function insertHTML(html){
@@ -514,6 +633,9 @@
     }
     function mdToBasicHTML(md){
       return md.split(/\n{2,}/).map(b => {
+        if(/^######\s/.test(b)) return '<h6>'+escapeHTML(b.replace(/^######\s/,''))+'</h6>';
+        if(/^#####\s/.test(b)) return '<h5>'+escapeHTML(b.replace(/^#####\s/,''))+'</h5>';
+        if(/^####\s/.test(b)) return '<h4>'+escapeHTML(b.replace(/^####\s/,''))+'</h4>';
         if(/^### /.test(b)) return '<h3>'+escapeHTML(b.slice(4))+'</h3>';
         if(/^## /.test(b)) return '<h2>'+escapeHTML(b.slice(3))+'</h2>';
         if(/^# /.test(b)) return '<h1>'+escapeHTML(b.slice(2))+'</h1>';
@@ -535,6 +657,7 @@
         let tag = el.tagName.toLowerCase();
         if(tag === 'h1' || tag === 'h2') tag = 'h3';
         if(tag === 'h5' || tag === 'h6') tag = 'h4';
+        if(tag === 'footer' || el.classList.contains('tg-footer')) tag = 'aside';
         if(tag === 'div' || tag === 'article' || tag === 'section') return Array.from(el.childNodes).map(conv).flat().filter(Boolean);
         if(!allow.has(tag)) return Array.from(el.childNodes).map(conv).flat().filter(Boolean);
         const node = {tag};
@@ -567,6 +690,7 @@
         const t = n.tagName.toLowerCase();
         const inner = Array.from(n.childNodes).map(inline).join('');
         if(/^h[1-6]$/.test(t)) blocks.push('<'+t+'>'+inner+'</'+t+'>');
+        else if(t==='footer' || n.classList.contains('tg-footer')) blocks.push('<footer>'+inner+'</footer>');
         else if(t==='blockquote'){
           const exp = n.getAttribute('data-expandable') === 'true';
           blocks.push(exp ? '<blockquote expandable>'+inner+'</blockquote>' : '<blockquote>'+inner+'</blockquote>');
@@ -618,19 +742,31 @@
     });
     document.addEventListener('selectionchange', ()=>{
       saveSel();
-      $$('#typebar [data-cmd]').forEach(btn => {
-        try{ btn.classList.toggle('on', document.queryCommandState(btn.dataset.cmd)); }catch{}
-      });
       const node = document.getSelection()?.anchorNode;
       const el = node && (node.nodeType === 1 ? node : node.parentElement);
+      const headingEl = el && el.closest('h1,h2,h3,h4,h5,h6,footer,.tg-footer');
+      const block = el && el.closest('p,h1,h2,h3,h4,h5,h6,blockquote,footer,div');
+      let kind = 'p';
+      if(block){
+        if(block.classList.contains('tg-footer') || block.tagName === 'FOOTER') kind = 'footer';
+        else kind = block.tagName.toLowerCase();
+      }
+      $$('#typebar [data-cmd]').forEach(btn => {
+        try{
+          let on = document.queryCommandState(btn.dataset.cmd);
+          if(btn.dataset.cmd === 'bold' && headingEl && !el.closest('strong,b')) on = false;
+          btn.classList.toggle('on', on);
+        }catch{}
+      });
       $('#quoteBtn')?.classList.toggle('on', !!(el && el.closest('blockquote')));
-      $('#h2Btn')?.classList.toggle('on', !!(el && el.closest('h1,h2,h3')));
+      $('#headingBtn')?.classList.toggle('on', !!(headingEl || $('#headingMenu')?.classList.contains('on')));
       $('#linkBtn')?.classList.toggle('on', !!(el && el.closest('a')));
       $('#plusBtn')?.classList.toggle('on', $('#plusMenu')?.classList.contains('on'));
+      $$('#headingMenu [data-block]').forEach(btn => btn.classList.toggle('is-current', btn.dataset.block === kind));
     });
     $('#typebar').addEventListener('mousedown', e => e.preventDefault());
     $$('#typebar [data-cmd]').forEach(btn => btn.addEventListener('click', ()=>exec(btn.dataset.cmd)));
-    $$('#typebar [data-block], #plusMenu [data-block]').forEach(btn => btn.addEventListener('click', ()=>formatBlock(btn.dataset.block)));
+    $$('#typebar [data-block], #headingMenu [data-block]').forEach(btn => btn.addEventListener('click', ()=>formatBlock(btn.dataset.block)));
     $$('#plusMenu [data-insert]').forEach(btn => btn.addEventListener('click', ()=>insertFeature(btn.dataset.insert)));
     $('#linkBtn').addEventListener('click', ()=>{
       restoreSel(); expandWord();
@@ -644,6 +780,7 @@
     $('#undoBtn').addEventListener('mousedown', e => e.preventDefault());
     $('#redoBtn').addEventListener('mousedown', e => e.preventDefault());
     $('#plusBtn').addEventListener('click', ()=>openPanel('#plusMenu'));
+    $('#headingBtn')?.addEventListener('click', ()=>openPanel('#headingMenu'));
     $('#fileBtn').addEventListener('click', ()=>openPanel('#fileSheet'));
     $('#publishBtn').addEventListener('click', ()=>openPanel('#publishSheet'));
     $('#editTab').addEventListener('click', ()=>setMode('edit'));
