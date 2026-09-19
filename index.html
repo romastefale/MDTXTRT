@@ -17,16 +17,15 @@
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:image" content="https://romastefale.github.io/MDTXTRT/x-banner.jpg" />
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <script>(function(){try{var t=window.Telegram&&window.Telegram.WebApp;var inTg=t&&((t.initData&&t.initData.length)||(t.initDataUnsafe&&t.initDataUnsafe.user&&t.initDataUnsafe.user.id));var l=inTg&&t.colorScheme?t.colorScheme==="light":matchMedia("(prefers-color-scheme: light)").matches;document.documentElement.classList.toggle("light",l);document.documentElement.classList.toggle("dark",!l);var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute("content",l?"#ffffff":"#000000");}catch(e){}})();</script>
+  <script>(function(){try{var t=window.Telegram&&window.Telegram.WebApp;var inTg=t&&((t.initData&&t.initData.length)||(t.initDataUnsafe&&t.initDataUnsafe.user&&t.initDataUnsafe.user.id));var l=inTg&&t.colorScheme?t.colorScheme==="light":matchMedia("(prefers-color-scheme: light)").matches;document.documentElement.classList.toggle("light",l);document.documentElement.classList.toggle("dark",!l);var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute("content",l?"#e4eaf8":"#161b4a");}catch(e){}})();</script>
   <style>
     :root{
-      --bg:#000000;
+      --bg:#161b4a;
       --text:#f5f5f7;
       --muted:#c5c8d8;
       --accent:#8b5cf6;
       --bar:rgba(255,255,255,.08);
       --line:rgba(255,255,255,.18);
-      --wash-image:url("backgrounds/dark.jpg");
       --glass-frost:0.08;
       --glass-saturation:1.15;
       --glass:rgba(255,255,255,var(--glass-frost));
@@ -41,9 +40,8 @@
     }
     @media (prefers-color-scheme: light){
       :root{
-        --bg:#ffffff; --text:#151515; --muted:#5c6478; --accent:#ff6a00;
+        --bg:#e4eaf8; --text:#151515; --muted:#5c6478; --accent:#ff6a00;
         --bar:rgba(255,255,255,.46); --line:rgba(255,255,255,.7);
-        --wash-image:url("backgrounds/light.jpg");
         --glass-frost:0.22; --glass-saturation:1.15;
         --glass:rgba(255,255,255,var(--glass-frost));
         --glass-edge:transparent;
@@ -52,9 +50,8 @@
       }
     }
     html.light{
-      --bg:#ffffff; --text:#151515; --muted:#5c6478; --accent:#ff6a00;
+      --bg:#e4eaf8; --text:#151515; --muted:#5c6478; --accent:#ff6a00;
       --bar:rgba(255,255,255,.46); --line:rgba(255,255,255,.7);
-      --wash-image:url("backgrounds/light.jpg");
       --glass-frost:0.22;
       --glass:rgba(255,255,255,var(--glass-frost));
       --glass-edge:transparent;
@@ -62,21 +59,26 @@
       --glass-shadow-lg:inset 0 .5px 0 rgba(255,255,255,.5),0 4px 12px rgba(20,24,36,.05),0 16px 32px rgba(20,24,36,.08),0 28px 48px rgba(20,24,36,.06);
     }
     html.dark{
-      --bg:#000000; --text:#f5f5f7; --muted:#c5c8d8; --accent:#8b5cf6;
+      --bg:#161b4a; --text:#f5f5f7; --muted:#c5c8d8; --accent:#8b5cf6;
       --bar:rgba(255,255,255,.08); --line:rgba(255,255,255,.18);
-      --wash-image:url("backgrounds/dark.jpg");
       --glass-frost:0.08; --glass:rgba(255,255,255,var(--glass-frost));
     }
     html{color-scheme:light dark}
     html.light{color-scheme:light}
     html.dark{color-scheme:dark}
     *{box-sizing:border-box}
-    html,body{width:100%;height:100%;min-height:100dvh;touch-action:pan-x pan-y;-ms-touch-action:pan-x pan-y;background-color:var(--bg);accent-color:var(--accent);caret-color:var(--accent)}
+    html,body{width:100%;height:100%;min-height:100dvh;min-height:100lvh;min-height:-webkit-fill-available;touch-action:manipulation;-ms-touch-action:manipulation;background-color:var(--bg);accent-color:var(--accent);caret-color:var(--accent)}
     body{
       margin:0;color:var(--text);
       font:16px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;
       overflow:hidden;
     }
+    .wash{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden;width:100%;height:100%;min-width:100vw;min-height:100dvh;min-height:100lvh;min-height:-webkit-fill-available}
+    .wash-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;display:block}
+    .wash-light{opacity:0}.wash-dark{opacity:1}
+    @media (prefers-color-scheme: light){html:not(.dark) .wash-light{opacity:1} html:not(.dark) .wash-dark{opacity:0}}
+    html.light .wash-light{opacity:1} html.light .wash-dark{opacity:0}
+    html.dark .wash-light{opacity:0} html.dark .wash-dark{opacity:1}
     ::selection{background:color-mix(in srgb,var(--accent) 38%, transparent);color:inherit}
     button,input{font:inherit;color:inherit}
     button{cursor:pointer;-webkit-tap-highlight-color:transparent}
@@ -116,7 +118,7 @@
       display:flex;flex-direction:column;
       overflow:hidden;background:transparent;
     }
-    .chrome-top{position:fixed;top:0;left:0;right:0;z-index:12;padding:var(--tg-top) 0 8px;pointer-events:none}
+    .chrome-top{position:absolute;top:0;left:0;right:0;z-index:12;padding:var(--tg-top) 0 8px;pointer-events:none}
     .chrome-top .topbar,.chrome-top .meta{pointer-events:auto}
     .chrome-fog{position:absolute;left:0;right:0;pointer-events:none;backdrop-filter:blur(16px) saturate(1.18);-webkit-backdrop-filter:blur(16px) saturate(1.18)}
     .chrome-fog-top{top:0;height:calc(100% + 28px);opacity:var(--top-blur,0);mask-image:linear-gradient(to bottom,#000 0%,#000 58%,transparent 100%);-webkit-mask-image:linear-gradient(to bottom,#000 0%,#000 58%,transparent 100%)}
@@ -239,6 +241,7 @@
       <feDisplacementMap in="blur" in2="map" scale="0.12" xChannelSelector="R" yChannelSelector="G"/>
     </filter>
   </svg>
+<div class="wash" aria-hidden="true"><img class="wash-img wash-light" src="backgrounds/light.jpg" alt=""><img class="wash-img wash-dark" src="backgrounds/dark.jpg" alt=""></div>
   <div class="app">
     <div class="chrome-top">
       <div class="chrome-fog chrome-fog-top" aria-hidden="true"></div>
@@ -350,6 +353,7 @@
     const sheets = ['#plusMenu','#fileSheet','#publishSheet','#headingMenu'];
     let savedRange = null, hist = [], histI = -1, histLock = false, composing = false, saveTimer = null;
     const ICON_EXTS = ['svg','png','webp','SVG','PNG','WEBP'];
+    const BG_EXTS = ['jpg','jpeg','png','webp','avif','JPG','JPEG','PNG','WEBP','AVIF'];
     function assetExists(url){
       return new Promise(res => { const i = new Image(); i.onload = () => res(true); i.onerror = () => res(false); i.src = url; });
     }
@@ -373,6 +377,10 @@
         if(!name || !meta) return;
         applyIcon(el, 'icons/' + meta.file + '?v=' + meta.v);
       });
+      const light = man.backgrounds && man.backgrounds.light;
+      const dark = man.backgrounds && man.backgrounds.dark;
+      if(light){ const img = $('.wash-light'); if(img) img.src = 'backgrounds/' + light.file + '?v=' + light.v; }
+      if(dark){ const img = $('.wash-dark'); if(img) img.src = 'backgrounds/' + dark.file + '?v=' + dark.v; }
     }
     async function bindFolderAssets(){
       try{
@@ -387,6 +395,8 @@
         if(!name) return;
         probeFolder('icons/' + name, ICON_EXTS).then(url => applyIcon(el, url));
       });
+      probeFolder('backgrounds/light', BG_EXTS).then(url => { const img = $('.wash-light'); if(img) img.src = url; });
+      probeFolder('backgrounds/dark', BG_EXTS).then(url => { const img = $('.wash-dark'); if(img) img.src = url; });
     }
     bindFolderAssets();
 
@@ -396,7 +406,7 @@
       const light = inTg && tg.colorScheme ? tg.colorScheme === 'light' : window.matchMedia('(prefers-color-scheme: light)').matches;
       document.documentElement.classList.toggle('light', light);
       document.documentElement.classList.toggle('dark', !light);
-      const theme = light ? '#ffffff' : '#000000';
+      const theme = light ? '#e4eaf8' : '#161b4a';
       const meta = document.querySelector('meta[name="theme-color"]');
       if(meta) meta.setAttribute('content', theme);
       if(inTg){
