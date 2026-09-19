@@ -118,7 +118,7 @@
       display:flex;flex-direction:column;
       overflow:hidden;background:transparent;
     }
-    .chrome-top{position:absolute;top:0;left:0;right:0;z-index:12;padding:var(--tg-top) 0 8px;pointer-events:none}
+    .chrome-top{position:fixed;top:0;left:0;right:0;z-index:12;padding:var(--tg-top) 0 8px;pointer-events:none}
     .chrome-top .topbar,.chrome-top .meta{pointer-events:auto}
     .chrome-fog{position:absolute;left:0;right:0;pointer-events:none;backdrop-filter:blur(16px) saturate(1.18);-webkit-backdrop-filter:blur(16px) saturate(1.18)}
     .chrome-fog-top{top:0;height:calc(100% + 28px);opacity:var(--top-blur,0);mask-image:linear-gradient(to bottom,#000 0%,#000 58%,transparent 100%);-webkit-mask-image:linear-gradient(to bottom,#000 0%,#000 58%,transparent 100%)}
@@ -343,13 +343,17 @@
 
   <script>
     const $ = s => document.querySelector(s);
-    const $$ = s => Array.from(document.querySelectorAll(s));
+    const $ = s => Array.from(document.querySelectorAll(s));
+    const safari=/Safari/.test(navigator.userAgent)&&!/(CriOS|FxiOS|EdgiOS|OPiOS)/.test(navigator.userAgent);
     const editor = $('#editor');
     const preview = $('#preview');
     const docName = $('#docName');
     const toast = $('#toast');
     const backdrop = $('#backdrop');
     const fileInput = $('#fileInput');
+    if(safari) $('.wash').style.top='calc(-1 * var(--safe-top))';
+    if(safari) $('.wash').style.bottom='calc(-1 * var(--safe-bottom))';
+    if(safari) $('.chrome-top').style.paddingTop='var(--safe-top)';
     const sheets = ['#plusMenu','#fileSheet','#publishSheet','#headingMenu'];
     let savedRange = null, hist = [], histI = -1, histLock = false, composing = false, saveTimer = null;
     const ICON_EXTS = ['svg','png','webp','SVG','PNG','WEBP'];
@@ -480,7 +484,7 @@
       if(n && editor.contains(n)) savedRange = sel.getRangeAt(0).cloneRange();
     }
     function restoreSel(){
-      editor.focus();
+      if(!safari) editor.focus();
       const sel = window.getSelection();
       if(savedRange){ sel.removeAllRanges(); sel.addRange(savedRange); return; }
       const last = editor.lastElementChild;
