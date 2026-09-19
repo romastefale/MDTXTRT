@@ -1,0 +1,732 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" />
+  <meta name="theme-color" content="#111214" />
+  <meta name="color-scheme" content="dark light" />
+  <title>RMDtxtML</title>
+  <meta name="description" content="md to rich text and telegraph editor — Mini App Telegram e Telegraph." />
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="apple-touch-icon" href="logo.png" />
+  <meta property="og:title" content="RMDtxtML" />
+  <meta property="og:description" content="@mdtxtrtbot · md to rich text and telegraph editor" />
+  <meta property="og:image" content="https://romastefale.github.io/MDTXTRT/og.jpg" />
+  <meta property="og:url" content="https://romastefale.github.io/MDTXTRT/" />
+  <meta property="og:type" content="website" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:image" content="https://romastefale.github.io/MDTXTRT/x-banner.jpg" />
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    :root{
+      --bg:#101012;
+      --text:#f5f5f7;
+      --muted:#8e939c;
+      --accent:#ff6a00;
+      --bar:rgba(255,255,255,.04);
+      --line:rgba(255,255,255,.1);
+      --safe-top:env(safe-area-inset-top,0px);
+      --safe-bottom:env(safe-area-inset-bottom,0px);
+      --tg-top:0px;
+      --kb:0px;
+      --bar-h:52px;
+    }
+    @media (prefers-color-scheme: light){
+      :root{
+        --bg:#f3f3f5; --text:#151515; --muted:#6a6f78;
+        --bar:rgba(255,255,255,.32); --line:rgba(0,0,0,.07);
+      }
+    }
+    html.light{
+      --bg:#f3f3f5; --text:#151515; --muted:#6a6f78;
+      --bar:rgba(255,255,255,.32); --line:rgba(0,0,0,.07);
+    }
+    html.dark{
+      --bg:#101012; --text:#f5f5f7; --muted:#8e939c;
+      --bar:rgba(255,255,255,.04); --line:rgba(255,255,255,.1);
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%;touch-action:manipulation;-ms-touch-action:manipulation}
+    body{
+      margin:0;background:var(--bg);color:var(--text);
+      font:16px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;
+      overflow:hidden;
+    }
+    .wash{position:fixed;inset:-10%;z-index:0;pointer-events:none;overflow:hidden}
+    .wash i{position:absolute;border-radius:50%;filter:blur(72px)}
+    .wash .a{width:78vw;height:78vw;left:-22%;top:-16%;background:#ff7a33;opacity:.38}
+    .wash .b{width:64vw;height:64vw;right:-20%;top:16%;background:#4f86ff;opacity:.32}
+    .wash .c{width:70vw;height:70vw;left:18%;bottom:-28%;background:#b25cff;opacity:.26}
+    html.light .wash .a{opacity:.2}
+    html.light .wash .b{opacity:.16}
+    html.light .wash .c{opacity:.12}
+    button,input{font:inherit;color:inherit}
+    button{cursor:pointer;-webkit-tap-highlight-color:transparent}
+    .frost{
+      background:var(--bar);
+      border:1px solid var(--line);
+      box-shadow:inset 0 1px 0 rgba(255,255,255,.28);
+      backdrop-filter:blur(28px) saturate(160%);
+      -webkit-backdrop-filter:blur(28px) saturate(160%);
+    }
+    .app{
+      position:relative;z-index:1;
+      height:100%;
+      max-width:430px;margin:0 auto;
+      padding:var(--tg-top) 0 calc(var(--bar-h) + var(--kb) + var(--safe-bottom) + 16px);
+      display:flex;flex-direction:column;
+      overflow:hidden;
+    }
+    .tg-slot{height:0;flex:none}
+    body.tg .tg-slot{height:var(--tg-top)}
+    .topbar{
+      flex:none;display:flex;align-items:center;justify-content:center;
+      margin:8px 12px 0;padding:8px 12px;min-height:36px;
+    }
+    .topbar{justify-content:space-between;padding:4px 4px 4px 8px}
+    .brand{font-weight:700;font-size:15px;letter-spacing:-.02em;text-align:center;display:inline-flex;align-items:center;gap:7px}
+    .brand-mark{width:22px;height:22px;border-radius:6px;object-fit:cover;background:#000}
+    .status-chip{height:24px;min-width:64px;padding:0 8px;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--muted);font-size:10px;font-weight:650;letter-spacing:.06em;text-transform:uppercase}
+    .status-chip.is-live{color:var(--accent);border-color:color-mix(in oklab,var(--accent) 50%,var(--line))}
+    .field-label{display:block;font-size:11px;color:var(--muted);margin:10px 0 4px}
+    .link-input{flex:1;min-width:0;height:40px;border-radius:12px;border:1px solid var(--line);background:transparent;padding:0 12px}
+    .link-form{display:flex;gap:8px;align-items:center}
+    .link-go{height:40px;padding:0 12px;border-radius:12px;border:1px solid var(--line);background:transparent}
+    .connect-hero{display:grid;place-items:center;margin:4px 0 8px}
+    .connect-hero img{width:88px;height:88px;border-radius:18px;object-fit:cover;background:#000}
+    .iconbtn{
+      width:36px;height:36px;border:0;border-radius:999px;padding:0;
+      background:transparent;display:grid;place-items:center;color:inherit
+    }
+    .iconbtn svg,.bar svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+    .meta{display:flex;align-items:center;gap:8px;margin:8px 16px 0}
+    .title{display:none}
+    .stats{flex:1;font-size:11px;color:var(--muted);white-space:nowrap;text-align:center}
+    .seg{display:flex;gap:2px;padding:2px;border-radius:999px}
+    .seg button{
+      width:34px;height:28px;border:0;border-radius:999px;background:transparent;display:grid;place-items:center
+    }
+    .seg button.active{background:rgba(255,255,255,.1)}
+    html.light .seg button.active{background:rgba(0,0,0,.07)}
+    .seg svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+    .canvas{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;padding:8px 16px 20px;position:relative}
+    .editor,.preview{
+      outline:none;min-height:100%;caret-color:var(--accent);
+      -webkit-user-select:text;user-select:text
+    }
+    .preview{display:none}
+    .preview.on{display:block}
+    .editor.off{display:none}
+    .editor h1,.preview h1{font-size:22px;margin:0 0 .5em}
+    .editor h2,.preview h2{font-size:18px;margin:1em 0 .4em}
+    .editor h3,.preview h3{font-size:16px;margin:1em 0 .35em}
+    .editor p,.preview p{margin:.7em 0}
+    .editor blockquote,.preview blockquote{margin:1em 0;padding:0 0 0 12px;border-left:3px solid var(--accent)}
+    .editor ul,.preview ul{padding-left:1.2em}
+    .editor table{width:100%;border-collapse:collapse;font-size:14px}
+    .editor th,.editor td{border:1px solid var(--line);padding:6px}
+    .editor a{color:var(--accent)}
+    .block-card{margin:12px 0;padding:10px;border-radius:12px;border:1px solid var(--line);background:rgba(255,255,255,.04);font-size:14px}
+    .block-label{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+    .bar-wrap{
+      position:fixed;left:0;right:0;bottom:var(--kb);z-index:20;
+      padding:8px 12px calc(var(--safe-bottom) + 8px);
+    }
+    .bar{
+      max-width:430px;margin:0 auto;
+      display:flex;align-items:center;
+      min-height:48px;padding:4px;border-radius:999px;
+    }
+    .bar > button{
+      flex:1;min-width:0;height:40px;border:0;background:transparent;color:inherit;
+      display:grid;place-items:center;border-radius:999px;padding:0
+    }
+    .bar > button.on{color:var(--accent);background:rgba(255,255,255,.08)}
+    .bar .plus,.bar .send{flex:0 0 40px}
+    .send-dot{
+      width:32px;height:32px;border-radius:999px;display:grid;place-items:center;
+      background:var(--accent);color:#fff
+    }
+    .send-dot svg{width:16px;height:16px}
+    .backdrop{position:fixed;inset:0;z-index:30;background:rgba(0,0,0,.22);display:none}
+    .backdrop.on{display:block}
+    .sheet{
+      position:fixed;left:12px;right:12px;bottom:calc(var(--bar-h) + var(--kb) + var(--safe-bottom) + 8px);
+      z-index:40;max-width:406px;margin:auto;max-height:52vh;overflow:auto;
+      display:none;padding:12px;border-radius:20px
+    }
+    .sheet.on{display:block}
+    .sheet h3{margin:0 0 8px;font-size:15px}
+    .sheet p,.hint{margin:0 0 10px;font-size:12px;color:var(--muted)}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+    .grid button,.stack button{
+      min-height:40px;border-radius:12px;border:1px solid var(--line);
+      background:rgba(255,255,255,.04);display:flex;align-items:center;gap:8px;
+      padding:0 10px;font-size:13px;text-align:left
+    }
+    .grid button svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+    .stack{display:flex;flex-direction:column;gap:6px}
+    .stack button{justify-content:space-between}
+    .toast{
+      position:fixed;left:50%;bottom:calc(var(--bar-h) + var(--kb) + 16px);
+      transform:translateX(-50%);z-index:50;display:none;
+      padding:8px 12px;border-radius:999px;font-size:12px
+    }
+    .toast.on{display:block}
+    .payload{max-height:22vh;overflow:auto;font:11px/1.4 ui-monospace,Menlo,monospace;white-space:pre-wrap;word-break:break-word}
+  </style>
+</head>
+<body>
+  <div class="wash" aria-hidden="true"><i class="a"></i><i class="b"></i><i class="c"></i></div>
+  <div class="app">
+    <div class="tg-slot" aria-hidden="true"></div>
+    <header class="topbar">
+      <button type="button" class="status-chip" id="statusChip">Web</button>
+      <div class="brand"><img class="brand-mark" src="mark.png" width="22" height="22" alt="">RMDtxtML</div>
+      <button type="button" class="iconbtn" id="connectBtn" aria-label="Ligar bot"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
+    </header>
+    <div class="meta">
+      <input id="docName" class="title" value="Ideia" aria-label="Nome">
+      <div class="seg frost">
+        <button type="button" id="undoBtn" aria-label="Desfazer"><svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-2"/></svg></button>
+        <button type="button" id="redoBtn" aria-label="Refazer"><svg viewBox="0 0 24 24"><path d="m15 14 5-5-5-5"/><path d="M20 9H10a6 6 0 0 0 0 12h2"/></svg></button>
+      </div>
+      <span class="stats" id="docStats">0</span>
+      <div class="seg frost">
+        <button id="editTab" class="active" aria-label="Editar"><svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button>
+        <button id="previewTab" aria-label="Prévia"><svg viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></button>
+      </div>
+    </div>
+    <div class="canvas">
+      <article id="editor" class="editor" contenteditable="true" spellcheck="true" inputmode="text" enterkeyhint="enter" aria-label="Editor">
+        <h1>RMDtxtML</h1>
+        <p>Editor para <strong>Telegram</strong> e <strong>Telegraph</strong>.</p>
+        <h2>Escrever uma vez</h2>
+        <p>TXT e Markdown entram e saem. A publicação vai para Telegram (Bot API 10.3) ou Telegraph.</p>
+        <blockquote>Uma edição, dois destinos.</blockquote>
+        <ul>
+          <li>Títulos, listas, links e citação</li>
+          <li>Tabela compacta e citação expansível</li>
+          <li>Documento via tg://document</li>
+        </ul>
+      </article>
+      <article id="preview" class="preview" aria-label="Prévia"></article>
+    </div>
+  </div>
+
+  <div class="bar-wrap">
+    <div class="bar frost" id="typebar">
+      <button class="plus" id="plusBtn" aria-label="Mais"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+      <button type="button" data-cmd="bold" aria-label="Negrito"><svg viewBox="0 0 24 24"><path d="M7 5h6a4 4 0 1 1 0 8H7z"/><path d="M7 13h7a4 4 0 1 1 0 8H7z"/></svg></button>
+      <button type="button" data-cmd="italic" aria-label="Itálico"><svg viewBox="0 0 24 24"><path d="M14 4h-4M14 20h-4M15 4 9 20"/></svg></button>
+      <button type="button" data-cmd="underline" aria-label="Sublinhado"><svg viewBox="0 0 24 24"><path d="M6 4v6a6 6 0 0 0 12 0V4"/><path d="M5 20h14"/></svg></button>
+      <button type="button" id="linkBtn" aria-label="Link"><svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.07 0l1.41-1.41a5 5 0 0 0-7.07-7.07L10 5.93"/><path d="M14 11a5 5 0 0 0-7.07 0L5.5 12.43a5 5 0 0 0 7.07 7.07L14 18.07"/></svg></button>
+      <button type="button" data-block="h2" aria-label="Título"><svg viewBox="0 0 24 24"><path d="M6 5v14M18 5v14M6 12h12"/></svg></button>
+      <button type="button" data-cmd="insertUnorderedList" aria-label="Lista"><svg viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M4 6h.01M4 12h.01M4 18h.01"/></svg></button>
+      <button class="send" id="publishBtn" aria-label="Publicar"><span class="send-dot"><svg viewBox="0 0 24 24"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg></span></button>
+    </div>
+  </div>
+
+  <div class="backdrop" id="backdrop"></div>
+  <div class="sheet frost" id="plusMenu">
+    <h3>Inserir</h3>
+    <div class="grid">
+      <button data-block="blockquote"><svg viewBox="0 0 24 24"><path d="M7 17H4a2 2 0 0 1-2-2v-3a6 6 0 0 1 6-6"/><path d="M19 17h-3a2 2 0 0 1-2-2v-3a6 6 0 0 1 6-6"/></svg>Citação</button>
+      <button data-block="h1">H1</button>
+      <button data-block="h2">H2</button>
+      <button data-block="h3">H3</button>
+      <button data-insert="task">Tarefa</button>
+      <button data-insert="table">Tabela</button>
+      <button data-insert="expandquote">Citação 10.3</button>
+      <button data-insert="details">Details</button>
+      <button data-insert="document">Documento</button>
+      <button data-insert="button">Botões</button>
+      <button id="importSheetBtn">Importar</button>
+      <button id="fileBtn">Arquivo</button>
+    </div>
+  </div>
+  <div class="sheet frost" id="fileSheet">
+    <h3>Arquivo</h3>
+    <div class="stack">
+      <button id="exportTxtBtn"><span>Exportar TXT</span></button>
+      <button id="exportMdBtn"><span>Exportar Markdown</span></button>
+      <button id="exportRichBtn"><span>Exportar Rich 10.3</span></button>
+      <button id="exportTelegraphBtn"><span>Exportar Telegraph</span></button>
+      <button id="snapshotBtn"><span>Snapshot</span></button>
+    </div>
+  </div>
+  <div class="sheet frost" id="publishSheet">
+    <h3>Publicar</h3>
+    <p>Telegram Bot API 10.3 ou Telegraph createPage.</p>
+    <div class="stack">
+      <button id="telegramPublishBtn"><span>Telegram sendRichMessage</span></button>
+      <button id="telegraphPublishBtn"><span>Telegraph createPage</span></button>
+      <button id="openTelegramBtn"><span>sendData Mini App</span></button>
+      <button id="copyPayloadBtn"><span>Copiar JSON</span></button>
+    </div>
+    <pre class="payload" id="payloadBox" hidden></pre>
+  </div>
+  <input id="fileInput" type="file" accept=".txt,.md,text/plain,text/markdown" hidden>
+  <div class="sheet frost" id="connectSheet">
+    <div class="connect-hero" aria-hidden="true"><img src="logo.png" width="88" height="88" alt=""></div>
+    <h3>Ligar Telegram</h3>
+    <p>Mini App nesta URL. No BotFather: /newapp → cole o endereço, depois abra t.me/mdtxtrtbot/rmdtxtml.</p>
+    <label class="field-label" for="miniUrl">URL da Mini App</label>
+    <div class="link-form">
+      <input id="miniUrl" class="link-input" readonly>
+      <button type="button" class="link-go" id="copyUrlBtn">Copiar</button>
+    </div>
+    <label class="field-label" for="botToken">Token do bot</label>
+    <input id="botToken" class="link-input" type="password" autocomplete="off" placeholder="123456:ABC…">
+    <label class="field-label" for="chatId">Chat ID ou @canal</label>
+    <input id="chatId" class="link-input" placeholder="@canal ou 123456">
+    <label class="field-label" for="botUser">Username do bot</label>
+    <input id="botUser" class="link-input" placeholder="mdtxtrtbot" value="mdtxtrtbot">
+    <div class="stack" style="margin-top:10px">
+      <button type="button" id="testTokenBtn"><span>Testar token</span></button>
+      <button type="button" id="openBotBtn"><span>Abrir no Telegram</span></button>
+    </div>
+  </div>
+  <div class="toast frost" id="toast"></div>
+
+  <script>
+    const $ = s => document.querySelector(s);
+    const $$ = s => Array.from(document.querySelectorAll(s));
+    const editor = $('#editor');
+    const preview = $('#preview');
+    const docName = $('#docName');
+    const toast = $('#toast');
+    const backdrop = $('#backdrop');
+    const fileInput = $('#fileInput');
+    const sheets = ['#plusMenu','#fileSheet','#publishSheet','#connectSheet'];
+    let savedRange = null, hist = [], histI = -1, histLock = false, composing = false, saveTimer = null;
+
+    function applyScheme(){
+      const tg = window.Telegram?.WebApp;
+      const light = tg ? tg.colorScheme === 'light' : window.matchMedia('(prefers-color-scheme: light)').matches;
+      document.documentElement.classList.toggle('light', light);
+      document.documentElement.classList.toggle('dark', !light);
+      if(tg?.themeParams?.bg_color) tg.setBackgroundColor(tg.themeParams.bg_color);
+    }
+    applyScheme();
+    window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', applyScheme);
+    function getTg(){ return window.Telegram?.WebApp; }
+    function isInsideTelegram(){
+      const tg = getTg();
+      if(!tg) return false;
+      if(tg.initData && tg.initData.length > 0) return true;
+      return Boolean(tg.initDataUnsafe?.user?.id);
+    }
+    const inTg = isInsideTelegram();
+    let lastPage = localStorage.getItem('rmdtxtml_last_page') || '';
+    const settings = (()=>{
+      try{ return JSON.parse(localStorage.getItem('rmdtxtml_bot')||'null') || {}; }catch{ return {}; }
+    })();
+    settings.token = settings.token || '';
+    settings.chatId = settings.chatId || '';
+    settings.botUsername = (settings.botUsername || 'mdtxtrtbot').replace(/^@/,'');
+    function persistSettings(){
+      localStorage.setItem('rmdtxtml_bot', JSON.stringify(settings));
+    }
+    if (inTg) {
+      const tg = getTg();
+      document.body.classList.add('tg');
+      $('#statusChip').textContent = 'Mini App';
+      $('#statusChip').classList.add('is-live');
+      tg.ready(); tg.expand();
+      const applySafe = () => {
+        const top = Math.max(tg.contentSafeAreaInset?.top || 0, tg.safeAreaInset?.top || 0, 72);
+        document.documentElement.style.setProperty('--tg-top', top + 'px');
+      };
+      applySafe(); applyScheme();
+      tg.onEvent?.('safeAreaChanged', applySafe);
+      tg.onEvent?.('contentSafeAreaChanged', applySafe);
+      tg.onEvent?.('themeChanged', applyScheme);
+      tg.BackButton?.hide?.();
+      tg.disableVerticalSwipes?.();
+      tg.MainButton?.setText?.('Publicar');
+      tg.MainButton?.show?.();
+      tg.MainButton?.onClick?.(() => openPanel('#publishSheet'));
+    }
+
+    function showToast(msg){
+      toast.textContent = msg; toast.classList.add('on');
+      clearTimeout(showToast.t); showToast.t = setTimeout(()=>toast.classList.remove('on'), 1600);
+    }
+    function openPanel(sel){ sheets.forEach(s => $(s).classList.remove('on')); $(sel).classList.add('on'); backdrop.classList.add('on'); }
+    function closePanels(){ sheets.forEach(s => $(s).classList.remove('on')); backdrop.classList.remove('on'); }
+    backdrop.addEventListener('click', closePanels);
+
+    function saveSel(){
+      const sel = window.getSelection();
+      if(!sel || !sel.rangeCount) return;
+      const n = sel.anchorNode;
+      if(n && editor.contains(n)) savedRange = sel.getRangeAt(0).cloneRange();
+    }
+    function restoreSel(){
+      editor.focus();
+      const sel = window.getSelection();
+      if(savedRange){ sel.removeAllRanges(); sel.addRange(savedRange); return; }
+      const last = editor.lastElementChild;
+      if(!last) return;
+      const range = document.createRange();
+      range.setStartAfter(last); range.collapse(true);
+      sel.removeAllRanges(); sel.addRange(range);
+    }
+    function pushHist(){
+      if(histLock) return;
+      const html = editor.innerHTML;
+      if(hist[histI] === html) return;
+      hist = hist.slice(0, histI + 1);
+      hist.push(html); if(hist.length > 80) hist.shift();
+      histI = hist.length - 1;
+    }
+    function applyHist(html){ histLock = true; editor.innerHTML = html; histLock = false; markDirty(); }
+    function histUndo(){ if(histI > 0){ histI--; applyHist(hist[histI]); } }
+    function histRedo(){ if(histI < hist.length - 1){ histI++; applyHist(hist[histI]); } }
+    function expandWord(){
+      const sel = window.getSelection();
+      if(!sel || !sel.rangeCount || !sel.isCollapsed) return;
+      const r = sel.getRangeAt(0);
+      const text = r.startContainer; if(text.nodeType !== 3) return;
+      const v = text.textContent, i = r.startOffset;
+      let a = i, b = i;
+      while(a > 0 && /\S/.test(v[a-1])) a--;
+      while(b < v.length && /\S/.test(v[b])) b++;
+      if(a === b) return;
+      r.setStart(text, a); r.setEnd(text, b); sel.removeAllRanges(); sel.addRange(r);
+      savedRange = r.cloneRange();
+    }
+    function exec(cmd, value=null){
+      restoreSel(); expandWord();
+      document.execCommand(cmd, false, value);
+      saveSel(); pushHist(); markDirty();
+    }
+    function formatBlock(tag){
+      restoreSel();
+      document.execCommand('formatBlock', false, tag);
+      saveSel(); pushHist(); markDirty(); closePanels();
+    }
+    function insertHTML(html){
+      restoreSel();
+      document.execCommand('insertHTML', false, html);
+      saveSel(); pushHist(); markDirty(); closePanels();
+    }
+    function insertFeature(kind){
+      const last = editor.lastElementChild;
+      if(last){
+        const range = document.createRange();
+        range.setStartAfter(last); range.collapse(true);
+        const sel = window.getSelection();
+        sel.removeAllRanges(); sel.addRange(range);
+        savedRange = range.cloneRange();
+      }
+      if(kind === 'task') return insertHTML('<p>☐ Nova tarefa</p>');
+      if(kind === 'table') return insertHTML('<table><thead><tr><th>A</th><th>B</th></tr></thead><tbody><tr><td>—</td><td>—</td></tr></tbody></table>');
+      if(kind === 'expandquote') return insertHTML('<blockquote data-expandable="true"><p>Citação expansível 10.3</p></blockquote>');
+      if(kind === 'details') return insertHTML('<details open><summary>Detalhes</summary><p>Conteúdo</p></details>');
+      if(kind === 'document') return insertHTML('<div class="block-card" data-kind="document" data-file="tg://document?id=file_1"><div class="block-label">Documento</div>tg://document?id=file_1</div>');
+      if(kind === 'button') return insertHTML('<div class="block-card" data-kind="buttons"><div class="block-label">Botões</div>Publicar · Mini App</div>');
+    }
+    function markDirty(){
+      updateStats();
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(saveLocal, 400);
+    }
+    function updateStats(){
+      const t = (editor.innerText || '').trim();
+      $('#docStats').textContent = (t ? t.split(/\s+/).length : 0) + ' pal.';
+    }
+    function saveLocal(){
+      localStorage.setItem('rmdtxtml', JSON.stringify({name: docName.value, html: editor.innerHTML}));
+    }
+    function loadLocal(){
+      try{
+        const d = JSON.parse(localStorage.getItem('rmdtxtml') || 'null');
+        if(d?.html){ editor.innerHTML = d.html; docName.value = d.name || 'Ideia'; }
+      }catch{}
+    }
+    function setMode(mode){
+      const edit = mode === 'edit';
+      $('#editTab').classList.toggle('active', edit);
+      $('#previewTab').classList.toggle('active', !edit);
+      editor.classList.toggle('off', !edit);
+      preview.classList.toggle('on', !edit);
+      if(!edit) preview.innerHTML = editor.innerHTML;
+    }
+    function escapeHTML(s){ return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+    function htmlToText(html){ const d = document.createElement('div'); d.innerHTML = html; return d.innerText; }
+    function htmlToMarkdown(html){
+      const d = document.createElement('div'); d.innerHTML = html;
+      const walk = n => {
+        if(n.nodeType === 3) return n.textContent;
+        if(n.nodeType !== 1) return '';
+        const t = n.tagName.toLowerCase();
+        const inner = Array.from(n.childNodes).map(walk).join('');
+        if(t === 'strong' || t === 'b') return '**'+inner+'**';
+        if(t === 'em' || t === 'i') return '*'+inner+'*';
+        if(t === 'a') return '['+inner+']('+(n.getAttribute('href')||'')+')';
+        if(/^h[1-6]$/.test(t)) return '\n'+'#'.repeat(+t[1])+' '+inner+'\n';
+        if(t === 'p') return '\n'+inner+'\n';
+        if(t === 'li') return '- '+inner+'\n';
+        if(t === 'blockquote') return '\n> '+inner.trim()+'\n';
+        return inner;
+      };
+      return walk(d).trim();
+    }
+    function mdToBasicHTML(md){
+      return md.split(/\n{2,}/).map(b => {
+        if(/^### /.test(b)) return '<h3>'+escapeHTML(b.slice(4))+'</h3>';
+        if(/^## /.test(b)) return '<h2>'+escapeHTML(b.slice(3))+'</h2>';
+        if(/^# /.test(b)) return '<h1>'+escapeHTML(b.slice(2))+'</h1>';
+        if(/^> /.test(b)) return '<blockquote><p>'+escapeHTML(b.replace(/^> /gm,''))+'</p></blockquote>';
+        return '<p>'+escapeHTML(b).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\*(.+?)\*/g,'<em>$1</em>')+'</p>';
+      }).join('');
+    }
+    function download(name, content, type){
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([content], {type}));
+      a.download = name; a.click();
+    }
+    function telegraphNodes(html){
+      const d = document.createElement('div'); d.innerHTML = html;
+      const allow = new Set(['a','aside','b','blockquote','br','code','em','figcaption','figure','h3','h4','hr','i','iframe','img','li','ol','p','pre','s','strong','u','ul','video']);
+      const conv = el => {
+        if(el.nodeType === 3) return el.textContent;
+        if(el.nodeType !== 1) return null;
+        let tag = el.tagName.toLowerCase();
+        if(tag === 'h1' || tag === 'h2') tag = 'h3';
+        if(tag === 'h5' || tag === 'h6') tag = 'h4';
+        if(tag === 'div' || tag === 'article' || tag === 'section') return Array.from(el.childNodes).map(conv).flat().filter(Boolean);
+        if(!allow.has(tag)) return Array.from(el.childNodes).map(conv).flat().filter(Boolean);
+        const node = {tag};
+        if(tag === 'a') node.attrs = {href: el.getAttribute('href') || ''};
+        const children = Array.from(el.childNodes).map(conv).flat().filter(v => v !== null && v !== '');
+        if(children.length) node.children = children;
+        return node;
+      };
+      return Array.from(d.childNodes).map(conv).flat().filter(Boolean);
+    }
+    function toRichHTML(root){
+      const inline = n => {
+        if(n.nodeType === 3) return escapeHTML(n.textContent||'');
+        if(n.nodeType !== 1) return '';
+        const t = n.tagName.toLowerCase();
+        const inner = Array.from(n.childNodes).map(inline).join('');
+        if(t==='strong'||t==='b') return '<b>'+inner+'</b>';
+        if(t==='em'||t==='i') return '<i>'+inner+'</i>';
+        if(t==='u') return '<u>'+inner+'</u>';
+        if(t==='s'||t==='del') return '<s>'+inner+'</s>';
+        if(t==='code') return '<code>'+inner+'</code>';
+        if(t==='a') return '<a href="'+escapeHTML(n.getAttribute('href')||'')+'">'+inner+'</a>';
+        if(t==='br') return '<br/>';
+        return inner;
+      };
+      const blocks = [];
+      Array.from(root.childNodes).forEach(n => {
+        if(n.nodeType === 3){ if((n.textContent||'').trim()) blocks.push('<p>'+escapeHTML(n.textContent)+'</p>'); return; }
+        if(n.nodeType !== 1) return;
+        const t = n.tagName.toLowerCase();
+        const inner = Array.from(n.childNodes).map(inline).join('');
+        if(/^h[1-6]$/.test(t)) blocks.push('<'+t+'>'+inner+'</'+t+'>');
+        else if(t==='blockquote'){
+          const exp = n.getAttribute('data-expandable') === 'true';
+          blocks.push(exp ? '<blockquote expandable>'+inner+'</blockquote>' : '<blockquote>'+inner+'</blockquote>');
+        } else if(t==='ul'||t==='ol'){
+          blocks.push('<'+t+'>'+Array.from(n.children).map(li => '<li>'+inline(li)+'</li>').join('')+'</'+t+'>');
+        } else if(t==='pre') blocks.push('<pre>'+escapeHTML(n.innerText)+'</pre>');
+        else if(t==='table') blocks.push('<p>'+escapeHTML(n.innerText.replace(/\s+/g,' ').trim())+'</p>');
+        else blocks.push('<p>'+inner+'</p>');
+      });
+      return blocks.join('') || '<p></p>';
+    }
+    function buildRich(){
+      return {
+        method: 'sendRichMessage',
+        title: docName.value || 'Ideia',
+        rich_message: {
+          html: toRichHTML(editor),
+          skip_entity_detection: true
+        },
+        markdown: htmlToMarkdown(editor.innerHTML)
+      };
+    }
+    async function telegraphCall(method, body){
+      const res = await fetch('https://api.telegra.ph/'+method, {
+        method:'POST',
+        headers:{'content-type':'application/x-www-form-urlencoded'},
+        body: new URLSearchParams(body)
+      });
+      const json = await res.json();
+      if(!json.ok) throw new Error(json.error || method);
+      return json.result;
+    }
+    function buildTelegraph(){
+      return {method:'createPage', title: docName.value || 'Ideia', content: telegraphNodes(editor.innerHTML)};
+    }
+    function showPayload(obj){
+      const box = $('#payloadBox'); box.hidden = false; box.textContent = JSON.stringify(obj, null, 2); return obj;
+    }
+
+    editor.addEventListener('input', ()=>{ if(!composing){ markDirty(); pushHist(); }});
+    editor.addEventListener('compositionstart', ()=> composing = true);
+    editor.addEventListener('compositionend', ()=>{ composing = false; markDirty(); pushHist(); });
+    editor.addEventListener('keyup', saveSel);
+    editor.addEventListener('mouseup', saveSel);
+    editor.addEventListener('paste', e => {
+      e.preventDefault();
+      const text = (e.clipboardData || window.clipboardData).getData('text/plain');
+      document.execCommand('insertText', false, text);
+    });
+    document.addEventListener('selectionchange', ()=>{
+      saveSel();
+      $$('#typebar [data-cmd]').forEach(btn => {
+        if(btn.dataset.cmd === 'insertUnorderedList') return;
+        try{ btn.classList.toggle('on', document.queryCommandState(btn.dataset.cmd)); }catch{}
+      });
+    });
+    $('#typebar').addEventListener('mousedown', e => e.preventDefault());
+    $$('#typebar [data-cmd]').forEach(btn => btn.addEventListener('click', ()=>exec(btn.dataset.cmd)));
+    $$('#typebar [data-block], #plusMenu [data-block]').forEach(btn => btn.addEventListener('click', ()=>formatBlock(btn.dataset.block)));
+    $$('#plusMenu [data-insert]').forEach(btn => btn.addEventListener('click', ()=>insertFeature(btn.dataset.insert)));
+    $('#linkBtn').addEventListener('click', ()=>{
+      restoreSel(); expandWord();
+      const url = prompt('URL','https://'); if(!url) return;
+      const sel = window.getSelection();
+      if(!sel || sel.isCollapsed) insertHTML('<a href="'+escapeHTML(url)+'">'+escapeHTML(url)+'</a>');
+      else exec('createLink', url);
+    });
+    $('#undoBtn').addEventListener('click', histUndo);
+    $('#redoBtn').addEventListener('click', histRedo);
+    $('#undoBtn').addEventListener('mousedown', e => e.preventDefault());
+    $('#redoBtn').addEventListener('mousedown', e => e.preventDefault());
+    $('#plusBtn').addEventListener('click', ()=>openPanel('#plusMenu'));
+    $('#fileBtn').addEventListener('click', ()=>openPanel('#fileSheet'));
+    $('#publishBtn').addEventListener('click', ()=>openPanel('#publishSheet'));
+    $('#editTab').addEventListener('click', ()=>setMode('edit'));
+    $('#previewTab').addEventListener('click', ()=>setMode('preview'));
+    $('#importSheetBtn').addEventListener('click', ()=>{ fileInput.click(); closePanels(); });
+    $('#exportTxtBtn').addEventListener('click', ()=>{ download((docName.value||'doc')+'.txt', htmlToText(editor.innerHTML), 'text/plain'); closePanels(); });
+    $('#exportMdBtn').addEventListener('click', ()=>{ download((docName.value||'doc')+'.md', htmlToMarkdown(editor.innerHTML), 'text/markdown'); closePanels(); });
+    $('#exportRichBtn').addEventListener('click', ()=>{ download((docName.value||'doc')+'-rich.json', JSON.stringify(buildRich(),null,2), 'application/json'); closePanels(); });
+    $('#exportTelegraphBtn').addEventListener('click', ()=>{ download((docName.value||'doc')+'-telegraph.json', JSON.stringify(buildTelegraph(),null,2), 'application/json'); closePanels(); });
+    $('#snapshotBtn').addEventListener('click', ()=>{
+      const snap = btoa(unescape(encodeURIComponent(JSON.stringify({name:docName.value,html:editor.innerHTML}))));
+      download((docName.value||'doc')+'-snapshot.md', htmlToMarkdown(editor.innerHTML)+'\n<!--RMDTXTML_SNAPSHOT:'+snap+'-->\n', 'text/markdown');
+      closePanels();
+    });
+    $('#telegramPublishBtn').addEventListener('click', async ()=>{
+      const p = showPayload(buildRich());
+      const raw = JSON.stringify(p);
+      if(inTg && getTg()?.sendData && new TextEncoder().encode(raw).length <= 4096){
+        getTg().sendData(raw); showToast('Enviado ao bot'); return;
+      }
+      if(!settings.token || !settings.chatId){ openPanel('#connectSheet'); showToast('Ligue o bot'); return; }
+      try{
+        const res = await fetch('https://api.telegram.org/bot'+settings.token+'/sendRichMessage', {
+          method:'POST', headers:{'content-type':'application/json'},
+          body: JSON.stringify({ chat_id: settings.chatId, rich_message: p.rich_message })
+        });
+        const json = await res.json();
+        if(!json.ok) throw new Error(json.description || 'sendRichMessage');
+        showToast('sendRichMessage 10.3');
+      }catch(err){
+        showToast('No Pages use Mini App sendData');
+      }
+    });
+    $('#telegraphPublishBtn').addEventListener('click', async ()=>{
+      const payload = showPayload(buildTelegraph());
+      try{
+        let token = localStorage.getItem('rmdtxtml_tgph') || '';
+        if(!token){
+          const acc = await telegraphCall('createAccount', {short_name:'MDTXTRT', author_name: settings.botUsername || 'RMDtxtML'});
+          token = acc.access_token;
+          localStorage.setItem('rmdtxtml_tgph', token);
+        }
+        const page = await telegraphCall('createPage', {
+          access_token: token,
+          title: payload.title,
+          author_name: settings.botUsername || 'RMDtxtML',
+          content: JSON.stringify(payload.content),
+          return_content: 'false'
+        });
+        lastPage = page.url;
+        localStorage.setItem('rmdtxtml_last_page', lastPage);
+        showToast('Telegraph no ar');
+        if(inTg) getTg().openLink(page.url, {try_instant_view:true});
+        else window.open(page.url, '_blank','noopener');
+      }catch(err){ showToast(err.message || 'Telegraph falhou'); }
+    });
+    $('#openTelegramBtn').addEventListener('click', ()=>{
+      const p = showPayload(buildRich());
+      const raw = JSON.stringify(p);
+      if(inTg && getTg()?.sendData){
+        if(new TextEncoder().encode(raw).length > 4096){ showToast('Grande demais p/ sendData'); return; }
+        getTg().sendData(raw); showToast('sendData');
+      } else showToast('Abra pelo bot');
+    });
+    $('#connectBtn').addEventListener('click', ()=>openPanel('#connectSheet'));
+    $('#statusChip').addEventListener('click', ()=>openPanel('#connectSheet'));
+    $('#miniUrl').value = location.href.split('#')[0];
+    $('#botToken').value = settings.token;
+    $('#chatId').value = settings.chatId;
+    $('#botUser').value = settings.botUsername;
+    $('#botToken').addEventListener('input', e => { settings.token = e.target.value; persistSettings(); });
+    $('#chatId').addEventListener('input', e => { settings.chatId = e.target.value; persistSettings(); });
+    $('#botUser').addEventListener('input', e => { settings.botUsername = e.target.value.replace(/^@/,''); persistSettings(); });
+    $('#copyUrlBtn').addEventListener('click', async ()=>{
+      try{ await navigator.clipboard.writeText($('#miniUrl').value); showToast('URL copiada'); }
+      catch{ showToast('Copie a URL'); }
+    });
+    $('#testTokenBtn').addEventListener('click', async ()=>{
+      if(!settings.token){ showToast('Cole o token'); return; }
+      try{
+        const res = await fetch('https://api.telegram.org/bot'+settings.token+'/getMe');
+        const json = await res.json();
+        if(!json.ok) throw new Error(json.description || 'getMe');
+        settings.botUsername = json.result.username || settings.botUsername;
+        $('#botUser').value = settings.botUsername;
+        persistSettings();
+        showToast('@'+settings.botUsername);
+      }catch{ showToast('Token: teste pelo bot, CORS bloqueia aqui'); }
+    });
+    $('#openBotBtn').addEventListener('click', ()=>{
+      const user = settings.botUsername || 'mdtxtrtbot';
+      const href = 'https://t.me/'+user+'/rmdtxtml';
+      if(inTg) getTg().openTelegramLink?.(href);
+      else window.open(href,'_blank','noopener');
+    });
+    $('#copyPayloadBtn').addEventListener('click', async ()=>{
+      const p = showPayload(buildRich());
+      try{ await navigator.clipboard.writeText(JSON.stringify(p,null,2)); showToast('Copiado'); }catch{ showToast('Veja o JSON'); }
+    });
+    fileInput.addEventListener('change', async ()=>{
+      const file = fileInput.files?.[0]; if(!file) return;
+      const text = await file.text();
+      const snap = text.match(/<!--RMDTXTML_SNAPSHOT:([A-Za-z0-9+/=]+)-->/);
+      if(snap){
+        try{
+          const data = JSON.parse(decodeURIComponent(escape(atob(snap[1]))));
+          editor.innerHTML = data.html || ''; docName.value = data.name || 'Ideia'; markDirty(); closePanels(); fileInput.value=''; return;
+        }catch{}
+      }
+      docName.value = file.name.replace(/\.(md|txt)$/i,'');
+      editor.innerHTML = /\.md$/i.test(file.name) ? mdToBasicHTML(text) : '<p>'+escapeHTML(text).replace(/\n/g,'<br>')+'</p>';
+      markDirty(); closePanels(); fileInput.value='';
+    });
+    document.addEventListener('keydown', e => {
+      if(!(e.metaKey || e.ctrlKey)) return;
+      const k = e.key.toLowerCase();
+      if(k==='b'){ e.preventDefault(); exec('bold'); }
+      if(k==='i'){ e.preventDefault(); exec('italic'); }
+      if(k==='u'){ e.preventDefault(); exec('underline'); }
+      if(k==='z' && !e.shiftKey){ e.preventDefault(); histUndo(); }
+      if(k==='z' && e.shiftKey || k==='y'){ e.preventDefault(); histRedo(); }
+    });
+    const vv = window.visualViewport;
+    const fit = ()=>{ if(!vv) return; document.documentElement.style.setProperty('--kb', Math.max(0, window.innerHeight - vv.height - vv.offsetTop) + 'px'); };
+    vv?.addEventListener('resize', fit); vv?.addEventListener('scroll', fit);
+    loadLocal(); pushHist(); updateStats();
+  </script>
+</body>
+</html>
