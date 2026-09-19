@@ -277,8 +277,13 @@ const server = createServer(async (req, res) => {
       res.end();
       return;
     }
-    if (url.pathname === "/api/health" && req.method === "GET") {
+    if ((url.pathname === "/api/health" || url.pathname === "/api/ready" || url.pathname === "/ready" || url.pathname === "/health") && req.method === "GET") {
       setCors(req, res);
+      if (url.pathname === "/api/ready" || url.pathname === "/ready") {
+        res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ ok: true }));
+        return;
+      }
       const token = botToken();
       const payload = { ok: true, bot: Boolean(token) };
       if (token) {
