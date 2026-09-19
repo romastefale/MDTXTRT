@@ -8,7 +8,7 @@ Esta pasta **é** a fonte dos papéis de parede. O app lê os arquivos que estã
 2. Salve nesta pasta como `light` e `dark`, com uma das extensões abaixo.
 3. Apague o arquivo antigo do mesmo nome se a extensão for outra.
 
-O app olha o que existe aqui, nesta ordem: **`.jpg` → `.jpeg` → `.png` → `.webp` → `.avif`**. Só o primeiro que existir entra.
+O app lê o que está **nesta pasta no disco**. Se houver mais de um arquivo com o mesmo nome (`light.jpg` e `light.PNG`, por exemplo), vale o que você **salvou por último**.
 
 Exemplos:
 

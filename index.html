@@ -26,7 +26,7 @@
       --accent:#8b5cf6;
       --bar:rgba(255,255,255,.08);
       --line:rgba(255,255,255,.18);
-      --wash-image:url("backgrounds/dark.jpg"); --glass-frost:0.08;
+      --glass-frost:0.08;
       --glass-saturation:1.15;
       --glass:rgba(255,255,255,var(--glass-frost));
       --glass-edge:transparent;
@@ -42,7 +42,7 @@
       :root{
         --bg:#e4eaf8; --text:#151515; --muted:#5c6478; --accent:#ff6a00;
         --bar:rgba(255,255,255,.46); --line:rgba(255,255,255,.7);
-        --wash-image:url("backgrounds/light.jpg"); --glass-frost:0.22; --glass-saturation:1.15;
+        --glass-frost:0.22; --glass-saturation:1.15;
         --glass:rgba(255,255,255,var(--glass-frost));
         --glass-edge:transparent;
         --glass-shadow:inset 0 .5px 0 rgba(255,255,255,.45),0 1px 2px rgba(20,24,36,.04),0 8px 20px rgba(20,24,36,.07),0 18px 36px rgba(20,24,36,.05);
@@ -52,7 +52,7 @@
     html.light{
       --bg:#e4eaf8; --text:#151515; --muted:#5c6478; --accent:#ff6a00;
       --bar:rgba(255,255,255,.46); --line:rgba(255,255,255,.7);
-      --wash-image:url("backgrounds/light.jpg"); --glass-frost:0.22;
+      --glass-frost:0.22;
       --glass:rgba(255,255,255,var(--glass-frost));
       --glass-edge:transparent;
       --glass-shadow:inset 0 .5px 0 rgba(255,255,255,.45),0 1px 2px rgba(20,24,36,.04),0 8px 20px rgba(20,24,36,.07),0 18px 36px rgba(20,24,36,.05);
@@ -61,7 +61,7 @@
     html.dark{
       --bg:#161b4a; --text:#f5f5f7; --muted:#c5c8d8; --accent:#8b5cf6;
       --bar:rgba(255,255,255,.08); --line:rgba(255,255,255,.18);
-      --wash-image:url("backgrounds/dark.jpg"); --glass-frost:0.08; --glass:rgba(255,255,255,var(--glass-frost));
+      --glass-frost:0.08; --glass:rgba(255,255,255,var(--glass-frost));
     }
     html{color-scheme:light dark}
     html.light{color-scheme:light}
@@ -346,8 +346,8 @@
     const fileInput = $('#fileInput');
     const sheets = ['#plusMenu','#fileSheet','#publishSheet','#headingMenu'];
     let savedRange = null, hist = [], histI = -1, histLock = false, composing = false, saveTimer = null;
-    const ICON_EXTS = ['svg','png','webp'];
-    const BG_EXTS = ['jpg','jpeg','png','webp','avif'];
+    const ICON_EXTS = ['svg','png','webp','SVG','PNG','WEBP'];
+    const BG_EXTS = ['jpg','jpeg','png','webp','avif','JPG','JPEG','PNG','WEBP','AVIF'];
     function assetExists(url){
       return new Promise(res => { const i = new Image(); i.onload = () => res(true); i.onerror = () => res(false); i.src = url; });
     }

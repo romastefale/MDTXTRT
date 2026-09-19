@@ -158,14 +158,14 @@
   },
   "backgrounds": {
     "dark": {
-      "file": "dark.jpg",
-      "ext": "jpg",
-      "v": 1789821630095
+      "file": "dark.PNG",
+      "ext": "png",
+      "v": 1789831935582
     },
     "light": {
-      "file": "light.jpg",
-      "ext": "jpg",
-      "v": 1789821629871
+      "file": "light.PNG",
+      "ext": "png",
+      "v": 1789831935582
     }
   }
 }

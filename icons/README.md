@@ -10,7 +10,7 @@ Use o **mesmo nome** do botão.
 2. Salve nesta pasta (no lugar do antigo, ou com outra extensão).
 3. Se quiser outro formato, apague o arquivo que o app está usando hoje (o `.svg` vence se existir).
 
-O app olha o que existe aqui, nesta ordem: **`.svg` → `.png` → `.webp`**. Só o primeiro que existir entra.
+O app lê o que está **nesta pasta no disco**. Se houver mais de um arquivo com o mesmo nome, vale o que você **salvou por último**.
 
 Exemplos:
 
