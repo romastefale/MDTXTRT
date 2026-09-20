@@ -20,7 +20,7 @@ Sai mensagem rica no chat, ou página pública no Telegraph.
 - Tarefa, tabela, citação longa, documento e botões
 - Importar e exportar TXT e Markdown
 - Publicar no Telegraph
-- Enviar ao Telegram quando o editor está aberto pelo bot
+- Enviar ao Telegram quando o editor está aberto pelo bot.
 
 ## Abrir
 
