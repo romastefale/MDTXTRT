@@ -14,7 +14,7 @@ Sem reescrever. Sem formatar de novo.
 Entra texto simples ou Markdown.
 Sai mensagem rica no chat, ou página pública no Telegraph.
 
-## O que dá para fazer
+## O que faz
 
 - Títulos, corpo, listas, links e citações
 - Tarefa, tabela, citação longa, documento e botões
