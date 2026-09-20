@@ -6,7 +6,7 @@ O mesmo texto vira mensagem no Telegram e página no Telegraph.
 No Telegram, acompanha o tema do app.
 No navegador, acompanha o claro ou o escuro do sistema.
 
-## Premissa
+## Ideia
 
 Um só rascunho. Dois destinos.
 Sem reescrever. Sem formatar de novo.
