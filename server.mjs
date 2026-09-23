@@ -1,4 +1,4 @@
-import { createHmac } from "node:crypto";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { createReadStream, existsSync, statSync } from "node:fs";
 import { createServer } from "node:http";
 import { extname, relative, resolve } from "node:path";
@@ -7,10 +7,11 @@ import { fileURLToPath } from "node:url";
 const ROOT = fileURLToPath(new URL(".", import.meta.url));
 const PORT = Number(process.env.PORT) || 8080;
 const BOT_TOKEN_RE = /^\d{6,}:[A-Za-z0-9_-]{20,}$/;
-const ALLOW_ORIGINS = [
+const ALLOW_ORIGINS = new Set([
   "https://romastefale.github.io",
   "https://mdtxtrt.up.railway.app",
-];
+]);
+let telegraphToken = (process.env.TELEGRAPH_ACCESS_TOKEN || "").trim();
 
 const MIME = {
   ".html": "text/html; charset=utf-8",
@@ -36,17 +37,7 @@ function botToken() {
 
 function corsOrigin(req) {
   const origin = req.headers.origin || "";
-  if (!origin) return "";
-  if (ALLOW_ORIGINS.includes(origin)) return origin;
-  try {
-    const host = new URL(origin).hostname;
-    if (host.endsWith(".grok.me") || host.endsWith(".railway.app") || host.endsWith(".github.io")) {
-      return origin;
-    }
-  } catch {
-    return "";
-  }
-  return "";
+  return ALLOW_ORIGINS.has(origin) ? origin : "";
 }
 
 function setCors(req, res) {
@@ -70,14 +61,18 @@ function userFromInitData(initData, token) {
     .join("\n");
   const secret = createHmac("sha256", "WebAppData").update(token).digest();
   const check = createHmac("sha256", secret).update(dataCheckString).digest("hex");
-  if (check !== hash) throw new Error("Sessão Telegram inválida");
+  const actual = Buffer.from(check, "hex");
+  const expected = /^[a-f0-9]{64}$/i.test(hash) ? Buffer.from(hash, "hex") : Buffer.alloc(0);
+  if (expected.length !== actual.length || !timingSafeEqual(actual, expected)) throw new Error("Sessão Telegram inválida");
   const authDate = Number(params.get("auth_date") || "0");
-  if (!authDate || Math.abs(Date.now() / 1000 - authDate) > 172800) {
+  const now = Date.now() / 1000;
+  if (!authDate || authDate > now + 60 || now - authDate > 86400) {
     throw new Error("Sessão Telegram expirada");
   }
   const userRaw = params.get("user");
   if (!userRaw) throw new Error("Usuário Telegram ausente");
-  const user = JSON.parse(userRaw);
+  let user;
+  try { user = JSON.parse(userRaw); } catch { throw new Error("Dados da sessão inválidos"); }
   if (!user?.id) throw new Error("Usuário Telegram ausente");
   return { chatId: String(user.id), queryId: params.get("query_id") || "" };
 }
@@ -85,6 +80,7 @@ function userFromInitData(initData, token) {
 async function telegramCall(token, method, body) {
   const res = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
     method: "POST",
+    signal: AbortSignal.timeout(15000),
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
   });
@@ -109,53 +105,57 @@ async function readJson(req) {
 async function sendRich(initData, html) {
   const token = botToken();
   if (!token) throw new Error("TOKEN do bot não configurado no Railway");
-  if (!html || !String(html).trim()) throw new Error("Conteúdo vazio");
-  if (String(html).length > 32768) throw new Error("Mensagem rica acima de 32.768 caracteres");
+  if (!html || !String(html).replace(/<[^>]*>/g, "").replace(/&nbsp;/gi, " ").trim()) throw new Error("Escreva algo antes de publicar");
+  if (Buffer.byteLength(String(html), "utf8") > 32768) throw new Error("Mensagem rica acima de 32.768 caracteres");
   const { chatId, queryId } = userFromInitData(String(initData || ""), token);
   const rich_message = { html, skip_entity_detection: true };
   if (queryId) {
-    try {
-      await telegramCall(token, "answerWebAppQuery", {
-        web_app_query_id: queryId,
-        result: {
-          type: "article",
-          id: "rmdtxtml",
-          title: "MDTXTRT",
-          input_message_content: { rich_message },
-        },
-      });
-      return { via: "answerWebAppQuery" };
-    } catch {
-      await telegramCall(token, "answerWebAppQuery", {
-        web_app_query_id: queryId,
-        result: {
-          type: "article",
-          id: "rmdtxtml",
-          title: "MDTXTRT",
-          input_message_content: { message_text: String(html).slice(0, 4096), parse_mode: "HTML" },
-        },
-      });
-      return { via: "answerWebAppQuery" };
-    }
-  }
-  try {
-    const msg = await telegramCall(token, "sendRichMessage", { chat_id: chatId, rich_message });
-    return { via: "sendRichMessage", messageId: msg.message_id };
-  } catch (err) {
-    const hint = err instanceof Error ? err.message : "";
-    if (!/not found|unknown method/i.test(hint)) throw err;
-    const msg = await telegramCall(token, "sendMessage", {
-      chat_id: chatId,
-      text: String(html).slice(0, 4096),
-      parse_mode: "HTML",
-      disable_web_page_preview: true,
+    await telegramCall(token, "answerWebAppQuery", {
+      web_app_query_id: queryId,
+      result: {
+        type: "article",
+        id: "rmdtxtml",
+        title: "MDTXTRT",
+        input_message_content: { rich_message },
+      },
     });
-    return { via: "sendMessage", messageId: msg.message_id };
+    return { via: "answerWebAppQuery" };
   }
+  const msg = await telegramCall(token, "sendRichMessage", { chat_id: chatId, rich_message });
+  return { via: "sendRichMessage", messageId: msg.message_id };
+}
+
+async function telegraphCall(method, body) {
+  const res = await fetch(`https://api.telegra.ph/${method}`, {
+    method: "POST",
+    signal: AbortSignal.timeout(15000),
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams(body),
+  });
+  const json = await res.json();
+  if (!res.ok || !json.ok) throw new Error(json.error || `Telegraph ${method} falhou`);
+  return json.result;
+}
+
+async function publishTelegraph(title, content) {
+  if (!Array.isArray(content) || !content.length) throw new Error("O documento está vazio");
+  if (Buffer.byteLength(JSON.stringify(content), "utf8") > 65536) throw new Error("O documento excede o limite do Telegraph");
+  if (!telegraphToken) {
+    const account = await telegraphCall("createAccount", { short_name: "MDTXTRT", author_name: "MDTXTRT" });
+    telegraphToken = account.access_token;
+  }
+  return telegraphCall("createPage", {
+    access_token: telegraphToken,
+    title: String(title || "Ideia").slice(0, 256),
+    author_name: "MDTXTRT",
+    content: JSON.stringify(content),
+    return_content: "false",
+  });
 }
 
 function safeFile(urlPath) {
-  const decoded = decodeURIComponent((urlPath || "/").split("?")[0]);
+  let decoded;
+  try { decoded = decodeURIComponent((urlPath || "/").split("?")[0]); } catch { return null; }
   let rel = decoded === "/" ? "index.html" : decoded.replace(/^\/+/, "");
   if (rel.endsWith("/")) rel += "index.html";
   const abs = resolve(ROOT, rel);
@@ -189,7 +189,22 @@ const server = createServer(async (req, res) => {
         res.end(JSON.stringify(result));
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Falha no Telegram";
-        const code = /não configurado|inválida|expirada|ausente|Abra pelo/i.test(msg) ? 400 : 500;
+        const code = /inválid[ao]s?|expirada|ausente|Abra pelo/i.test(msg) ? 400 : 500;
+        res.writeHead(code, { "content-type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ error: msg }));
+      }
+      return;
+    }
+    if (url.pathname === "/api/telegraph/publish" && req.method === "POST") {
+      setCors(req, res);
+      try {
+        const body = await readJson(req);
+        const page = await publishTelegraph(body.title, body.content);
+        res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ url: page.url }));
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Não foi possível publicar no Telegraph";
+        const code = /documento está vazio|excede o limite/i.test(msg) ? 400 : 502;
         res.writeHead(code, { "content-type": "application/json; charset=utf-8" });
         res.end(JSON.stringify({ error: msg }));
       }
