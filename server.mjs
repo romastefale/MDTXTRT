@@ -16,18 +16,22 @@ let telegraphToken = (process.env.TELEGRAPH_ACCESS_TOKEN || "").trim();
 const MIME = {
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
-  ".css": "text/css; charset=utf-8",
-  ".json": "application/json; charset=utf-8",
   ".svg": "image/svg+xml",
   ".png": "image/png",
   ".jpg": "image/jpeg",
-  ".jpeg": "image/jpeg",
-  ".webp": "image/webp",
-  ".avif": "image/avif",
-  ".txt": "text/plain; charset=utf-8",
-  ".md": "text/markdown; charset=utf-8",
-  ".ico": "image/x-icon",
 };
+const PUBLIC = new Set([
+  "index.html",
+  "app.js",
+  "favicon.svg",
+  "logo.png",
+  "og.jpg",
+  "x-banner.jpg",
+  "glass-map.png",
+  "backgrounds/light.html",
+  "backgrounds/dark.html",
+  ...["bold","buttons","details","document","file","footer","h1","h2","h3","h4","h5","h6","heading","import","italic","link","list","more","open","paragraph","plus","quote","redo","send","table","task","underline","undo"].map(name=>`icons/${name}.svg`),
+]);
 
 function botToken() {
   const token = (process.env.TOKEN || "").trim();
@@ -42,12 +46,12 @@ function corsOrigin(req) {
 
 function setCors(req, res) {
   const allow = corsOrigin(req);
-  if (allow) {
-    res.setHeader("Access-Control-Allow-Origin", allow);
-    res.setHeader("Vary", "Origin");
-  }
+  if (!allow) return false;
+  res.setHeader("Access-Control-Allow-Origin", allow);
+  res.setHeader("Vary", "Origin");
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "content-type");
+  return true;
 }
 
 function userFromInitData(initData, token) {
@@ -78,14 +82,24 @@ function userFromInitData(initData, token) {
 }
 
 async function telegramCall(token, method, body) {
-  const res = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
-    method: "POST",
-    signal: AbortSignal.timeout(15000),
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  const json = await res.json();
-  if (!json.ok) throw new Error(json.description || `Telegram ${method} falhou`);
+  let res;
+  try {
+    res = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
+      method: "POST",
+      signal: AbortSignal.timeout(15000),
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  } catch (error) {
+    console.error("Telegram", method, error);
+    throw new Error("Não foi possível conectar ao Telegram");
+  }
+  let json;
+  try { json = await res.json(); } catch { throw new Error("O Telegram retornou uma resposta inválida"); }
+  if (!json.ok) {
+    console.error("Telegram", method, json.description || "Falha no envio");
+    throw new Error("O Telegram não aceitou a publicação");
+  }
   return json.result;
 }
 
@@ -94,17 +108,17 @@ async function readJson(req) {
   let size = 0;
   for await (const chunk of req) {
     size += chunk.length;
-    if (size > 80_000) throw new Error("Payload grande demais");
+    if (size > 80_000) throw new Error("A solicitação é grande demais");
     chunks.push(chunk);
   }
   const raw = Buffer.concat(chunks).toString("utf8");
-  if (!raw.trim()) return {};
-  return JSON.parse(raw);
+  if (!raw.trim()) throw new Error("A solicitação está vazia");
+  try { return JSON.parse(raw); } catch { throw new Error("Não foi possível ler os dados recebidos"); }
 }
 
 async function sendRich(initData, html) {
   const token = botToken();
-  if (!token) throw new Error("TOKEN do bot não configurado no Railway");
+  if (!token) throw new Error("O envio para o Telegram não está configurado");
   if (!html || !String(html).replace(/<[^>]*>/g, "").replace(/&nbsp;/gi, " ").trim()) throw new Error("Escreva algo antes de publicar");
   if (Buffer.byteLength(String(html), "utf8") > 32768) throw new Error("Mensagem rica acima de 32.768 caracteres");
   const { chatId, queryId } = userFromInitData(String(initData || ""), token);
@@ -126,27 +140,40 @@ async function sendRich(initData, html) {
 }
 
 async function telegraphCall(method, body) {
-  const res = await fetch(`https://api.telegra.ph/${method}`, {
-    method: "POST",
-    signal: AbortSignal.timeout(15000),
-    headers: { "content-type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams(body),
-  });
-  const json = await res.json();
-  if (!res.ok || !json.ok) throw new Error(json.error || `Telegraph ${method} falhou`);
+  let res;
+  try {
+    res = await fetch(`https://api.telegra.ph/${method}`, {
+      method: "POST",
+      signal: AbortSignal.timeout(15000),
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams(body),
+    });
+  } catch (error) {
+    console.error("Telegraph", method, error);
+    throw new Error("Não foi possível conectar ao Telegraph");
+  }
+  let json;
+  try { json = await res.json(); } catch { throw new Error("O Telegraph retornou uma resposta inválida"); }
+  if (!res.ok || !json.ok) {
+    console.error("Telegraph", method, json.error || "Falha na publicação");
+    throw new Error("O Telegraph não aceitou a publicação");
+  }
   return json.result;
 }
 
 async function publishTelegraph(title, content) {
-  if (!Array.isArray(content) || !content.length) throw new Error("O documento está vazio");
-  if (Buffer.byteLength(JSON.stringify(content), "utf8") > 65536) throw new Error("O documento excede o limite do Telegraph");
+  const pageTitle = String(title || "").trim();
+  if (!pageTitle) throw new Error("Dê um nome à página antes de publicar");
+  if (pageTitle.length > 256) throw new Error("O nome da página deve ter até 256 caracteres");
+  if (!Array.isArray(content) || !content.length) throw new Error("Escreva algo antes de publicar");
+  if (Buffer.byteLength(JSON.stringify(content), "utf8") > 65536) throw new Error("O conteúdo excede o limite do Telegraph");
   if (!telegraphToken) {
     const account = await telegraphCall("createAccount", { short_name: "MDTXTRT", author_name: "MDTXTRT" });
     telegraphToken = account.access_token;
   }
   return telegraphCall("createPage", {
     access_token: telegraphToken,
-    title: String(title || "Ideia").slice(0, 256),
+    title: pageTitle,
     author_name: "MDTXTRT",
     content: JSON.stringify(content),
     return_content: "false",
@@ -159,8 +186,8 @@ function safeFile(urlPath) {
   let rel = decoded === "/" ? "index.html" : decoded.replace(/^\/+/, "");
   if (rel.endsWith("/")) rel += "index.html";
   const abs = resolve(ROOT, rel);
-  const inside = relative(ROOT, abs);
-  if (!inside || inside.startsWith("..") || inside.includes("\0")) return null;
+  const inside = relative(ROOT, abs).split("\\").join("/");
+  if (!inside || inside.startsWith("..") || inside.includes("\0") || !PUBLIC.has(inside)) return null;
   if (!existsSync(abs) || !statSync(abs).isFile()) return null;
   return abs;
 }
@@ -169,61 +196,70 @@ const server = createServer(async (req, res) => {
   try {
     const url = new URL(req.url || "/", "http://localhost");
     if (req.method === "OPTIONS") {
-      setCors(req, res);
+      if (!setCors(req, res)) {
+        res.writeHead(403, { "content-type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ error: "Acesso não autorizado" }));
+        return;
+      }
       res.writeHead(204);
       res.end();
       return;
     }
-    if (url.pathname === "/api/health" && req.method === "GET") {
-      setCors(req, res);
-      res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
-      res.end(JSON.stringify({ ok: true, bot: Boolean(botToken()) }));
-      return;
-    }
     if (url.pathname === "/api/telegram/send" && req.method === "POST") {
-      setCors(req, res);
+      if (!setCors(req, res)) {
+        res.writeHead(403, { "content-type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ error: "Acesso não autorizado" }));
+        return;
+      }
       try {
         const body = await readJson(req);
+        if (!body || typeof body !== "object" || typeof body.initData !== "string" || typeof body.html !== "string") throw new Error("Os dados do envio estão incompletos");
         const result = await sendRich(body.initData, body.html);
         res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
         res.end(JSON.stringify(result));
       } catch (err) {
-        const msg = err instanceof Error ? err.message : "Falha no Telegram";
-        const code = /inválid[ao]s?|expirada|ausente|Abra pelo/i.test(msg) ? 400 : 500;
+        const msg = err instanceof Error ? err.message : "Não foi possível publicar no Telegram";
+        const code = /inválid[ao]s?|expirada|ausente|Abra pelo|solicitação|dados do envio|Escreva algo/i.test(msg) ? 400 : 500;
         res.writeHead(code, { "content-type": "application/json; charset=utf-8" });
         res.end(JSON.stringify({ error: msg }));
       }
       return;
     }
     if (url.pathname === "/api/telegraph/publish" && req.method === "POST") {
-      setCors(req, res);
+      if (!setCors(req, res)) {
+        res.writeHead(403, { "content-type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ error: "Acesso não autorizado" }));
+        return;
+      }
       try {
         const body = await readJson(req);
+        if (!body || typeof body !== "object" || typeof body.title !== "string" || !Array.isArray(body.content)) throw new Error("Os dados da página estão incompletos");
         const page = await publishTelegraph(body.title, body.content);
         res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
         res.end(JSON.stringify({ url: page.url }));
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Não foi possível publicar no Telegraph";
-        const code = /documento está vazio|excede o limite/i.test(msg) ? 400 : 502;
+        const code = /nome (?:da|à) página|escreva algo|excede o limite|solicitação|dados da página|não foi possível ler/i.test(msg) ? 400 : 502;
         res.writeHead(code, { "content-type": "application/json; charset=utf-8" });
         res.end(JSON.stringify({ error: msg }));
       }
       return;
     }
     if (req.method !== "GET" && req.method !== "HEAD") {
-      res.writeHead(405);
-      res.end();
+      res.writeHead(405, { "content-type": "application/json; charset=utf-8" });
+      res.end(JSON.stringify({ error: "Método não permitido" }));
       return;
     }
     const file = safeFile(url.pathname);
     if (!file) {
       res.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
-      res.end("Not found");
+      res.end("Página não encontrada");
       return;
     }
-    const type = MIME[extname(file).toLowerCase()] || "application/octet-stream";
     const ext = extname(file).toLowerCase();
-    const live = ext === ".html" || ext === ".json";
+    const type = MIME[ext];
+    if (!type) throw new Error("Tipo de arquivo não configurado");
+    const live = ext === ".html" || ext === ".js";
     res.writeHead(200, {
       "content-type": type,
       "cache-control": live ? "no-cache" : "public, max-age=600",
@@ -232,10 +268,17 @@ const server = createServer(async (req, res) => {
       res.end();
       return;
     }
-    createReadStream(file).pipe(res);
-  } catch {
-    res.writeHead(500);
-    res.end("error");
+    createReadStream(file).on("error", error => {
+      console.error(error);
+      if (!res.headersSent) res.writeHead(500, { "content-type": "application/json; charset=utf-8" });
+      if (!res.destroyed) res.end(JSON.stringify({ error: "Não foi possível carregar este conteúdo" }));
+    }).pipe(res);
+  } catch (error) {
+    console.error(error);
+    if (!res.headersSent) {
+      res.writeHead(500, { "content-type": "application/json; charset=utf-8" });
+      res.end(JSON.stringify({ error: "Não foi possível concluir a solicitação" }));
+    } else if (!res.destroyed) res.destroy(error);
   }
 });
 

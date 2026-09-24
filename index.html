@@ -5,18 +5,18 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" />
   <meta name="color-scheme" content="light dark" />
   <title>MDTXTRT</title>
-  <meta name="description" content="md to rich text and telegraph editor — Mini App Telegram e Telegraph." />
+  <meta name="description" content="Editor de texto para Telegram e Telegraph." />
   <link rel="icon" type="image/svg+xml" href="favicon.svg" />
   <link rel="apple-touch-icon" href="logo.png" />
   <meta property="og:title" content="MDTXTRT" />
-  <meta property="og:description" content="md to rich text and telegram editor" />
+  <meta property="og:description" content="Editor de texto para Telegram e Telegraph" />
   <meta property="og:image" content="https://romastefale.github.io/MDTXTRT/og.jpg" />
   <meta property="og:url" content="https://romastefale.github.io/MDTXTRT/" />
   <meta property="og:type" content="website" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:image" content="https://romastefale.github.io/MDTXTRT/x-banner.jpg" />
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <script>(function(){try{var t=window.Telegram&&window.Telegram.WebApp;var inTg=t&&((t.initData&&t.initData.length)||(t.initDataUnsafe&&t.initDataUnsafe.user&&t.initDataUnsafe.user.id));var l=inTg&&t.colorScheme?t.colorScheme==="light":matchMedia("(prefers-color-scheme: light)").matches;document.documentElement.classList.toggle("light",l);document.documentElement.classList.toggle("dark",!l);}catch(e){}})();</script>
+  <script src="https://telegram.org/js/telegram-web-app.js?63"></script>
+  <script>const t=window.Telegram?.WebApp;const l=t?.colorScheme?t.colorScheme==="light":matchMedia("(prefers-color-scheme: light)").matches;document.documentElement.classList.toggle("light",l);document.documentElement.classList.toggle("dark",!l);</script>
   <style>
     :root{
       --bg:#12131c;
@@ -84,16 +84,15 @@
     button,input{font:inherit;color:inherit}
     button{cursor:pointer;-webkit-tap-highlight-color:transparent}
     .ui-icon{display:block;width:18px;height:18px;flex:none;background-color:currentColor;-webkit-mask:var(--ui-icon) center/contain no-repeat;mask:var(--ui-icon) center/contain no-repeat}
-    .ui-icon.is-bitmap{background-color:transparent;background-image:var(--ui-icon);background-size:contain;background-repeat:no-repeat;background-position:center;-webkit-mask:none;mask:none}
     .seg button .ui-icon,.send-dot .ui-icon,.sheet-ico .ui-icon{width:16px;height:16px}
-    .editor h1,.editor h2,.editor h3,.editor h4,.editor h5,.editor h6,.preview h1,.preview h2,.preview h3,.preview h4,.preview h5,.preview h6{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;letter-spacing:-.03em;line-height:1.2;font-weight:650}
-    .editor h1,.preview h1{font-size:28px;font-weight:750;margin:0 0 .45em}
-    .editor h2,.preview h2{font-size:24px;margin:.95em 0 .4em}
-    .editor h3,.preview h3{font-size:20px;margin:.9em 0 .35em}
-    .editor h4,.preview h4{font-size:18px;margin:.85em 0 .3em}
-    .editor h5,.preview h5{font-size:14px;letter-spacing:.06em;text-transform:uppercase;margin:.85em 0 .3em}
-    .editor h6,.preview h6{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:.85em 0 .3em}
-    .editor .tg-footer,.preview .tg-footer,.editor footer{display:block;font-size:12px;color:var(--muted);margin:1.6em 0 .4em;padding-top:.7em;border-top:1px solid color-mix(in srgb,var(--text) 14%, transparent);font-weight:400}
+    .editor h1,.editor h2,.editor h3,.editor h4,.editor h5,.editor h6{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;letter-spacing:-.03em;line-height:1.2;font-weight:650}
+    .editor h1{font-size:28px;font-weight:750;margin:0 0 .45em}
+    .editor h2{font-size:24px;margin:.95em 0 .4em}
+    .editor h3{font-size:20px;margin:.9em 0 .35em}
+    .editor h4{font-size:18px;margin:.85em 0 .3em}
+    .editor h5{font-size:14px;letter-spacing:.06em;text-transform:uppercase;margin:.85em 0 .3em}
+    .editor h6{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:.85em 0 .3em}
+    .editor .tg-footer,.editor footer{display:block;font-size:12px;color:var(--muted);margin:1.6em 0 .4em;padding-top:.7em;border-top:1px solid color-mix(in srgb,var(--text) 14%, transparent);font-weight:400}
     .menu-list button.is-current{background:color-mix(in srgb,var(--accent) 16%, transparent);color:var(--accent)}
     .heading-list .h-opt.h1{font-size:20px;font-weight:750;letter-spacing:-.03em}
     .heading-list .h-opt.h2{font-size:17px;font-weight:650}
@@ -102,7 +101,7 @@
     .heading-list .h-opt.h5{font-size:12px;font-weight:650;letter-spacing:.06em;text-transform:uppercase}
     .heading-list .h-opt.h6{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
     .heading-list .h-opt.footer{font-size:12px;color:var(--muted)}
-    .heading-list .sheet-btn.is-current,.heading-list button.is-current{color:var(--accent)}
+    .heading-list button.is-current{color:var(--accent)}
     .frost{
       position:relative;
       background:var(--glass);
@@ -125,20 +124,8 @@
     .chrome-fog-bottom{bottom:0;height:calc(100% + 32px);mask-image:linear-gradient(to top,#000 0%,#000 48%,transparent 100%);-webkit-mask-image:linear-gradient(to top,#000 0%,#000 48%,transparent 100%)}
     .topbar{position:relative;z-index:1;display:flex;align-items:center;justify-content:center;margin:8px 12px 0;padding:4px 12px;min-height:36px}
     .brand{font-weight:700;font-size:15px;letter-spacing:.08em;text-align:center;border:0;background:transparent;color:inherit;padding:8px 12px;margin:0;border-radius:999px;font-family:inherit;appearance:none;-webkit-appearance:none}
-    .field-label{display:block;font-size:11px;color:var(--muted);margin:10px 0 4px}
-    .link-input{flex:1;min-width:0;height:40px;border-radius:12px;border:1px solid var(--line);background:transparent;padding:0 12px}
-    .link-form{display:flex;gap:8px;align-items:center}
-    .link-go{height:40px;padding:0 12px;border-radius:12px;border:1px solid var(--line);background:transparent}
-    .connect-hero{display:grid;place-items:center;margin:4px 0 8px}
-    .connect-hero img{width:64px;height:64px;border-radius:16px;object-fit:cover;background:#000}
-    .iconbtn{
-      width:36px;height:36px;border:0;border-radius:999px;padding:0;
-      background:transparent;display:grid;place-items:center;color:inherit
-    }
-    .iconbtn svg,.bar svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
     .meta{position:relative;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:8px;margin:8px 16px 0}
     .title{display:none}
-    .stats{display:none}
     .meta .seg:last-child{margin-left:auto}
     .seg{display:flex;align-items:center;gap:4px;padding:4px;height:44px;border-radius:999px}
     .seg button{
@@ -155,23 +142,18 @@
     .bar > button.on::before{content:"";position:absolute;inset:0;width:36px;height:36px;margin:auto;border-radius:50%;background:color-mix(in srgb,var(--text) 14%, transparent);z-index:0}
     html.light .bar > button.on::before{background:color-mix(in srgb,var(--text) 12%, #fff)}
     .bar > button > *{position:relative;z-index:1}
-    .seg svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
     .canvas{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;padding:calc(var(--tg-top) + 108px) 16px calc(var(--bar-h) + var(--kb) + var(--safe-bottom) + 28px);position:relative}
-    .editor,.preview{
+    .editor:empty::before{content:attr(data-placeholder);color:var(--muted);pointer-events:none}
+    .editor{
       outline:none;min-height:100%;caret-color:var(--accent);
       -webkit-user-select:text;user-select:text
     }
-    .preview{display:none}
-    .preview.on{display:block}
-    .editor.off{display:none}
-    .editor p,.preview p{margin:.7em 0}
-    .editor blockquote,.preview blockquote{margin:1em 0;padding:0 0 0 12px;border-left:3px solid var(--accent)}
-    .editor ul,.preview ul{padding-left:1.2em}
+    .editor p{margin:.7em 0}
+    .editor blockquote{margin:1em 0;padding:0 0 0 12px;border-left:3px solid var(--accent)}
+    .editor ul{padding-left:1.2em}
     .editor table{width:100%;border-collapse:collapse;font-size:14px}
     .editor th,.editor td{border:1px solid var(--line);padding:6px}
     .editor a{color:var(--accent)}
-    .block-card{margin:12px 0;padding:10px;border-radius:12px;border:1px solid var(--line);background:rgba(255,255,255,.04);font-size:14px}
-    .block-label{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
     .bar-wrap{
       position:fixed;left:0;right:0;bottom:var(--kb);z-index:20;
       padding:8px 12px calc(var(--safe-bottom) + 8px);
@@ -216,32 +198,19 @@
     @keyframes sheet-in{from{opacity:0;transform:translateY(8px) scale(.98)}to{opacity:1;transform:none}}
     .menu-list{display:flex;flex-direction:column;gap:2px;min-height:0;overflow:auto}
     .menu-list button{display:flex;align-items:center;justify-content:flex-start;text-align:left;width:auto;min-width:100%;white-space:nowrap;min-height:clamp(44px, calc((var(--vv-h) - var(--bar-h) - 32px) / 10), 58px);border-radius:20px;border:0;background:transparent;box-shadow:none;padding:4px 18px 4px 6px;font-size:17px;gap:12px}
+    .menu-list button[hidden]{display:none}
     .menu-list button:hover{background:color-mix(in srgb,var(--text) 7%,transparent)}
     .menu-list button:active{background:color-mix(in srgb,var(--text) 12%,transparent)}
     .sheet-ico{width:42px;height:42px;border-radius:50%;flex:none;display:grid;place-items:center;background:color-mix(in srgb,var(--text) 11%,transparent);box-shadow:inset 0 1px 0 rgba(255,255,255,.12)}
     .sheet-ico .ui-icon,.sheet-ico svg{width:20px;height:20px}
     .sheet.on{display:block}
     .sheet.frost{-webkit-backdrop-filter:none;backdrop-filter:none}
-    .sheet h3{margin:6px 8px 10px;font-size:17px}
-    .sheet p,.hint{margin:0 8px 12px;font-size:13px;color:var(--muted)}
-    .grid{display:grid;grid-template-columns:1fr 1fr;gap:5px}
-    .grid button,.stack button{
-      min-height:52px;border-radius:18px;border:0;
-      background:color-mix(in srgb,var(--text) 8%,transparent);box-shadow:inset 0 1px 0 rgba(255,255,255,.16);
-      display:flex;align-items:center;gap:8px;
-      padding:0 14px;font-size:15px;text-align:left
-    }
-    .grid button svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
-    .stack{display:flex;flex-direction:column;gap:6px}
-    .stack button{justify-content:space-between}
     .toast{
       position:fixed;left:50%;bottom:calc(var(--bar-h) + var(--kb) + 16px);
       transform:translateX(-50%);z-index:50;display:none;
       padding:8px 12px;border-radius:999px;font-size:12px
     }
     .toast.on{display:block}
-    .payload{max-height:22vh;overflow:auto;font:11px/1.4 ui-monospace,Menlo,monospace;white-space:pre-wrap;word-break:break-word}
-    @supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){.sheet{background:var(--bg)}.backdrop{background:transparent}}
     @media (prefers-reduced-motion:reduce){.sheet{animation:none}}
   </style>
 </head>
@@ -270,25 +239,13 @@
       </div>
       <input id="docName" class="title" value="Ideia" aria-label="Nome">
       <div class="seg frost">
-        <button id="editTab" class="active" aria-label="Editar"><span class="ui-icon" data-icon="edit"></span></button>
+        <button type="button" id="destBtn" aria-label="Destino: Telegram" title="Destino: Telegram"><span class="ui-icon" data-icon="send"></span></button>
         <button class="send" id="publishBtn" aria-label="Publicar"><span class="send-dot"><span class="ui-icon" data-icon="send"></span></span></button>
       </div>
     </div>
     </div>
     <div class="canvas" id="canvas">
-      <article id="editor" class="editor" contenteditable="true" spellcheck="true" inputmode="text" enterkeyhint="enter" aria-label="Editor">
-        <h1>MDTXTRT</h1>
-        <p>Editor para <strong>Telegram</strong> e <strong>Telegraph</strong>.</p>
-        <h2>Escrever uma vez</h2>
-        <p>TXT e Markdown entram e saem. A publicação vai para Telegram (Bot API 10.3) ou Telegraph.</p>
-        <blockquote>Uma edição, dois destinos.</blockquote>
-        <ul>
-          <li>Títulos, listas, links e citação</li>
-          <li>Tabela compacta e citação expansível</li>
-          <li>Documento via tg://document</li>
-        </ul>
-      </article>
-      <article id="preview" class="preview" aria-label="Prévia"></article>
+      <article id="editor" class="editor" contenteditable="true" spellcheck="true" inputmode="text" enterkeyhint="enter" aria-label="Editor" data-placeholder="Escreva aqui…"></article>
     </div>
   </div>
   <div class="bar-wrap">
@@ -314,38 +271,30 @@
       <button class="h-opt h5" data-block="h5"><span class="sheet-ico"><span class="ui-icon" data-icon="h5"></span></span>Título H5</button>
       <button class="h-opt h6" data-block="h6"><span class="sheet-ico"><span class="ui-icon" data-icon="h6"></span></span>Título H6</button>
       <button data-block="p"><span class="sheet-ico"><span class="ui-icon" data-icon="paragraph"></span></span>Corpo</button>
-      <button class="h-opt footer" data-block="footer"><span class="sheet-ico"><span class="ui-icon" data-icon="footer"></span></span>Rodapé Telegram</button>
+      <button class="h-opt footer" data-block="footer"><span class="sheet-ico"><span class="ui-icon" data-icon="footer"></span></span>Rodapé</button>
     </div>
   </div>
   <div class="sheet frost" id="quoteMenu">
     <div class="menu-list">
       <button data-block="blockquote"><span class="sheet-ico"><span class="ui-icon" data-icon="quote"></span></span>Citação</button>
-      <button data-insert="expandquote"><span class="sheet-ico"><span class="ui-icon" data-icon="more"></span></span>Citação 10.3</button>
+      <button data-insert="expandquote"><span class="sheet-ico"><span class="ui-icon" data-icon="more"></span></span>Citação expansível</button>
     </div>
   </div>
   <div class="sheet frost" id="importMenu">
     <div class="menu-list">
       <button id="importMdBtn"><span class="sheet-ico"><span class="ui-icon" data-icon="import"></span></span>Importar Markdown</button>
       <button id="importTxtBtn"><span class="sheet-ico"><span class="ui-icon" data-icon="import"></span></span>Importar TXT</button>
+      <button id="exportTxtBtn"><span class="sheet-ico"><span class="ui-icon" data-icon="file"></span></span>Exportar TXT</button>
+      <button id="exportMdBtn"><span class="sheet-ico"><span class="ui-icon" data-icon="document"></span></span>Exportar Markdown</button>
     </div>
   </div>
   <div class="sheet frost" id="plusMenu">
     <div class="menu-list">
       <button data-insert="task"><span class="sheet-ico"><span class="ui-icon" data-icon="task"></span></span>Tarefa</button>
       <button data-insert="table"><span class="sheet-ico"><span class="ui-icon" data-icon="table"></span></span>Tabela</button>
-      <button data-insert="details"><span class="sheet-ico"><span class="ui-icon" data-icon="details"></span></span>Details</button>
-      <button data-insert="document"><span class="sheet-ico"><span class="ui-icon" data-icon="document"></span></span>Documento</button>
+      <button data-insert="details"><span class="sheet-ico"><span class="ui-icon" data-icon="details"></span></span>Conteúdo expansível</button>
       <button data-insert="button"><span class="sheet-ico"><span class="ui-icon" data-icon="buttons"></span></span>Botões</button>
     </div>
-  </div>
-  <div class="sheet frost" id="publishSheet">
-    <div class="menu-list">
-      <button id="telegramPublishBtn"><span class="sheet-ico"><span class="ui-icon" data-icon="send"></span></span>Telegram</button>
-      <button id="telegraphPublishBtn"><span class="sheet-ico"><span class="ui-icon" data-icon="open"></span></span>Telegraph</button>
-      <button id="exportTxtBtn"><span class="sheet-ico"><span class="ui-icon" data-icon="file"></span></span>Exportar TXT</button>
-      <button id="exportMdBtn"><span class="sheet-ico"><span class="ui-icon" data-icon="document"></span></span>Exportar Markdown</button>
-    </div>
-    <pre class="payload" id="payloadBox" hidden></pre>
   </div>
   <input id="fileInput" type="file" accept=".txt,.md,text/plain,text/markdown" hidden>
   <div class="toast frost" id="toast"></div>
