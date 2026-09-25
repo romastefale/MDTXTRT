@@ -58,7 +58,7 @@ function setDestination(value, notify=true){
   const btn = $('#destBtn');
   const name = dest === 'telegram' ? 'Telegram' : 'Telegraph';
   const icon = btn.querySelector('[data-icon]');
-  icon.setAttribute('data-icon', dest === 'telegram' ? 'send' : 'open');
+  icon.setAttribute('data-icon', dest === 'telegram' ? 'telegram' : 'document');
   btn.setAttribute('aria-label', 'Destino: ' + name);
   btn.setAttribute('aria-pressed', String(dest === 'telegraph'));
   btn.classList.toggle('active', dest === 'telegraph');
