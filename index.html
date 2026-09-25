@@ -85,7 +85,7 @@
     button,input{font:inherit;color:inherit}
     button{cursor:pointer;-webkit-tap-highlight-color:transparent}
     .ui-icon{display:block;width:18px;height:18px;flex:none;background-color:currentColor;-webkit-mask:var(--ui-icon) center/contain no-repeat;mask:var(--ui-icon) center/contain no-repeat}
-    .seg button .ui-icon,.send-dot .ui-icon,.sheet-ico .ui-icon{width:16px;height:16px}
+    .seg button .ui-icon,.action-dot .ui-icon,.sheet-ico .ui-icon{width:16px;height:16px}
     .editor h1,.editor h2,.editor h3,.editor h4,.editor h5,.editor h6{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;letter-spacing:-.03em;line-height:1.2;font-weight:650}
     .editor h1{font-size:28px;font-weight:750;margin:0 0 .45em}
     .editor h2{font-size:24px;margin:.95em 0 .4em}
@@ -169,14 +169,14 @@
       display:grid;place-items:center;border-radius:999px;padding:0
     }
     .bar .plus,.bar .send{flex:0 0 40px}
-    .send-dot{
+    .action-dot{
       width:36px;height:36px;border-radius:50%;display:grid;place-items:center;
       background:color-mix(in srgb,var(--accent) 78%, transparent);color:#fff;
       box-shadow:inset 0 1px 0 rgba(255,255,255,.42),0 4px 14px color-mix(in oklab,var(--accent) 45%,transparent)
     }
-    .send-dot svg{width:16px;height:16px}
-    .seg .send{width:36px;height:36px;border:0;background:transparent;display:grid;place-items:center;padding:0;border-radius:50%}
-    .seg .send-dot{width:36px;height:36px}
+    .action-dot svg{width:16px;height:16px}
+    .seg .export{width:36px;height:36px;border:0;background:transparent;display:grid;place-items:center;padding:0;border-radius:50%}
+    .seg .action-dot{width:36px;height:36px}
     .backdrop{position:fixed;inset:0;z-index:30;display:none;background:transparent;-webkit-backdrop-filter:none;backdrop-filter:none}
     .backdrop.on{display:block}
     .sheet{
@@ -230,7 +230,7 @@
       <input id="docName" class="title" value="Ideia" aria-label="Nome">
       <div class="seg frost material-target">
         <button type="button" id="destBtn" aria-label="Destino: Telegram" title="Destino: Telegram"><span class="ui-icon" data-icon="telegram"></span></button>
-        <button class="send" id="publishBtn" aria-label="Publicar"><span class="send-dot"><span class="ui-icon" data-icon="send"></span></span></button>
+        <button type="button" class="export" id="exportBtn" aria-label="Exportar" title="Exportar"><span class="action-dot"><span class="ui-icon" data-icon="export"></span></span></button>
       </div>
     </div>
     </div>
@@ -273,8 +273,12 @@
     <div class="menu-list">
       <button id="importMdBtn"><span class="sheet-ico"><span class="ui-icon" data-icon="import"></span></span>Importar Markdown</button>
       <button id="importTxtBtn"><span class="sheet-ico"><span class="ui-icon" data-icon="import"></span></span>Importar TXT</button>
-      <button id="exportTxtBtn"><span class="sheet-ico"><span class="ui-icon" data-icon="file"></span></span>Exportar TXT</button>
+    </div>
+  </div>
+  <div class="sheet frost material-target" id="exportMenu">
+    <div class="menu-list">
       <button id="exportMdBtn"><span class="sheet-ico"><span class="ui-icon" data-icon="document"></span></span>Exportar Markdown</button>
+      <button id="exportTxtBtn"><span class="sheet-ico"><span class="ui-icon" data-icon="file"></span></span>Exportar TXT</button>
     </div>
   </div>
   <div class="sheet frost material-target" id="plusMenu">
