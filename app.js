@@ -494,7 +494,7 @@ $('#plusBtn').addEventListener('click', e=>openPanel('#plusMenu', e.currentTarge
 $('#headingBtn')?.addEventListener('click', e=>openPanel('#headingMenu', e.currentTarget));
 $('#quoteBtn')?.addEventListener('click', e=>openPanel('#quoteMenu', e.currentTarget));
 $('#destBtn').addEventListener('click', ()=>setDestination(dest === 'telegram' ? 'telegraph' : 'telegram'));
-$('#exportBtn').addEventListener('click', e=>openPanel('#exportMenu', e.currentTarget));
+$('#exportBtn').addEventListener('click', e=>{\n  if(inTg) return publishCurrent();\n  openPanel('#exportMenu', e.currentTarget);\n});
 $('#brandBtn')?.addEventListener('click', e=>openPanel('#importMenu', e.currentTarget));
 $('#importMdBtn')?.addEventListener('click', ()=>{ fileInput.accept='.md,text/markdown'; fileInput.click(); closePanels(); });
 $('#importTxtBtn')?.addEventListener('click', ()=>{ fileInput.accept='.txt,text/plain'; fileInput.click(); closePanels(); });
@@ -506,6 +506,10 @@ function exportName(ext) {
   return base + "." + ext;
 }
 async function exportFile(format) {
+  if (inTg) {
+    closePanels();
+    return publishCurrent();
+  }
   let content, type, ext;
   try {
     if (format === "md") {
@@ -521,30 +525,8 @@ async function exportFile(format) {
     showToast(err.message);
     return;
   }
-  const name = exportName(ext);
-  if (!inTg) {
-    download(name, content, type);
-    closePanels();
-    return;
-  }
-  const initData = getTg()?.initData || "";
-  if (!initData) {
-    showToast("Abra pelo bot no Telegram");
-    return;
-  }
-  try {
-    const res = await fetch(API + "/api/telegram/export", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ initData, name, content })
-    });
-    const json = await readResponse(res);
-    if (!res.ok) throw new Error(json.error || "Não foi possível exportar o arquivo");
-    closePanels();
-    showToast("Arquivo enviado no chat privado do bot");
-  } catch (err) {
-    showToast(err instanceof TypeError ? "Não foi possível conectar ao Telegram" : err.message || "Não foi possível exportar o arquivo");
-  }
+  download(exportName(ext), content, type);
+  closePanels();
 }
 async function readResponse(res){
   try{return await res.json();}catch{throw new Error('A resposta do serviço não pôde ser lida');}
@@ -554,7 +536,7 @@ async function publishCurrent(){
   return publishTelegraph();
 }
 async function publishTelegram(){
-  if(!editor.textContent.trim()){ showToast('Escreva algo antes de publicar'); return; }
+  if(!editor.textContent.trim()){ showToast('Escreva algo antes de enviar'); return; }
   const initData = getTg()?.initData || '';
   if(!initData){ showToast('Abra pelo bot no Telegram'); return; }
   try{
@@ -565,10 +547,10 @@ async function publishTelegram(){
       body: JSON.stringify({ initData, html: p.rich_message.html })
     });
     const json = await readResponse(res);
-    if(!res.ok) throw new Error(json.error || 'Não foi possível publicar no Telegram');
-    showToast('Publicado no Telegram');
+    if(!res.ok) throw new Error(json.error || 'Não foi possível enviar a mensagem');
+    showToast('Mensagem enviada no chat do bot');
   }catch(err){
-    showToast(err instanceof TypeError?'Não foi possível conectar ao Telegram':err.message || 'Não foi possível publicar no Telegram');
+    showToast(err instanceof TypeError?'Não foi possível conectar ao Telegram':err.message || 'Não foi possível enviar a mensagem');
   }
 }
 async function publishTelegraph(){
