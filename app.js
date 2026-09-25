@@ -21,7 +21,7 @@ function applyScheme(){
   document.documentElement.classList.toggle('light', light);
   document.documentElement.classList.toggle('dark', !light);
   if(tg){
-    const header = light ? '#f8fbff' : '#0f172a';
+    const header = light ? '#f8fbff' : '#000';
     tg.setHeaderColor?.(header);
   }
 }
