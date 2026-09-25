@@ -121,7 +121,7 @@
     .chrome-top{position:absolute;top:0;left:0;right:0;z-index:12;padding:var(--tg-top) 0 8px;pointer-events:none}
     .chrome-top .topbar,.chrome-top .meta{pointer-events:auto}
     .topbar{position:relative;z-index:1;display:flex;align-items:center;justify-content:center;margin:8px 12px 0;padding:4px 12px;min-height:36px}
-    .brand{font-weight:700;font-size:15px;letter-spacing:.08em;text-align:center;border:0;background:transparent;color:inherit;padding:8px 12px;margin:0;border-radius:999px;font-family:inherit;appearance:none;-webkit-appearance:none}
+    .brand{font-weight:700;font-size:15px;letter-spacing:.08em;text-align:center;border:0;background:var(--glass);color:inherit;padding:8px 12px;margin:0;border-radius:999px;font-family:inherit;appearance:none;-webkit-appearance:none}
     .meta{position:relative;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:8px;margin:8px 16px 0}
     .title{display:none}
     .meta .seg:last-child{margin-left:auto}
@@ -130,6 +130,8 @@
       width:36px;height:36px;border:0;border-radius:50%;background:transparent;display:grid;place-items:center
     }
     .seg button.active{background:color-mix(in srgb,var(--text) 12%, transparent)}
+    .seg #destBtn{background:color-mix(in srgb,var(--text) 7%,transparent)}
+    .seg #destBtn.active{background:color-mix(in srgb,var(--text) 14%,transparent)}
     .seg button.is-flash{position:relative}
     .seg button.is-flash::before{content:"";position:absolute;inset:0;width:36px;height:36px;margin:auto;border-radius:50%;background:color-mix(in srgb,var(--text) 14%, transparent);z-index:0;animation:flash-out 1.4s ease forwards}
     html.light .seg button.is-flash::before{background:color-mix(in srgb,var(--text) 12%, #fff)}
@@ -218,7 +220,7 @@
   <div class="app">
     <div class="chrome-top">
       <header class="topbar">
-        <button type="button" class="brand" id="brandBtn">MDTXTRT</button>
+        <button type="button" class="brand frost material-target" id="brandBtn">MDTXTRT</button>
       </header>
       <div class="meta">
       <div class="seg frost material-target">
@@ -227,7 +229,7 @@
       </div>
       <input id="docName" class="title" value="Ideia" aria-label="Nome">
       <div class="seg frost material-target">
-        <button type="button" id="destBtn" aria-label="Destino: Telegram" title="Destino: Telegram"><span class="ui-icon" data-icon="send"></span></button>
+        <button type="button" id="destBtn" aria-label="Destino: Telegram" title="Destino: Telegram"><span class="ui-icon" data-icon="telegram"></span></button>
         <button class="send" id="publishBtn" aria-label="Publicar"><span class="send-dot"><span class="ui-icon" data-icon="send"></span></span></button>
       </div>
     </div>
