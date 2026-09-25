@@ -428,7 +428,7 @@ function toRichHTML(root){
   return Array.from(root.childNodes).map(blocks).join('')||'<p></p>';
 }
 function buildRich(){
-  return {rich_message: {html:toRichHTML(editor),skip_entity_detection:true}};
+  return {rich_message: {html:toRichHTML(editor)}};
 }
 function buildTelegraph(){
   const title=docName.value.trim();
@@ -498,8 +498,54 @@ $('#exportBtn').addEventListener('click', e=>openPanel('#exportMenu', e.currentT
 $('#brandBtn')?.addEventListener('click', e=>openPanel('#importMenu', e.currentTarget));
 $('#importMdBtn')?.addEventListener('click', ()=>{ fileInput.accept='.md,text/markdown'; fileInput.click(); closePanels(); });
 $('#importTxtBtn')?.addEventListener('click', ()=>{ fileInput.accept='.txt,text/plain'; fileInput.click(); closePanels(); });
-$('#exportTxtBtn')?.addEventListener('click', ()=>{ download((docName.value||'doc')+'.txt', htmlToText(editor.innerHTML), 'text/plain'); closePanels(); });
-$('#exportMdBtn')?.addEventListener('click', ()=>{try{download((docName.value||'doc')+'.md',htmlToMarkdown(editor.innerHTML),'text/markdown');closePanels();}catch(err){showToast(err.message);}});
+$('#exportTxtBtn')?.addEventListener('click', ()=>exportFile('txt'));
+$('#exportMdBtn')?.addEventListener('click', ()=>exportFile('md'));
+
+function exportName(ext) {
+  const base = (docName.value || "document").trim().replace(/[\\/:*?"<>|]+/g, "-").replace(/^\.+|\.+$/g, "").slice(0, 80) || "document";
+  return base + "." + ext;
+}
+async function exportFile(format) {
+  let content, type, ext;
+  try {
+    if (format === "md") {
+      content = htmlToMarkdown(editor.innerHTML);
+      type = "text/markdown";
+      ext = "md";
+    } else {
+      content = htmlToText(editor.innerHTML);
+      type = "text/plain";
+      ext = "txt";
+    }
+  } catch (err) {
+    showToast(err.message);
+    return;
+  }
+  const name = exportName(ext);
+  if (!inTg) {
+    download(name, content, type);
+    closePanels();
+    return;
+  }
+  const initData = getTg()?.initData || "";
+  if (!initData) {
+    showToast("Abra pelo bot no Telegram");
+    return;
+  }
+  try {
+    const res = await fetch(API + "/api/telegram/export", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ initData, name, content })
+    });
+    const json = await readResponse(res);
+    if (!res.ok) throw new Error(json.error || "Não foi possível exportar o arquivo");
+    closePanels();
+    showToast("Arquivo enviado no chat privado do bot");
+  } catch (err) {
+    showToast(err instanceof TypeError ? "Não foi possível conectar ao Telegram" : err.message || "Não foi possível exportar o arquivo");
+  }
+}
 async function readResponse(res){
   try{return await res.json();}catch{throw new Error('A resposta do serviço não pôde ser lida');}
 }
