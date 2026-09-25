@@ -6,7 +6,7 @@ const toast = $('#toast');
 const backdrop = $('#backdrop');
 const fileInput = $('#fileInput');
 let dest = 'telegram';
-const sheets = ['#plusMenu','#headingMenu','#quoteMenu','#importMenu'];
+const sheets = ['#plusMenu','#headingMenu','#quoteMenu','#importMenu','#exportMenu'];
 let savedRange = null, hist = [], histI = -1, histLock = false, composing = false, saveTimer = null;
 function applyAssets(){
   $$('[data-icon]').forEach(el => {
@@ -82,7 +82,7 @@ function openPanel(sel, anchor){
   const ref = anchor || document.activeElement;
   const rect = ref?.getBoundingClientRect?.();
   sheets.forEach(s => { const el = $(s); el.classList.remove('on'); el.classList.remove('is-top'); });
-  const placeTop = sel === '#importMenu';
+  const placeTop = sel === '#importMenu' || sel === '#exportMenu';
   panel.classList.toggle('is-top', placeTop);
   if(placeTop && rect){
     panel.style.setProperty('--sheet-top', Math.round(rect.bottom + 8) + 'px');
