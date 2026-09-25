@@ -494,7 +494,10 @@ $('#plusBtn').addEventListener('click', e=>openPanel('#plusMenu', e.currentTarge
 $('#headingBtn')?.addEventListener('click', e=>openPanel('#headingMenu', e.currentTarget));
 $('#quoteBtn')?.addEventListener('click', e=>openPanel('#quoteMenu', e.currentTarget));
 $('#destBtn').addEventListener('click', ()=>setDestination(dest === 'telegram' ? 'telegraph' : 'telegram'));
-$('#exportBtn').addEventListener('click', e=>{\n  if(inTg) return publishCurrent();\n  openPanel('#exportMenu', e.currentTarget);\n});
+$('#exportBtn').addEventListener('click', e=>{
+  if(inTg) return publishCurrent();
+  openPanel('#exportMenu', e.currentTarget);
+});
 $('#brandBtn')?.addEventListener('click', e=>openPanel('#importMenu', e.currentTarget));
 $('#importMdBtn')?.addEventListener('click', ()=>{ fileInput.accept='.md,text/markdown'; fileInput.click(); closePanels(); });
 $('#importTxtBtn')?.addEventListener('click', ()=>{ fileInput.accept='.txt,text/plain'; fileInput.click(); closePanels(); });
