@@ -63,7 +63,6 @@ function setDestination(value, notify=true){
   btn.setAttribute('aria-pressed', String(dest === 'telegraph'));
   btn.classList.toggle('active', dest === 'telegraph');
   btn.title = 'Destino: ' + name;
-  $('#publishBtn').setAttribute('aria-label', 'Publicar no ' + name);
   getTg()?.MainButton?.setText?.('Publicar no ' + name);
   applyAssets();
   $$('#headingMenu [data-block]').forEach(item => {
@@ -495,7 +494,7 @@ $('#plusBtn').addEventListener('click', e=>openPanel('#plusMenu', e.currentTarge
 $('#headingBtn')?.addEventListener('click', e=>openPanel('#headingMenu', e.currentTarget));
 $('#quoteBtn')?.addEventListener('click', e=>openPanel('#quoteMenu', e.currentTarget));
 $('#destBtn').addEventListener('click', ()=>setDestination(dest === 'telegram' ? 'telegraph' : 'telegram'));
-$('#publishBtn').addEventListener('click', ()=>publishCurrent());
+$('#exportBtn').addEventListener('click', e=>openPanel('#exportMenu', e.currentTarget));
 $('#brandBtn')?.addEventListener('click', e=>openPanel('#importMenu', e.currentTarget));
 $('#importMdBtn')?.addEventListener('click', ()=>{ fileInput.accept='.md,text/markdown'; fileInput.click(); closePanels(); });
 $('#importTxtBtn')?.addEventListener('click', ()=>{ fileInput.accept='.txt,text/plain'; fileInput.click(); closePanels(); });
