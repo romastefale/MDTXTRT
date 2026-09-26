@@ -20,7 +20,12 @@ globalThis.fetch = async (url,options) => {
     const data = new URLSearchParams(options.body);
     if(process.env.TEST_CALLS)appendFileSync(process.env.TEST_CALLS,JSON.stringify({method,body:Object.fromEntries(data)})+'\n');
     if(method === 'createAccount') return Response.json({ok:true,result:{access_token:'persistent-test-token'}});
+    if(method === 'getPage'){
+      const path=data.get('path');
+      return Response.json({ok:true,result:{url:'https://telegra.ph/'+path,path,content:[]}});
+    }
     if(data.get('access_token') !== 'persistent-test-token') return Response.json({ok:false,error:'invalid token'},{status:401});
+    if(method === 'getAccountInfo')return Response.json({ok:true,result:{short_name:'MDTXTRT',page_count:1}});
     const path = method === 'createPage' ? 'test-page-09-26' : data.get('path');
     return Response.json({ok:true,result:{url:'https://telegra.ph/'+path,path}});
   }
