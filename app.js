@@ -391,21 +391,21 @@ function insertFeature(kind){
     return insertHTML('<'+tag+'>'+tags.join('')+(caption?'<figcaption>'+escapeHTML(caption)+'</figcaption>':'')+'</'+tag+'>');
   }
   if(kind === 'button') {
-    const type=(prompt('Tipo: url, callback_data, web_app, login_url, switch_inline_query, switch_inline_query_current_chat, switch_inline_query_chosen_chat, copy_text, disabled','url')||'url').trim();
-    const types=new Set(['url','callback_data','web_app','login_url','switch_inline_query','switch_inline_query_current_chat','switch_inline_query_chosen_chat','copy_text','disabled']);
+    const type=(prompt('Tipo: url, callback_data, web_app, copy_text, disabled','url')||'url').trim();
+    const types=new Set(['url','callback_data','web_app','copy_text','disabled']);
     if(!types.has(type)) return showToast('Tipo de botão inválido');
     const label=(prompt('Texto do botão','Abrir')||'').trim();
     if(!label) return;
     const style=(prompt('Estilo: link, primary, success ou danger','primary')||'').trim();
     if(style && !['link','primary','success','danger'].includes(style)) return showToast('Estilo inválido');
+    if(style==='link' && type!=='callback_data') return showToast('O estilo link exige um botão de callback');
     let attr=' type="'+type+'"'+(style?' style="'+style+'"':'');
-    if(type==='url'||type==='web_app'||type==='login_url'){
+    if(type==='url'||type==='web_app'){
       const url=askUrl('Link do botão'); if(!url) return; attr+=' url="'+escapeHTML(url)+'"';
     }else if(type==='callback_data'){
-      const data=(prompt('Callback data','action')||'').trim(); if(!data) return; attr+=' data="'+escapeHTML(data)+'"';
-    }else if(type==='switch_inline_query'||type==='switch_inline_query_current_chat'||type==='switch_inline_query_chosen_chat'){
-      const query=prompt('Consulta inline','')||''; attr+=' query="'+escapeHTML(query)+'"';
-      if(type==='switch_inline_query_chosen_chat') attr+=' allow-user-chats allow-bot-chats allow-group-chats allow-channel-chats';
+      const data=(prompt('Callback data','action')||'').trim(); if(!data) return;
+      if(new TextEncoder().encode(data).length>64) return showToast('O callback aceita até 64 bytes');
+      attr+=' data="'+escapeHTML(data)+'"';
     }else if(type==='copy_text'){
       const text=prompt('Texto para copiar','')||''; if(!text) return; attr+=' text="'+escapeHTML(text)+'"';
     }

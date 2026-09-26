@@ -3,12 +3,14 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {JSDOM} from 'jsdom';
 import {randomUUID} from 'node:crypto';
+import {TextEncoder} from 'node:util';
 
 const root = new URL('../', import.meta.url);
 function page(tg){
   const dom = new JSDOM(readFileSync(new URL('index.html',root),'utf8'),{url:'https://mdtxtrt.up.railway.app/',runScripts:'outside-only'});
   const w = dom.window;
   w.matchMedia = () => ({matches:true,addEventListener(){}});
+  w.TextEncoder = TextEncoder;
   Object.defineProperty(w.crypto,'randomUUID',{value:randomUUID});
   if(tg){w.Telegram={WebApp:{initData:'signed-payload',colorScheme:'dark',ready(){},expand(){},setHeaderColor(){},MainButton:{setText(){},show(){},onClick(){}},...tg}};w.fetch=tg.fetch;}
   w.eval(readFileSync(new URL('marked.js',root),'utf8'));
@@ -105,5 +107,22 @@ test('insertions respect the caret between blocks',()=>{
   w.getSelection().removeAllRanges();w.getSelection().addRange(range);
   w.eval('saveSel();insertFeature("divider")');
   assert.deepEqual([...editor.children].map(el=>el.tagName),['P','HR','P']);
+  w.close();
+});
+test('button insertion exposes only ready types and validates callback payload',()=>{
+  const w=page();
+  const editor=w.document.querySelector('#editor');
+  w.prompt=()=> 'switch_inline_query';
+  w.eval('insertFeature("button")');
+  assert.equal(editor.querySelector('tg-button'),null);
+  const answers=['callback_data','Abrir','link','ação'];
+  w.prompt=()=>answers.shift();
+  w.eval('insertFeature("button")');
+  assert.equal(editor.querySelector('tg-button')?.getAttribute('data'),'ação');
+  assert.match(w.eval('buildRich().rich_message.html'),/type="callback_data"/);
+  const tooLong=['callback_data','Outro','primary','a'.repeat(65)];
+  w.prompt=()=>tooLong.shift();
+  w.eval('insertFeature("button")');
+  assert.equal(editor.querySelectorAll('tg-button').length,1);
   w.close();
 });
