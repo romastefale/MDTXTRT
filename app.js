@@ -1129,15 +1129,17 @@ document.addEventListener('keydown', e => {
   if(k==='z' && e.shiftKey || k==='y'){ e.preventDefault(); histRedo(); flashBtn(one('#redoBtn')); }
 });
 let viewportFrame=0;
+function keyboardTarget(){
+  const active=document.activeElement;
+  return active===editor||active===docName||active===one('#dialogInput')||active===one('#findText')||active===one('#replaceText');
+}
 function syncBrowserViewport(){
   if(getTg()?.initData)return;
   const viewport=window.visualViewport;
   if(!viewport)return;
   const layout=document.documentElement.clientHeight;
-  const root=document.documentElement;
-  root.style.setProperty('--vv-top',viewport.offsetTop+'px');
-  root.style.setProperty('--vv-height',viewport.height+'px');
-  root.style.setProperty('--vv-bottom-shift',(viewport.offsetTop+viewport.height-layout)+'px');
+  const covered=keyboardTarget()?Math.max(0,layout-(viewport.offsetTop+viewport.height)):0;
+  document.documentElement.style.setProperty('--kb',covered+'px');
 }
 function scheduleBrowserViewport(){
   cancelAnimationFrame(viewportFrame);
@@ -1145,7 +1147,8 @@ function scheduleBrowserViewport(){
 }
 window.visualViewport?.addEventListener('resize',scheduleBrowserViewport);
 window.visualViewport?.addEventListener('scroll',scheduleBrowserViewport);
-window.visualViewport?.addEventListener('scrollend',scheduleBrowserViewport);
+document.addEventListener('focusin',scheduleBrowserViewport);
+document.addEventListener('focusout',scheduleBrowserViewport);
 syncBrowserViewport();
 
 function boot(){
