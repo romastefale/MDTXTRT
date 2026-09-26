@@ -88,3 +88,11 @@ test('Markdown preserves embeds and expandable quotes, rejects styles',()=>{
   assert.throws(()=>w.eval('mdToBasicHTML("<p style=\\\"color:red\\\">x</p>")'),/Atributo/);
   w.close();
 });
+test('local attachments cannot become unusable downloads',()=>{
+  const w=page();
+  const editor=w.document.querySelector('#editor');
+  editor.innerHTML='<figure><img data-media-id="media1" src="blob:https://example.com/local"></figure>';
+  assert.throws(()=>w.eval('htmlToMarkdown(document.querySelector("#editor").innerHTML)'),/URL pública/);
+  assert.throws(()=>w.eval('htmlToText(document.querySelector("#editor").innerHTML)'),/TXT não comporta/);
+  w.close();
+});

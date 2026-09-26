@@ -448,9 +448,10 @@ function loadLocal(){
   }catch{ showToast('O rascunho salvo não pôde ser aberto'); }
 }
 function escapeHTML(s){ return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-function htmlToText(html){ if(importedTxt && editor.innerHTML===importedHtml)return importedTxt;const d = document.createElement('div'); d.innerHTML = html; return d.innerText; }
+function htmlToText(html){ if(importedTxt && editor.innerHTML===importedHtml)return importedTxt;const d = document.createElement('div'); d.innerHTML = html;if(d.querySelector('img,video,audio,iframe,tg-document,tg-map,tg-collage,tg-slideshow,tg-button'))throw new Error('TXT não comporta mídia ou botões');return d.innerText; }
 function htmlToMarkdown(html){
   if(importedMd && editor.innerHTML === importedHtml) return importedMd;
+  if(editor.querySelector('[data-media-id]')) throw new Error('Anexos locais precisam de URL pública para exportar Markdown');
   if(!window.TurndownService) throw new Error('Conversão Markdown indisponível');
   const svc = new TurndownService({headingStyle:'atx', codeBlockStyle:'fenced', bulletListMarker:'-', emDelimiter:'*'});
   svc.addRule('special', {filter: node => ['TG-SPOILER','TG-REFERENCE','TG-EMOJI','TG-TIME','TG-MATH','TG-MATH-BLOCK','TG-MAP','TG-COLLAGE','TG-SLIDESHOW','TG-DOCUMENT','TG-BUTTON','TG-BUTTON-ROW','DETAILS','TABLE','FIGURE','ASIDE','FOOTER','SUB','SUP','MARK','U','INPUT','IFRAME'].includes(node.nodeName) || node.nodeName==='BLOCKQUOTE' && node.dataset.expandable==='true' || node.classList?.contains('tg-footer') || node.nodeName === 'A' && node.hasAttribute('name'), replacement: (_,node)=>'\n'+node.outerHTML+'\n'});
