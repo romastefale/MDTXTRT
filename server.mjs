@@ -356,27 +356,79 @@ function htmlEscape(value) {
   return String(value).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
-function richValid(html) {
-  const tags = new Set("a b strong i em u ins s strike del code mark sub sup tg-spoiler tg-reference tg-emoji tg-time tg-math h1 h2 h3 h4 h5 h6 p pre footer hr ul ol li input blockquote aside cite img video audio tg-document figure figcaption tg-map tg-collage tg-slideshow table caption tr th td details summary tg-math-block tg-button tg-button-row br".split(" "));
-  const attrs = new Set("href name class src alt tg-spoiler start type reversed value checked expandable unix format emoji-id lat long zoom width height bordered striped compact colspan rowspan align valign open style url data query text forward-text request-write-access allow-user-chats allow-bot-chats allow-group-chats allow-channel-chats".split(" "));
-  const media = new Set(["img", "video", "audio", "tg-document"]);
-  const walk = node => {
-    if (node.type === "text") return;
-    if (node.type !== "tag") throw new Error("O conteúdo contém marcação não aceita");
-    if (!tags.has(node.name)) throw new Error("O conteúdo contém elemento inválido: " + node.name);
-    for (const [key, value] of Object.entries(node.attribs)) {
-      if (!attrs.has(key) || key === "class" && !(node.name === "code" && /^language-[a-z0-9+-]+$/i.test(value))) throw new Error("O conteúdo contém atributo inválido: " + key);
-      if (["href", "src", "url"].includes(key)) {
-        if (value.startsWith("#") && key === "href") continue;
-        let url;
-        try { url = new URL(value); } catch { throw new Error("Link inválido"); }
-        if (media.has(node.name) && key === "src" ? !["https:", "http:"].includes(url.protocol) && !(url.protocol === "tg:" && /^(photo|video|audio|document)$/.test(url.hostname)) : !["https:", "http:", "tg:", "mailto:", "tel:"].includes(url.protocol)) throw new Error("Link inválido");
+function richValid(html){
+  if(typeof html!=="string"||!html.trim()||Buffer.byteLength(html)>32768)throw new Error("Conteúdo vazio ou grande demais");
+  const tags=new Set("a b strong i em u ins s strike del code mark sub sup tg-spoiler tg-reference tg-emoji tg-time tg-math h1 h2 h3 h4 h5 h6 p pre footer hr ul ol li input blockquote aside cite img video audio tg-document figure figcaption tg-map tg-collage tg-slideshow table caption tr th td details summary tg-math-block tg-button tg-button-row br".split(" "));
+  const attrs={
+    a:new Set(["href","name"]),code:new Set(["class"]),ol:new Set(["start","type","reversed"]),li:new Set(["value","type"]),input:new Set(["type","checked"]),
+    blockquote:new Set(["expandable"]),img:new Set(["src","alt","tg-spoiler"]),video:new Set(["src","tg-spoiler"]),audio:new Set(["src"]),"tg-document":new Set(["src"]),
+    "tg-reference":new Set(["name"]),"tg-emoji":new Set(["emoji-id"]),"tg-time":new Set(["unix","format"]),"tg-map":new Set(["lat","long","zoom","width","height"]),
+    table:new Set(["bordered","striped","compact"]),th:new Set(["colspan","rowspan","align","valign"]),td:new Set(["colspan","rowspan","align","valign"]),
+    details:new Set(["open"]),"tg-button-row":new Set(["align"]),"tg-button":new Set(["type","style","url","data","query","text","forward-text","request-write-access","allow-user-chats","allow-bot-chats","allow-group-chats","allow-channel-chats"])
+  };
+  const media=new Set(["img","video","audio","tg-document"]);
+  const buttons=new Set(["url","callback_data","web_app","login_url","switch_inline_query","switch_inline_query_current_chat","switch_inline_query_chosen_chat","copy_text","disabled"]);
+  const bool=new Set(["reversed","checked","expandable","tg-spoiler","bordered","striped","compact","open","request-write-access","allow-user-chats","allow-bot-chats","allow-group-chats","allow-channel-chats"]);
+  const urlValid=(value,mediaTag=false)=>{
+    let url;try{url=new URL(value);}catch{throw new Error("Link inválido");}
+    if(mediaTag){
+      if(["http:","https:"].includes(url.protocol))return;
+      if(url.protocol==="tg:"&&/^(photo|video|audio|document)$/.test(url.hostname)&&/^[A-Za-z0-9_-]{1,64}$/.test(url.searchParams.get("id")||""))return;
+      throw new Error("Link de mídia inválido");
+    }
+    if(!["https:","http:","tg:","mailto:","tel:"].includes(url.protocol))throw new Error("Link inválido");
+  };
+  const walk=node=>{
+    if(node.type==="text")return;
+    if(node.type!=="tag"||!tags.has(node.name))throw new Error("O conteúdo contém elemento inválido: "+(node.name||node.type));
+    const allowed=attrs[node.name]||new Set();
+    for(const [key,value] of Object.entries(node.attribs)){
+      if(!allowed.has(key))throw new Error("Atributo inválido em "+node.name+": "+key);
+      if(bool.has(key)&&value!=="")throw new Error("Atributo booleano inválido: "+key);
+    }
+    if(node.name==="code"&&node.attribs.class&&!/^language-[a-z0-9+-]+$/i.test(node.attribs.class))throw new Error("Linguagem de código inválida");
+    if(node.name==="a"){
+      const href=node.attribs.href;
+      const name=node.attribs.name;
+      if(Boolean(href)===Boolean(name))throw new Error("Âncora ou link inválido");
+      if(href&&!href.startsWith("#"))urlValid(href);
+      if(name&&!/^[A-Za-z0-9_-]{1,64}$/.test(name))throw new Error("Nome de âncora inválido");
+    }
+    if(node.name==="input"&&node.attribs.type!=="checkbox")throw new Error("Input Rich Message inválido");
+    if(node.name==="tg-time"){
+      if(!/^\d+$/.test(node.attribs.unix||""))throw new Error("Timestamp inválido");
+      if(node.attribs.format!==undefined&&!/^(?:r|w?[dD]?[tT]?)$/.test(node.attribs.format))throw new Error("Formato de data inválido");
+    }
+    if(node.name==="tg-emoji"&&!/^\d+$/.test(node.attribs["emoji-id"]||""))throw new Error("Emoji personalizado inválido");
+    if(node.name==="tg-map"){
+      const lat=Number(node.attribs.lat),lon=Number(node.attribs.long),zoom=node.attribs.zoom===undefined?undefined:Number(node.attribs.zoom),width=node.attribs.width===undefined?undefined:Number(node.attribs.width),height=node.attribs.height===undefined?undefined:Number(node.attribs.height);
+      if(!Number.isFinite(lat)||lat<-90||lat>90||!Number.isFinite(lon)||lon<-180||lon>180)throw new Error("Mapa inválido");
+      if(zoom!==undefined&&(!Number.isInteger(zoom)||zoom<0||zoom>24))throw new Error("Zoom inválido");
+      if(width!==undefined&&(!Number.isInteger(width)||width<0||width>10000))throw new Error("Largura do mapa inválida");
+      if(height!==undefined&&(!Number.isInteger(height)||height<0||height>10000))throw new Error("Altura do mapa inválida");
+      if(width&&height&&Math.max(width/height,height/width)>20)throw new Error("Proporção do mapa inválida");
+    }
+    if(node.name==="tg-button-row"&&node.attribs.align&&!["left","center","right"].includes(node.attribs.align))throw new Error("Alinhamento de botão inválido");
+    if(node.name==="tg-button"){
+      const type=node.attribs.type;
+      if(!buttons.has(type))throw new Error("Tipo de botão inválido");
+      if(node.attribs.style&&!["danger","success","primary","link"].includes(node.attribs.style))throw new Error("Estilo de botão inválido");
+      if(node.attribs.style==="link"&&type!=="callback_data")throw new Error("Estilo link exige callback");
+      const action={url:"url",callback_data:"data",web_app:"url",login_url:"url",switch_inline_query:"query",switch_inline_query_current_chat:"query",switch_inline_query_chosen_chat:"query",copy_text:"text"}[type];
+      if(action&&node.attribs[action]===undefined)throw new Error("Ação de botão ausente");
+      if(type==="callback_data"&&(Buffer.byteLength(node.attribs.data||"")<1||Buffer.byteLength(node.attribs.data)>64))throw new Error("Callback inválido");
+      if(["url","web_app"].includes(type))urlValid(node.attribs.url);
+      if(type==="login_url"){
+        let url;try{url=new URL(node.attribs.url);}catch{throw new Error("Login URL inválida");}
+        if(url.protocol!=="https:")throw new Error("Login URL deve usar HTTPS");
       }
     }
-    if (media.has(node.name) && !node.attribs.src) throw new Error("Mídia sem endereço");
+    if(media.has(node.name)){
+      if(!node.attribs.src)throw new Error("Mídia sem endereço");
+      urlValid(node.attribs.src,true);
+    }
     node.children.forEach(walk);
   };
-  if (typeof html !== "string" || !html.trim() || Buffer.byteLength(html) > 32768) throw new Error("Conteúdo vazio ou grande demais");
   parseDocument(html).children.forEach(walk);
 }
 
