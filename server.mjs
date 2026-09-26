@@ -1,5 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { createReadStream, existsSync, statSync } from "node:fs";
+import { createReadStream, existsSync, statSync, readFileSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { extname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -11,7 +11,11 @@ const ALLOW_ORIGINS = new Set([
   "https://romastefale.github.io",
   "https://mdtxtrt.up.railway.app",
 ]);
+const TELEGRAPH_FILE = ((process.env.RAILWAY_VOLUME_MOUNT_PATH || "/data").replace(/\/+$/, "") || "/data") + "/telegraph-token";
 let telegraphToken = (process.env.TELEGRAPH_ACCESS_TOKEN || "").trim();
+if (!telegraphToken && existsSync(TELEGRAPH_FILE)) {
+  try { telegraphToken = readFileSync(TELEGRAPH_FILE, "utf8").trim(); } catch {}
+}
 const MINI_APP_URL = (process.env.MINI_APP_URL || "https://romastefale.github.io/MDTXTRT/").trim();
 const WEBHOOK_BASE = (process.env.PUBLIC_BASE_URL || "https://" + (process.env.RAILWAY_PUBLIC_DOMAIN || "mdtxtrt.up.railway.app")).replace(/\/+$/, "");
 const BOT_COMMANDS = [
@@ -132,21 +136,11 @@ async function sendRich(initData, html) {
   if (!token) throw new Error("O envio para o Telegram não está configurado");
   if (!html || !String(html).replace(/<[^>]*>/g, "").replace(/&nbsp;/gi, " ").trim()) throw new Error("Escreva algo antes de publicar");
   if (Buffer.byteLength(String(html), "utf8") > 32768) throw new Error("Mensagem rica acima de 32.768 caracteres");
-  const { chatId, queryId } = userFromInitData(String(initData || ""), token);
-  const rich_message = { html: String(html) };
-  if (queryId) {
-    await telegramCall(token, "answerWebAppQuery", {
-      web_app_query_id: queryId,
-      result: {
-        type: "article",
-        id: "rmdtxtml",
-        title: "MDTXTRT",
-        input_message_content: { rich_message },
-      },
-    });
-    return { via: "answerWebAppQuery" };
-  }
-  const msg = await telegramCall(token, "sendRichMessage", { chat_id: chatId, rich_message });
+  const { chatId } = userFromInitData(String(initData || ""), token);
+  const msg = await telegramCall(token, "sendRichMessage", {
+    chat_id: chatId,
+    rich_message: { html: String(html) }
+  });
   return { via: "sendRichMessage", messageId: msg.message_id };
 }
 
@@ -294,6 +288,16 @@ async function sendDocument(chatId, name, content, type) {
 }
 
 async function handleBotUpdate(update) {
+  if (update.callback_query) {
+    const q = update.callback_query;
+    const token = botToken();
+    if (!token) return;
+    await telegramCall(token, "answerCallbackQuery", {
+      callback_query_id: q.id,
+      text: q.data ? String(q.data).slice(0, 200) : "OK"
+    });
+    return;
+  }
   const message = update.message;
   if (!message?.text || !message.chat) return;
   const match = /^\/([a-z0-9_]+)(?:@[a-z0-9_]+)?(?:\s+[\s\S]*)?$/i.exec(message.text);
@@ -352,7 +356,7 @@ async function configureBot() {
   const steps = [
     ["setMyCommands", { commands: BOT_COMMANDS }],
     ["setChatMenuButton", { menu_button: { type: "web_app", text: "Abrir MDTXTRT", web_app: { url: MINI_APP_URL } } }],
-    ["setWebhook", { url: WEBHOOK_BASE + "/telegram/webhook", secret_token: secret, allowed_updates: ["message"] }],
+    ["setWebhook", { url: WEBHOOK_BASE + "/telegram/webhook", secret_token: secret, allowed_updates: ["message", "callback_query"] }],
   ];
   for (const [method, body] of steps) {
     try { await telegramCall(token, method, body); }
@@ -391,6 +395,7 @@ async function publishTelegraph(title, content, path = "") {
   if (!telegraphToken) {
     const account = await telegraphCall("createAccount", { short_name: "MDTXTRT", author_name: "MDTXTRT" });
     telegraphToken = account.access_token;
+    try { writeFileSync(TELEGRAPH_FILE, telegraphToken, { mode: 0o600 }); } catch (error) { console.error("Telegraph token", error); }
   }
   const body = {
     access_token: telegraphToken,
