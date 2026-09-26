@@ -294,13 +294,13 @@
     <div class="menu-list">
       <button data-cmd="insertUnorderedList"><span class="sheet-ico"><span class="ui-icon" data-icon="list"></span></span>Lista com marcadores</button>
       <button data-insert="ordered"><span class="sheet-ico"><span class="ui-icon" data-icon="format_list_numbered"></span></span>Lista ordenada</button>
-      <button data-insert="task" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="task"></span></span>Checklist</button>
+      <button data-insert="task" data-telegram-only><span class="sheet-ico"><span class="ui-icon" data-icon="task"></span></span>Checklist</button>
     </div>
   </div>
   <div class="sheet frost" id="quoteMenu" popover="auto">
     <div class="menu-list">
       <button data-block="blockquote"><span class="sheet-ico"><span class="ui-icon" data-icon="quote"></span></span>Citação</button>
-      <button data-insert="pullquote" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="quote"></span></span>Citação em destaque</button>
+      <button data-insert="pullquote"><span class="sheet-ico"><span class="ui-icon" data-icon="quote"></span></span>Citação em destaque</button>
       <button data-insert="expandquote"><span class="sheet-ico"><span class="ui-icon" data-icon="more"></span></span>Citação expansível</button>
     </div>
   </div>
@@ -323,30 +323,30 @@
   <div class="sheet frost" id="plusMenu" popover="auto">
     <div class="menu-list">
       <button data-cmd="strike"><span class="sheet-ico"><span class="ui-icon" data-icon="strikethrough_s"></span></span>Riscado</button>
-      <button data-cmd="mark" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="ink_highlighter"></span></span>Marca-texto</button>
-      <button data-cmd="spoiler" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="visibility_off"></span></span>Spoiler</button>
+      <button data-cmd="mark" data-telegram-only><span class="sheet-ico"><span class="ui-icon" data-icon="ink_highlighter"></span></span>Marca-texto</button>
+      <button data-cmd="spoiler" data-telegram-only><span class="sheet-ico"><span class="ui-icon" data-icon="visibility_off"></span></span>Spoiler</button>
       <button data-cmd="code"><span class="sheet-ico"><span class="ui-icon" data-icon="code"></span></span>Código</button>
-      <button data-cmd="sub" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="subscript"></span></span>Subscrito</button>
-      <button data-cmd="sup" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="superscript"></span></span>Sobrescrito</button>
-      <button data-cmd="math" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="functions"></span></span>Fórmula inline</button>
-      <button data-insert="mathblock" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="calculate"></span></span>Fórmula em bloco</button>
+      <button data-cmd="sub" data-telegram-only><span class="sheet-ico"><span class="ui-icon" data-icon="subscript"></span></span>Subscrito</button>
+      <button data-cmd="sup" data-telegram-only><span class="sheet-ico"><span class="ui-icon" data-icon="superscript"></span></span>Sobrescrito</button>
+      <button data-cmd="math" data-telegram-only><span class="sheet-ico"><span class="ui-icon" data-icon="functions"></span></span>Fórmula inline</button>
+      <button data-insert="mathblock" data-telegram-only><span class="sheet-ico"><span class="ui-icon" data-icon="calculate"></span></span>Fórmula em bloco</button>
       <button data-insert="divider"><span class="sheet-ico"><span class="ui-icon" data-icon="horizontal_rule"></span></span>Divisor</button>
-      <button data-insert="table" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="table"></span></span>Tabela</button>
-      <button data-insert="details" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="details"></span></span>Conteúdo expansível</button>
+      <button data-insert="table" data-telegram-only><span class="sheet-ico"><span class="ui-icon" data-icon="table"></span></span>Tabela</button>
+      <button data-insert="details" data-telegram-only><span class="sheet-ico"><span class="ui-icon" data-icon="details"></span></span>Conteúdo expansível</button>
       <button data-insert="image"><span class="sheet-ico"><span class="ui-icon" data-icon="image"></span></span>Imagem</button>
-      <button id="mediaBtn" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="attach_file"></span></span>Anexar mídia</button>
+      <button id="mediaBtn" data-telegram-only><span class="sheet-ico"><span class="ui-icon" data-icon="attach_file"></span></span>Anexar mídia</button>
       <button data-insert="video"><span class="sheet-ico"><span class="ui-icon" data-icon="movie"></span></span>Vídeo</button>
-      <button data-insert="embed" data-telegraph="only"><span class="sheet-ico"><span class="ui-icon" data-icon="web"></span></span>Incorporar</button>
-      <button data-insert="audio" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="music_note"></span></span>Áudio</button>
-      <button data-insert="document" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="file"></span></span>Documento</button>
-      <button data-insert="map" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="location_on"></span></span>Mapa</button>
-      <button data-insert="collage" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="view_comfy"></span></span>Colagem</button>
-      <button data-insert="slideshow" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="slideshow"></span></span>Slideshow</button>
-      <button data-insert="anchor" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="anchor"></span></span>Âncora</button>
-      <button data-insert="reference" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="sticky_note_2"></span></span>Referência</button>
-      <button data-insert="time" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="schedule"></span></span>Data e hora</button>
-      <button data-insert="emoji" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="mood"></span></span>Emoji personalizado</button>
-      <button data-insert="button" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="buttons"></span></span>Botão</button>
+      <button data-insert="embed" data-telegraph-only><span class="sheet-ico"><span class="ui-icon" data-icon="web"></span></span>Incorporar</button>
+      <button data-insert="audio" data-telegram-only><span class="sheet-ico"><span class="ui-icon" data-icon="music_note"></span></span>Áudio</button>
+      <button data-insert="document" data-telegram-only><span class="sheet-ico"><span class="ui-icon" data-icon="file"></span></span>Documento</button>
+      <button data-insert="map" data-telegram-only><span class="sheet-ico"><span class="ui-icon" data-icon="location_on"></span></span>Mapa</button>
+      <button data-insert="collage" data-telegram-only><span class="sheet-ico"><span class="ui-icon" data-icon="view_comfy"></span></span>Colagem</button>
+      <button data-insert="slideshow" data-telegram-only><span class="sheet-ico"><span class="ui-icon" data-icon="slideshow"></span></span>Slideshow</button>
+      <button data-insert="anchor" data-telegram-only><span class="sheet-ico"><span class="ui-icon" data-icon="anchor"></span></span>Âncora</button>
+      <button data-insert="reference" data-telegram-only><span class="sheet-ico"><span class="ui-icon" data-icon="sticky_note_2"></span></span>Referência</button>
+      <button data-insert="time" data-telegram-only><span class="sheet-ico"><span class="ui-icon" data-icon="schedule"></span></span>Data e hora</button>
+      <button data-insert="emoji" data-telegram-only><span class="sheet-ico"><span class="ui-icon" data-icon="mood"></span></span>Emoji personalizado</button>
+      <button data-insert="button" data-telegram-only><span class="sheet-ico"><span class="ui-icon" data-icon="buttons"></span></span>Botão</button>
     </div>
   </div>
   <input id="fileInput" type="file" accept=".txt,.md,text/plain,text/markdown" hidden>
