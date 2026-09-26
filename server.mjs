@@ -69,7 +69,6 @@ const PUBLIC = new Set([
   "logo.png",
   "og.jpg",
   "x-banner.jpg",
-  "glass-map.png",
   ...["bold","buttons","details","document","export","file","footer","h1","h2","h3","h4","h5","h6","heading","import","italic","link","list","more","open","paragraph","plus","quote","redo","send","table","task","telegram","underline","undo"].map(name=>`icons/${name}.svg`),
   ...["anchor","attach_file","calculate","code","format_list_numbered","functions","horizontal_rule","image","ink_highlighter","location_on","markdown","mood","movie","music_note","schedule","search","slideshow","sticky_note_2","strikethrough_s","subscript","superscript","text_fields","view_comfy","visibility_off","web"].map(name=>`icons/${name}.svg`),
 ]);
