@@ -8,7 +8,7 @@ const STATE_VERSION=2;
 let dest = 'telegram';
 let inTg = false, session = 'browser', busy = false;
 const sheets=['#plusMenu','#headingMenu','#quoteMenu','#listMenu','#importMenu','#exportMenu','#findMenu'];
-let savedRange = null, hist = [], histI = -1, histLock = false, composing = false, saveTimer = null, telegraphPath = '', docId = crypto.randomUUID(), importedMd = '', importedTxt = '', importedHtml = '', mediaFile = null;
+let savedRange = null, hist = [], histI = -1, histLock = false, composing = false, saveTimer = null, telegraphPath = '', docId = crypto.randomUUID(), importedMd = '', importedTxt = '', importedHtml = '', mediaFile = null, mediaChoice = null;
 function applyAssets(){
   all('[data-icon]').forEach(el => {
     const name = el.getAttribute('data-icon');
@@ -105,7 +105,7 @@ async function restoreMedia(){
   const id=node.getAttribute('data-media-id');
   try{
     const saved=await mediaLoad(id);
-    if(!saved||saved.id!==id||!['image','video','audio','document'].includes(saved.kind)||typeof saved.name!=='string'||!saved.name||typeof saved.type!=='string'||!saved.type||!(saved.file instanceof Blob))throw new Error('Anexo persistido incompatível');
+    if(!saved||saved.id!==id||!['image','video','audio','voice','document'].includes(saved.kind)||typeof saved.name!=='string'||!saved.name||typeof saved.type!=='string'||!saved.type||!(saved.file instanceof Blob))throw new Error('Anexo persistido incompatível');
     if(mediaFile?.url)URL.revokeObjectURL(mediaFile.url);
     const file=saved.file instanceof File?saved.file:new File([saved.file],saved.name,{type:saved.type,lastModified:Number.isFinite(saved.lastModified)?saved.lastModified:0});
     const url=URL.createObjectURL(file);
@@ -153,7 +153,7 @@ async function claimHandoff(){
   if(data.file){
     const fileRes=await fetch(API+'/api/handoff/file',{method:'POST',signal:AbortSignal.timeout(60000),headers:{'content-type':'application/json'},body:JSON.stringify({initData,token})});
     if(!fileRes.ok)throw new Error('Não foi possível recuperar o anexo transferido');
-    if(typeof data.file.name!=='string'||!data.file.name||typeof data.file.mime!=='string'||!data.file.mime||!['image','video','audio','document'].includes(data.file.kind)||!/^[A-Za-z0-9_-]{1,64}$/.test(data.file.id))throw new Error('Metadados do anexo transferido inválidos');
+    if(typeof data.file.name!=='string'||!data.file.name||typeof data.file.mime!=='string'||!data.file.mime||!['image','video','audio','voice','document'].includes(data.file.kind)||!/^[A-Za-z0-9_-]{1,64}$/.test(data.file.id))throw new Error('Metadados do anexo transferido inválidos');
     const blob=await fileRes.blob();
     const file=new File([blob],data.file.name,{type:data.file.mime,lastModified:Date.now()});
     await installMedia(file,data.file.id,data.file.kind,true);
@@ -961,15 +961,19 @@ one('#importMdBtn')?.addEventListener('click', ()=>{ fileInput.accept='.md,text/
 one('#importTxtBtn')?.addEventListener('click', ()=>{ fileInput.accept='.txt,text/plain'; fileInput.click(); closePanels(); });
 one('#exportTxtBtn')?.addEventListener('click', ()=>exportFile('txt'));
 one('#exportMdBtn')?.addEventListener('click', ()=>exportFile('md'));
-one('#mediaBtn').addEventListener('click',()=>{one('#mediaInput').click();closePanels();});
+one('#mediaBtn').addEventListener('click',()=>{mediaChoice=null;one('#mediaInput').accept='image/*,video/*,audio/*,.pdf,.zip';one('#mediaInput').click();closePanels();});
+one('#voiceBtn').addEventListener('click',()=>{mediaChoice='voice';one('#mediaInput').accept='audio/*,.ogg,.oga,.opus';one('#mediaInput').click();closePanels();});
 one('#mediaInput').addEventListener('change',async()=>{
-  const file=one('#mediaInput').files?.[0];if(!file)return;
+  const file=one('#mediaInput').files?.[0];if(!file){mediaChoice=null;return;}
   one('#mediaInput').value='';
-  if(file.size>20_000_000){showToast('Arquivo acima de 20 MB');return;}
-  if(editor.querySelector('[data-media-id]')){showToast('Há um anexo no documento. Remova-o antes de anexar outro.');return;}
-  const kind=file.type.startsWith('image/')?'image':file.type.startsWith('video/')?'video':file.type.startsWith('audio/')?'audio':'document';
+  if(file.size>20_000_000){mediaChoice=null;showToast('Arquivo acima de 20 MB');return;}
+  if(editor.querySelector('[data-media-id]')){mediaChoice=null;showToast('Há um anexo no documento. Remova-o antes de anexar outro.');return;}
+  let kind=mediaChoice;
+  mediaChoice=null;
+  if(kind==='voice'&&!file.type.startsWith('audio/')){showToast('Escolha um arquivo de áudio para a mensagem de voz');return;}
+  if(!kind)kind=file.type.startsWith('image/')?'image':file.type.startsWith('video/')?'video':file.type.startsWith('audio/')?'audio':'document';
   const id=crypto.randomUUID().replace(/-/g,'');
-  const tag={image:'img',video:'video',audio:'audio',document:'tg-document'}[kind];
+  const tag={image:'img',video:'video',audio:'audio',voice:'audio',document:'tg-document'}[kind];
   insertHTML('<figure><'+tag+' data-media-id="'+id+'"></'+tag+'><figcaption>'+escapeHTML(file.name)+'</figcaption></figure>',true);
   try{await installMedia(file,id,kind,true);saveLocal();}
   catch(err){mediaNode(id)?.closest('figure')?.remove();showToast(err.message||'Não foi possível salvar o anexo');}
