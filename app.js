@@ -3,12 +3,11 @@ const all=s=>Array.from(document.querySelectorAll(s));
 const editor = one('#editor');
 const docName = one('#docName');
 const toast = one('#toast');
-const backdrop = one('#backdrop');
 const fileInput = one('#fileInput');
 const STATE_VERSION=2;
 let dest = 'telegram';
 let inTg = false, session = 'browser', busy = false;
-const sheets = ['#plusMenu','#headingMenu','#quoteMenu','#listMenu','#importMenu','#exportMenu','#findMenu','#dialogMenu'];
+const sheets=['#plusMenu','#headingMenu','#quoteMenu','#listMenu','#importMenu','#exportMenu','#findMenu'];
 let savedRange = null, hist = [], histI = -1, histLock = false, composing = false, saveTimer = null, telegraphPath = '', docId = crypto.randomUUID(), importedMd = '', importedTxt = '', importedHtml = '', mediaFile = null;
 function applyAssets(){
   all('[data-icon]').forEach(el => {
@@ -250,28 +249,30 @@ function setDestination(value, notify=true){
 function openPanel(sel){
   const panel=one(sel);
   if(!panel)throw new Error('Painel indisponível: '+sel);
-  sheets.forEach(name=>one(name).classList.remove('on','is-top'));
-  panel.classList.toggle('is-top',sel==='#importMenu'||sel==='#exportMenu'||sel==='#findMenu');
-  panel.classList.add('on');
+  panel.showPopover();
   const list=panel.querySelector('.menu-list');
   if(list)list.scrollTop=0;
-  backdrop.classList.add('on');
   document.dispatchEvent(new Event('selectionchange'));
 }
 function closePanels(){
-  sheets.forEach(s => { const el = one(s); el.classList.remove('on','is-top'); });
-  backdrop.classList.remove('on');
+  for(const sel of sheets){
+    const panel=one(sel);
+    if(panel.matches(':popover-open'))panel.hidePopover();
+  }
   document.dispatchEvent(new Event('selectionchange'));
 }
 let dialogResolve=null,dialogConfirm=false;
 function finishDialog(value){
   const resolve=dialogResolve;
   dialogResolve=null;
-  closePanels();
+  const dialog=one('#dialogMenu');
+  if(dialog.open)dialog.close();
   if(resolve)resolve(value);
 }
 function dialogOpen(label,value='',rows=1,confirmMode=false){
   if(dialogResolve)finishDialog(null);
+  closePanels();
+  const dialog=one('#dialogMenu');
   const input=one('#dialogInput');
   one('#dialogLabel').textContent=label;
   dialogConfirm=confirmMode;
@@ -279,7 +280,7 @@ function dialogOpen(label,value='',rows=1,confirmMode=false){
   input.value=confirmMode?'':String(value===null||value===undefined?'':value);
   input.rows=Math.max(1,Math.min(5,rows));
   one('#dialogOk').textContent=confirmMode?'Continuar':'OK';
-  openPanel('#dialogMenu');
+  dialog.showModal();
   return new Promise(resolve=>{
     dialogResolve=resolve;
     if(!confirmMode){
@@ -293,7 +294,16 @@ async function approve(label){return await dialogOpen(label,'',1,true)===true;}
 one('#dialogOk').addEventListener('click',()=>finishDialog(dialogConfirm?true:one('#dialogInput').value));
 one('#dialogCancel').addEventListener('click',()=>finishDialog(dialogConfirm?false:null));
 one('#dialogInput').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&e.currentTarget.rows===1){e.preventDefault();finishDialog(e.currentTarget.value);}});
-backdrop.addEventListener('click',()=>{if(dialogResolve)finishDialog(dialogConfirm?false:null);else closePanels();});
+for(const sel of sheets){
+  one(sel).addEventListener('toggle',event=>{
+    if(event.newState==='open'){
+      const list=event.currentTarget.querySelector('.menu-list');
+      if(list)list.scrollTop=0;
+    }
+    document.dispatchEvent(new Event('selectionchange'));
+  });
+}
+one('#dialogMenu').addEventListener('cancel',event=>{event.preventDefault();finishDialog(dialogConfirm?false:null);});
 function saveSel(){
   const sel = window.getSelection();
   if(!sel || !sel.rangeCount) return;
@@ -858,11 +868,11 @@ document.addEventListener('selectionchange', ()=>{
     const marks={bold:'strong,b',italic:'em,i',underline:'u',insertUnorderedList:'ul'};
     btn.classList.toggle('on', Boolean(el && el.closest(marks[btn.dataset.cmd] || '')));
   });
-  one('#listBtn').classList.toggle('on', !!(el && el.closest('ul,ol')) || one('#listMenu').classList.contains('on'));
-  one('#quoteBtn')?.classList.toggle('on', !!(el && el.closest('blockquote,aside')) || one('#quoteMenu')?.classList.contains('on'));
-  one('#headingBtn')?.classList.toggle('on', !!(headingEl || one('#headingMenu')?.classList.contains('on')));
+  one('#listBtn').classList.toggle('on', !!(el && el.closest('ul,ol')) || one('#listMenu').matches(':popover-open'));
+  one('#quoteBtn')?.classList.toggle('on', !!(el && el.closest('blockquote,aside')) || one('#quoteMenu')?.matches(':popover-open'));
+  one('#headingBtn')?.classList.toggle('on', !!(headingEl || one('#headingMenu')?.matches(':popover-open')));
   one('#linkBtn')?.classList.toggle('on', !!(el && el.closest('a')));
-  one('#plusBtn')?.classList.toggle('on', one('#plusMenu')?.classList.contains('on'));
+  one('#plusBtn')?.classList.toggle('on', one('#plusMenu')?.matches(':popover-open'));
   all('#headingMenu [data-block]').forEach(btn => btn.classList.toggle('is-current', btn.dataset.block === kind));
 });
 one('#typebar').addEventListener('mousedown', e => e.preventDefault());
@@ -896,11 +906,7 @@ one('#undoBtn').addEventListener('click', ()=>{ histUndo(); flashBtn(one('#undoB
 one('#redoBtn').addEventListener('click', ()=>{ histRedo(); flashBtn(one('#redoBtn')); });
 one('#undoBtn').addEventListener('mousedown', e => e.preventDefault());
 one('#redoBtn').addEventListener('mousedown', e => e.preventDefault());
-one('#plusBtn').addEventListener('click', e=>openPanel('#plusMenu'));
-one('#headingBtn')?.addEventListener('click', e=>openPanel('#headingMenu'));
-one('#listBtn').addEventListener('click',e=>openPanel('#listMenu'));
 one('#openAppBtn').addEventListener('click',()=>{void openMiniApp();});
-one('#quoteBtn')?.addEventListener('click', e=>openPanel('#quoteMenu'));
 one('#destBtn').addEventListener('click', ()=>setDestination(dest === 'telegram' ? 'telegraph' : 'telegram'));
 one('#exportBtn').addEventListener('click', e=>{
   if(getTg()?.initData && !inTg){showToast(session==='invalid'?'Sessão inválida ou expirada. Reabra o Mini App.':'Aguarde a validação da sessão Telegram');return;}
@@ -908,7 +914,6 @@ one('#exportBtn').addEventListener('click', e=>{
   openPanel('#exportMenu');
 });
 docName.addEventListener('input',markDirty);
-one('#brandBtn')?.addEventListener('click', e=>openPanel('#importMenu'));
 one('#importMdBtn')?.addEventListener('click', ()=>{ fileInput.accept='.md,text/markdown'; fileInput.click(); closePanels(); });
 one('#importTxtBtn')?.addEventListener('click', ()=>{ fileInput.accept='.txt,text/plain'; fileInput.click(); closePanels(); });
 one('#exportTxtBtn')?.addEventListener('click', ()=>exportFile('txt'));
@@ -1060,7 +1065,6 @@ fileInput.addEventListener('change', async ()=>{
   fileInput.value='';
 });
 document.addEventListener('keydown', e => {
-  if(e.key === 'Escape' && backdrop.classList.contains('on')){ closePanels(); return; }
   if(!(e.metaKey || e.ctrlKey)) return;
   const k = e.key.toLowerCase();
   if(k==='b'||k==='i'||k==='u'){e.preventDefault();try{exec({b:'bold',i:'italic',u:'underline'}[k]);}catch(err){showToast(err.message);}}
