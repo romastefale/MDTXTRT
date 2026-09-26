@@ -45,6 +45,7 @@ function setupTelegram(){
   const tg = getTg();
   document.body.classList.add('tg');
   tg.ready(); tg.expand();
+  if(!tg.isFullscreen)tg.requestFullscreen?.();
   const applySafe = () => {
     const top = Math.max(tg.contentSafeAreaInset?.top || 0, tg.safeAreaInset?.top || 0);
     document.documentElement.style.setProperty('--tg-top', top + 'px');
@@ -52,12 +53,11 @@ function setupTelegram(){
   applySafe(); applyScheme();
   tg.onEvent?.('safeAreaChanged', applySafe);
   tg.onEvent?.('contentSafeAreaChanged', applySafe);
+  tg.onEvent?.('fullscreenChanged', applySafe);
   tg.onEvent?.('themeChanged', applyScheme);
   tg.BackButton?.hide?.();
   tg.disableVerticalSwipes?.();
-  tg.MainButton?.setText?.('Publicar no Telegram');
-  tg.MainButton?.show?.();
-  tg.MainButton?.onClick?.(()=>publishCurrent());
+  tg.MainButton?.hide?.();
 }
 function showToast(msg){
   toast.textContent = msg; toast.classList.add('on');
@@ -73,7 +73,6 @@ function setDestination(value, notify=true){
   btn.setAttribute('aria-pressed', String(dest === 'telegraph'));
   btn.classList.toggle('active', dest === 'telegraph');
   btn.title = 'Destino: ' + name;
-  getTg()?.MainButton?.setText?.('Publicar no ' + name);
   applyAssets();
   $$('#headingMenu [data-block]').forEach(item => {
     item.hidden = dest === 'telegraph' && !['p','h3','h4','footer'].includes(item.dataset.block);

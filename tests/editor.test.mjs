@@ -71,11 +71,15 @@ test('Telegram rich serializer rejects arbitrary elements and uses native HTML',
 });
 test('Mini App mode waits for backend initData validation',async()=>{
   let resolve;
-  const w=page({fetch:()=>new Promise(r=>resolve=r)});
+  let fullscreen=0, hidden=0;
+  const w=page({fetch:()=>new Promise(r=>resolve=r),requestFullscreen(){fullscreen++},MainButton:{hide(){hidden++}}});
   assert.equal(w.document.body.classList.contains('tg'),false);
+  assert.equal(fullscreen,0);
   resolve({ok:true});
   await new Promise(r=>setTimeout(r,5));
   assert.equal(w.document.body.classList.contains('tg'),true);
+  assert.equal(fullscreen,1);
+  assert.equal(hidden,1);
   w.close();
 });
 test('Markdown preserves embeds and expandable quotes, rejects styles',()=>{
