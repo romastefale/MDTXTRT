@@ -173,9 +173,11 @@ async function readMedia(req) {
   });
 }
 
-function cleanFileName(value, fallback = "document.txt") {
-  const name = String(value || "").replace(/[\\/:*?"<>|\u0000-\u001f]/g, "-").replace(/^\.+|\.+$/g, "").trim().slice(0, 120);
-  return name || fallback;
+function cleanFileName(value){
+  if(typeof value!=="string")throw new Error("Nome de arquivo inválido");
+  const name=value.replace(/[\\/:*?"<>|\u0000-\u001f]/g,"-").replace(/^\.+|\.+$/g,"").trim().slice(0,120);
+  if(!name)throw new Error("Nome de arquivo inválido");
+  return name;
 }
 
 function draftValid(draft) {
@@ -231,12 +233,10 @@ function readHandoff(token) {
   return meta;
 }
 
-function sweepHandoffs() {
-  let names = [];
-  try { names = readdirSync(HANDOFF_DIR); } catch { return; }
-  for (const name of names) {
-    const match = /^([a-f0-9]{32})\.json$/.exec(name);
-    if (match) readHandoff(match[1]);
+function sweepHandoffs(){
+  for(const name of readdirSync(HANDOFF_DIR)){
+    const match=/^([a-f0-9]{32})\.json$/.exec(name);
+    if(match)readHandoff(match[1]);
   }
 }
 
@@ -245,16 +245,18 @@ function saveHandoff(draft, file) {
   draftValid(draft);
   const local = draft.html.match(/data-media-id="([A-Za-z0-9_-]{1,64})"/);
   if (local && !file) throw new Error("O anexo local precisa acompanhar o rascunho");
-  if (file) {
-    if (!local || !draft.media || draft.media.id !== local[1] || !["image","video","audio","document"].includes(draft.media.kind)) throw new Error("Anexo do rascunho inválido");
-    if (!file.bytes?.length || file.bytes.length > 20_000_000) throw new Error("Mídia grande demais");
+  if(file){
+    if(!local||!draft.media||draft.media.id!==local[1]||!["image","video","audio","document"].includes(draft.media.kind))throw new Error("Anexo do rascunho inválido");
+    if(!file.bytes?.length||file.bytes.length>20_000_000)throw new Error("Mídia grande demais");
+    if(typeof file.mime!=="string"||!file.mime.trim())throw new Error("Tipo de mídia inválido");
+    cleanFileName(file.name);
   }
   const token = randomUUID().replace(/-/g, "");
   const paths = handoffFiles(token);
   const meta = {
     expires: Date.now() + HANDOFF_TTL,
     draft,
-    file: file ? { id: draft.media.id, kind: draft.media.kind, name: cleanFileName(file.name, "anexo"), mime: file.mime || "application/octet-stream", size: file.bytes.length } : null,
+    file:file?{id:draft.media.id,kind:draft.media.kind,name:cleanFileName(file.name),mime:file.mime,size:file.bytes.length}:null,
     claimedBy: ""
   };
   if (file) writeFileSync(paths.file, file.bytes, { mode: 0o600 });
@@ -268,16 +270,19 @@ function cleanDownloads() {
   for (const [token, item] of downloads) if (item.expires < now) downloads.delete(token);
 }
 
-function createDownload(name, content, type) {
-  const mime = type === "text/markdown" ? "text/markdown; charset=utf-8" : "text/plain; charset=utf-8";
-  const fallback = type === "text/markdown" ? "document.md" : "document.txt";
-  const fileName = cleanFileName(name, fallback);
-  const bytes = Buffer.from(String(content), "utf8");
-  if (bytes.length > 1_500_000) throw new Error("O arquivo excede o limite de exportação");
+function createDownload(name,content,type){
+  if(typeof content!=="string")throw new Error("Conteúdo de exportação inválido");
+  const fileName=cleanFileName(name);
+  const ext=type==="text/markdown"?".md":type==="text/plain"?".txt":"";
+  if(!ext)throw new Error("Formato de exportação inválido");
+  if(!fileName.toLowerCase().endsWith(ext))throw new Error("Extensão de arquivo incompatível");
+  const mime=type==="text/markdown"?"text/markdown; charset=utf-8":"text/plain; charset=utf-8";
+  const bytes=Buffer.from(content,"utf8");
+  if(bytes.length>1_500_000)throw new Error("O arquivo excede o limite de exportação");
   cleanDownloads();
-  const token = randomUUID().replace(/-/g, "");
-  downloads.set(token, { name: fileName, bytes, type: mime, expires: Date.now() + DOWNLOAD_TTL });
-  return { token, name: fileName };
+  const token=randomUUID().replace(/-/g,"");
+  downloads.set(token,{name:fileName,bytes,type:mime,expires:Date.now()+DOWNLOAD_TTL});
+  return {token,name:fileName};
 }
 
 function contentDisposition(name) {
