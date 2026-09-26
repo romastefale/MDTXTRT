@@ -134,11 +134,15 @@ test('Rich Message send and Telegraph create/edit on same owned document',async(
   assert.equal(lastCall('createPage').body.access_token,'persistent-test-token');
   await new Promise(resolve=>{child.once('exit',resolve);child.kill();});
   await start();
-  const edited=await post('/api/telegraph/publish',{...page,path:created.data.path,title:'Página revisada'});
+  const recovered=await post('/api/telegraph/recover',{initData:init(),doc:page.doc});
+  assert.equal(recovered.status,200);
+  assert.equal(recovered.data.path,created.data.path);
+  const edited=await post('/api/telegraph/publish',{...page,title:'Página revisada'});
   assert.equal(edited.status,200);
   assert.equal(edited.data.path,created.data.path);
   assert.equal(lastCall('editPage').body.path,created.data.path);
   assert.equal(lastCall('editPage').body.title,'Página revisada');
+  assert.equal(lastCall('getPage').body.path,created.data.path);
 });
 test('attached media uses native Rich Message upload',async()=>{
   const id='media1';
@@ -174,6 +178,47 @@ test('HTTP media URLs become Bot API 10.3 rich media references for each media t
   }
   const stale=await post('/api/telegram/send',{initData:init(),html:'<img src="tg://photo?id=missing">'});
   assert.equal(stale.status,400);
+});
+
+test('browser TXT and Markdown exports return exact downloadable bytes and attachment headers',async()=>{
+  for(const [name,type,content] of [['texto.txt','text/plain','linha 1\nlinha 2\n'],['nota.md','text/markdown','# Título\n\n**forte**']]){
+    const prepared=await post('/api/export',{name,type,content});
+    assert.equal(prepared.status,200);
+    assert.equal(prepared.data.name,name);
+    const path=new URL(prepared.data.url).pathname;
+    const res=await fetch(`http://127.0.0.1:${port}${path}`);
+    assert.equal(res.status,200);
+    assert.match(res.headers.get('content-disposition'),/^attachment;/);
+    assert.match(res.headers.get('content-disposition'),/filename\*=UTF-8''/);
+    assert.equal(res.headers.get('access-control-allow-origin'),'https://web.telegram.org');
+    assert.match(res.headers.get('content-type'),new RegExp('^'+type.replace('/','\\/')));
+    assert.equal(await res.text(),content);
+  }
+});
+
+test('browser handoff carries document and binary attachment through official startapp and survives restart',async()=>{
+  const id='handoffmedia1',doc='44444444-4444-4444-8444-444444444444';
+  const draft={name:'Continuidade',html:`<p>Texto</p><figure><img data-media-id="${id}"><figcaption>foto.png</figcaption></figure>`,dest:'telegram',telegraphPath:'',docId:doc,importedMd:'',importedTxt:'',importedHtml:'',media:{id,kind:'image'}};
+  const form=new FormData();
+  form.set('draft',JSON.stringify(draft));
+  form.set('upload',new Blob([new Uint8Array([1,2,3,4,5])],{type:'image/png'}),'foto.png');
+  let res=await fetch(`http://127.0.0.1:${port}/api/handoff`,{method:'POST',headers:{origin},body:form});
+  assert.equal(res.status,200);
+  const made=await res.json();
+  assert.match(made.token,/^[a-f0-9]{32}$/);
+  await new Promise(resolve=>{child.once('exit',resolve);child.kill();});
+  await start();
+  res=await fetch(`http://127.0.0.1:${port}/telegram/open?handoff=${made.token}`,{redirect:'manual'});
+  assert.equal(res.status,302);
+  assert.equal(res.headers.get('location'),`https://t.me/mdtxtrt_test_bot?startapp=h_${made.token}`);
+  const claimed=await post('/api/handoff/claim',{initData:init(),token:made.token});
+  assert.equal(claimed.status,200);
+  assert.equal(claimed.data.draft.name,'Continuidade');
+  assert.equal(claimed.data.file.id,id);
+  res=await fetch(`http://127.0.0.1:${port}/api/handoff/file`,{method:'POST',headers:{origin,'content-type':'application/json'},body:JSON.stringify({initData:init(),token:made.token})});
+  assert.equal(res.status,200);
+  assert.equal(res.headers.get('content-type'),'image/png');
+  assert.deepEqual([...new Uint8Array(await res.arrayBuffer())],[1,2,3,4,5]);
 });
 
 test('browser publication entry opens the official Mini App without accepting a redirect target',async()=>{
