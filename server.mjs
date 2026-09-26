@@ -1,5 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { createReadStream, existsSync, statSync, readFileSync, writeFileSync } from "node:fs";
+import { createReadStream, existsSync, statSync, readFileSync, writeFileSync, renameSync, mkdirSync } from "node:fs";
+import { parseDocument } from "htmlparser2";
+import Busboy from "busboy";
 import { createServer } from "node:http";
 import { extname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -12,7 +14,9 @@ const ALLOW_ORIGINS = new Set([
   "https://mdtxtrt.up.railway.app",
 ]);
 const TELEGRAPH_FILE = ((process.env.RAILWAY_VOLUME_MOUNT_PATH || "/data").replace(/\/+$/, "") || "/data") + "/telegraph-token";
+const PAGES_FILE = TELEGRAPH_FILE + "-pages.json";
 let telegraphToken = (process.env.TELEGRAPH_ACCESS_TOKEN || "").trim();
+let telegraphQueue = Promise.resolve();
 if (!telegraphToken && existsSync(TELEGRAPH_FILE)) {
   try { telegraphToken = readFileSync(TELEGRAPH_FILE, "utf8").trim(); } catch {}
 }
@@ -37,6 +41,8 @@ const MIME = {
 const PUBLIC = new Set([
   "index.html",
   "app.js",
+  "marked.js",
+  "turndown.js",
   "favicon.svg",
   "logo.png",
   "og.jpg",
@@ -71,6 +77,7 @@ function setCors(req, res) {
 function userFromInitData(initData, token) {
   if (!initData.trim()) throw new Error("Abra pelo bot no Telegram");
   const params = new URLSearchParams(initData);
+  if (initData.length > 8192 || [...params.keys()].length !== new Set(params.keys()).size) throw new Error("Sessão Telegram inválida");
   const hash = params.get("hash") || "";
   params.delete("hash");
   const dataCheckString = [...params.entries()]
@@ -131,16 +138,43 @@ async function readJson(req, maxBytes = 80_000) {
   try { return JSON.parse(raw); } catch { throw new Error("Não foi possível ler os dados recebidos"); }
 }
 
-async function sendRich(initData, html) {
+async function readMedia(req) {
+  if (!/^multipart\/form-data;\s*boundary=/i.test(req.headers["content-type"] || "")) throw new Error("Formato de mídia inválido");
+  return new Promise((resolve, reject) => {
+    const fields = {}, files = [];
+    const bus = Busboy({headers:req.headers,limits:{files:1,fileSize:20_000_000,fields:4,fieldSize:40000}});
+    bus.on("field",(key,value)=>{fields[key]=value;});
+    bus.on("file",(key,stream,info)=>{
+      if (key !== "upload") {stream.resume();reject(new Error("Mídia inválida"));return;}
+      const chunks=[];
+      stream.on("data",chunk=>chunks.push(chunk));
+      stream.on("limit",()=>reject(new Error("Mídia grande demais")));
+      stream.on("end",()=>files.push({bytes:Buffer.concat(chunks),mime:info.mimeType,name:info.filename.slice(0,100)}));
+    });
+    bus.on("error",reject);
+    bus.on("close",()=>resolve({fields,file:files[0]}));
+    req.pipe(bus);
+  });
+}
+
+async function sendRich(initData, html, file = null) {
   const token = botToken();
   if (!token) throw new Error("O envio para o Telegram não está configurado");
-  if (!html || !String(html).trim()) throw new Error("Escreva algo antes de publicar");
-  if (Buffer.byteLength(String(html), "utf8") > 32768) throw new Error("Mensagem rica acima de 32.768 caracteres");
+  richValid(html);
   const { chatId } = userFromInitData(String(initData || ""), token);
-  const msg = await telegramCall(token, "sendRichMessage", {
-    chat_id: chatId,
-    rich_message: { html: String(html) }
-  });
+  let body = { chat_id: chatId, rich_message: { html: String(html) } };
+  if (file) {
+    const kind = {image:"photo",video:"video",audio:"audio",document:"document"}[file.kind];
+    if (!kind || !/^[A-Za-z0-9_-]{1,64}$/.test(file.id) || !["image/", "video/", "audio/", "application/", "text/"].some(prefix=>file.mime.startsWith(prefix))) throw new Error("Mídia inválida");
+    if (!html.includes(`tg://${kind}?id=${file.id}`)) throw new Error("Mídia ausente da mensagem");
+    body.rich_message.media = [{ id:file.id, media:{type:kind, media:"attach://upload"} }];
+    const form = new FormData();
+    form.set("chat_id", chatId);
+    form.set("rich_message", JSON.stringify(body.rich_message));
+    form.set("upload", new Blob([file.bytes], {type:file.mime}), file.name);
+    body = form;
+  } else if (/tg:\/\/(photo|video|audio|document)\?id=/.test(html)) throw new Error("Anexe a mídia novamente antes de publicar");
+  const msg = await telegramCall(token, "sendRichMessage", body);
   return { via: "sendRichMessage", messageId: msg.message_id };
 }
 
@@ -159,6 +193,52 @@ function sameSecret(a, b) {
 
 function htmlEscape(value) {
   return String(value).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function richValid(html) {
+  const tags = new Set("a b strong i em u ins s strike del code mark sub sup tg-spoiler tg-reference tg-emoji tg-time tg-math h1 h2 h3 h4 h5 h6 p pre footer hr ul ol li input blockquote aside cite img video audio tg-document figure figcaption tg-map tg-collage tg-slideshow table caption tr th td details summary tg-math-block tg-button tg-button-row br".split(" "));
+  const attrs = new Set("href name class src alt tg-spoiler start type reversed value checked expandable unix format emoji-id lat long zoom width height bordered striped compact colspan rowspan align valign open style url data query text forward-text request-write-access allow-user-chats allow-bot-chats allow-group-chats allow-channel-chats".split(" "));
+  const media = new Set(["img", "video", "audio", "tg-document"]);
+  const walk = node => {
+    if (node.type === "text") return;
+    if (node.type !== "tag") throw new Error("O conteúdo contém marcação não aceita");
+    if (!tags.has(node.name)) throw new Error("O conteúdo contém elemento inválido: " + node.name);
+    for (const [key, value] of Object.entries(node.attribs)) {
+      if (!attrs.has(key) || key === "class" && !(node.name === "code" && /^language-[a-z0-9+-]+$/i.test(value))) throw new Error("O conteúdo contém atributo inválido: " + key);
+      if (["href", "src", "url"].includes(key)) {
+        if (value.startsWith("#") && key === "href") continue;
+        let url;
+        try { url = new URL(value); } catch { throw new Error("Link inválido"); }
+        if (media.has(node.name) && key === "src" ? !["https:", "http:"].includes(url.protocol) && !(url.protocol === "tg:" && /^(photo|video|audio|document)$/.test(url.hostname)) : !["https:", "http:", "tg:", "mailto:", "tel:"].includes(url.protocol)) throw new Error("Link inválido");
+      }
+    }
+    if (media.has(node.name) && !node.attribs.src) throw new Error("Mídia sem endereço");
+    node.children.forEach(walk);
+  };
+  if (typeof html !== "string" || !html.trim() || Buffer.byteLength(html) > 32768) throw new Error("Conteúdo vazio ou grande demais");
+  parseDocument(html).children.forEach(walk);
+}
+
+function telegraphValid(content) {
+  const tags = new Set("a aside b blockquote br code em figcaption figure h3 h4 hr i iframe img li ol p pre s strong u ul video".split(" "));
+  let count = 0;
+  const walk = (node, depth = 0) => {
+    if (++count > 10000 || depth > 40) throw new Error("Conteúdo do Telegraph grande demais");
+    if (typeof node === "string") return;
+    if (!node || typeof node !== "object" || Array.isArray(node) || !tags.has(node.tag)) throw new Error("Elemento do Telegraph inválido");
+    if (node.attrs) for (const [key, value] of Object.entries(node.attrs)) {
+      if (!(key === "href" && node.tag === "a" || key === "src" && ["img", "video", "iframe"].includes(node.tag)) || typeof value !== "string") throw new Error("Atributo do Telegraph inválido");
+      let url;
+      try { url = new URL(value); } catch { throw new Error("Link do Telegraph inválido"); }
+      if (!["http:", "https:"].includes(url.protocol)) throw new Error("Link do Telegraph inválido");
+    }
+    if (node.children !== undefined) {
+      if (!Array.isArray(node.children)) throw new Error("Conteúdo do Telegraph inválido");
+      node.children.forEach(child => walk(child, depth + 1));
+    }
+  };
+  if (!Array.isArray(content) || !content.length || Buffer.byteLength(JSON.stringify(content)) > 65536) throw new Error("Conteúdo do Telegraph inválido");
+  content.forEach(node => walk(node));
 }
 
 function safeLink(value) {
@@ -386,16 +466,22 @@ async function telegraphCall(method, body) {
   return json.result;
 }
 
-async function publishTelegraph(title, content, path = "") {
+async function publishTelegraphOne(title, content, path = "", user = "", doc = "") {
   const pageTitle = String(title || "").trim();
   if (!pageTitle) throw new Error("Dê um nome à página antes de publicar");
   if (pageTitle.length > 256) throw new Error("O nome da página deve ter até 256 caracteres");
-  if (!Array.isArray(content) || !content.length) throw new Error("Escreva algo antes de publicar");
-  if (Buffer.byteLength(JSON.stringify(content), "utf8") > 65536) throw new Error("O conteúdo excede o limite do Telegraph");
+  telegraphValid(content);
+  if (!/^[a-f0-9-]{36}$/i.test(doc)) throw new Error("Documento inválido");
+  let pages = {};
+  if (existsSync(PAGES_FILE)) pages = JSON.parse(readFileSync(PAGES_FILE, "utf8"));
+  const key = user + ":" + doc;
+  if (path && pages[key] !== path) throw new Error("Esta página não pertence a este documento");
+  if (!path && pages[key]) throw new Error("Este documento já possui uma página");
   if (!telegraphToken) {
     const account = await telegraphCall("createAccount", { short_name: "MDTXTRT", author_name: "MDTXTRT" });
     telegraphToken = account.access_token;
-    try { writeFileSync(TELEGRAPH_FILE, telegraphToken, { mode: 0o600 }); } catch (error) { console.error("Telegraph token", error); }
+    mkdirSync(TELEGRAPH_FILE.slice(0, TELEGRAPH_FILE.lastIndexOf("/")), { recursive: true });
+    writeFileSync(TELEGRAPH_FILE, telegraphToken, { mode: 0o600 });
   }
   const body = {
     access_token: telegraphToken,
@@ -408,7 +494,17 @@ async function publishTelegraph(title, content, path = "") {
     body.path = String(path).trim();
     return telegraphCall("editPage", body);
   }
-  return telegraphCall("createPage", body);
+  const page = await telegraphCall("createPage", body);
+  pages[key] = page.path;
+  writeFileSync(PAGES_FILE + ".tmp", JSON.stringify(pages), { mode: 0o600 });
+  renameSync(PAGES_FILE + ".tmp", PAGES_FILE);
+  return page;
+}
+
+function publishTelegraph(...args) {
+  const next = telegraphQueue.then(() => publishTelegraphOne(...args));
+  telegraphQueue = next.catch(() => {});
+  return next;
 }
 
 function safeFile(urlPath) {
@@ -460,30 +556,6 @@ const server = createServer(async (req, res) => {
       }
       return;
     }
-    if (url.pathname === "/api/telegram/export" && req.method === "POST") {
-      if (!setCors(req, res)) {
-        res.writeHead(403, { "content-type": "application/json; charset=utf-8" });
-        res.end(JSON.stringify({ error: "Acesso não autorizado" }));
-        return;
-      }
-      try {
-        const body = await readJson(req, 2_000_000);
-        if (!body || typeof body !== "object" || typeof body.initData !== "string" || typeof body.name !== "string" || typeof body.content !== "string") throw new Error("Os dados da exportação estão incompletos");
-        const token = botToken();
-        if (!token) throw new Error("O envio para o Telegram não está configurado");
-        const { chatId } = userFromInitData(body.initData, token);
-        const type = body.name.toLowerCase().endsWith(".md") ? "text/markdown" : "text/plain";
-        const result = await sendDocument(chatId, body.name, body.content, type);
-        res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
-        res.end(JSON.stringify(result));
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : "Não foi possível exportar o arquivo";
-        const code = /inválid[ao]s?|expirada|ausente|Abra pelo|solicitação|dados da exportação|texto para exportar|limite de exportação/i.test(msg) ? 400 : 500;
-        res.writeHead(code, { "content-type": "application/json; charset=utf-8" });
-        res.end(JSON.stringify({ error: msg }));
-      }
-      return;
-    }
     if (url.pathname === "/api/telegram/send" && req.method === "POST") {
       if (!setCors(req, res)) {
         res.writeHead(403, { "content-type": "application/json; charset=utf-8" });
@@ -491,9 +563,10 @@ const server = createServer(async (req, res) => {
         return;
       }
       try {
-        const body = await readJson(req);
+        const media = /^multipart\/form-data/i.test(req.headers["content-type"] || "") ? await readMedia(req) : null;
+        const body = media?.fields || await readJson(req);
         if (!body || typeof body !== "object" || typeof body.initData !== "string" || typeof body.html !== "string") throw new Error("Os dados do envio estão incompletos");
-        const result = await sendRich(body.initData, body.html);
+        const result = await sendRich(body.initData, body.html, media?.file ? {...media.file,kind:body.kind,id:body.id} : null);
         res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
         res.end(JSON.stringify(result));
       } catch (err) {
@@ -513,12 +586,15 @@ const server = createServer(async (req, res) => {
       try {
         const body = await readJson(req, 150_000);
         if (!body || typeof body !== "object" || typeof body.title !== "string" || !Array.isArray(body.content) || (body.path !== undefined && typeof body.path !== "string")) throw new Error("Os dados da página estão incompletos");
-        const page = await publishTelegraph(body.title, body.content, body.path || "");
+        const token = botToken();
+        if (!token || typeof body.initData !== "string") throw new Error("Abra pelo bot no Telegram para publicar no Telegraph");
+        const { chatId } = userFromInitData(body.initData, token);
+        const page = await publishTelegraph(body.title, body.content, body.path || "", chatId, body.doc);
         res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
         res.end(JSON.stringify({ url: page.url, path: page.path }));
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Não foi possível publicar no Telegraph";
-        const code = /nome (?:da|à) página|escreva algo|excede o limite|solicitação|dados da página|não foi possível ler/i.test(msg) ? 400 : 502;
+        const code = /nome (?:da|à) página|escreva algo|excede o limite|solicitação|dados da página|não foi possível ler|Documento inválido|pertence|já possui|Abra pelo|inválida|expirada|Telegraph inválido/i.test(msg) ? 400 : 502;
         res.writeHead(code, { "content-type": "application/json; charset=utf-8" });
         res.end(JSON.stringify({ error: msg }));
       }

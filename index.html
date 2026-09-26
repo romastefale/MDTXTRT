@@ -214,6 +214,12 @@
       padding:8px 12px;border-radius:999px;font-size:12px
     }
     .toast.on{display:block}
+    .tools{display:flex;gap:8px;align-items:center;padding:10px;max-width:100%}
+    .tools input{min-width:0;width:100%;border:0;border-radius:12px;background:color-mix(in srgb,var(--text) 10%,transparent);padding:10px;outline:0}
+    .tools button{border:0;border-radius:12px;background:color-mix(in srgb,var(--accent) 22%,transparent);padding:10px;color:var(--text)}
+    #preview{display:none;white-space:normal}
+    #preview.on{display:block}
+    #editor.off{display:none}
     @media (prefers-reduced-motion:reduce){.sheet{animation:none}}
   </style>
 </head>
@@ -241,6 +247,7 @@
     </div>
     <div class="canvas" id="canvas">
       <article id="editor" class="editor" contenteditable="true" spellcheck="true" inputmode="text" enterkeyhint="enter" aria-label="Editor" data-placeholder="Escreva aqui…"></article>
+      <article id="preview" class="editor"></article>
     </div>
   </div>
   <div class="bar-wrap">
@@ -303,6 +310,7 @@
       <button data-insert="table" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="table"></span></span>Tabela</button>
       <button data-insert="details" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="details"></span></span>Conteúdo expansível</button>
       <button data-insert="image"><span class="sheet-ico"><span class="ui-icon" data-icon="document"></span></span>Imagem</button>
+      <button id="mediaBtn" data-tg="no">Anexar mídia</button>
       <button data-insert="video"><span class="sheet-ico"><span class="ui-icon" data-icon="document"></span></span>Vídeo</button>
       <button data-insert="embed" data-telegraph="only"><span class="sheet-ico"><span class="ui-icon" data-icon="document"></span></span>Incorporar</button>
       <button data-insert="audio" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="document"></span></span>Áudio</button>
@@ -315,6 +323,8 @@
       <button data-insert="time" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="more"></span></span>Data e hora</button>
       <button data-insert="emoji" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="more"></span></span>Emoji personalizado</button>
       <button data-insert="button" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="buttons"></span></span>Botão</button>
+      <button id="findBtn">Localizar e substituir</button>
+      <button id="previewBtn">Prévia</button>
     </div>
   </div>
   <svg class="defs" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><defs></defs></svg>
@@ -621,7 +631,11 @@ update();const ro=new ResizeObserver(update);ro.observe(el);return {update}
 }
 const mats=[...document.querySelectorAll('.material-target')].map(makeMaterial)})()</script>
   <input id="fileInput" type="file" accept=".txt,.md,text/plain,text/markdown" hidden>
+  <input id="mediaInput" type="file" accept="image/*,video/*,audio/*,.pdf,.zip" hidden>
   <div class="toast frost material-target" id="toast"></div>
+  <div class="sheet frost material-target" id="findMenu"><div class="tools"><input id="findText" placeholder="Localizar"></div><div class="tools"><input id="replaceText" placeholder="Substituir"></div><div class="tools"><button id="findNext">Próximo</button><button id="replaceOne">Substituir</button><button id="replaceAll">Substituir tudo</button></div></div>
+  <script src="marked.js"></script>
+  <script src="turndown.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

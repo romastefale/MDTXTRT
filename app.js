@@ -6,8 +6,8 @@ const toast = $('#toast');
 const backdrop = $('#backdrop');
 const fileInput = $('#fileInput');
 let dest = 'telegram';
-const sheets = ['#plusMenu','#headingMenu','#quoteMenu','#importMenu','#exportMenu'];
-let savedRange = null, hist = [], histI = -1, histLock = false, composing = false, saveTimer = null, telegraphPath = '';
+const sheets = ['#plusMenu','#headingMenu','#quoteMenu','#importMenu','#exportMenu','#findMenu'];
+let savedRange = null, hist = [], histI = -1, histLock = false, composing = false, saveTimer = null, telegraphPath = '', docId = crypto.randomUUID(), importedMd = '', importedTxt = '', importedHtml = '', mediaFile = null;
 function applyAssets(){
   $$('[data-icon]').forEach(el => {
     const name = el.getAttribute('data-icon');
@@ -16,7 +16,7 @@ function applyAssets(){
 }
 applyAssets();
 function applyScheme(){
-  const tg = window.Telegram?.WebApp;
+  const tg = isInsideTelegram() ? window.Telegram.WebApp : null;
   const light = tg?.colorScheme ? tg.colorScheme === 'light' : window.matchMedia('(prefers-color-scheme: light)').matches;
   document.documentElement.classList.toggle('light', light);
   document.documentElement.classList.toggle('dark', !light);
@@ -69,8 +69,8 @@ function setDestination(value, notify=true){
     item.hidden = dest === 'telegraph' && !['p','h3','h4','footer'].includes(item.dataset.block);
   });
   $('#quoteMenu [data-insert="expandquote"]').hidden = dest === 'telegraph';
-  $('#plusMenu [data-tg="no"]').forEach(item => item.hidden = dest === 'telegraph');
-  $('#plusMenu [data-telegraph="only"]').forEach(item => item.hidden = dest !== 'telegraph');
+  $$('#plusMenu [data-tg="no"]').forEach(item => item.hidden = dest === 'telegraph');
+  $$('#plusMenu [data-telegraph="only"]').forEach(item => item.hidden = dest !== 'telegraph');
   document.body.dataset.destination = dest;
   closePanels();
   saveLocal();
@@ -428,53 +428,37 @@ function markDirty(){
   saveTimer = setTimeout(saveLocal, 400);
 }
 function saveLocal(){
-  try{ localStorage.setItem('rmdtxtml', JSON.stringify({name: docName.value, html: editor.innerHTML, dest, telegraphPath})); }
+  try{ localStorage.setItem('rmdtxtml', JSON.stringify({name: docName.value, html: editor.innerHTML, dest, telegraphPath, docId, importedMd, importedTxt, importedHtml})); }
   catch{ showToast('Não foi possível salvar neste dispositivo'); }
 }
 function loadLocal(){
   try{
     const d = JSON.parse(localStorage.getItem('rmdtxtml') || 'null');
-    if(d?.html){ editor.innerHTML = d.html; docName.value = d.name || 'Ideia'; telegraphPath = d.telegraphPath || ''; if(d.dest === 'telegram' || d.dest === 'telegraph') dest = d.dest; }
+    if(d?.html){ editor.innerHTML = d.html; docName.value = d.name || 'Ideia'; telegraphPath = d.telegraphPath || ''; docId = d.docId || docId; importedMd = d.importedMd || ''; importedTxt = d.importedTxt || ''; importedHtml = d.importedHtml || ''; if(d.dest === 'telegram' || d.dest === 'telegraph') dest = d.dest; }
   }catch{ showToast('O rascunho salvo não pôde ser aberto'); }
 }
 function escapeHTML(s){ return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-function htmlToText(html){ const d = document.createElement('div'); d.innerHTML = html; return d.innerText; }
+function htmlToText(html){ if(importedTxt && editor.innerHTML===importedHtml)return importedTxt;const d = document.createElement('div'); d.innerHTML = html; return d.innerText; }
 function htmlToMarkdown(html){
-  const d=document.createElement('div');d.innerHTML=html;
-  const walk=n=>{
-    if(n.nodeType===3)return n.textContent;
-    if(n.nodeType!==1)return '';
-    const t=n.tagName.toLowerCase(),children=Array.from(n.childNodes),inner=children.map(walk).join('');
-    if(t==='strong'||t==='b')return '**'+inner+'**';
-    if(t==='em'||t==='i')return '*'+inner+'*';
-    if(t==='s'||t==='del')return '~~'+inner+'~~';
-    if(t==='code')return '`'+n.textContent.replace(/`/g,'\\`')+'`';
-    if(t==='a'){const href=n.getAttribute('href');if(!href)throw new Error('Adicione um endereço ao link antes de exportar');return '['+inner+'](<'+href+'>)';}
-    if(/^h[1-6]$/.test(t))return '\n'+'#'.repeat(Number(t[1]))+' '+inner+'\n';
-    if(t==='p')return n.classList.contains('tg-footer')?'\n<aside>'+inner+'</aside>\n':'\n'+inner+'\n';
-    if(t==='br')return '  \n';
-    if(t==='hr')return '\n---\n';
-    if(t==='blockquote')return '\n> '+inner.trim().replace(/\n/g,'\n> ')+'\n';
-    if(t==='ul'||t==='ol')return '\n'+Array.from(n.children).map((li,i)=>(t==='ol'?(i+1)+'. ':'- ')+Array.from(li.childNodes).map(walk).join('').trim()).join('\n')+'\n';
-    if(t==='li')return inner;
-    if(t==='div'||t==='article'||t==='section'||t==='span')return inner;
-    if(['u','sub','sup','mark','tg-spoiler','tg-reference','tg-emoji','tg-time','tg-math','details','table','tg-button','tg-button-row','footer','aside','figure','img','video','audio','tg-document','tg-map','tg-collage','tg-slideshow','tg-math-block'].includes(t))return '\n'+n.outerHTML+'\n';
-    if(t==='pre')return '\n'+n.outerHTML+'\n';
-    throw new Error('O conteúdo não pode ser exportado em Markdown: '+t);
-  };
-  return walk(d).trim();
+  if(importedMd && editor.innerHTML === importedHtml) return importedMd;
+  if(!window.TurndownService) throw new Error('Conversão Markdown indisponível');
+  const svc = new TurndownService({headingStyle:'atx', codeBlockStyle:'fenced', bulletListMarker:'-', emDelimiter:'*'});
+  svc.addRule('special', {filter: node => ['TG-SPOILER','TG-REFERENCE','TG-EMOJI','TG-TIME','TG-MATH','TG-MATH-BLOCK','TG-MAP','TG-COLLAGE','TG-SLIDESHOW','TG-DOCUMENT','TG-BUTTON','TG-BUTTON-ROW','DETAILS','TABLE','FIGURE','ASIDE','FOOTER','SUB','SUP','MARK','U','INPUT'].includes(node.nodeName) || node.classList?.contains('tg-footer') || node.nodeName === 'A' && node.hasAttribute('name'), replacement: (_,node)=>'\n'+node.outerHTML+'\n'});
+  return svc.turndown(html);
+
 }
 function mdToBasicHTML(md){
-  return md.split(/\n{2,}/).map(b => {
-    if(/^######\s/.test(b)) return '<h6>'+escapeHTML(b.replace(/^######\s/,''))+'</h6>';
-    if(/^#####\s/.test(b)) return '<h5>'+escapeHTML(b.replace(/^#####\s/,''))+'</h5>';
-    if(/^####\s/.test(b)) return '<h4>'+escapeHTML(b.replace(/^####\s/,''))+'</h4>';
-    if(/^### /.test(b)) return '<h3>'+escapeHTML(b.slice(4))+'</h3>';
-    if(/^## /.test(b)) return '<h2>'+escapeHTML(b.slice(3))+'</h2>';
-    if(/^# /.test(b)) return '<h1>'+escapeHTML(b.slice(2))+'</h1>';
-    if(/^> /.test(b)) return '<blockquote><p>'+escapeHTML(b.replace(/^> /gm,''))+'</p></blockquote>';
-    return '<p>'+escapeHTML(b).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\*(.+?)\*/g,'<em>$1</em>')+'</p>';
-  }).join('');
+  if(!window.marked) throw new Error('Importação Markdown indisponível');
+  const box = document.createElement('div');
+  box.innerHTML = window.marked.parse(md, {gfm:true, breaks:false});
+  const allowed = new Set('a b strong i em u ins s strike del code mark sub sup tg-spoiler tg-reference tg-emoji tg-time tg-math h1 h2 h3 h4 h5 h6 p pre footer hr ul ol li input blockquote aside cite img video audio tg-document figure figcaption tg-map tg-collage tg-slideshow table caption thead tbody tfoot tr th td details summary tg-math-block tg-button tg-button-row br div'.split(' '));
+  for(const el of box.querySelectorAll('*')){
+    const tag = el.localName;
+    if(!allowed.has(tag)) throw new Error('Elemento Markdown não suportado: '+tag);
+    for(const a of [...el.attributes]) if(a.name.startsWith('on') || ['src','href','url'].includes(a.name) && !/^(https?:|mailto:|tel:|tg:|#)/i.test(a.value)) throw new Error('Link Markdown inválido');
+  }
+  return box.innerHTML;
+
 }
 function download(name, content, type){
   const a = document.createElement('a');
@@ -485,9 +469,10 @@ function download(name, content, type){
 function telegraphNodes(root){
   const allow = new Set(['a','aside','b','blockquote','br','code','em','figcaption','figure','h3','h4','hr','i','iframe','img','li','ol','p','pre','s','strong','u','ul','video']);
   const conv = (el, standalone=false) => {
-    if(el.nodeType === 3){const text=el.textContent;if(!text.trim())return null;return standalone?{tag:'p',children:[text]}:text;}
+    if(el.nodeType === 3){const text=el.textContent;if(standalone&&!text.trim())return null;return standalone?{tag:'p',children:[text]}:text;}
     if(el.nodeType !== 1) return null;
     let tag = el.tagName.toLowerCase();
+    if(el.hasAttribute('data-media-id')) throw new Error('O Telegraph precisa de uma URL pública para mídia');
     if(tag === 'footer' || el.classList.contains('tg-footer')) tag = 'aside';
     if(['div','article','section','span','thead','tbody','tfoot'].includes(tag)) return Array.from(el.childNodes).map(child=>conv(child,standalone)).flat().filter(Boolean);
     if(!allow.has(tag)) throw new Error('O conteúdo contém um elemento que o Telegraph não aceita: ' + tag);
@@ -527,7 +512,7 @@ function toRichHTML(root){
       if(bool.has(name)){
         if(n.hasAttribute(name)) attrs.push(name);
       }else{
-        const value=n.getAttribute(name);
+        const value=name==='src' && n.hasAttribute('data-media-id') ? 'tg://'+({img:'photo',video:'video',audio:'audio','tg-document':'document'}[tag])+'?id='+n.getAttribute('data-media-id') : n.getAttribute(name);
         if(value!==null&&value!=='') attrs.push(name+'="'+escapeHTML(value)+'"');
       }
     }
@@ -543,7 +528,7 @@ function buildRich(){
 function buildTelegraph(){
   const title=docName.value.trim();
   if(!title) throw new Error('Dê um nome à página antes de publicar');
-  return {title, content: telegraphNodes(editor), path: telegraphPath};
+  return {title, content: telegraphNodes(editor), path: telegraphPath, doc: docId, initData: getTg()?.initData || ''};
 }
 editor.addEventListener('input', ()=>{ if(!composing){ markDirty(); pushHist(); }});
 editor.addEventListener('compositionstart', ()=> composing = true);
@@ -577,7 +562,7 @@ document.addEventListener('selectionchange', ()=>{
   $$('#headingMenu [data-block]').forEach(btn => btn.classList.toggle('is-current', btn.dataset.block === kind));
 });
 $('#typebar').addEventListener('mousedown', e => e.preventDefault());
-$('#typebar [data-cmd], #plusMenu [data-cmd]').forEach(btn => btn.addEventListener('click', ()=>{try{exec(btn.dataset.cmd);closePanels();}catch(err){showToast(err.message);}}));
+$$('#typebar [data-cmd], #plusMenu [data-cmd]').forEach(btn => btn.addEventListener('click', ()=>{try{exec(btn.dataset.cmd);closePanels();}catch(err){showToast(err.message);}}));
 $$('#typebar [data-block], #headingMenu [data-block], #quoteMenu [data-block]').forEach(btn => btn.addEventListener('click', ()=>{try{formatBlock(btn.dataset.block);}catch(err){showToast(err.message);}}));
 $$('#plusMenu [data-insert], #quoteMenu [data-insert]').forEach(btn => btn.addEventListener('click', ()=>{try{insertFeature(btn.dataset.insert);}catch(err){showToast(err.message);}}));
 $('#linkBtn').addEventListener('click', ()=>{
@@ -613,6 +598,57 @@ $('#importMdBtn')?.addEventListener('click', ()=>{ fileInput.accept='.md,text/ma
 $('#importTxtBtn')?.addEventListener('click', ()=>{ fileInput.accept='.txt,text/plain'; fileInput.click(); closePanels(); });
 $('#exportTxtBtn')?.addEventListener('click', ()=>exportFile('txt'));
 $('#exportMdBtn')?.addEventListener('click', ()=>exportFile('md'));
+$('#mediaBtn').addEventListener('click',()=>{$('#mediaInput').click();closePanels();});
+$('#mediaInput').addEventListener('change',()=>{
+  const file=$('#mediaInput').files?.[0];if(!file)return;
+  if(file.size>20_000_000){showToast('Arquivo acima de 20 MB');return;}
+  const kind=file.type.startsWith('image/')?'image':file.type.startsWith('video/')?'video':file.type.startsWith('audio/')?'audio':'document';
+  const id=crypto.randomUUID().replace(/-/g,'');
+  if(mediaFile)URL.revokeObjectURL(mediaFile.url);
+  mediaFile={file,id,kind,url:URL.createObjectURL(file)};
+  editor.querySelectorAll('[data-media-id]').forEach(el=>el.closest('figure')?.remove());
+  const tag={image:'img',video:'video',audio:'audio',document:'tg-document'}[kind];
+  insertHTML('<figure><'+tag+' data-media-id="'+id+'" src="'+mediaFile.url+'"></'+tag+'><figcaption>'+escapeHTML(file.name)+'</figcaption></figure>');
+  $('#mediaInput').value='';
+});
+$('#findBtn').addEventListener('click', e=>openPanel('#findMenu', e.currentTarget));
+$('#previewBtn').addEventListener('click', ()=>{
+  const view=$('#preview');
+  if(view.classList.contains('on')){view.classList.remove('on');editor.classList.remove('off');$('#previewBtn').textContent='Prévia';return;}
+  try{
+    if(dest==='telegram') {
+      view.innerHTML=buildRich().rich_message.html;
+      if(mediaFile)view.querySelectorAll('[src="tg://'+({image:'photo',video:'video',audio:'audio',document:'document'}[mediaFile.kind])+'?id='+mediaFile.id+'"]').forEach(el=>el.setAttribute('src',mediaFile.url));
+    }
+    else {const data=buildTelegraph();const render=n=>typeof n==='string'?escapeHTML(n):'<'+n.tag+Object.entries(n.attrs||{}).map(([k,v])=>' '+k+'="'+escapeHTML(v)+'"').join('')+'>'+((n.children||[]).map(render).join(''))+'</'+n.tag+'>';view.innerHTML=data.content.map(render).join('');}
+    view.classList.add('on');editor.classList.add('off');$('#previewBtn').textContent='Editar';closePanels();
+  }catch(err){showToast(err.message);}
+});
+function matches(){
+  const term=$('#findText').value;
+  if(!term) return [];
+  const walk=document.createTreeWalker(editor,NodeFilter.SHOW_TEXT);
+  const found=[];let node;
+  while((node=walk.nextNode())){let at=0;while((at=node.textContent.toLocaleLowerCase().indexOf(term.toLocaleLowerCase(),at))>=0){found.push([node,at]);at+=term.length;}}
+  return found;
+}
+$('#findNext').addEventListener('click',()=>{
+  const all=matches();if(!all.length)return showToast('Nenhuma ocorrência');
+  const sel=window.getSelection(), cur=sel.rangeCount?sel.getRangeAt(0):null;
+  const i=all.findIndex(([node,at])=>!cur||cur.comparePoint(node,at)<0);
+  const [node,at]=all[i<0?0:i],r=document.createRange();r.setStart(node,at);r.setEnd(node,at+$('#findText').value.length);sel.removeAllRanges();sel.addRange(r);savedRange=r.cloneRange();node.parentElement.scrollIntoView({block:'center'});
+});
+$('#replaceOne').addEventListener('click',()=>{
+  const sel=window.getSelection();
+  if(!sel.rangeCount||sel.toString().toLocaleLowerCase()!==$('#findText').value.toLocaleLowerCase())$('#findNext').click();
+  if(sel.toString().toLocaleLowerCase()!==$('#findText').value.toLocaleLowerCase()||!$('#findText').value)return;
+  const r=sel.getRangeAt(0);r.deleteContents();r.insertNode(document.createTextNode($('#replaceText').value));pushHist();markDirty();$('#findNext').click();
+});
+$('#replaceAll').addEventListener('click',()=>{
+  const all=matches();const find=$('#findText').value,replace=$('#replaceText').value;
+  for(const [node,at] of all.reverse())node.textContent=node.textContent.slice(0,at)+replace+node.textContent.slice(at+find.length);
+  if(all.length){pushHist();markDirty();}showToast(all.length+' substituições');
+});
 
 function exportName(ext) {
   const base = (docName.value || "document").trim().replace(/[\\/:*?"<>|]+/g, "-").replace(/^\.+|\.+$/g, "").slice(0, 80) || "document";
@@ -654,10 +690,14 @@ async function publishTelegram(){
   if(!initData){ showToast('Abra pelo bot no Telegram'); return; }
   try{
     const p = buildRich();
+    const data=mediaFile;
+    if(editor.querySelector('[data-media-id]') && (!data || !editor.querySelector('[data-media-id="'+data.id+'"]'))) throw new Error('Anexe a mídia novamente antes de publicar');
+    const form = data ? new FormData() : null;
+    if(form){form.set('initData',initData);form.set('html',p.rich_message.html);form.set('kind',data.kind);form.set('id',data.id);form.set('upload',data.file,data.file.name);}
     const res = await fetch(API+'/api/telegram/send', {
       method:'POST',
-      headers:{'content-type':'application/json'},
-      body: JSON.stringify({ initData, html: p.rich_message.html })
+      ...(form?{}:{headers:{'content-type':'application/json'}}),
+      body: form || JSON.stringify({ initData, html: p.rich_message.html })
     });
     const json = await readResponse(res);
     if(!res.ok) throw new Error(json.error || 'Não foi possível enviar a mensagem');
@@ -690,8 +730,11 @@ fileInput.addEventListener('change', async ()=>{
     if(!/\.(md|txt)$/i.test(file.name)) throw new Error('Escolha um arquivo Markdown ou TXT');
     const text = await file.text();
     docName.value = file.name.replace(/\.(md|txt)$/i,'');
-    editor.innerHTML = /\.md$/i.test(file.name) ? mdToBasicHTML(text) : '<p>'+escapeHTML(text).replace(/\n/g,'<br>')+'</p>';
-    telegraphPath = '';
+    editor.innerHTML = /\.md$/i.test(file.name) ? mdToBasicHTML(text.replace(/^\uFEFF/,'')) : '<p>'+escapeHTML(text.replace(/^\uFEFF/,'')).replace(/\n/g,'<br>')+'</p>';
+    importedMd = /\.md$/i.test(file.name) ? text.replace(/^\uFEFF/,'') : '';
+    importedTxt = /\.txt$/i.test(file.name) ? text.replace(/^\uFEFF/,'') : '';
+    importedHtml = editor.innerHTML;
+    telegraphPath = '';docId=crypto.randomUUID();mediaFile=null;pushHist();
     markDirty(); closePanels();
   }catch(err){ showToast(err.message || 'Não foi possível importar o arquivo'); }
   fileInput.value='';
