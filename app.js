@@ -33,7 +33,6 @@ function applyScheme(){
 applyScheme();
 window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', applyScheme);
 function getTg(){ return window.Telegram?.WebApp; }
-if(getTg()?.initData)document.documentElement.classList.add('tg-shell');
 function isInsideTelegram(){ return inTg; }
 const API = 'https://mdtxtrt.up.railway.app';
 const DB_NAME='mdtxtrt',DB_STORE='media';
@@ -216,7 +215,6 @@ function setupTelegram(){
   document.body.classList.add('tg');
   tg.ready();
   tg.expand();
-  if(tg.isVersionAtLeast('8.0')&&!tg.isFullscreen)tg.requestFullscreen();
   applyScheme();
   tg.onEvent('themeChanged',applyScheme);
   tg.BackButton.hide();
