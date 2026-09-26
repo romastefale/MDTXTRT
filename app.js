@@ -754,14 +754,14 @@ function mdToBasicHTML(md){
   return box.innerHTML;
 
 }
-async function download(name, content, type){
+async function download(name,content,type){
+  const tg=getTg();
+  if(inTg&&!tg.isVersionAtLeast('8.0'))throw new Error('Atualize o Telegram para baixar arquivos pelo Mini App');
   const res=await fetch(API+'/api/export',{method:'POST',signal:AbortSignal.timeout(30000),headers:{'content-type':'application/json'},body:JSON.stringify({name,content,type})});
   const data=await readResponse(res);
   if(!res.ok)throw new Error(data.error||'Não foi possível preparar o arquivo');
   if(typeof data.url!=='string'||!/^https:\/\//.test(data.url)||typeof data.name!=='string'||!data.name)throw new Error('Resposta de download inválida');
-  const tg=getTg();
   if(inTg){
-    if(!tg.isVersionAtLeast('8.0'))throw new Error('Atualize o Telegram para baixar arquivos pelo Mini App');
     await new Promise((resolve,reject)=>tg.downloadFile({url:data.url,file_name:data.name},accepted=>accepted?resolve():reject(new Error('Download cancelado'))));
     return;
   }
