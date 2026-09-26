@@ -609,6 +609,13 @@ test('link editing stays inside the Liquid Glass sheet and preserves the selecte
   w.close();
 });
 
+test('legacy mobile geometry cannot return to the baseline',()=>{
+  const html=readFileSync(new URL('index.html',root),'utf8');
+  const app=readFileSync(new URL('app.js',root),'utf8');
+  assert.doesNotMatch(html,/visualViewport|--vv-|--kb|100lvh|background-attachment\s*:\s*fixed|112px|76px/);
+  assert.doesNotMatch(app,/visualViewport|--vv-|--kb|window\.innerHeight|\bfit\s*\(|safeAreaInset|contentSafeAreaInset|style\.setProperty\('--tg-/);
+});
+
 test('editor uses no native blocking prompt confirm or alert dialogs',()=>{
   const app=readFileSync(new URL('app.js',root),'utf8');
   assert.doesNotMatch(app,/\b(?:prompt|confirm|alert)\s*\(/);
