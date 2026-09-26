@@ -5,11 +5,12 @@ import {JSDOM} from 'jsdom';
 import {randomUUID} from 'node:crypto';
 
 const root = new URL('../', import.meta.url);
-function page(){
+function page(tg){
   const dom = new JSDOM(readFileSync(new URL('index.html',root),'utf8'),{url:'https://mdtxtrt.up.railway.app/',runScripts:'outside-only'});
   const w = dom.window;
   w.matchMedia = () => ({matches:true,addEventListener(){}});
   Object.defineProperty(w.crypto,'randomUUID',{value:randomUUID});
+  if(tg){w.Telegram={WebApp:{initData:'signed-payload',colorScheme:'dark',ready(){},expand(){},setHeaderColor(){},MainButton:{setText(){},show(){},onClick(){}},...tg}};w.fetch=tg.fetch;}
   w.eval(readFileSync(new URL('marked.js',root),'utf8'));
   w.eval(readFileSync(new URL('turndown.js',root),'utf8'));
   w.eval(readFileSync(new URL('app.js',root),'utf8'));
@@ -64,5 +65,14 @@ test('Telegram rich serializer rejects arbitrary elements and uses native HTML',
   assert.match(w.eval('buildRich().rich_message.html'),/checked/);
   editor.innerHTML='<svg></svg>';
   assert.throws(()=>w.eval('buildRich()'),/não aceita/);
+  w.close();
+});
+test('Mini App mode waits for backend initData validation',async()=>{
+  let resolve;
+  const w=page({fetch:()=>new Promise(r=>resolve=r)});
+  assert.equal(w.document.body.classList.contains('tg'),false);
+  resolve({ok:true});
+  await new Promise(r=>setTimeout(r,5));
+  assert.equal(w.document.body.classList.contains('tg'),true);
   w.close();
 });

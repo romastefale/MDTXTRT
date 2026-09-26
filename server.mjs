@@ -577,6 +577,25 @@ const server = createServer(async (req, res) => {
       }
       return;
     }
+    if (url.pathname === "/api/telegram/session" && req.method === "POST") {
+      if (!setCors(req, res)) {
+        res.writeHead(403, { "content-type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ error: "Acesso não autorizado" }));
+        return;
+      }
+      try {
+        const body = await readJson(req, 10000);
+        const token = botToken();
+        if (!token) throw new Error("O Telegram não está configurado");
+        userFromInitData(String(body?.initData || ""), token);
+        res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+        res.end(JSON.stringify({ ok: true }));
+      } catch (err) {
+        res.writeHead(401, { "content-type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ error: err.message || "Sessão Telegram inválida" }));
+      }
+      return;
+    }
     if (url.pathname === "/api/telegraph/publish" && req.method === "POST") {
       if (!setCors(req, res)) {
         res.writeHead(403, { "content-type": "application/json; charset=utf-8" });

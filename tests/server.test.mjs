@@ -31,6 +31,8 @@ test('homepage and local browser assets',async()=>{
   for(const path of ['/','/app.js','/marked.js','/turndown.js']) assert.equal((await fetch(`http://127.0.0.1:${port}${path}`)).status,200);
 });
 test('initData validation and Rich HTML rejection',async()=>{
+  assert.equal((await post('/api/telegram/session',{initData:init()})).status,200);
+  assert.equal((await post('/api/telegram/session',{initData:'wrong'})).status,401);
   const bad=await post('/api/telegram/send',{initData:'wrong',html:'<p>ok</p>'});
   assert.equal(bad.status,400);
   assert.match(bad.data.error,/inválida/);

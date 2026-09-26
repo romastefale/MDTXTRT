@@ -6,6 +6,7 @@ const toast = $('#toast');
 const backdrop = $('#backdrop');
 const fileInput = $('#fileInput');
 let dest = 'telegram';
+let inTg = false;
 const sheets = ['#plusMenu','#headingMenu','#quoteMenu','#importMenu','#exportMenu','#findMenu'];
 let savedRange = null, hist = [], histI = -1, histLock = false, composing = false, saveTimer = null, telegraphPath = '', docId = crypto.randomUUID(), importedMd = '', importedTxt = '', importedHtml = '', mediaFile = null;
 function applyAssets(){
@@ -28,10 +29,19 @@ function applyScheme(){
 applyScheme();
 window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', applyScheme);
 function getTg(){ return window.Telegram?.WebApp; }
-function isInsideTelegram(){ return Boolean(getTg()?.initData); }
-const inTg = isInsideTelegram();
+function isInsideTelegram(){ return inTg; }
 const API = 'https://mdtxtrt.up.railway.app';
-if (inTg) {
+async function verifyTelegram(){
+  const initData=getTg()?.initData;
+  if(!initData)return;
+  try{
+    const res=await fetch(API+'/api/telegram/session',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({initData})});
+    if(!res.ok)throw new Error('Sessão Telegram inválida ou expirada');
+    setupTelegram();
+  }catch(err){showToast(err.message||'Não foi possível validar a sessão Telegram');}
+}
+function setupTelegram(){
+  inTg=true;
   const tg = getTg();
   document.body.classList.add('tg');
   tg.ready(); tg.expand();
@@ -590,6 +600,7 @@ $('#headingBtn')?.addEventListener('click', e=>openPanel('#headingMenu', e.curre
 $('#quoteBtn')?.addEventListener('click', e=>openPanel('#quoteMenu', e.currentTarget));
 $('#destBtn').addEventListener('click', ()=>setDestination(dest === 'telegram' ? 'telegraph' : 'telegram'));
 $('#exportBtn').addEventListener('click', e=>{
+  if(getTg()?.initData && !inTg){showToast('Aguarde a validação da sessão Telegram');return;}
   if(inTg) return publishCurrent();
   openPanel('#exportMenu', e.currentTarget);
 });
@@ -763,6 +774,7 @@ if(inTg) getTg()?.onEvent?.('viewportChanged', fit);
 loadLocal();
 setDestination(dest, false);
 pushHist();
+void verifyTelegram();
 const canvasEl = document.getElementById('canvas');
 canvasEl?.addEventListener('scroll', () => {
   document.documentElement.style.setProperty('--top-blur', String(Math.min(1, canvasEl.scrollTop / 52)));
