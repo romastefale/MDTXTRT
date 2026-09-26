@@ -1,10 +1,5 @@
 const $ = s => document.querySelector(s);
 const $ = s => Array.from(document.querySelectorAll(s));
-const required=['#editor','#docName','#toast','#backdrop','#fileInput','#mediaInput','#plusMenu','#headingMenu','#quoteMenu','#listMenu','#importMenu','#exportMenu','#findMenu','#dialogMenu','#typebar','#plusBtn','#headingBtn','#listBtn','#quoteBtn','#linkBtn','#destBtn','#exportBtn','#brandBtn','#undoBtn','#redoBtn','meta[name="theme-color"]'];
-for(const selector of required)if(!$(selector))throw new Error('Inicialização incompleta: '+selector);
-if(typeof crypto?.randomUUID!=='function')throw new Error('Inicialização incompleta: crypto.randomUUID');
-if(typeof window.marked?.parse!=='function')throw new Error('Inicialização incompleta: marked');
-if(typeof window.TurndownService!=='function')throw new Error('Inicialização incompleta: TurndownService');
 const editor = $('#editor');
 const docName = $('#docName');
 const toast = $('#toast');
@@ -29,10 +24,10 @@ function applyScheme(){
   document.documentElement.classList.toggle('dark', !light);
   $('meta[name="theme-color"]').setAttribute('content', light ? '#f8fbff' : '#000000');
   if(tg&&inTg){
-    const header = light ? '#f8fbff' : '#000000';
+    const header=light?'#f8fbff':'#000000';
     tg.setHeaderColor(header);
     tg.setBackgroundColor(header);
-    tg.setBottomBarColor(header);
+    if(tg.isVersionAtLeast('7.10'))tg.setBottomBarColor(header);
   }
 }
 applyScheme();
@@ -204,18 +199,16 @@ async function verifyTelegram(){
 }
 function setupTelegram(){
   const tg=getTg();
-  if(!tg)throw new Error('Cliente Telegram indisponível');
-  for(const name of ['ready','expand','requestFullscreen','onEvent','setHeaderColor','setBackgroundColor','setBottomBarColor','disableVerticalSwipes','downloadFile'])if(typeof tg[name]!=='function')throw new Error('Cliente Telegram incompatível: '+name);
-  if(typeof tg.BackButton?.hide!=='function'||typeof tg.MainButton?.hide!=='function')throw new Error('Cliente Telegram incompatível: controles nativos');
   inTg=true;session='ready';
-  document.documentElement.classList.add('tg-shell');
+  document.documentElement.classList.toggle('tg-shell',tg.isVersionAtLeast('8.0'));
   document.body.classList.add('tg');
-  tg.ready();tg.expand();
-  if(!tg.isFullscreen)tg.requestFullscreen();
+  tg.ready();
+  tg.expand();
+  if(tg.isVersionAtLeast('8.0')&&!tg.isFullscreen)tg.requestFullscreen();
   applyScheme();
   tg.onEvent('themeChanged',applyScheme);
   tg.BackButton.hide();
-  tg.disableVerticalSwipes();
+  if(tg.isVersionAtLeast('7.7'))tg.disableVerticalSwipes();
   tg.MainButton.hide();
 }
 function showToast(msg){
@@ -756,7 +749,8 @@ async function download(name, content, type){
   const data=await readResponse(res);
   if(!res.ok||!data.url)throw new Error(data.error||'Não foi possível preparar o arquivo');
   const tg=getTg();
-  if(inTg&&tg?.downloadFile){
+  if(inTg){
+    if(!tg.isVersionAtLeast('8.0'))throw new Error('Atualize o Telegram para baixar arquivos pelo Mini App');
     await new Promise((resolve,reject)=>tg.downloadFile({url:data.url,file_name:data.name||name},accepted=>accepted?resolve():reject(new Error('Download cancelado'))));
     return;
   }
