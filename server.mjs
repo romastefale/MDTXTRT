@@ -14,8 +14,9 @@ function required(name){
   return value;
 }
 function httpsUrl(name){
+  const value=required(name);
   let url;
-  try{url=new URL(required(name));}catch{throw new Error("Configuração inválida: "+name);}
+  try{url=new URL(value);}catch{throw new Error("Configuração inválida: "+name);}
   if(url.protocol!=="https:")throw new Error("Configuração inválida: "+name);
   return url;
 }
