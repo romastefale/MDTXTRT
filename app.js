@@ -169,7 +169,9 @@ async function recoverTelegraph(){
   if(res.status===404)return;
   const data=await readResponse(res);
   if(!res.ok)throw new Error(data.error||'Não foi possível recuperar a página do Telegraph');
-  if(data.path){telegraphPath=data.path;saveLocal();}
+  if(typeof data.path!=='string'||!data.path)throw new Error('Resposta de recuperação do Telegraph inválida');
+  telegraphPath=data.path;
+  saveLocal();
 }
 async function openMiniApp(){
   if(busy)return;busy=true;
@@ -181,8 +183,12 @@ async function openMiniApp(){
     if(mediaFile)form.set('upload',mediaFile.file,mediaFile.file.name);
     const res=await fetch(API+'/api/handoff',{method:'POST',signal:AbortSignal.timeout(60000),body:form});
     const data=await readResponse(res);
-    if(!res.ok||!data.open)throw new Error(data.error||'Não foi possível abrir o Mini App');
-    window.location.assign(data.open);
+    if(!res.ok)throw new Error(data.error||'Não foi possível abrir o Mini App');
+    if(typeof data.open!=='string')throw new Error('Resposta de transferência inválida');
+    const open=new URL(data.open);
+    const api=new URL(API);
+    if(open.origin!==api.origin||open.pathname!=='/telegram/open'||!/^[a-f0-9]{32}$/.test(open.searchParams.get('handoff')||''))throw new Error('Resposta de transferência inválida');
+    window.location.assign(open.href);
   }catch(err){showToast(err.name==='TimeoutError'?'Tempo de transferência esgotado':err.message||'Não foi possível abrir o Mini App');}
   finally{busy=false;}
 }
@@ -1068,8 +1074,9 @@ async function publishTelegram(){
       ...(form?{}:{headers:{'content-type':'application/json'}}),
       body: form || JSON.stringify({ initData, html: p.rich_message.html })
     });
-    const json = await readResponse(res);
-    if(!res.ok) throw new Error(json.error || 'Não foi possível enviar a mensagem');
+    const json=await readResponse(res);
+    if(!res.ok)throw new Error(json.error||'Não foi possível enviar a mensagem');
+    if(json.via!=='sendRichMessage'||!Number.isInteger(json.messageId)||json.messageId<=0)throw new Error('Resposta do Telegram inválida');
     showToast('Mensagem enviada no chat do bot');
   }catch(err){
     showToast(err.name==='TimeoutError'?'Tempo de envio esgotado. Confira o chat antes de tentar novamente.':err instanceof TypeError?'Não foi possível conectar ao Telegram':err.message || 'Não foi possível enviar a mensagem');
