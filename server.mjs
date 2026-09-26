@@ -1,6 +1,6 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { createReadStream, existsSync, statSync, readFileSync, writeFileSync, renameSync, mkdirSync } from "node:fs";
-import { parseDocument } from "htmlparser2";
+import { DomUtils, parseDocument } from "htmlparser2";
 import Busboy from "busboy";
 import { createServer } from "node:http";
 import { extname, relative, resolve } from "node:path";
@@ -163,18 +163,49 @@ async function sendRich(initData, html, file = null) {
   if (!token) throw new Error("O envio para o Telegram não está configurado");
   richValid(html);
   const { chatId } = userFromInitData(String(initData || ""), token);
-  let body = { chat_id: chatId, rich_message: { html: String(html) } };
+  const doc = parseDocument(String(html));
+  const media = [];
+  let attached = false;
+  const kinds = { img:"photo",video:"video",audio:"audio","tg-document":"document" };
+  const visit = node => {
+    if (node.type === "tag" && kinds[node.name]) {
+      const kind = kinds[node.name], src = node.attribs.src;
+      let id, source;
+      if (/^https?:\/\//i.test(src)) {
+        id = randomUUID().replace(/-/g, "");
+        source = src;
+      } else if (src.startsWith("tg://")) {
+        const url = new URL(src);
+        id = url.searchParams.get("id") || "";
+        if (file && id === file.id && url.hostname === kind && file.kind === ({photo:"image",video:"video",audio:"audio",document:"document"})[kind]) {
+          source = "attach://upload";
+          attached = true;
+        } else {
+          throw new Error("Anexe a mídia novamente antes de publicar");
+        }
+      } else {
+        throw new Error("Endereço de mídia inválido");
+      }
+      if (!/^[A-Za-z0-9_-]{1,64}$/.test(id)) throw new Error("Identificador de mídia inválido");
+      node.attribs.src = `tg://${kind}?id=${id}`;
+      media.push({id,media:{type:kind,media:source}});
+    }
+    node.children?.forEach(visit);
+  };
+  doc.children.forEach(visit);
+  if (file && !attached) throw new Error("A mídia anexada não está no documento");
+  const rich = { html: DomUtils.getInnerHTML(doc) };
+  if (media.length) rich.media = media;
+  let body = { chat_id: chatId, rich_message: rich };
   if (file) {
     const kind = {image:"photo",video:"video",audio:"audio",document:"document"}[file.kind];
     if (!kind || !/^[A-Za-z0-9_-]{1,64}$/.test(file.id) || !["image/", "video/", "audio/", "application/", "text/"].some(prefix=>file.mime.startsWith(prefix))) throw new Error("Mídia inválida");
-    if (!html.includes(`tg://${kind}?id=${file.id}`)) throw new Error("Mídia ausente da mensagem");
-    body.rich_message.media = [{ id:file.id, media:{type:kind, media:"attach://upload"} }];
     const form = new FormData();
     form.set("chat_id", chatId);
     form.set("rich_message", JSON.stringify(body.rich_message));
     form.set("upload", new Blob([file.bytes], {type:file.mime}), file.name);
     body = form;
-  } else if (/tg:\/\/(photo|video|audio|document)\?id=/.test(html)) throw new Error("Anexe a mídia novamente antes de publicar");
+  }
   const msg = await telegramCall(token, "sendRichMessage", body);
   return { via: "sendRichMessage", messageId: msg.message_id };
 }
@@ -573,7 +604,7 @@ const server = createServer(async (req, res) => {
         res.end(JSON.stringify(result));
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Não foi possível publicar no Telegram";
-        const code = /inválid[ao]s?|expirada|ausente|Abra pelo|solicitação|dados do envio|Escreva algo/i.test(msg) ? 400 : 500;
+        const code = /inválid[ao]s?|expirada|ausente|Abra pelo|solicitação|dados do envio|Escreva algo|Anexe a mídia|identificador de mídia|endereço de mídia|mídia anexada/i.test(msg) ? 400 : 500;
         res.writeHead(code, { "content-type": "application/json; charset=utf-8" });
         res.end(JSON.stringify({ error: msg }));
       }

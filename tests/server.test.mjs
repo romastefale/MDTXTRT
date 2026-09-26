@@ -122,7 +122,9 @@ test('Rich Message send and Telegraph create/edit on same owned document',async(
   const sent=await post('/api/telegram/send',{initData:init(),html:'<h1>Olá</h1><p><strong>Teste</strong></p>'});
   assert.equal(sent.status,200);
   assert.equal(sent.data.via,'sendRichMessage');
-  assert.deepEqual(lastCall('sendRichMessage').body.rich_message,{html:'<h1>Olá</h1><p><strong>Teste</strong></p>'});
+  const output=parseDocument(lastCall('sendRichMessage').body.rich_message.html);
+  assert.equal(find(output,'h1')[0].children[0].data,'Olá');
+  assert.equal(find(output,'strong')[0].children[0].data,'Teste');
   const page={title:'Página',doc:'33333333-3333-4333-8333-333333333333',content:[{tag:'h3',children:['Título']},{tag:'p',children:['texto']}],initData:init()};
   const created=await post('/api/telegraph/publish',page);
   assert.equal(created.status,200);
@@ -152,4 +154,24 @@ test('attached media uses native Rich Message upload',async()=>{
   assert.deepEqual(JSON.parse(sent.body.rich_message).media,[{id,media:{type:'photo',media:'attach://upload'}}]);
   assert.equal(sent.body.upload.name,'photo.png');
   assert.equal(sent.body.upload.type,'image/png');
+});
+test('HTTP media URLs become Bot API 10.3 rich media references for each media type',async()=>{
+  const html='<figure><img src="https://cdn.example/photo.png"><video src="https://cdn.example/clip.mp4"></video><audio src="https://cdn.example/sound.mp3"></audio><tg-document src="https://cdn.example/file.pdf"></tg-document></figure>';
+  const res=await post('/api/telegram/send',{initData:init(),html});
+  assert.equal(res.status,200);
+  const rich=lastCall('sendRichMessage').body.rich_message;
+  assert.deepEqual(rich.media.map(item=>item.media.type),['photo','video','audio','document']);
+  assert.deepEqual(rich.media.map(item=>item.media.media),[
+    'https://cdn.example/photo.png','https://cdn.example/clip.mp4','https://cdn.example/sound.mp3','https://cdn.example/file.pdf'
+  ]);
+  const tree=parseDocument(rich.html);
+  const refs=find(tree,'img').concat(find(tree,'video'),find(tree,'audio'),find(tree,'tg-document'));
+  assert.equal(refs.length,4);
+  for(const [index,node] of refs.entries()){
+    const id=new URL(node.attribs.src).searchParams.get('id');
+    assert.equal(id,rich.media[index].id);
+    assert.match(node.attribs.src,/^tg:\/\/(photo|video|audio|document)\?id=/);
+  }
+  const stale=await post('/api/telegram/send',{initData:init(),html:'<img src="tg://photo?id=missing">'});
+  assert.equal(stale.status,400);
 });
