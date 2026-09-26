@@ -32,6 +32,9 @@ before(async()=>{
 after(()=>{child?.kill();if(dir)rmSync(dir,{recursive:true,force:true});});
 test('homepage and local browser assets',async()=>{
   for(const path of ['/','/app.js','/marked.js','/turndown.js']) assert.equal((await fetch(`http://127.0.0.1:${port}${path}`)).status,200);
+  const html=readFileSync(new URL('../index.html',import.meta.url),'utf8');
+  const icons=[...new Set([...html.matchAll(/data-icon="([\w-]+)"/g)].map(m=>m[1]))];
+  for(const icon of icons) assert.equal((await fetch(`http://127.0.0.1:${port}/icons/${icon}.svg`)).status,200,icon);
 });
 test('initData validation and Rich HTML rejection',async()=>{
   assert.equal((await post('/api/telegram/session',{initData:init()})).status,200);

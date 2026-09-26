@@ -37,6 +37,7 @@
       --tg-top:0px;
       --kb:0px;
       --vv-h:100dvh;
+      --vv-end:100dvh;
       --bar-h:52px; --top-blur:0;
     }
     @media (prefers-color-scheme: light){
@@ -159,6 +160,16 @@
     .editor table{width:100%;border-collapse:collapse;font-size:14px}
     .editor th,.editor td{border:1px solid var(--line);padding:6px}
     .editor a{color:var(--accent)}
+    .editor img,.editor video,.editor iframe{max-width:100%;height:auto}
+    .editor figure{margin:1em 0}
+    .editor figcaption{font-size:13px;color:var(--muted)}
+    .editor tg-button-row{display:flex;justify-content:center;gap:8px;margin:1em 0}
+    .editor tg-button{display:inline-block;border-radius:12px;padding:8px 14px;background:var(--accent);color:#fff}
+    .editor tg-document,.editor tg-map,.editor tg-math-block{display:block;margin:1em 0;padding:12px;border-radius:12px;background:color-mix(in srgb,var(--text) 8%,transparent)}
+    .editor tg-document::before{content:"Documento"}
+    .editor tg-map::before{content:"Mapa"}
+    .editor tg-collage,.editor tg-slideshow{display:flex;flex-wrap:wrap;gap:8px;margin:1em 0}
+    .editor tg-spoiler{background:color-mix(in srgb,var(--text) 18%,transparent);border-radius:4px}
     .bar-wrap{
       position:fixed;left:0;right:0;bottom:var(--kb);z-index:20;
       padding:8px 12px calc(var(--safe-bottom) + 8px);
@@ -187,8 +198,8 @@
     .sheet{
       position:fixed;left:var(--sheet-left,14px);right:auto;bottom:calc(var(--bar-h) + var(--kb) + var(--safe-bottom) + 12px);
       z-index:40;width:max-content;max-width:calc(100vw - 28px);
-      max-height:calc(var(--vv-h, 100dvh) - var(--bar-h) - 24px);
-      overflow-x:hidden;overflow-y:auto;-webkit-overflow-scrolling:touch;
+      max-height:max(0px,calc(var(--vv-h) - max(var(--tg-top),var(--safe-top)) - var(--bar-h) - var(--safe-bottom) - 24px));
+      overflow:hidden;
       display:none;padding:8px;border:0;border-radius:30px;
       color:var(--text);background:var(--glass);
       box-shadow:0 4px 14px rgba(0,0,0,.14),0 22px 48px rgba(0,0,0,.2);
@@ -196,18 +207,18 @@
     }
     .sheet.is-top{
       bottom:auto;top:var(--sheet-top,72px);
-      max-height:calc(var(--vv-h, 100dvh) - var(--sheet-top, 72px) - var(--kb) - 16px);
+      max-height:max(0px,calc(var(--vv-end) - var(--sheet-top, 72px) - var(--safe-bottom) - 12px));
       transform-origin:var(--sheet-origin,50%) 0;
     }
     @keyframes sheet-in{from{opacity:0;transform:translateY(8px) scale(.98)}to{opacity:1;transform:none}}
-    .menu-list{display:flex;flex-direction:column;gap:2px;min-height:0;overflow:auto}
+    .menu-list{display:flex;flex-direction:column;gap:2px;min-height:0;overflow-x:hidden;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
     .menu-list button{display:flex;align-items:center;justify-content:flex-start;text-align:left;width:auto;min-width:100%;white-space:nowrap;min-height:clamp(44px, calc((var(--vv-h) - var(--bar-h) - 32px) / 10), 58px);border-radius:20px;border:0;background:transparent;box-shadow:none;padding:4px 18px 4px 6px;font-size:17px;gap:12px}
     .menu-list button[hidden]{display:none}
     .menu-list button:hover{background:color-mix(in srgb,var(--text) 7%,transparent)}
     .menu-list button:active{background:color-mix(in srgb,var(--text) 12%,transparent)}
     .sheet-ico{width:42px;height:42px;border-radius:50%;flex:none;display:grid;place-items:center;background:color-mix(in srgb,var(--text) 11%,transparent);box-shadow:inset 0 1px 0 rgba(255,255,255,.12)}
     .sheet-ico .ui-icon,.sheet-ico svg{width:20px;height:20px}
-    .sheet.on{display:block}
+    .sheet.on{display:flex;flex-direction:column}
     .toast{
       position:fixed;left:50%;bottom:calc(var(--bar-h) + var(--kb) + 16px);
       transform:translateX(-50%);z-index:50;display:none;
@@ -217,9 +228,7 @@
     .tools{display:flex;gap:8px;align-items:center;padding:10px;max-width:100%}
     .tools input{min-width:0;width:100%;border:0;border-radius:12px;background:color-mix(in srgb,var(--text) 10%,transparent);padding:10px;outline:0}
     .tools button{border:0;border-radius:12px;background:color-mix(in srgb,var(--accent) 22%,transparent);padding:10px;color:var(--text)}
-    #preview{display:none;white-space:normal}
-    #preview.on{display:block}
-    #editor.off{display:none}
+    #findMenu .menu-list{gap:0}
     @media (prefers-reduced-motion:reduce){.sheet{animation:none}}
   </style>
 </head>
@@ -247,7 +256,6 @@
     </div>
     <div class="canvas" id="canvas">
       <article id="editor" class="editor" contenteditable="true" spellcheck="true" inputmode="text" enterkeyhint="enter" aria-label="Editor" data-placeholder="Escreva aqui…"></article>
-      <article id="preview" class="editor"></article>
     </div>
   </div>
   <div class="bar-wrap">
@@ -283,48 +291,47 @@
   </div>
   <div class="sheet frost material-target" id="importMenu">
     <div class="menu-list">
-      <button id="importMdBtn"><span class="sheet-ico"><span class="ui-icon" data-icon="import"></span></span>Importar Markdown</button>
-      <button id="importTxtBtn"><span class="sheet-ico"><span class="ui-icon" data-icon="import"></span></span>Importar TXT</button>
+      <button id="importMdBtn"><span class="sheet-ico"><span class="ui-icon" data-icon="markdown"></span></span>Importar Markdown</button>
+      <button id="importTxtBtn"><span class="sheet-ico"><span class="ui-icon" data-icon="text_fields"></span></span>Importar TXT</button>
+      <button id="findBtn"><span class="sheet-ico"><span class="ui-icon" data-icon="search"></span></span>Localizar e substituir</button>
     </div>
   </div>
   <div class="sheet frost material-target" id="exportMenu">
     <div class="menu-list">
-      <button id="exportMdBtn"><span class="sheet-ico"><span class="ui-icon" data-icon="document"></span></span>Exportar Markdown</button>
-      <button id="exportTxtBtn"><span class="sheet-ico"><span class="ui-icon" data-icon="file"></span></span>Exportar TXT</button>
+      <button id="exportMdBtn"><span class="sheet-ico"><span class="ui-icon" data-icon="markdown"></span></span>Exportar Markdown</button>
+      <button id="exportTxtBtn"><span class="sheet-ico"><span class="ui-icon" data-icon="text_fields"></span></span>Exportar TXT</button>
     </div>
   </div>
   <div class="sheet frost material-target" id="plusMenu">
     <div class="menu-list">
       <button data-insert="task" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="task"></span></span>Checklist</button>
-      <button data-insert="ordered" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="list"></span></span>Lista ordenada</button>
-      <button data-cmd="strike"><span class="sheet-ico"><span class="ui-icon" data-icon="paragraph"></span></span>Riscado</button>
-      <button data-cmd="mark" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="paragraph"></span></span>Marca-texto</button>
-      <button data-cmd="spoiler" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="more"></span></span>Spoiler</button>
-      <button data-cmd="code"><span class="sheet-ico"><span class="ui-icon" data-icon="paragraph"></span></span>Código</button>
-      <button data-cmd="sub" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="paragraph"></span></span>Subscrito</button>
-      <button data-cmd="sup" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="paragraph"></span></span>Sobrescrito</button>
-      <button data-cmd="math" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="paragraph"></span></span>Fórmula inline</button>
-      <button data-insert="mathblock" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="paragraph"></span></span>Fórmula em bloco</button>
-      <button data-insert="divider"><span class="sheet-ico"><span class="ui-icon" data-icon="more"></span></span>Divisor</button>
+      <button data-insert="ordered" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="format_list_numbered"></span></span>Lista ordenada</button>
+      <button data-cmd="strike"><span class="sheet-ico"><span class="ui-icon" data-icon="strikethrough_s"></span></span>Riscado</button>
+      <button data-cmd="mark" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="ink_highlighter"></span></span>Marca-texto</button>
+      <button data-cmd="spoiler" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="visibility_off"></span></span>Spoiler</button>
+      <button data-cmd="code"><span class="sheet-ico"><span class="ui-icon" data-icon="code"></span></span>Código</button>
+      <button data-cmd="sub" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="subscript"></span></span>Subscrito</button>
+      <button data-cmd="sup" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="superscript"></span></span>Sobrescrito</button>
+      <button data-cmd="math" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="functions"></span></span>Fórmula inline</button>
+      <button data-insert="mathblock" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="calculate"></span></span>Fórmula em bloco</button>
+      <button data-insert="divider"><span class="sheet-ico"><span class="ui-icon" data-icon="horizontal_rule"></span></span>Divisor</button>
       <button data-insert="pullquote" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="quote"></span></span>Citação em destaque</button>
       <button data-insert="table" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="table"></span></span>Tabela</button>
       <button data-insert="details" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="details"></span></span>Conteúdo expansível</button>
-      <button data-insert="image"><span class="sheet-ico"><span class="ui-icon" data-icon="document"></span></span>Imagem</button>
+      <button data-insert="image"><span class="sheet-ico"><span class="ui-icon" data-icon="image"></span></span>Imagem</button>
       <button id="mediaBtn" data-tg="no">Anexar mídia</button>
-      <button data-insert="video"><span class="sheet-ico"><span class="ui-icon" data-icon="document"></span></span>Vídeo</button>
-      <button data-insert="embed" data-telegraph="only"><span class="sheet-ico"><span class="ui-icon" data-icon="document"></span></span>Incorporar</button>
-      <button data-insert="audio" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="document"></span></span>Áudio</button>
+      <button data-insert="video"><span class="sheet-ico"><span class="ui-icon" data-icon="movie"></span></span>Vídeo</button>
+      <button data-insert="embed" data-telegraph="only"><span class="sheet-ico"><span class="ui-icon" data-icon="web"></span></span>Incorporar</button>
+      <button data-insert="audio" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="music_note"></span></span>Áudio</button>
       <button data-insert="document" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="file"></span></span>Documento</button>
-      <button data-insert="map" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="more"></span></span>Mapa</button>
-      <button data-insert="collage" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="more"></span></span>Colagem</button>
-      <button data-insert="slideshow" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="more"></span></span>Slideshow</button>
-      <button data-insert="anchor" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="link"></span></span>Âncora</button>
-      <button data-insert="reference" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="link"></span></span>Referência</button>
-      <button data-insert="time" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="more"></span></span>Data e hora</button>
-      <button data-insert="emoji" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="more"></span></span>Emoji personalizado</button>
+      <button data-insert="map" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="location_on"></span></span>Mapa</button>
+      <button data-insert="collage" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="view_comfy"></span></span>Colagem</button>
+      <button data-insert="slideshow" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="slideshow"></span></span>Slideshow</button>
+      <button data-insert="anchor" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="anchor"></span></span>Âncora</button>
+      <button data-insert="reference" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="sticky_note_2"></span></span>Referência</button>
+      <button data-insert="time" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="schedule"></span></span>Data e hora</button>
+      <button data-insert="emoji" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="mood"></span></span>Emoji personalizado</button>
       <button data-insert="button" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="buttons"></span></span>Botão</button>
-      <button id="findBtn">Localizar e substituir</button>
-      <button id="previewBtn">Prévia</button>
     </div>
   </div>
   <svg class="defs" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><defs></defs></svg>
@@ -633,7 +640,7 @@ const mats=[...document.querySelectorAll('.material-target')].map(makeMaterial)}
   <input id="fileInput" type="file" accept=".txt,.md,text/plain,text/markdown" hidden>
   <input id="mediaInput" type="file" accept="image/*,video/*,audio/*,.pdf,.zip" hidden>
   <div class="toast frost material-target" id="toast"></div>
-  <div class="sheet frost material-target" id="findMenu"><div class="tools"><input id="findText" placeholder="Localizar"></div><div class="tools"><input id="replaceText" placeholder="Substituir"></div><div class="tools"><button id="findNext">Próximo</button><button id="replaceOne">Substituir</button><button id="replaceAll">Substituir tudo</button></div></div>
+  <div class="sheet frost material-target" id="findMenu"><div class="menu-list"><div class="tools"><input id="findText" placeholder="Localizar"></div><div class="tools"><input id="replaceText" placeholder="Substituir"></div><div class="tools"><button id="findNext">Próximo</button><button id="replaceOne">Substituir</button><button id="replaceAll">Substituir tudo</button></div></div></div>
   <script src="marked.js"></script>
   <script src="turndown.js"></script>
   <script src="app.js"></script>

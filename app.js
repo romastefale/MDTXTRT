@@ -53,7 +53,8 @@ function setupTelegram(){
   applySafe(); applyScheme();
   tg.onEvent?.('safeAreaChanged', applySafe);
   tg.onEvent?.('contentSafeAreaChanged', applySafe);
-  tg.onEvent?.('fullscreenChanged', applySafe);
+  tg.onEvent?.('fullscreenChanged', ()=>{applySafe();fit();});
+  tg.onEvent?.('viewportChanged', fit);
   tg.onEvent?.('themeChanged', applyScheme);
   tg.BackButton?.hide?.();
   tg.disableVerticalSwipes?.();
@@ -90,7 +91,7 @@ function openPanel(sel, anchor){
   const ref = anchor || document.activeElement;
   const rect = ref?.getBoundingClientRect?.();
   sheets.forEach(s => { const el = $(s); el.classList.remove('on'); el.classList.remove('is-top'); });
-  const placeTop = sel === '#importMenu' || sel === '#exportMenu';
+  const placeTop = sel === '#importMenu' || sel === '#exportMenu' || sel === '#findMenu';
   panel.classList.toggle('is-top', placeTop);
   if(placeTop && rect){
     panel.style.setProperty('--sheet-top', Math.round(rect.bottom + 8) + 'px');
@@ -99,6 +100,8 @@ function openPanel(sel, anchor){
   }
   panel.style.visibility = 'hidden';
   panel.classList.add('on');
+  const list = panel.querySelector('.menu-list');
+  if(list) list.scrollTop = 0;
   const width = Math.min(panel.offsetWidth || 0, innerWidth - 28) || Math.min(280, innerWidth - 28);
   const center = rect ? rect.left + rect.width / 2 : innerWidth / 2;
   const left = Math.max(14, Math.min(innerWidth - width - 14, center - width / 2));
@@ -619,19 +622,7 @@ $('#mediaInput').addEventListener('change',()=>{
   insertHTML('<figure><'+tag+' data-media-id="'+id+'" src="'+mediaFile.url+'"></'+tag+'><figcaption>'+escapeHTML(file.name)+'</figcaption></figure>');
   $('#mediaInput').value='';
 });
-$('#findBtn').addEventListener('click', e=>openPanel('#findMenu', e.currentTarget));
-$('#previewBtn').addEventListener('click', ()=>{
-  const view=$('#preview');
-  if(view.classList.contains('on')){view.classList.remove('on');editor.classList.remove('off');$('#previewBtn').textContent='Prévia';return;}
-  try{
-    if(dest==='telegram') {
-      view.innerHTML=buildRich().rich_message.html;
-      if(mediaFile)view.querySelectorAll('[src="tg://'+({image:'photo',video:'video',audio:'audio',document:'document'}[mediaFile.kind])+'?id='+mediaFile.id+'"]').forEach(el=>el.setAttribute('src',mediaFile.url));
-    }
-    else {const data=buildTelegraph();const render=n=>typeof n==='string'?escapeHTML(n):'<'+n.tag+Object.entries(n.attrs||{}).map(([k,v])=>' '+k+'="'+escapeHTML(v)+'"').join('')+'>'+((n.children||[]).map(render).join(''))+'</'+n.tag+'>';view.innerHTML=data.content.map(render).join('');}
-    view.classList.add('on');editor.classList.add('off');$('#previewBtn').textContent='Editar';closePanels();
-  }catch(err){showToast(err.message);}
-});
+$('#findBtn').addEventListener('click', ()=>openPanel('#findMenu', $('#brandBtn')));
 function matches(){
   const term=$('#findText').value;
   if(!term) return [];
@@ -761,13 +752,13 @@ const fit = ()=>{
   const top = vv ? vv.offsetTop : 0;
   document.documentElement.style.setProperty('--kb', Math.max(0, window.innerHeight - vh - top) + 'px');
   document.documentElement.style.setProperty('--vv-h', Math.max(0, vh) + 'px');
+  document.documentElement.style.setProperty('--vv-end', Math.max(0, top + vh) + 'px');
 };
 fit();
 vv?.addEventListener('resize', fit);
 vv?.addEventListener('scroll', fit);
 window.addEventListener('resize', fit);
 window.addEventListener('orientationchange', fit);
-if(inTg) getTg()?.onEvent?.('viewportChanged', fit);
 loadLocal();
 setDestination(dest, false);
 pushHist();

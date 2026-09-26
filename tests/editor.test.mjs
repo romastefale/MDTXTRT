@@ -38,15 +38,29 @@ test('markdown GFM and unsupported HTML',()=>{
   assert.throws(()=>w.eval('mdToBasicHTML("<script>alert(1)</script>")'),/não suportado/);
   w.close();
 });
-test('replace keeps bold and preview uses selected serializer',()=>{
+test('replace keeps semantic bold in the editor',()=>{
   const w=page();
   w.document.querySelector('#editor').innerHTML='<p>Teste <strong>forte forte</strong></p>';
   w.document.querySelector('#findText').value='forte';
   w.document.querySelector('#replaceText').value='novo';
   w.document.querySelector('#replaceAll').click();
   assert.equal(w.document.querySelector('#editor strong').textContent,'novo novo');
-  w.document.querySelector('#previewBtn').click();
-  assert.match(w.document.querySelector('#preview').innerHTML,/<strong>novo novo<\/strong>/);
+  assert.equal(w.document.querySelector('#previewBtn'),null);
+  assert.match(w.eval('buildRich().rich_message.html'),/<strong>novo novo<\/strong>/);
+  w.close();
+});
+test('find is under the app name and menu icons match their actions',()=>{
+  const w=page();
+  const d=w.document;
+  d.querySelector('#brandBtn').click();
+  assert.equal(d.querySelector('#importMenu').classList.contains('on'),true);
+  d.querySelector('#findBtn').click();
+  assert.equal(d.querySelector('#findMenu').classList.contains('on'),true);
+  assert.equal(d.querySelector('#importMenu').classList.contains('on'),false);
+  const items=[...d.querySelectorAll('#plusMenu button [data-icon]')].map(el=>el.dataset.icon);
+  assert.equal(items.length,new Set(items).size);
+  assert.equal(d.querySelector('#plusMenu [data-cmd="strike"] [data-icon]').dataset.icon,'strikethrough_s');
+  assert.equal(d.querySelector('#plusMenu [data-insert="video"] [data-icon]').dataset.icon,'movie');
   w.close();
 });
 test('exact markdown stays unchanged when editor is untouched',async()=>{
