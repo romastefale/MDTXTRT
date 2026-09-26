@@ -7,7 +7,7 @@ const backdrop = $('#backdrop');
 const fileInput = $('#fileInput');
 let dest = 'telegram';
 const sheets = ['#plusMenu','#headingMenu','#quoteMenu','#importMenu','#exportMenu'];
-let savedRange = null, hist = [], histI = -1, histLock = false, composing = false, saveTimer = null;
+let savedRange = null, hist = [], histI = -1, histLock = false, composing = false, saveTimer = null, telegraphPath = '';
 function applyAssets(){
   $$('[data-icon]').forEach(el => {
     const name = el.getAttribute('data-icon');
@@ -28,7 +28,7 @@ function applyScheme(){
 applyScheme();
 window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', applyScheme);
 function getTg(){ return window.Telegram?.WebApp; }
-function isInsideTelegram(){ return Boolean(getTg()); }
+function isInsideTelegram(){ return Boolean(getTg()?.initData); }
 const inTg = isInsideTelegram();
 const API = 'https://mdtxtrt.up.railway.app';
 if (inTg) {
@@ -69,9 +69,8 @@ function setDestination(value, notify=true){
     item.hidden = dest === 'telegraph' && !['p','h3','h4','footer'].includes(item.dataset.block);
   });
   $('#quoteMenu [data-insert="expandquote"]').hidden = dest === 'telegraph';
-  $$('#plusMenu [data-insert]').forEach(item => {
-    item.hidden = dest === 'telegraph' && ['table','details','button'].includes(item.dataset.insert);
-  });
+  $('#plusMenu [data-tg="no"]').forEach(item => item.hidden = dest === 'telegraph');
+  $('#plusMenu [data-telegraph="only"]').forEach(item => item.hidden = dest !== 'telegraph');
   document.body.dataset.destination = dest;
   closePanels();
   saveLocal();
@@ -150,7 +149,7 @@ function expandWord(){
 }
 function exec(cmd, value=null){
   if(cmd === 'insertUnorderedList') return toggleList();
-  const tag = {bold:'strong',italic:'em',underline:'u',createLink:'a'}[cmd];
+  const tag = {bold:'strong',italic:'em',underline:'u',strike:'s',mark:'mark',sub:'sub',sup:'sup',spoiler:'tg-spoiler',code:'code',math:'tg-math',createLink:'a'}[cmd];
   if(!tag) throw new Error('Ação de edição indisponível');
   restoreSel(); expandWord();
   const sel = window.getSelection();
@@ -267,6 +266,34 @@ function insertHTML(html){
   if(last){range.setStartAfter(last);range.collapse(true);const sel=window.getSelection();sel.removeAllRanges();sel.addRange(range);}
   saveSel(); pushHist(); markDirty(); closePanels();
 }
+function mediaTag(url){
+  const path = (()=>{try{return new URL(url).pathname.toLowerCase();}catch{return '';}})();
+  return /\.(mp4|mov|webm|m4v|gif)$/.test(path) ? 'video' : 'img';
+}
+function askUrl(label){
+  const value = prompt(label, 'https://');
+  if(!value) return '';
+  try{
+    const url = new URL(value.trim());
+    if(!['http:','https:','tg:'].includes(url.protocol)) throw new Error();
+    return url.href;
+  }catch{
+    showToast('Use um link válido');
+    return '';
+  }
+}
+function figure(kind){
+  const url = askUrl('Link da mídia');
+  if(!url) return;
+  const caption = prompt('Legenda', '') || '';
+  const credit = caption ? prompt('Crédito', '') || '' : '';
+  const cap = caption ? '<figcaption>'+escapeHTML(caption)+(credit?'<cite>'+escapeHTML(credit)+'</cite>':'')+'</figcaption>' : '';
+  const tag = kind === 'image' ? '<img src="'+escapeHTML(url)+'"/>' :
+    kind === 'video' ? '<video src="'+escapeHTML(url)+'"></video>' :
+    kind === 'audio' ? '<audio src="'+escapeHTML(url)+'"></audio>' :
+    '<tg-document src="'+escapeHTML(url)+'"></tg-document>';
+  insertHTML('<figure>'+tag+cap+'</figure>');
+}
 function insertFeature(kind){
   const last = editor.lastElementChild;
   if(last){
@@ -276,19 +303,99 @@ function insertFeature(kind){
     sel.removeAllRanges(); sel.addRange(range);
     savedRange = range.cloneRange();
   }
-  if(kind === 'task') return insertHTML('<p>☐ Nova tarefa</p>');
-  if(kind === 'table') return insertHTML('<table><thead><tr><th>A</th><th>B</th></tr></thead><tbody><tr><td>—</td><td>—</td></tr></tbody></table>');
+  if(kind === 'task') return insertHTML('<ul><li><input type="checkbox">Nova tarefa</li></ul>');
+  if(kind === 'ordered') return insertHTML('<ol><li>Novo item</li></ol>');
+  if(kind === 'divider') return insertHTML('<hr/>');
+  if(kind === 'table'){
+    const caption = prompt('Legenda da tabela', '') || '';
+    return insertHTML('<table bordered striped compact>'+(caption?'<caption>'+escapeHTML(caption)+'</caption>':'')+'<tr><th>A</th><th>B</th></tr><tr><td>—</td><td>—</td></tr></table>');
+  }
   if(kind === 'expandquote') return insertHTML('<blockquote data-expandable="true"><p>Citação expansível</p></blockquote>');
+  if(kind === 'pullquote') return insertHTML('<aside>Citação em destaque</aside>');
   if(kind === 'details') return insertHTML('<details open><summary>Conteúdo</summary><p>Texto expansível</p></details>');
-  if(kind === 'button') {
-    const label = prompt('Texto do botão', 'Abrir');
-    if(!label?.trim()) return;
-    const value = prompt('Link do botão', 'https://');
+  if(kind === 'mathblock'){
+    const value = prompt('Fórmula LaTeX', 'E = mc^2');
+    if(value) return insertHTML('<tg-math-block>'+escapeHTML(value)+'</tg-math-block>');
+    return;
+  }
+  if(kind === 'anchor'){
+    const name = (prompt('Nome da âncora', 'secao') || '').trim().replace(/[^A-Za-z0-9_-]/g,'-');
+    if(name) return insertHTML('<a name="'+escapeHTML(name)+'"></a>');
+    return;
+  }
+  if(kind === 'reference'){
+    const name = (prompt('Nome da referência', 'nota-1') || '').trim().replace(/[^A-Za-z0-9_-]/g,'-');
+    if(!name) return;
+    const text = prompt('Texto da referência', 'Referência') || '';
+    return insertHTML('<tg-reference name="'+escapeHTML(name)+'">'+escapeHTML(text)+'</tg-reference>');
+  }
+  if(kind === 'time'){
+    const unix = (prompt('Timestamp Unix', String(Math.floor(Date.now()/1000))) || '').trim();
+    if(!/^\d+$/.test(unix)) return showToast('Timestamp inválido');
+    const format = (prompt('Formato Telegram', 'wDT') || 'wDT').trim();
+    const label = prompt('Texto exibido', 'Data e hora') || 'Data e hora';
+    return insertHTML('<tg-time unix="'+escapeHTML(unix)+'" format="'+escapeHTML(format)+'">'+escapeHTML(label)+'</tg-time>');
+  }
+  if(kind === 'emoji'){
+    const id = (prompt('ID do emoji personalizado', '') || '').trim();
+    if(!/^\d+$/.test(id)) return showToast('ID inválido');
+    const alt = prompt('Emoji alternativo', '🙂') || '🙂';
+    return insertHTML('<tg-emoji emoji-id="'+escapeHTML(id)+'">'+escapeHTML(alt)+'</tg-emoji>');
+  }
+  if(kind === 'image') return figure('image');
+  if(kind === 'video') return figure('video');
+  if(kind === 'audio') return figure('audio');
+  if(kind === 'document') return figure('document');
+  if(kind === 'embed'){
+    const url = askUrl('Link do conteúdo incorporado');
+    if(url) return insertHTML('<figure><iframe src="'+escapeHTML(url)+'"></iframe></figure>');
+    return;
+  }
+  if(kind === 'map'){
+    const lat = Number(prompt('Latitude', '0'));
+    const lon = Number(prompt('Longitude', '0'));
+    const zoom = Number(prompt('Zoom 0–24', '14'));
+    if(!Number.isFinite(lat)||lat < -90||lat > 90||!Number.isFinite(lon)||lon < -180||lon > 180||!Number.isInteger(zoom)||zoom<0||zoom>24) return showToast('Mapa inválido');
+    const caption = prompt('Legenda', '') || '';
+    const map = '<tg-map lat="'+lat+'" long="'+lon+'" zoom="'+zoom+'"/>';
+    return insertHTML(caption?'<figure>'+map+'<figcaption>'+escapeHTML(caption)+'</figcaption></figure>':map);
+  }
+  if(kind === 'collage' || kind === 'slideshow'){
+    const value = prompt('Links de imagens ou vídeos, um por linha', '');
     if(!value) return;
-    let url;
-    try{ url = new URL(value); }catch{ showToast('Link inválido'); return; }
-    if(!['http:','https:','tg:'].includes(url.protocol)){ showToast('Use um link válido'); return; }
-    return insertHTML('<tg-button-row align="center"><tg-button type="url" style="danger" url="'+escapeHTML(url.href)+'">'+escapeHTML(label.trim())+'</tg-button></tg-button-row>');
+    const urls = value.split(/\r?\n|,/).map(x=>x.trim()).filter(Boolean).slice(0,50);
+    const tags=[];
+    for(const raw of urls){
+      let url;
+      try{url=new URL(raw);if(!['http:','https:'].includes(url.protocol))throw new Error();}catch{return showToast('Há um link inválido');}
+      const tag=mediaTag(url.href);
+      tags.push(tag==='video'?'<video src="'+escapeHTML(url.href)+'"></video>':'<img src="'+escapeHTML(url.href)+'"/>');
+    }
+    if(!tags.length) return;
+    const caption=prompt('Legenda','')||'';
+    const tag=kind==='collage'?'tg-collage':'tg-slideshow';
+    return insertHTML('<'+tag+'>'+tags.join('')+(caption?'<figcaption>'+escapeHTML(caption)+'</figcaption>':'')+'</'+tag+'>');
+  }
+  if(kind === 'button') {
+    const type=(prompt('Tipo: url, callback_data, web_app, login_url, switch_inline_query, switch_inline_query_current_chat, switch_inline_query_chosen_chat, copy_text, disabled','url')||'url').trim();
+    const types=new Set(['url','callback_data','web_app','login_url','switch_inline_query','switch_inline_query_current_chat','switch_inline_query_chosen_chat','copy_text','disabled']);
+    if(!types.has(type)) return showToast('Tipo de botão inválido');
+    const label=(prompt('Texto do botão','Abrir')||'').trim();
+    if(!label) return;
+    const style=(prompt('Estilo: link, primary, success ou danger','primary')||'').trim();
+    if(style && !['link','primary','success','danger'].includes(style)) return showToast('Estilo inválido');
+    let attr=' type="'+type+'"'+(style?' style="'+style+'"':'');
+    if(type==='url'||type==='web_app'||type==='login_url'){
+      const url=askUrl('Link do botão'); if(!url) return; attr+=' url="'+escapeHTML(url)+'"';
+    }else if(type==='callback_data'){
+      const data=(prompt('Callback data','action')||'').trim(); if(!data) return; attr+=' data="'+escapeHTML(data)+'"';
+    }else if(type==='switch_inline_query'||type==='switch_inline_query_current_chat'||type==='switch_inline_query_chosen_chat'){
+      const query=prompt('Consulta inline','')||''; attr+=' query="'+escapeHTML(query)+'"';
+      if(type==='switch_inline_query_chosen_chat') attr+=' allow-user-chats allow-bot-chats allow-group-chats allow-channel-chats';
+    }else if(type==='copy_text'){
+      const text=prompt('Texto para copiar','')||''; if(!text) return; attr+=' text="'+escapeHTML(text)+'"';
+    }
+    return insertHTML('<tg-button-row align="center"><tg-button'+attr+'>'+escapeHTML(label)+'</tg-button></tg-button-row>');
   }
 }
 function insertPlainText(text){
@@ -309,13 +416,13 @@ function markDirty(){
   saveTimer = setTimeout(saveLocal, 400);
 }
 function saveLocal(){
-  try{ localStorage.setItem('rmdtxtml', JSON.stringify({name: docName.value, html: editor.innerHTML, dest})); }
+  try{ localStorage.setItem('rmdtxtml', JSON.stringify({name: docName.value, html: editor.innerHTML, dest, telegraphPath})); }
   catch{ showToast('Não foi possível salvar neste dispositivo'); }
 }
 function loadLocal(){
   try{
     const d = JSON.parse(localStorage.getItem('rmdtxtml') || 'null');
-    if(d?.html){ editor.innerHTML = d.html; docName.value = d.name || 'Ideia'; if(d.dest === 'telegram' || d.dest === 'telegraph') dest = d.dest; }
+    if(d?.html){ editor.innerHTML = d.html; docName.value = d.name || 'Ideia'; telegraphPath = d.telegraphPath || ''; if(d.dest === 'telegram' || d.dest === 'telegraph') dest = d.dest; }
   }catch{ showToast('O rascunho salvo não pôde ser aberto'); }
 }
 function escapeHTML(s){ return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
@@ -364,17 +471,17 @@ function download(name, content, type){
   setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
 }
 function telegraphNodes(root){
-  const allow = new Set(['a','aside','b','blockquote','br','code','em','h3','h4','hr','i','li','ol','p','pre','s','strong','u','ul']);
+  const allow = new Set(['a','aside','b','blockquote','br','code','em','figcaption','figure','h3','h4','hr','i','iframe','img','li','ol','p','pre','s','strong','u','ul','video']);
   const conv = (el, standalone=false) => {
     if(el.nodeType === 3){const text=el.textContent;if(!text.trim())return null;return standalone?{tag:'p',children:[text]}:text;}
     if(el.nodeType !== 1) return null;
     let tag = el.tagName.toLowerCase();
     if(tag === 'footer' || el.classList.contains('tg-footer')) tag = 'aside';
-    if(tag === 'div' || tag === 'article' || tag === 'section') return Array.from(el.childNodes).map(child=>conv(child,true)).flat().filter(Boolean);
+    if(['div','article','section','span','thead','tbody','tfoot'].includes(tag)) return Array.from(el.childNodes).map(child=>conv(child,standalone)).flat().filter(Boolean);
     if(!allow.has(tag)) throw new Error('O conteúdo contém um elemento que o Telegraph não aceita: ' + tag);
-    if(tag === 'blockquote' && el.dataset.expandable === 'true') throw new Error('Remova a citação expansível antes de publicar no Telegraph');
     const node = {tag};
-    if(tag === 'a'){const href=el.getAttribute('href');if(!href)throw new Error('Adicione um endereço ao link antes de publicar');node.attrs={href};}
+    if(tag === 'a'){const href=el.getAttribute('href');if(href)node.attrs={href};}
+    if(['img','video','iframe'].includes(tag)){const src=el.getAttribute('src');if(!src)throw new Error('A mídia precisa de um endereço');node.attrs={src};}
     const children = Array.from(el.childNodes).map(child=>conv(child,false)).flat().filter(v => v !== null && v !== '');
     if(children.length) node.children = children;
     return node;
@@ -382,50 +489,41 @@ function telegraphNodes(root){
   return Array.from(root.childNodes).map(el=>conv(el,true)).flat().filter(Boolean);
 }
 function toRichHTML(root){
-  const inline = n => {
+  const allow=new Set(['a','b','strong','i','em','u','ins','s','strike','del','code','mark','sub','sup','tg-spoiler','tg-reference','tg-emoji','tg-time','tg-math','h1','h2','h3','h4','h5','h6','p','pre','footer','hr','ul','ol','li','input','blockquote','aside','cite','img','video','audio','tg-document','figure','figcaption','tg-map','tg-collage','tg-slideshow','table','caption','tr','th','td','details','summary','tg-math-block','tg-button','tg-button-row','br']);
+  const unwrap=new Set(['div','article','section','span','thead','tbody','tfoot']);
+  const amap={
+    a:['href','name'],ol:['start','type','reversed'],li:['value','type'],input:['type','checked'],
+    img:['src','alt','tg-spoiler'],video:['src','tg-spoiler'],audio:['src'],'tg-document':['src'],
+    'tg-map':['lat','long','zoom','width','height'],table:['bordered','striped','compact'],
+    th:['colspan','rowspan','align','valign'],td:['colspan','rowspan','align','valign'],
+    'tg-button-row':['align'],'tg-button':['type','style','url','data','query','text','forward-text','request-write-access','allow-user-chats','allow-bot-chats','allow-group-chats','allow-channel-chats'],
+    'tg-reference':['name'],'tg-emoji':['emoji-id'],'tg-time':['unix','format']
+  };
+  const bool=new Set(['reversed','checked','tg-spoiler','bordered','striped','compact','request-write-access','allow-user-chats','allow-bot-chats','allow-group-chats','allow-channel-chats','expandable','open']);
+  const empty=new Set(['hr','br','img','input','tg-map']);
+  const walk=n=>{
     if(n.nodeType===3)return escapeHTML(n.textContent||'');
     if(n.nodeType!==1)return '';
-    const t=n.tagName.toLowerCase(), inner=Array.from(n.childNodes).map(inline).join('');
-    if(t==='strong'||t==='b')return '<b>'+inner+'</b>';
-    if(t==='em'||t==='i')return '<i>'+inner+'</i>';
-    if(t==='u')return '<u>'+inner+'</u>';
-    if(t==='s'||t==='del')return '<s>'+inner+'</s>';
-    if(t==='code')return '<code>'+inner+'</code>';
-    if(t==='a'){const href=n.getAttribute('href');if(!href)throw new Error('Adicione um endereço ao link antes de publicar');return '<a href="'+escapeHTML(href)+'">'+inner+'</a>';}
-    if(t==='br')return '<br/>';
-    if(t==='li'||t==='p'||t==='summary'||/^h[1-6]$/.test(t)||t==='div')return inner;
-    if(t==='tg-button')return '<tg-button type="url" style="danger" url="'+escapeHTML(n.getAttribute('url')||'')+'">'+escapeHTML(n.textContent||'')+'</tg-button>';
-    throw new Error('O conteúdo contém um elemento que o Telegram não aceita: '+t);
+    let tag=n.tagName.toLowerCase();
+    if(n.classList?.contains('tg-footer')) tag='footer';
+    if(unwrap.has(tag)) return Array.from(n.childNodes).map(walk).join('');
+    if(!allow.has(tag)) throw new Error('O conteúdo contém um elemento que o Telegram não aceita: '+tag);
+    const attrs=[];
+    if(tag==='blockquote'&&n.dataset.expandable==='true') attrs.push('expandable');
+    if(tag==='details'&&n.open) attrs.push('open');
+    for(const name of amap[tag]||[]){
+      if(bool.has(name)){
+        if(n.hasAttribute(name)) attrs.push(name);
+      }else{
+        const value=n.getAttribute(name);
+        if(value!==null&&value!=='') attrs.push(name+'="'+escapeHTML(value)+'"');
+      }
+    }
+    const open='<'+tag+(attrs.length?' '+attrs.join(' '):'')+'>';
+    if(empty.has(tag)) return open.slice(0,-1)+'/>';
+    return open+Array.from(n.childNodes).map(walk).join('')+'</'+tag+'>';
   };
-  const blocks = node => {
-    if(node.nodeType===3)return node.textContent.trim()?'<p>'+escapeHTML(node.textContent)+'</p>':'';
-    if(node.nodeType!==1)return '';
-    const t=node.tagName.toLowerCase(), inner=()=>Array.from(node.childNodes).map(inline).join('');
-    if(/^h[1-6]$/.test(t)||t==='p')return '<'+t+'>'+inner()+'</'+t+'>';
-    if(t==='tg-button-row')return '<tg-button-row align="center">'+Array.from(node.children).map(inline).join('')+'</tg-button-row>';
-    if(t==='footer'||node.classList.contains('tg-footer'))return '<footer>'+inner()+'</footer>';
-    if(t==='blockquote')return '<blockquote'+(node.dataset.expandable==='true'?' expandable':'')+'>'+inner()+'</blockquote>';
-    if(t==='ul'||t==='ol')return '<'+t+'>'+Array.from(node.children).map(li=>'<li>'+Array.from(li.childNodes).map(inline).join('')+'</li>').join('')+'</'+t+'>';
-    if(t==='pre')return '<pre>'+escapeHTML(node.innerText)+'</pre>';
-    if(t==='details'){
-      const sum=Array.from(node.children).find(x=>x.tagName.toLowerCase()==='summary');
-      if(!sum)throw new Error('O conteúdo expansível precisa de um título');
-      const body=Array.from(node.children).filter(x=>x!==sum).map(x=>blocks(x)).join('');
-      return '<details'+(node.open?' open':'')+'><summary>'+Array.from(sum.childNodes).map(inline).join('')+'</summary>'+body+'</details>';
-    }
-    if(t==='table'){
-      const rows=Array.from(node.rows).map(row=>'<tr>'+Array.from(row.cells).map(cell=>{const tag=cell.tagName.toLowerCase()==='th'?'th':'td';return '<'+tag+'>'+Array.from(cell.childNodes).map(inline).join('')+'</'+tag+'>';}).join('')+'</tr>').join('');
-      return '<table>'+rows+'</table>';
-    }
-    if(t==='div'||t==='article'||t==='section'){
-      const children=Array.from(node.childNodes);
-      if(children.every(x=>x.nodeType===3||x.nodeType===1&&!/^(p|h[1-6]|ul|ol|blockquote|pre|table|details|footer|tg-button-row|div|article|section)$/.test(x.tagName.toLowerCase())))return '<p>'+children.map(inline).join('')+'</p>';
-      return children.map(blocks).join('');
-    }
-    if(['a','b','strong','i','em','u','s','del','code','span'].includes(t))return '<p>'+inner()+'</p>';
-    throw new Error('O conteúdo contém um elemento que o Telegram não aceita: '+t);
-  };
-  return Array.from(root.childNodes).map(blocks).join('')||'<p></p>';
+  return Array.from(root.childNodes).map(walk).join('')||'<p></p>';
 }
 function buildRich(){
   return {rich_message: {html:toRichHTML(editor)}};
@@ -433,7 +531,7 @@ function buildRich(){
 function buildTelegraph(){
   const title=docName.value.trim();
   if(!title) throw new Error('Dê um nome à página antes de publicar');
-  return {title, content: telegraphNodes(editor)};
+  return {title, content: telegraphNodes(editor), path: telegraphPath};
 }
 editor.addEventListener('input', ()=>{ if(!composing){ markDirty(); pushHist(); }});
 editor.addEventListener('compositionstart', ()=> composing = true);
@@ -467,7 +565,7 @@ document.addEventListener('selectionchange', ()=>{
   $$('#headingMenu [data-block]').forEach(btn => btn.classList.toggle('is-current', btn.dataset.block === kind));
 });
 $('#typebar').addEventListener('mousedown', e => e.preventDefault());
-$$('#typebar [data-cmd]').forEach(btn => btn.addEventListener('click', ()=>{try{exec(btn.dataset.cmd);}catch(err){showToast(err.message);}}));
+$('#typebar [data-cmd], #plusMenu [data-cmd]').forEach(btn => btn.addEventListener('click', ()=>{try{exec(btn.dataset.cmd);closePanels();}catch(err){showToast(err.message);}}));
 $$('#typebar [data-block], #headingMenu [data-block], #quoteMenu [data-block]').forEach(btn => btn.addEventListener('click', ()=>{try{formatBlock(btn.dataset.block);}catch(err){showToast(err.message);}}));
 $$('#plusMenu [data-insert], #quoteMenu [data-insert]').forEach(btn => btn.addEventListener('click', ()=>{try{insertFeature(btn.dataset.insert);}catch(err){showToast(err.message);}}));
 $('#linkBtn').addEventListener('click', ()=>{
@@ -567,7 +665,9 @@ async function publishTelegraph(){
     });
     const result = await readResponse(res);
     if(!res.ok) throw new Error(result.error || 'Não foi possível publicar no Telegraph');
-    showToast('Publicado no Telegraph');
+    telegraphPath = result.path || telegraphPath;
+    saveLocal();
+    showToast(telegraphPath ? 'Página salva no Telegraph' : 'Publicado no Telegraph');
     if(inTg)getTg().openLink(result.url,{try_instant_view:true});
     else window.location.assign(result.url);
   }catch(err){ showToast(err instanceof TypeError?'Não foi possível conectar ao Telegraph':err.message || 'Não foi possível publicar no Telegraph'); }
@@ -579,6 +679,7 @@ fileInput.addEventListener('change', async ()=>{
     const text = await file.text();
     docName.value = file.name.replace(/\.(md|txt)$/i,'');
     editor.innerHTML = /\.md$/i.test(file.name) ? mdToBasicHTML(text) : '<p>'+escapeHTML(text).replace(/\n/g,'<br>')+'</p>';
+    telegraphPath = '';
     markDirty(); closePanels();
   }catch(err){ showToast(err.message || 'Não foi possível importar o arquivo'); }
   fileInput.value='';
