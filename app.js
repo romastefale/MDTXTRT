@@ -7,7 +7,7 @@ const backdrop = $('#backdrop');
 const fileInput = $('#fileInput');
 let dest = 'telegram';
 let inTg = false, session = 'browser', busy = false;
-const sheets = ['#plusMenu','#headingMenu','#quoteMenu','#listMenu','#importMenu','#exportMenu','#findMenu'];
+const sheets = ['#plusMenu','#headingMenu','#quoteMenu','#listMenu','#importMenu','#exportMenu','#findMenu','#dialogMenu'];
 let savedRange = null, hist = [], histI = -1, histLock = false, composing = false, saveTimer = null, telegraphPath = '', docId = crypto.randomUUID(), importedMd = '', importedTxt = '', importedHtml = '', mediaFile = null;
 function applyAssets(){
   $$('[data-icon]').forEach(el => {
@@ -17,7 +17,7 @@ function applyAssets(){
 }
 applyAssets();
 function applyScheme(){
-  const tg = isInsideTelegram() ? window.Telegram.WebApp : null;
+  const tg = getTg()?.initData ? getTg() : null;
   const light = tg?.colorScheme ? tg.colorScheme === 'light' : window.matchMedia('(prefers-color-scheme: light)').matches;
   document.documentElement.classList.toggle('light', light);
   document.documentElement.classList.toggle('dark', !light);
@@ -189,28 +189,23 @@ async function verifyTelegram(){
     setupTelegram();
     try{await claimHandoff();}catch(err){showToast(err.message||'Não foi possível recuperar o rascunho');}
     try{await recoverTelegraph();}catch(err){showToast(err.message||'Não foi possível recuperar a página do Telegraph');}
-  }catch(err){session='invalid';showToast(err.message||'Não foi possível validar a sessão Telegram');}
+  }catch(err){
+    session='invalid';
+    document.documentElement.classList.remove('tg-shell');
+    document.body.classList.remove('tg');
+    applyScheme();
+    showToast(err.message||'Não foi possível validar a sessão Telegram');
+  }
 }
 function setupTelegram(){
   inTg=true;session='ready';
   const tg = getTg();
+  document.documentElement.classList.add('tg-shell');
   document.body.classList.add('tg');
-  tg.ready(); tg.expand();
+  tg.ready();tg.expand();
   if(!tg.isFullscreen)tg.requestFullscreen?.();
-  const applySafe = () => {
-    const safe = tg.safeAreaInset || {};
-    const content = tg.contentSafeAreaInset || {};
-    document.documentElement.style.setProperty('--tg-top', Math.max(Number(safe.top)||0,Number(content.top)||0) + 'px');
-    document.documentElement.style.setProperty('--tg-bottom', Math.max(Number(safe.bottom)||0,Number(content.bottom)||0) + 'px');
-    document.documentElement.style.setProperty('--tg-left', Math.max(Number(safe.left)||0,Number(content.left)||0) + 'px');
-    document.documentElement.style.setProperty('--tg-right', Math.max(Number(safe.right)||0,Number(content.right)||0) + 'px');
-  };
-  applySafe();applyScheme();fit();
-  tg.onEvent?.('safeAreaChanged', applySafe);
-  tg.onEvent?.('contentSafeAreaChanged', applySafe);
-  tg.onEvent?.('fullscreenChanged', ()=>{applySafe();fit();});
-  tg.onEvent?.('viewportChanged', fit);
-  tg.onEvent?.('themeChanged', applyScheme);
+  applyScheme();
+  tg.onEvent?.('themeChanged',applyScheme);
   tg.BackButton?.hide?.();
   tg.disableVerticalSwipes?.();
   tg.MainButton?.hide?.();
@@ -274,7 +269,37 @@ function closePanels(){
   backdrop.classList.remove('on');
   document.dispatchEvent(new Event('selectionchange'));
 }
-backdrop.addEventListener('click', closePanels);
+let dialogResolve=null,dialogConfirm=false;
+function finishDialog(value){
+  const resolve=dialogResolve;
+  dialogResolve=null;
+  closePanels();
+  if(resolve)resolve(value);
+}
+function dialogOpen(label,value='',rows=1,confirmMode=false){
+  if(dialogResolve)finishDialog(null);
+  const input=$('#dialogInput');
+  $('#dialogLabel').textContent=label;
+  dialogConfirm=confirmMode;
+  input.hidden=confirmMode;
+  input.value=confirmMode?'':String(value??'');
+  input.rows=Math.max(1,Math.min(5,rows));
+  $('#dialogOk').textContent=confirmMode?'Continuar':'OK';
+  openPanel('#dialogMenu',document.activeElement);
+  return new Promise(resolve=>{
+    dialogResolve=resolve;
+    if(!confirmMode){
+      input.focus({preventScroll:true});
+      if(rows===1)input.select();
+    }
+  });
+}
+function ask(label,value='',rows=1){return dialogOpen(label,value,rows,false);}
+async function approve(label){return await dialogOpen(label,'',1,true)===true;}
+$('#dialogOk').addEventListener('click',()=>finishDialog(dialogConfirm?true:$('#dialogInput').value));
+$('#dialogCancel').addEventListener('click',()=>finishDialog(dialogConfirm?false:null));
+$('#dialogInput').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&e.currentTarget.rows===1){e.preventDefault();finishDialog(e.currentTarget.value);}});
+backdrop.addEventListener('click',()=>{if(dialogResolve)finishDialog(dialogConfirm?false:null);else closePanels();});
 function saveSel(){
   const sel = window.getSelection();
   if(!sel || !sel.rangeCount) return;
@@ -496,117 +521,112 @@ function mediaTag(url){
   const path = (()=>{try{return new URL(url).pathname.toLowerCase();}catch{return '';}})();
   return /\.(mp4|mov|webm|m4v|gif)$/.test(path) ? 'video' : 'img';
 }
-function askUrl(label){
-  const value = prompt(label, 'https://');
-  if(!value) return '';
+async function askUrl(label,value='https://',protocols=['http:','https:','tg:']){
+  const answer=await ask(label,value);
+  if(answer===null||!answer.trim())return '';
   try{
-    const url = new URL(value.trim());
-    if(!['http:','https:','tg:'].includes(url.protocol)) throw new Error();
+    const url=new URL(answer.trim());
+    if(!protocols.includes(url.protocol))throw new Error();
     return url.href;
   }catch{
-    showToast('Use um link válido');
+    showToast(protocols.length===2?'A mídia precisa usar HTTP ou HTTPS':'Use um link válido');
     return '';
   }
 }
-function mediaUrl(){
-  const value = prompt('Link da mídia', 'https://');
-  if(!value) return '';
-  try{
-    const url = new URL(value.trim());
-    if(!['http:','https:'].includes(url.protocol)) throw new Error();
-    return url.href;
-  }catch{
-    showToast('A mídia precisa usar HTTP ou HTTPS');
-    return '';
-  }
+async function mediaUrl(){
+  return askUrl('Link da mídia','https://',['http:','https:']);
 }
-function figure(kind){
-  const url = mediaUrl();
-  if(!url) return;
-  const caption = prompt('Legenda', '');
+async function figure(kind){
+  const url=await mediaUrl();
+  if(!url)return;
+  const caption=await ask('Legenda','');
   if(caption===null)return;
-  const credit = caption ? prompt('Crédito', '') : '';
+  const credit=caption?await ask('Crédito',''):'';
   if(credit===null)return;
-  const cap = caption ? '<figcaption>'+escapeHTML(caption)+(credit?'<cite>'+escapeHTML(credit)+'</cite>':'')+'</figcaption>' : '';
-  const tag = kind === 'image' ? '<img src="'+escapeHTML(url)+'"/>' :
-    kind === 'video' ? '<video src="'+escapeHTML(url)+'"></video>' :
-    kind === 'audio' ? '<audio src="'+escapeHTML(url)+'"></audio>' :
+  const cap=caption?'<figcaption>'+escapeHTML(caption)+(credit?'<cite>'+escapeHTML(credit)+'</cite>':'')+'</figcaption>':'';
+  const tag=kind==='image'?'<img src="'+escapeHTML(url)+'"/>' :
+    kind==='video'?'<video src="'+escapeHTML(url)+'"></video>' :
+    kind==='audio'?'<audio src="'+escapeHTML(url)+'"></audio>' :
     '<tg-document src="'+escapeHTML(url)+'"></tg-document>';
   insertHTML('<figure>'+tag+cap+'</figure>',true);
 }
-function insertFeature(kind){
-  if(kind === 'task') return insertHTML('<ul><li><input type="checkbox">Nova tarefa</li></ul>',true);
-  if(kind === 'ordered') return toggleList('ol');
-  if(kind === 'divider') return insertHTML('<hr/>',true);
-  if(kind === 'table'){
-    const caption = prompt('Legenda da tabela', '');
+async function insertFeature(kind){
+  if(kind==='task')return insertHTML('<ul><li><input type="checkbox">Nova tarefa</li></ul>',true);
+  if(kind==='ordered')return toggleList('ol');
+  if(kind==='divider')return insertHTML('<hr/>',true);
+  if(kind==='table'){
+    const caption=await ask('Legenda da tabela','');
     if(caption===null)return;
     return insertHTML('<table bordered striped compact>'+(caption?'<caption>'+escapeHTML(caption)+'</caption>':'')+'<tr><th>A</th><th>B</th></tr><tr><td>—</td><td>—</td></tr></table>',true);
   }
-  if(kind === 'expandquote') return insertHTML('<blockquote data-expandable="true"><p>Citação expansível</p></blockquote>',true);
-  if(kind === 'pullquote') return insertHTML('<aside>Citação em destaque</aside>',true);
-  if(kind === 'details') return insertHTML('<details open><summary>Conteúdo</summary><p>Texto expansível</p></details>',true);
-  if(kind === 'mathblock'){
-    const value = prompt('Fórmula LaTeX', 'E = mc^2');
-    if(value) return insertHTML('<tg-math-block>'+escapeHTML(value)+'</tg-math-block>',true);
+  if(kind==='expandquote')return insertHTML('<blockquote data-expandable="true"><p>Citação expansível</p></blockquote>',true);
+  if(kind==='pullquote')return insertHTML('<aside>Citação em destaque</aside>',true);
+  if(kind==='details')return insertHTML('<details open><summary>Conteúdo</summary><p>Texto expansível</p></details>',true);
+  if(kind==='mathblock'){
+    const value=await ask('Fórmula LaTeX','E = mc^2');
+    if(value)return insertHTML('<tg-math-block>'+escapeHTML(value)+'</tg-math-block>',true);
     return;
   }
-  if(kind === 'anchor'){
-    const name = (prompt('Nome da âncora', 'secao') || '').trim().replace(/[^A-Za-z0-9_-]/g,'-');
-    if(name) return insertHTML('<a name="'+escapeHTML(name)+'"></a>');
+  if(kind==='anchor'){
+    const answer=await ask('Nome da âncora','secao');
+    const name=(answer||'').trim().replace(/[^A-Za-z0-9_-]/g,'-');
+    if(name)return insertHTML('<a name="'+escapeHTML(name)+'"></a>');
     return;
   }
-  if(kind === 'reference'){
-    const name = (prompt('Nome da referência', 'nota-1') || '').trim().replace(/[^A-Za-z0-9_-]/g,'-');
-    if(!name) return;
-    const text = prompt('Texto da referência', 'Referência');
+  if(kind==='reference'){
+    const answer=await ask('Nome da referência','nota-1');
+    const name=(answer||'').trim().replace(/[^A-Za-z0-9_-]/g,'-');
+    if(!name)return;
+    const text=await ask('Texto da referência','Referência');
     if(text===null)return;
     return insertHTML('<tg-reference name="'+escapeHTML(name)+'">'+escapeHTML(text)+'</tg-reference>');
   }
-  if(kind === 'time'){
-    const unix = (prompt('Timestamp Unix', String(Math.floor(Date.now()/1000))) || '').trim();
-    if(!/^\d+$/.test(unix)) return showToast('Timestamp inválido');
-    const format = prompt('Formato Telegram', 'wDT');
+  if(kind==='time'){
+    const answer=await ask('Timestamp Unix',String(Math.floor(Date.now()/1000)));
+    const unix=(answer||'').trim();
+    if(!/^\d+$/.test(unix))return showToast('Timestamp inválido');
+    const format=await ask('Formato Telegram','wDT');
     if(format===null)return;
-    const label = prompt('Texto exibido', 'Data e hora');
+    const label=await ask('Texto exibido','Data e hora');
     if(label===null)return;
     return insertHTML('<tg-time unix="'+escapeHTML(unix)+'" format="'+escapeHTML(format)+'">'+escapeHTML(label)+'</tg-time>');
   }
-  if(kind === 'emoji'){
-    const id = (prompt('ID do emoji personalizado', '') || '').trim();
-    if(!/^\d+$/.test(id)) return showToast('ID inválido');
-    const alt = prompt('Emoji alternativo', '🙂');
+  if(kind==='emoji'){
+    const answer=await ask('ID do emoji personalizado','');
+    const id=(answer||'').trim();
+    if(!/^\d+$/.test(id))return showToast('ID inválido');
+    const alt=await ask('Emoji alternativo','🙂');
     if(alt===null)return;
     return insertHTML('<tg-emoji emoji-id="'+escapeHTML(id)+'">'+escapeHTML(alt)+'</tg-emoji>');
   }
-  if(kind === 'image') return figure('image');
-  if(kind === 'video') return figure('video');
-  if(kind === 'audio') return figure('audio');
-  if(kind === 'document') return figure('document');
-  if(kind === 'embed'){
-    const url = askUrl('Link do conteúdo incorporado');
-    if(url) return insertHTML('<figure><iframe src="'+escapeHTML(url)+'"></iframe></figure>',true);
+  if(kind==='image')return figure('image');
+  if(kind==='video')return figure('video');
+  if(kind==='audio')return figure('audio');
+  if(kind==='document')return figure('document');
+  if(kind==='embed'){
+    const url=await askUrl('Link do conteúdo incorporado');
+    if(url)return insertHTML('<figure><iframe src="'+escapeHTML(url)+'"></iframe></figure>',true);
     return;
   }
-  if(kind === 'map'){
+  if(kind==='map'){
     const values=[];
     for(const [label,value] of [['Latitude','0'],['Longitude','0'],['Zoom 0–24','14']]){
-      const answer=prompt(label,value);
+      const answer=await ask(label,value);
       if(answer===null)return;
       if(!answer.trim())return showToast('Preencha os dados do mapa');
       values.push(Number(answer));
     }
     const [lat,lon,zoom]=values;
-    if(!Number.isFinite(lat)||lat < -90||lat > 90||!Number.isFinite(lon)||lon < -180||lon > 180||!Number.isInteger(zoom)||zoom<0||zoom>24) return showToast('Mapa inválido');
-    const caption = prompt('Legenda', '');
-  if(caption===null)return;
-    const map = '<tg-map lat="'+lat+'" long="'+lon+'" zoom="'+zoom+'"/>';
+    if(!Number.isFinite(lat)||lat < -90||lat > 90||!Number.isFinite(lon)||lon < -180||lon > 180||!Number.isInteger(zoom)||zoom<0||zoom>24)return showToast('Mapa inválido');
+    const caption=await ask('Legenda','');
+    if(caption===null)return;
+    const map='<tg-map lat="'+lat+'" long="'+lon+'" zoom="'+zoom+'"/>';
     return insertHTML(caption?'<figure>'+map+'<figcaption>'+escapeHTML(caption)+'</figcaption></figure>':map,true);
   }
-  if(kind === 'collage' || kind === 'slideshow'){
-    const value = prompt('Links de imagens ou vídeos, um por linha', '');
-    if(!value) return;
-    const urls = value.split(/\r?\n|,/).map(x=>x.trim()).filter(Boolean);
+  if(kind==='collage'||kind==='slideshow'){
+    const value=await ask('Links de imagens ou vídeos, um por linha','',4);
+    if(!value)return;
+    const urls=value.split(/\r?\n|,/).map(x=>x.trim()).filter(Boolean);
     if(urls.length>50)return showToast('Use no máximo 50 itens por galeria');
     const tags=[];
     for(const raw of urls){
@@ -615,32 +635,37 @@ function insertFeature(kind){
       const tag=mediaTag(url.href);
       tags.push(tag==='video'?'<video src="'+escapeHTML(url.href)+'"></video>':'<img src="'+escapeHTML(url.href)+'"/>');
     }
-    if(!tags.length) return;
-    const caption=prompt('Legenda','');
+    if(!tags.length)return;
+    const caption=await ask('Legenda','');
     if(caption===null)return;
     const tag=kind==='collage'?'tg-collage':'tg-slideshow';
     return insertHTML('<'+tag+'>'+tags.join('')+(caption?'<figcaption>'+escapeHTML(caption)+'</figcaption>':'')+'</'+tag+'>',true);
   }
-  if(kind === 'button') {
-    const answer=prompt('Tipo: url, callback_data, web_app, copy_text, disabled','url');
+  if(kind==='button'){
+    const answer=await ask('Tipo: url, callback_data, web_app, copy_text, disabled','url');
     if(answer===null)return;
     const type=answer.trim();
     const types=new Set(['url','callback_data','web_app','copy_text','disabled']);
-    if(!types.has(type)) return showToast('Tipo de botão inválido');
-    const label=(prompt('Texto do botão','Abrir')||'').trim();
-    if(!label) return;
-    const style=(prompt('Estilo: link, primary, success ou danger','primary')||'').trim();
-    if(style && !['link','primary','success','danger'].includes(style)) return showToast('Estilo inválido');
-    if(style==='link' && type!=='callback_data') return showToast('O estilo link exige um botão de callback');
+    if(!types.has(type))return showToast('Tipo de botão inválido');
+    const label=((await ask('Texto do botão','Abrir'))||'').trim();
+    if(!label)return;
+    const style=((await ask('Estilo: link, primary, success ou danger','primary'))||'').trim();
+    if(style&&!['link','primary','success','danger'].includes(style))return showToast('Estilo inválido');
+    if(style==='link'&&type!=='callback_data')return showToast('O estilo link exige um botão de callback');
     let attr=' type="'+type+'"'+(style?' style="'+style+'"':'');
     if(type==='url'||type==='web_app'){
-      const url=askUrl('Link do botão'); if(!url) return; attr+=' url="'+escapeHTML(url)+'"';
+      const url=await askUrl('Link do botão');
+      if(!url)return;
+      attr+=' url="'+escapeHTML(url)+'"';
     }else if(type==='callback_data'){
-      const data=(prompt('Callback data','action')||'').trim(); if(!data) return;
-      if(new TextEncoder().encode(data).length>64) return showToast('O callback aceita até 64 bytes');
+      const data=((await ask('Callback data','action'))||'').trim();
+      if(!data)return;
+      if(new TextEncoder().encode(data).length>64)return showToast('O callback aceita até 64 bytes');
       attr+=' data="'+escapeHTML(data)+'"';
     }else if(type==='copy_text'){
-      const text=prompt('Texto para copiar','')||''; if(!text) return; attr+=' text="'+escapeHTML(text)+'"';
+      const text=(await ask('Texto para copiar',''))||'';
+      if(!text)return;
+      attr+=' text="'+escapeHTML(text)+'"';
     }
     return insertHTML('<tg-button-row align="center"><tg-button'+attr+'>'+escapeHTML(label)+'</tg-button></tg-button-row>',true);
   }
@@ -837,13 +862,20 @@ document.addEventListener('selectionchange', ()=>{
 $('#typebar').addEventListener('mousedown', e => e.preventDefault());
 $$('#typebar [data-cmd], #plusMenu [data-cmd], #listMenu [data-cmd]').forEach(btn => btn.addEventListener('click', ()=>{try{exec(btn.dataset.cmd);closePanels();}catch(err){showToast(err.message);}}));
 $$('#typebar [data-block], #headingMenu [data-block], #quoteMenu [data-block]').forEach(btn => btn.addEventListener('click', ()=>{try{formatBlock(btn.dataset.block);}catch(err){showToast(err.message);}}));
-$$('#plusMenu [data-insert], #quoteMenu [data-insert], #listMenu [data-insert]').forEach(btn => btn.addEventListener('click', ()=>{try{insertFeature(btn.dataset.insert);}catch(err){showToast(err.message);}}));
-$('#linkBtn').addEventListener('click', ()=>{
-  restoreSel(); expandWord();
-  const value=prompt('Link','https://');if(!value)return;
-  let url;try{url=new URL(value.trim(),location.href);if(!['http:','https:','mailto:','tel:','tg:'].includes(url.protocol))throw new Error('Use um link válido');}catch(err){showToast(err.message||'Link inválido');return;}
+$('#plusMenu [data-insert], #quoteMenu [data-insert], #listMenu [data-insert]').forEach(btn => btn.addEventListener('click', ()=>{void insertFeature(btn.dataset.insert).catch(err=>showToast(err.message));}));
+$('#linkBtn').addEventListener('click',async()=>{
+  restoreSel();expandWord();saveSel();
+  const node=document.getSelection()?.anchorNode;
+  const current=(node&&(node.nodeType===1?node:node.parentElement)?.closest?.('a'))?.getAttribute('href')||'https://';
+  const value=await ask('Link',current);
+  if(value===null||!value.trim())return;
+  let url;
+  try{url=new URL(value.trim(),location.href);if(!['http:','https:','mailto:','tel:','tg:'].includes(url.protocol))throw new Error('Use um link válido');}
+  catch(err){showToast(err.message||'Link inválido');return;}
+  restoreSel();
   const sel=window.getSelection();
-  if(!sel||sel.isCollapsed)insertHTML('<a href="'+escapeHTML(url.href)+'">'+escapeHTML(value.trim())+'</a>');
+  if(!sel||!sel.rangeCount)return showToast('Selecione ou posicione o cursor no texto');
+  if(sel.isCollapsed)insertHTML('<a href="'+escapeHTML(url.href)+'">'+escapeHTML(value.trim())+'</a>');
   else exec('createLink',url.href);
 });
 function flashBtn(btn){
@@ -940,7 +972,7 @@ async function exportFile(format) {
       type = "text/markdown";
       ext = "md";
     } else {
-      if (txtLosesStructure() && !confirm('TXT não preserva formatação nem estrutura. Deseja exportar como texto simples?')) return;
+      if(txtLosesStructure()&&!await approve('TXT não preserva formatação nem estrutura. Exportar como texto simples?'))return;
       content = htmlToText(editor.innerHTML);
       type = "text/plain";
       ext = "txt";
@@ -1027,29 +1059,8 @@ document.addEventListener('keydown', e => {
   if(k==='z' && !e.shiftKey){ e.preventDefault(); histUndo(); flashBtn($('#undoBtn')); }
   if(k==='z' && e.shiftKey || k==='y'){ e.preventDefault(); histRedo(); flashBtn($('#redoBtn')); }
 });
-const vv=window.visualViewport;
-const fit=()=>{
-  if(inTg){
-    const tg=getTg(),vh=Math.max(0,Number(tg?.viewportStableHeight||tg?.viewportHeight||window.innerHeight));
-    document.documentElement.style.setProperty('--kb','0px');
-    document.documentElement.style.setProperty('--vv-top','0px');
-    document.documentElement.style.setProperty('--vv-h',vh+'px');
-    document.documentElement.style.setProperty('--vv-end',vh+'px');
-    return;
-  }
-  const vh=Math.max(0,vv?vv.height:window.innerHeight),top=Math.max(0,vv?vv.offsetTop:0);
-  document.documentElement.style.setProperty('--kb','0px');
-  document.documentElement.style.setProperty('--vv-top',top+'px');
-  document.documentElement.style.setProperty('--vv-h',vh+'px');
-  document.documentElement.style.setProperty('--vv-end',top+vh+'px');
-};
-fit();
-vv?.addEventListener('resize',fit);
-vv?.addEventListener('scroll',fit);
-window.addEventListener('resize',fit);
-window.addEventListener('orientationchange',fit);
 function boot(){
-  loadLocal();decorateSpecials();setDestination(dest,false);pushHist();fit();
+  loadLocal();decorateSpecials();setDestination(dest,false);pushHist();
   void restoreMedia().then(()=>verifyTelegram()).catch(err=>showToast(err.message||'Não foi possível restaurar o documento'));
 }
 boot();
