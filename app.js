@@ -668,10 +668,10 @@ async function insertFeature(kind){
     return insertHTML('<'+tag+'>'+tags.join('')+(caption?'<figcaption>'+escapeHTML(caption)+'</figcaption>':'')+'</'+tag+'>',true);
   }
   if(kind==='button'){
-    const answer=await ask('Tipo: url, callback_data, web_app, copy_text, disabled','url');
+    const answer=await ask('Tipo: url, callback_data, web_app, login_url, switch_inline_query, switch_inline_query_current_chat, switch_inline_query_chosen_chat, copy_text ou disabled','url');
     if(answer===null)return;
     const type=answer.trim();
-    const types=new Set(['url','callback_data','web_app','copy_text','disabled']);
+    const types=new Set(['url','callback_data','web_app','login_url','switch_inline_query','switch_inline_query_current_chat','switch_inline_query_chosen_chat','copy_text','disabled']);
     if(!types.has(type))return showToast('Tipo de botão inválido');
     const labelAnswer=await ask('Texto do botão','Abrir');
     if(labelAnswer===null)return;
@@ -683,10 +683,16 @@ async function insertFeature(kind){
     if(style&&!['link','primary','success','danger'].includes(style))return showToast('Estilo inválido');
     if(style==='link'&&type!=='callback_data')return showToast('O estilo link exige um botão de callback');
     let attr=' type="'+type+'"'+(style?' style="'+style+'"':'');
-    if(type==='url'||type==='web_app'){
-      const url=await askUrl('Link do botão');
+    if(type==='url'||type==='web_app'||type==='login_url'){
+      const url=await askUrl('Link do botão','https://',type==='login_url'?['https:']:['http:','https:','tg:']);
       if(!url)return;
       attr+=' url="'+escapeHTML(url)+'"';
+      if(type==='login_url'){
+        const forward=await ask('Texto ao encaminhar (opcional)','');
+        if(forward===null)return;
+        if(forward.trim())attr+=' forward-text="'+escapeHTML(forward.trim())+'"';
+        if(await approve('Solicitar permissão para o bot enviar mensagens?'))attr+=' request-write-access';
+      }
     }else if(type==='callback_data'){
       const data=((await ask('Callback data','action'))||'').trim();
       if(!data)return;
@@ -696,6 +702,19 @@ async function insertFeature(kind){
       const text=(await ask('Texto para copiar',''))||'';
       if(!text)return;
       attr+=' text="'+escapeHTML(text)+'"';
+    }else if(type.startsWith('switch_inline_query')){
+      const query=await ask('Consulta inline','');
+      if(query===null)return;
+      attr+=' query="'+escapeHTML(query)+'"';
+      if(type==='switch_inline_query_chosen_chat'){
+        const chats=await ask('Chats permitidos: user, bot, group, channel (separados por vírgula; vazio = todos)','');
+        if(chats===null)return;
+        const values=chats.split(',').map(value=>value.trim()).filter(Boolean);
+        const allowed=new Set(['user','bot','group','channel']);
+        if(values.some(value=>!allowed.has(value)))return showToast('Tipo de chat inválido');
+        const names={user:'allow-user-chats',bot:'allow-bot-chats',group:'allow-group-chats',channel:'allow-channel-chats'};
+        for(const value of values)attr+=' '+names[value];
+      }
     }
     return insertHTML('<tg-button-row align="center"><tg-button'+attr+'>'+escapeHTML(label)+'</tg-button></tg-button-row>',true);
   }
