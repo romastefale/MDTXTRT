@@ -1045,11 +1045,8 @@ vv?.addEventListener('resize',fit);
 vv?.addEventListener('scroll',fit);
 window.addEventListener('resize',fit);
 window.addEventListener('orientationchange',fit);
-async function boot(){
-  loadLocal();decorateSpecials();setDestination(dest,false);
-  await restoreMedia();
-  pushHist();
-  await verifyTelegram();
-  fit();
+function boot(){
+  loadLocal();decorateSpecials();setDestination(dest,false);pushHist();fit();
+  void restoreMedia().then(()=>verifyTelegram()).catch(err=>showToast(err.message||'Não foi possível restaurar o documento'));
 }
-void boot();
+boot();
