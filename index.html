@@ -62,9 +62,10 @@
     html.light{color-scheme:light}
     html.dark{color-scheme:dark}
     *{box-sizing:border-box}
-    html,body{margin:0;width:100%;min-height:0;touch-action:pan-x pan-y;accent-color:var(--accent);caret-color:var(--accent);background-color:var(--bg);overflow:hidden;overscroll-behavior:none}
+    html,body{margin:0;width:100%;min-height:100%;touch-action:pan-x pan-y;accent-color:var(--accent);caret-color:var(--accent);background-color:var(--bg)}
+    html{overflow-x:hidden;overflow-y:auto;overscroll-behavior-y:none}
     body{
-      position:relative;height:100dvh;padding:0;color:var(--text);background:var(--bg);
+      position:relative;min-height:100dvh;padding:0;color:var(--text);background:var(--bg);overflow:visible;
       font:16px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;
     }
     body::before{
@@ -75,7 +76,7 @@
     html.light body::before{
       background-image:radial-gradient(92% 30% at -10% 0%,rgba(246,236,255,.72) 0%,rgba(248,243,255,.42) 44%,transparent 78%),radial-gradient(84% 30% at 112% 19%,rgba(255,237,245,.78) 0%,rgba(255,247,250,.42) 47%,transparent 80%),radial-gradient(100% 38% at -18% 40%,rgba(230,255,248,.88) 0%,rgba(239,255,251,.56) 39%,rgba(248,253,255,.18) 63%,transparent 84%),radial-gradient(96% 40% at 56% 49%,rgba(231,246,255,.88) 0%,rgba(240,249,255,.58) 46%,rgba(248,252,255,.18) 69%,transparent 86%),radial-gradient(82% 31% at 112% 72%,rgba(247,244,255,.52) 0%,rgba(250,248,255,.30) 49%,transparent 82%),radial-gradient(76% 28% at 108% 100%,rgba(255,247,242,.70) 0%,rgba(255,251,248,.38) 48%,transparent 81%),radial-gradient(42% 16% at 57% 98%,rgba(229,252,255,.46) 0%,rgba(242,253,255,.20) 54%,transparent 82%),linear-gradient(180deg,#faf8fe 0%,#f7fbff 28%,#f4fbff 52%,#f8fbff 78%,#fbfaff 100%)
     }
-    html.tg-shell body{height:var(--tg-viewport-stable-height)}
+    html.tg-shell,html.tg-shell body{height:var(--tg-viewport-stable-height);min-height:0;overflow:hidden}
 
     ::selection{background:color-mix(in srgb,var(--accent) 38%, transparent);color:inherit}
     button,input{font:inherit;color:inherit}
@@ -111,10 +112,11 @@
       box-shadow:inset 0 0 0 1px rgba(255,255,255,.48),0 0 0 .5px rgba(0,0,0,.14),0 12px 30px rgba(0,0,0,.08)
     }
     .app{
-      position:absolute;top:0;left:0;right:0;z-index:1;
-      width:100%;height:100%;min-height:0;max-width:none;margin:0;padding:0;
-      overflow:hidden;background:transparent;
+      position:relative;z-index:1;
+      width:100%;min-height:100dvh;max-width:none;margin:0;padding:0;
+      overflow:visible;background:transparent;
     }
+    html.tg-shell .app{position:absolute;inset:0;height:100%;min-height:0;overflow:hidden}
     .chrome-top{position:fixed;inset:0 0 auto 0;z-index:20;padding:var(--safe-top) var(--safe-right) var(--gap) var(--safe-left);pointer-events:none;translate:0 var(--vv-top)}
     html.tg-shell .chrome-top{position:absolute;translate:none}
     .chrome-top .topbar,.chrome-top .meta{pointer-events:auto}
@@ -145,8 +147,8 @@
     html.dark .bar > button.on{color:var(--accent)}
     html.dark .bar > button.on::before{background:color-mix(in srgb,var(--accent) 22%,transparent)}
     .bar > button > *{position:relative;z-index:1}
-    .canvas{position:absolute;left:0;right:0;top:var(--vv-top);height:var(--vv-height);min-height:0;display:flex;flex-direction:column;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;padding:var(--head-inset) max(16px,var(--safe-right)) var(--foot-inset) max(16px,var(--safe-left));scroll-padding-block:var(--head-inset) var(--foot-inset)}
-    html.tg-shell .canvas{inset:0;height:auto}
+    .canvas{position:relative;display:flex;flex-direction:column;min-height:100dvh;overflow:visible;padding:var(--head-inset) max(16px,var(--safe-right)) var(--foot-inset) max(16px,var(--safe-left));scroll-padding-block:var(--head-inset) var(--foot-inset)}
+    html.tg-shell .canvas{position:absolute;inset:0;min-height:0;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain}
     .editor:empty::before{content:attr(data-placeholder);color:var(--muted);pointer-events:none}
     .editor{
       outline:none;flex:1 0 auto;min-height:0;caret-color:var(--accent);
