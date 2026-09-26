@@ -262,7 +262,7 @@ test('fullscreen Mini App uses Telegram safe areas and stable viewport without m
   assert.equal(root.style.getPropertyValue('--tg-left'),'8px');
   assert.equal(root.style.getPropertyValue('--tg-right'),'7px');
   assert.equal(root.style.getPropertyValue('--vv-h'),'620px');
-  assert.equal(root.style.getPropertyValue('--kb'),Math.max(0,w.innerHeight-620)+'px');
+  assert.equal(root.style.getPropertyValue('--kb'),'0px');
   w.close();
 });
 test('dark glass has a single restrained edge and paints the full page while approved light styling stays unchanged',()=>{
@@ -564,10 +564,24 @@ test('browser viewport follows VisualViewport while Telegram geometry remains se
   const root=w.document.documentElement;
   assert.equal(root.style.getPropertyValue('--vv-top'),'24px');
   assert.equal(root.style.getPropertyValue('--vv-h'),'480px');
-  assert.equal(root.style.getPropertyValue('--kb'),Math.max(0,w.innerHeight-504)+'px');
+  assert.equal(root.style.getPropertyValue('--kb'),'0px');
   vv.height=420;vv.offsetTop=12;listeners.resize();
   assert.equal(root.style.getPropertyValue('--vv-h'),'420px');
   assert.equal(root.style.getPropertyValue('--vv-top'),'12px');
+  w.close();
+});
+
+test('visual viewport is one bounded shell with chrome outside the editor scroller',()=>{
+  const listeners={};
+  const vv={height:480,offsetTop:24,addEventListener(name,fn){listeners[name]=fn;}};
+  const w=page(undefined,false,{visualViewport:vv}),d=w.document;
+  assert.equal(w.getComputedStyle(d.querySelector('.app')).position,'absolute');
+  assert.equal(w.getComputedStyle(d.querySelector('.chrome-top')).position,'relative');
+  assert.equal(w.getComputedStyle(d.querySelector('.bar-wrap')).position,'relative');
+  assert.equal(w.getComputedStyle(d.querySelector('.canvas')).overflow,'auto');
+  assert.equal(d.querySelector('.bar-wrap').closest('.app'),d.querySelector('.app'));
+  assert.equal(d.querySelector('#plusMenu').closest('.app'),d.querySelector('.app'));
+  assert.equal(d.querySelector('.app').style.bottom,'');
   w.close();
 });
 
