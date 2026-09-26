@@ -1,17 +1,17 @@
-const $ = s => document.querySelector(s);
-const $ = s => Array.from(document.querySelectorAll(s));
-const editor = $('#editor');
-const docName = $('#docName');
-const toast = $('#toast');
-const backdrop = $('#backdrop');
-const fileInput = $('#fileInput');
+const one=s=>document.querySelector(s);
+const all=s=>Array.from(document.querySelectorAll(s));
+const editor = one('#editor');
+const docName = one('#docName');
+const toast = one('#toast');
+const backdrop = one('#backdrop');
+const fileInput = one('#fileInput');
 const STATE_VERSION=2;
 let dest = 'telegram';
 let inTg = false, session = 'browser', busy = false;
 const sheets = ['#plusMenu','#headingMenu','#quoteMenu','#listMenu','#importMenu','#exportMenu','#findMenu','#dialogMenu'];
 let savedRange = null, hist = [], histI = -1, histLock = false, composing = false, saveTimer = null, telegraphPath = '', docId = crypto.randomUUID(), importedMd = '', importedTxt = '', importedHtml = '', mediaFile = null;
 function applyAssets(){
-  $$('[data-icon]').forEach(el => {
+  all('[data-icon]').forEach(el => {
     const name = el.getAttribute('data-icon');
     el.style.setProperty('--ui-icon', 'url("icons/' + name + '.svg")');
   });
@@ -22,7 +22,7 @@ function applyScheme(){
   const light = tg?.colorScheme ? tg.colorScheme === 'light' : window.matchMedia('(prefers-color-scheme: light)').matches;
   document.documentElement.classList.toggle('light', light);
   document.documentElement.classList.toggle('dark', !light);
-  $('meta[name="theme-color"]').setAttribute('content', light ? '#f8fbff' : '#000000');
+  one('meta[name="theme-color"]').setAttribute('content', light ? '#f8fbff' : '#000000');
   if(tg&&inTg){
     const header=light?'#f8fbff':'#000000';
     tg.setHeaderColor(header);
@@ -217,7 +217,7 @@ function showToast(msg){
 }
 function setDestination(value, notify=true){
   dest = value;
-  const btn = $('#destBtn');
+  const btn = one('#destBtn');
   const name = dest === 'telegram' ? 'Telegram' : 'Telegraph';
   const icon = btn.querySelector('[data-icon]');
   icon.setAttribute('data-icon', dest === 'telegram' ? 'telegram' : 'document');
@@ -226,21 +226,21 @@ function setDestination(value, notify=true){
   btn.classList.toggle('active', dest === 'telegraph');
   btn.title = 'Destino: ' + name;
   applyAssets();
-  $$('#headingMenu [data-block]').forEach(item => {
+  all('#headingMenu [data-block]').forEach(item => {
     item.hidden = dest === 'telegraph' && !['p','h3','h4','footer'].includes(item.dataset.block);
   });
-  $('#quoteMenu [data-insert="expandquote"]').hidden = dest === 'telegraph';
-  $$('[data-tg="no"]').forEach(item => item.hidden = dest === 'telegraph');
-  $$('[data-telegraph="only"]').forEach(item => item.hidden = dest !== 'telegraph');
+  one('#quoteMenu [data-insert="expandquote"]').hidden = dest === 'telegraph';
+  all('[data-tg="no"]').forEach(item => item.hidden = dest === 'telegraph');
+  all('[data-telegraph="only"]').forEach(item => item.hidden = dest !== 'telegraph');
   document.body.dataset.destination = dest;
   closePanels();
   saveLocal();
   if(notify) showToast('Destino: ' + name);
 }
 function openPanel(sel){
-  const panel=$(sel);
+  const panel=one(sel);
   if(!panel)throw new Error('Painel indisponível: '+sel);
-  sheets.forEach(name=>$(name).classList.remove('on','is-top'));
+  sheets.forEach(name=>one(name).classList.remove('on','is-top'));
   panel.classList.toggle('is-top',sel==='#importMenu'||sel==='#exportMenu'||sel==='#findMenu');
   panel.classList.add('on');
   const list=panel.querySelector('.menu-list');
@@ -249,7 +249,7 @@ function openPanel(sel){
   document.dispatchEvent(new Event('selectionchange'));
 }
 function closePanels(){
-  sheets.forEach(s => { const el = $(s); el.classList.remove('on','is-top'); });
+  sheets.forEach(s => { const el = one(s); el.classList.remove('on','is-top'); });
   backdrop.classList.remove('on');
   document.dispatchEvent(new Event('selectionchange'));
 }
@@ -262,13 +262,13 @@ function finishDialog(value){
 }
 function dialogOpen(label,value='',rows=1,confirmMode=false){
   if(dialogResolve)finishDialog(null);
-  const input=$('#dialogInput');
-  $('#dialogLabel').textContent=label;
+  const input=one('#dialogInput');
+  one('#dialogLabel').textContent=label;
   dialogConfirm=confirmMode;
   input.hidden=confirmMode;
   input.value=confirmMode?'':String(value===null||value===undefined?'':value);
   input.rows=Math.max(1,Math.min(5,rows));
-  $('#dialogOk').textContent=confirmMode?'Continuar':'OK';
+  one('#dialogOk').textContent=confirmMode?'Continuar':'OK';
   openPanel('#dialogMenu',document.activeElement);
   return new Promise(resolve=>{
     dialogResolve=resolve;
@@ -280,9 +280,9 @@ function dialogOpen(label,value='',rows=1,confirmMode=false){
 }
 function ask(label,value='',rows=1){return dialogOpen(label,value,rows,false);}
 async function approve(label){return await dialogOpen(label,'',1,true)===true;}
-$('#dialogOk').addEventListener('click',()=>finishDialog(dialogConfirm?true:$('#dialogInput').value));
-$('#dialogCancel').addEventListener('click',()=>finishDialog(dialogConfirm?false:null));
-$('#dialogInput').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&e.currentTarget.rows===1){e.preventDefault();finishDialog(e.currentTarget.value);}});
+one('#dialogOk').addEventListener('click',()=>finishDialog(dialogConfirm?true:one('#dialogInput').value));
+one('#dialogCancel').addEventListener('click',()=>finishDialog(dialogConfirm?false:null));
+one('#dialogInput').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&e.currentTarget.rows===1){e.preventDefault();finishDialog(e.currentTarget.value);}});
 backdrop.addEventListener('click',()=>{if(dialogResolve)finishDialog(dialogConfirm?false:null);else closePanels();});
 function saveSel(){
   const sel = window.getSelection();
@@ -842,22 +842,22 @@ document.addEventListener('selectionchange', ()=>{
     if(block.classList.contains('tg-footer') || block.tagName === 'FOOTER') kind = 'footer';
     else kind = block.tagName.toLowerCase();
   }
-  $$('#typebar [data-cmd]').forEach(btn => {
+  all('#typebar [data-cmd]').forEach(btn => {
     const marks={bold:'strong,b',italic:'em,i',underline:'u',insertUnorderedList:'ul'};
     btn.classList.toggle('on', Boolean(el && el.closest(marks[btn.dataset.cmd] || '')));
   });
-  $('#listBtn').classList.toggle('on', !!(el && el.closest('ul,ol')) || $('#listMenu').classList.contains('on'));
-  $('#quoteBtn')?.classList.toggle('on', !!(el && el.closest('blockquote,aside')) || $('#quoteMenu')?.classList.contains('on'));
-  $('#headingBtn')?.classList.toggle('on', !!(headingEl || $('#headingMenu')?.classList.contains('on')));
-  $('#linkBtn')?.classList.toggle('on', !!(el && el.closest('a')));
-  $('#plusBtn')?.classList.toggle('on', $('#plusMenu')?.classList.contains('on'));
-  $$('#headingMenu [data-block]').forEach(btn => btn.classList.toggle('is-current', btn.dataset.block === kind));
+  one('#listBtn').classList.toggle('on', !!(el && el.closest('ul,ol')) || one('#listMenu').classList.contains('on'));
+  one('#quoteBtn')?.classList.toggle('on', !!(el && el.closest('blockquote,aside')) || one('#quoteMenu')?.classList.contains('on'));
+  one('#headingBtn')?.classList.toggle('on', !!(headingEl || one('#headingMenu')?.classList.contains('on')));
+  one('#linkBtn')?.classList.toggle('on', !!(el && el.closest('a')));
+  one('#plusBtn')?.classList.toggle('on', one('#plusMenu')?.classList.contains('on'));
+  all('#headingMenu [data-block]').forEach(btn => btn.classList.toggle('is-current', btn.dataset.block === kind));
 });
-$('#typebar').addEventListener('mousedown', e => e.preventDefault());
-$$('#typebar [data-cmd], #plusMenu [data-cmd], #listMenu [data-cmd]').forEach(btn => btn.addEventListener('click', ()=>{try{exec(btn.dataset.cmd);closePanels();}catch(err){showToast(err.message);}}));
-$$('#typebar [data-block], #headingMenu [data-block], #quoteMenu [data-block]').forEach(btn => btn.addEventListener('click', ()=>{try{formatBlock(btn.dataset.block);}catch(err){showToast(err.message);}}));
+one('#typebar').addEventListener('mousedown', e => e.preventDefault());
+all('#typebar [data-cmd], #plusMenu [data-cmd], #listMenu [data-cmd]').forEach(btn => btn.addEventListener('click', ()=>{try{exec(btn.dataset.cmd);closePanels();}catch(err){showToast(err.message);}}));
+all('#typebar [data-block], #headingMenu [data-block], #quoteMenu [data-block]').forEach(btn => btn.addEventListener('click', ()=>{try{formatBlock(btn.dataset.block);}catch(err){showToast(err.message);}}));
 document.querySelectorAll('#plusMenu [data-insert], #quoteMenu [data-insert], #listMenu [data-insert]').forEach(btn => btn.addEventListener('click', ()=>{void insertFeature(btn.dataset.insert).catch(err=>showToast(err.message));}));
-$('#linkBtn').addEventListener('click',async()=>{
+one('#linkBtn').addEventListener('click',async()=>{
   restoreSel();expandWord();saveSel();
   const node=document.getSelection()?.anchorNode;
   const current=(node&&(node.nodeType===1?node:node.parentElement)?.closest?.('a'))?.getAttribute('href')||'https://';
@@ -880,31 +880,31 @@ function flashBtn(btn){
   clearTimeout(btn._flash);
   btn._flash = setTimeout(()=>btn.classList.remove('is-flash'), 1400);
 }
-$('#undoBtn').addEventListener('click', ()=>{ histUndo(); flashBtn($('#undoBtn')); });
-$('#redoBtn').addEventListener('click', ()=>{ histRedo(); flashBtn($('#redoBtn')); });
-$('#undoBtn').addEventListener('mousedown', e => e.preventDefault());
-$('#redoBtn').addEventListener('mousedown', e => e.preventDefault());
-$('#plusBtn').addEventListener('click', e=>openPanel('#plusMenu', e.currentTarget));
-$('#headingBtn')?.addEventListener('click', e=>openPanel('#headingMenu', e.currentTarget));
-$('#listBtn').addEventListener('click',e=>openPanel('#listMenu',e.currentTarget));
-$('#openAppBtn').addEventListener('click',()=>{void openMiniApp();});
-$('#quoteBtn')?.addEventListener('click', e=>openPanel('#quoteMenu', e.currentTarget));
-$('#destBtn').addEventListener('click', ()=>setDestination(dest === 'telegram' ? 'telegraph' : 'telegram'));
-$('#exportBtn').addEventListener('click', e=>{
+one('#undoBtn').addEventListener('click', ()=>{ histUndo(); flashBtn(one('#undoBtn')); });
+one('#redoBtn').addEventListener('click', ()=>{ histRedo(); flashBtn(one('#redoBtn')); });
+one('#undoBtn').addEventListener('mousedown', e => e.preventDefault());
+one('#redoBtn').addEventListener('mousedown', e => e.preventDefault());
+one('#plusBtn').addEventListener('click', e=>openPanel('#plusMenu', e.currentTarget));
+one('#headingBtn')?.addEventListener('click', e=>openPanel('#headingMenu', e.currentTarget));
+one('#listBtn').addEventListener('click',e=>openPanel('#listMenu',e.currentTarget));
+one('#openAppBtn').addEventListener('click',()=>{void openMiniApp();});
+one('#quoteBtn')?.addEventListener('click', e=>openPanel('#quoteMenu', e.currentTarget));
+one('#destBtn').addEventListener('click', ()=>setDestination(dest === 'telegram' ? 'telegraph' : 'telegram'));
+one('#exportBtn').addEventListener('click', e=>{
   if(getTg()?.initData && !inTg){showToast(session==='invalid'?'Sessão inválida ou expirada. Reabra o Mini App.':'Aguarde a validação da sessão Telegram');return;}
   if(inTg) return publishCurrent();
   openPanel('#exportMenu', e.currentTarget);
 });
 docName.addEventListener('input',markDirty);
-$('#brandBtn')?.addEventListener('click', e=>openPanel('#importMenu', e.currentTarget));
-$('#importMdBtn')?.addEventListener('click', ()=>{ fileInput.accept='.md,text/markdown'; fileInput.click(); closePanels(); });
-$('#importTxtBtn')?.addEventListener('click', ()=>{ fileInput.accept='.txt,text/plain'; fileInput.click(); closePanels(); });
-$('#exportTxtBtn')?.addEventListener('click', ()=>exportFile('txt'));
-$('#exportMdBtn')?.addEventListener('click', ()=>exportFile('md'));
-$('#mediaBtn').addEventListener('click',()=>{$('#mediaInput').click();closePanels();});
-$('#mediaInput').addEventListener('change',async()=>{
-  const file=$('#mediaInput').files?.[0];if(!file)return;
-  $('#mediaInput').value='';
+one('#brandBtn')?.addEventListener('click', e=>openPanel('#importMenu', e.currentTarget));
+one('#importMdBtn')?.addEventListener('click', ()=>{ fileInput.accept='.md,text/markdown'; fileInput.click(); closePanels(); });
+one('#importTxtBtn')?.addEventListener('click', ()=>{ fileInput.accept='.txt,text/plain'; fileInput.click(); closePanels(); });
+one('#exportTxtBtn')?.addEventListener('click', ()=>exportFile('txt'));
+one('#exportMdBtn')?.addEventListener('click', ()=>exportFile('md'));
+one('#mediaBtn').addEventListener('click',()=>{one('#mediaInput').click();closePanels();});
+one('#mediaInput').addEventListener('change',async()=>{
+  const file=one('#mediaInput').files?.[0];if(!file)return;
+  one('#mediaInput').value='';
   if(file.size>20_000_000){showToast('Arquivo acima de 20 MB');return;}
   if(editor.querySelector('[data-media-id]')){showToast('Há um anexo no documento. Remova-o antes de anexar outro.');return;}
   const kind=file.type.startsWith('image/')?'image':file.type.startsWith('video/')?'video':file.type.startsWith('audio/')?'audio':'document';
@@ -914,9 +914,9 @@ $('#mediaInput').addEventListener('change',async()=>{
   try{await installMedia(file,id,kind,true);saveLocal();}
   catch(err){mediaNode(id)?.closest('figure')?.remove();showToast(err.message||'Não foi possível salvar o anexo');}
 });
-$('#findBtn').addEventListener('click', ()=>openPanel('#findMenu', $('#brandBtn')));
+one('#findBtn').addEventListener('click', ()=>openPanel('#findMenu', one('#brandBtn')));
 function matches(){
-  const term=$('#findText').value;if(!term)return [];
+  const term=one('#findText').value;if(!term)return [];
   const walk=document.createTreeWalker(editor,NodeFilter.SHOW_TEXT),groups=[];let node,group;
   while((node=walk.nextNode())){
     const block=node.parentElement.closest('p,div,li,h1,h2,h3,h4,h5,h6,blockquote,pre,td,th,summary,figcaption,footer')||editor;
@@ -931,21 +931,21 @@ function matches(){
   }}
   return found;
 }
-$('#findNext').addEventListener('click',()=>{
+one('#findNext').addEventListener('click',()=>{
   const all=matches();if(!all.length)return showToast('Nenhuma ocorrência');
   const sel=window.getSelection(),cur=savedRange&&editor.contains(savedRange.startContainer)?savedRange:null;
   const range=all.find(r=>!cur||cur.comparePoint(r.startContainer,r.startOffset)>0||cur.collapsed&&cur.comparePoint(r.startContainer,r.startOffset)===0)||all[0];
   sel.removeAllRanges();sel.addRange(range);savedRange=range.cloneRange();range.startContainer.parentElement.scrollIntoView({block:'nearest'});
 });
-$('#replaceOne').addEventListener('click',()=>{
+one('#replaceOne').addEventListener('click',()=>{
   const sel=window.getSelection();
   if(savedRange&&editor.contains(savedRange.startContainer)){sel.removeAllRanges();sel.addRange(savedRange);}
-  if(!sel.rangeCount||sel.toString().toLocaleLowerCase()!==$('#findText').value.toLocaleLowerCase())$('#findNext').click();
-  if(sel.toString().toLocaleLowerCase()!==$('#findText').value.toLocaleLowerCase()||!$('#findText').value)return;
-  const r=sel.getRangeAt(0),text=document.createTextNode($('#replaceText').value);r.deleteContents();r.insertNode(text);r.setStartAfter(text);r.collapse(true);savedRange=r.cloneRange();pushHist();markDirty();$('#findNext').click();
+  if(!sel.rangeCount||sel.toString().toLocaleLowerCase()!==one('#findText').value.toLocaleLowerCase())one('#findNext').click();
+  if(sel.toString().toLocaleLowerCase()!==one('#findText').value.toLocaleLowerCase()||!one('#findText').value)return;
+  const r=sel.getRangeAt(0),text=document.createTextNode(one('#replaceText').value);r.deleteContents();r.insertNode(text);r.setStartAfter(text);r.collapse(true);savedRange=r.cloneRange();pushHist();markDirty();one('#findNext').click();
 });
-$('#replaceAll').addEventListener('click',()=>{
-  const all=matches(),replace=$('#replaceText').value;
+one('#replaceAll').addEventListener('click',()=>{
+  const all=matches(),replace=one('#replaceText').value;
   for(const r of all.reverse()){r.deleteContents();r.insertNode(document.createTextNode(replace));}
   if(all.length){savedRange=null;pushHist();markDirty();}showToast(all.length+' substituições');
 });
@@ -984,9 +984,9 @@ async function readResponse(res){
 }
 async function publishCurrent(){
   if(busy)return;
-  busy=true;$('#exportBtn').disabled=true;
+  busy=true;one('#exportBtn').disabled=true;
   try{if(dest==='telegram')await publishTelegram();else await publishTelegraph();}
-  finally{busy=false;$('#exportBtn').disabled=false;}
+  finally{busy=false;one('#exportBtn').disabled=false;}
 }
 async function publishTelegram(){
   if(!editor.childNodes.length){ showToast('Escreva algo antes de enviar'); return; }
@@ -1050,8 +1050,8 @@ document.addEventListener('keydown', e => {
   if(!(e.metaKey || e.ctrlKey)) return;
   const k = e.key.toLowerCase();
   if(k==='b'||k==='i'||k==='u'){e.preventDefault();try{exec({b:'bold',i:'italic',u:'underline'}[k]);}catch(err){showToast(err.message);}}
-  if(k==='z' && !e.shiftKey){ e.preventDefault(); histUndo(); flashBtn($('#undoBtn')); }
-  if(k==='z' && e.shiftKey || k==='y'){ e.preventDefault(); histRedo(); flashBtn($('#redoBtn')); }
+  if(k==='z' && !e.shiftKey){ e.preventDefault(); histUndo(); flashBtn(one('#undoBtn')); }
+  if(k==='z' && e.shiftKey || k==='y'){ e.preventDefault(); histRedo(); flashBtn(one('#redoBtn')); }
 });
 function boot(){
   let notice='';
