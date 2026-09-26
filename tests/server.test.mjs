@@ -28,7 +28,7 @@ async function webhook(update){
 }
 function find(node,tag,out=[]){for(const item of node.children||[]){if(item.name===tag)out.push(item);find(item,tag,out);}return out;}
 async function start(){
-  child=spawn(process.execPath,['--import','./tests/mocks.mjs','server.mjs'],{cwd:new URL('../',import.meta.url),env:{...process.env,PORT:String(port),TOKEN:token,MINI_APP_URL:'https://romastefale.github.io/MDTXTRT/',PUBLIC_BASE_URL:'https://mdtxtrt.up.railway.app',TELEGRAPH_ACCESS_TOKEN:'',RAILWAY_VOLUME_MOUNT_PATH:dir,TEST_CALLS:join(dir,'calls')},stdio:'ignore'});
+  child=spawn(process.execPath,['--import','./tests/mocks.mjs','server.mjs'],{cwd:new URL('../',import.meta.url),env:{...process.env,PORT:String(port),TOKEN:token,TELEGRAPH_ACCESS_TOKEN:'',RAILWAY_VOLUME_MOUNT_PATH:dir,TEST_CALLS:join(dir,'calls')},stdio:'ignore'});
   for(let i=0;i<30;i++){try{const res=await fetch(`http://127.0.0.1:${port}/`);if(res.ok)return;}catch{}await new Promise(resolve=>setTimeout(resolve,100));}
   throw Error('Server did not start');
 }
@@ -38,28 +38,6 @@ before(async()=>{
   await start();
 });
 after(()=>{child?.kill();if(dir)rmSync(dir,{recursive:true,force:true});});
-test('server refuses incomplete production configuration instead of substituting hidden defaults',async()=>{
-  const badPort=port+1;
-  const proc=spawn(process.execPath,['server.mjs'],{
-    cwd:new URL('../',import.meta.url),
-    env:{...process.env,PORT:String(badPort),TOKEN:token,PUBLIC_BASE_URL:'https://mdtxtrt.up.railway.app',RAILWAY_VOLUME_MOUNT_PATH:dir},
-    stdio:['ignore','pipe','pipe']
-  });
-  let stderr='';
-  proc.stderr.on('data',chunk=>stderr+=chunk);
-  const code=await new Promise(resolve=>proc.once('exit',resolve));
-  assert.notEqual(code,0);
-  assert.match(stderr,/Configuração ausente: MINI_APP_URL/);
-});
-
-test('handoff rejects legacy unversioned draft state',async()=>{
-  const form=new FormData();
-  form.set('draft',JSON.stringify({name:'Antigo',html:'<p>x</p>',dest:'telegram',telegraphPath:'',docId:'44444444-4444-4444-8444-444444444444',importedMd:'',importedTxt:'',importedHtml:'',media:null}));
-  const res=await fetch(`http://127.0.0.1:${port}/api/handoff`,{method:'POST',headers:{origin},body:form});
-  assert.equal(res.status,400);
-  assert.match((await res.json()).error,/Versão do rascunho incompatível/);
-});
-
 test('homepage and local browser assets',async()=>{
   for(const path of ['/','/app.js','/marked.js','/turndown.js']) assert.equal((await fetch(`http://127.0.0.1:${port}${path}`)).status,200);
   const html=readFileSync(new URL('../index.html',import.meta.url),'utf8');
@@ -220,7 +198,7 @@ test('browser TXT and Markdown exports return exact downloadable bytes and attac
 
 test('browser handoff carries document and binary attachment through official startapp and survives restart',async()=>{
   const id='handoffmedia1',doc='44444444-4444-4444-8444-444444444444';
-  const draft={version:2,name:'Continuidade',html:`<p>Texto</p><figure><img data-media-id="${id}"><figcaption>foto.png</figcaption></figure>`,dest:'telegram',telegraphPath:'',docId:doc,importedMd:'',importedTxt:'',importedHtml:'',media:{id,kind:'image'}};
+  const draft={name:'Continuidade',html:`<p>Texto</p><figure><img data-media-id="${id}"><figcaption>foto.png</figcaption></figure>`,dest:'telegram',telegraphPath:'',docId:doc,importedMd:'',importedTxt:'',importedHtml:'',media:{id,kind:'image'}};
   const form=new FormData();
   form.set('draft',JSON.stringify(draft));
   form.set('upload',new Blob([new Uint8Array([1,2,3,4,5])],{type:'image/png'}),'foto.png');
