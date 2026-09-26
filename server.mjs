@@ -36,11 +36,11 @@ const DOWNLOAD_TTL = 5 * 60 * 1000;
 const downloads = new Map();
 const BOT_TOKEN=required("TOKEN");
 if(!BOT_TOKEN_RE.test(BOT_TOKEN))throw new Error("Configuração inválida: TOKEN");
-let telegraphToken=String(process.env.TELEGRAPH_ACCESS_TOKEN??"").trim();
+let telegraphToken="";
 let telegraphQueue = Promise.resolve();
 let botLink;
 mkdirSync(HANDOFF_DIR, { recursive: true });
-if(!telegraphToken&&existsSync(TELEGRAPH_FILE)){
+if(existsSync(TELEGRAPH_FILE)){
   telegraphToken=readFileSync(TELEGRAPH_FILE,"utf8").trim();
   if(!telegraphToken)throw new Error("Credencial Telegraph persistida está vazia");
 }
@@ -342,10 +342,8 @@ async function sendRich(initData,html,file=null){
 }
 
 
-function webhookSecret(token) {
-  const value = (process.env.TELEGRAM_WEBHOOK_SECRET || createHmac("sha256", token).update("MDTXTRT_WEBHOOK").digest("hex")).trim();
-  if (!/^[A-Za-z0-9_-]{1,256}$/.test(value)) throw new Error("A chave do webhook do Telegram é inválida");
-  return value;
+function webhookSecret(token){
+  return createHmac("sha256",token).update("MDTXTRT_WEBHOOK").digest("hex");
 }
 
 function sameSecret(a, b) {
@@ -625,7 +623,8 @@ function readPages() {
   if (!existsSync(PAGES_FILE)) return {};
   let pages;
   try { pages = JSON.parse(readFileSync(PAGES_FILE, "utf8")); } catch { throw new Error("Não foi possível recuperar as páginas do Telegraph"); }
-  return pages && typeof pages === "object" && !Array.isArray(pages) ? pages : {};
+  if(!pages||typeof pages!=="object"||Array.isArray(pages))throw new Error("Mapeamento de páginas do Telegraph inválido");
+  return pages;
 }
 
 function writePages(pages) {
