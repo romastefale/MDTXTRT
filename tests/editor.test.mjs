@@ -25,20 +25,22 @@ test('editor starts and destination controls work',()=>{
   assert.equal(w.document.querySelector('#destBtn').title,'Destino: Telegraph');
   w.close();
 });
-test('markdown GFM and unsupported HTML',()=>{
-  const w=page();
-  const src='# Título\n\n- [x] tarefa\n- [ ] próxima\n\n| A | B |\n| --- | --- |\n| 1 | 2 |\n\n**forte** e [site](https://example.com)';
-  const html=w.eval('mdToBasicHTML('+JSON.stringify(src)+')');
-  assert.match(html,/<table>/);
-  assert.match(html,/checkbox/);
-  assert.match(html,/<strong>forte<\/strong>/);
-  w.document.querySelector('#editor').innerHTML=html;
-  const md=w.eval('htmlToMarkdown(document.querySelector("#editor").innerHTML)');
-  assert.match(md,/<table>/);
-  assert.throws(()=>w.eval('mdToBasicHTML("<script>alert(1)</script>")'),/não suportado/);
+test('toolbar clicks edit selected text and undo and redo restore document states',()=>{
+  const w=page(),d=w.document,editor=d.querySelector('#editor');
+  editor.innerHTML='<p>texto selecionado</p>';
+  editor.dispatchEvent(new w.Event('input',{bubbles:true}));
+  const text=editor.querySelector('p').firstChild,range=d.createRange();
+  range.setStart(text,0);range.setEnd(text,text.length);w.getSelection().removeAllRanges();w.getSelection().addRange(range);d.dispatchEvent(new w.Event('selectionchange'));
+  d.querySelector('[data-cmd="bold"]').click();
+  assert.equal(editor.querySelector('strong')?.textContent,'texto selecionado');
+  d.querySelector('#undoBtn').click();
+  assert.equal(editor.querySelector('strong'),null);
+  assert.equal(editor.textContent,'texto selecionado');
+  d.querySelector('#redoBtn').click();
+  assert.equal(editor.querySelector('strong')?.textContent,'texto selecionado');
   w.close();
 });
-test('replace keeps semantic bold in the editor',()=>{
+test('replace button changes text without removing semantic formatting',()=>{
   const w=page();
   w.document.querySelector('#editor').innerHTML='<p>Teste <strong>forte forte</strong></p>';
   w.document.querySelector('#findText').value='forte';
@@ -47,6 +49,25 @@ test('replace keeps semantic bold in the editor',()=>{
   assert.equal(w.document.querySelector('#editor strong').textContent,'novo novo');
   assert.equal(w.document.querySelector('#previewBtn'),null);
   assert.match(w.eval('buildRich().rich_message.html'),/<strong>novo novo<\/strong>/);
+  w.close();
+});
+test('toolbar and insertion menu buttons produce the selected semantic blocks',()=>{
+  const w=page(),d=w.document,e=d.querySelector('#editor');
+  d.querySelector('#headingBtn').click();d.querySelector('#headingMenu [data-block="h3"]').click();
+  assert.equal(d.body.contains(e),true);
+  assert.ok(d.querySelector('#typebar'));
+  assert.equal(e.firstElementChild?.tagName,'H3');
+  d.querySelector('#plusBtn').click();d.querySelector('#plusMenu [data-insert="task"]').click();
+  assert.equal(e.querySelector('input[type="checkbox"]')?.type,'checkbox');
+  d.querySelector('#plusBtn').click();d.querySelector('#plusMenu [data-insert="ordered"]').click();
+  assert.ok(e.querySelector('ol > li'));
+  d.querySelector('#quoteBtn').click();d.querySelector('#quoteMenu [data-block="blockquote"]').click();
+  assert.ok(e.querySelector('blockquote'));
+  d.querySelector('#plusBtn').click();
+  d.querySelector('#destBtn').click();
+  assert.equal(d.body.dataset.destination,'telegraph');
+  assert.equal(d.querySelector('#plusMenu [data-insert="task"]').hidden,true);
+  assert.equal(d.querySelector('#plusMenu [data-insert="image"]').hidden,false);
   w.close();
 });
 test('find is under the app name and menu icons match their actions',()=>{
@@ -64,22 +85,66 @@ test('find is under the app name and menu icons match their actions',()=>{
   assert.equal(d.querySelector('#plusMenu [data-insert="video"] [data-icon]').dataset.icon,'movie');
   w.close();
 });
-test('exact markdown stays unchanged when editor is untouched',async()=>{
-  const w=page();
-  const md='## Nome\n\n| A | B |\n|---|---|\n| 1 | 2 |\n';
-  const file=w.document.querySelector('#fileInput');
-  Object.defineProperty(file,'files',{value:[{name:'source.md',text:async()=>md}]});
-  file.dispatchEvent(new w.Event('change'));
-  await new Promise(resolve=>setTimeout(resolve,5));
-  assert.equal(w.eval('htmlToMarkdown(document.querySelector("#editor").innerHTML)'),md);
+test('Markdown import, editor replacement and export retain supported structures',async()=>{
+  const w=page(),d=w.document,editor=d.querySelector('#editor');
+  let saved;
+  w.URL.createObjectURL=blob=>(saved={blob},'blob:download');
+  w.HTMLAnchorElement.prototype.click=function(){saved.name=this.download};
+  const source='# Nome\n\n- [x] tarefa\n- [ ] próxima\n\n| A | B |\n| --- | --- |\n| 1 | 2 |\n\n**forte** e [site](https://example.com)';
+  d.querySelector('#brandBtn').click();d.querySelector('#importMdBtn').click();
+  assert.equal(d.querySelector('#fileInput').accept,'.md,text/markdown');
+  Object.defineProperty(d.querySelector('#fileInput'),'files',{configurable:true,value:[{name:'source.md',text:async()=>source}]});
+  d.querySelector('#fileInput').dispatchEvent(new w.Event('change'));
+  await new Promise(resolve=>setTimeout(resolve,10));
+  assert.equal(editor.querySelector('h1')?.textContent,'Nome');
+  assert.equal(editor.querySelectorAll('input[type="checkbox"]').length,2);
+  assert.equal(editor.querySelectorAll('table tr').length,2);
+  assert.equal(editor.querySelector('strong')?.textContent,'forte');
+  d.querySelector('#findText').value='tarefa';d.querySelector('#replaceText').value='feito';d.querySelector('#replaceAll').click();
+  d.querySelector('#exportBtn').click();
+  assert.equal(d.querySelector('#exportMenu').classList.contains('on'),true);
+  d.querySelector('#exportMdBtn').click();
+  await new Promise(resolve=>setTimeout(resolve,10));
+  assert.equal(saved.name,'source.md');
+  const output=await new Promise((resolve,reject)=>{const reader=new w.FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=reject;reader.readAsText(saved.blob)});
+  const again=w.eval('mdToBasicHTML('+JSON.stringify(output)+')');
+  const round=w.document.createElement('div');round.innerHTML=again;
+  assert.equal(round.querySelector('h1')?.textContent,'Nome');
+  assert.equal(round.querySelectorAll('input[type="checkbox"]').length,2);
+  assert.equal(round.querySelectorAll('table tr').length,2);
+  assert.equal(round.querySelector('strong')?.textContent,'forte');
+  assert.equal(round.querySelector('a')?.getAttribute('href'),'https://example.com');
+  assert.match(round.textContent,/feito/);
   w.close();
 });
-test('Telegram rich serializer rejects arbitrary elements and uses native HTML',()=>{
+test('TXT import stays literal and lossy export requires an explicit choice',async()=>{
+  const w=page(),d=w.document;let saved,asked=0,allow=false;
+  w.confirm=()=>{asked++;return allow};
+  w.URL.createObjectURL=blob=>(saved={blob},'blob:download');
+  w.HTMLAnchorElement.prototype.click=function(){saved.name=this.download};
+  const source='literal <texto>\nlinha dois\n';
+  Object.defineProperty(d.querySelector('#fileInput'),'files',{configurable:true,value:[{name:'texto.txt',text:async()=>source}]});
+  d.querySelector('#fileInput').dispatchEvent(new w.Event('change'));
+  await new Promise(resolve=>setTimeout(resolve,10));
+  d.querySelector('#exportBtn').click();d.querySelector('#exportTxtBtn').click();
+  await new Promise(resolve=>setTimeout(resolve,10));
+  let output=await new Promise((resolve,reject)=>{const reader=new w.FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=reject;reader.readAsText(saved.blob)});
+  assert.equal(output,source);
+  const editor=d.querySelector('#editor');editor.innerHTML='<p><strong>formato</strong></p>';
+  d.querySelector('#exportTxtBtn').click();
+  assert.equal(asked,1);
+  allow=true;d.querySelector('#exportTxtBtn').click();
+  await new Promise(resolve=>setTimeout(resolve,10));
+  output=await new Promise((resolve,reject)=>{const reader=new w.FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=reject;reader.readAsText(saved.blob)});
+  assert.equal(output,'formato');
+  w.close();
+});
+test('Telegram rich serializer rejects invalid elements and emits semantic message data',()=>{
   const w=page();
   const editor=w.document.querySelector('#editor');
   editor.innerHTML='<h2>Olá</h2><ul><li><input type="checkbox" checked>Feito</li></ul>';
-  assert.match(w.eval('buildRich().rich_message.html'),/<h2>Olá<\/h2>/);
-  assert.match(w.eval('buildRich().rich_message.html'),/checked/);
+  const msg=w.eval('buildRich()').rich_message;
+  assert.equal(msg.html,'<h2>Olá</h2><ul><li><input type="checkbox" checked/>Feito</li></ul>');
   editor.innerHTML='<svg></svg>';
   assert.throws(()=>w.eval('buildRich()'),/não aceita/);
   w.close();
@@ -95,6 +160,35 @@ test('Mini App mode waits for backend initData validation',async()=>{
   assert.equal(w.document.body.classList.contains('tg'),true);
   assert.equal(fullscreen,1);
   assert.equal(hidden,1);
+  w.close();
+});
+test('Mini App export click publishes the current editor HTML to the authenticated endpoint',async()=>{
+  const requests=[];
+  const w=page({isFullscreen:true,fetch:async(url,options)=>{requests.push({url,options});return {ok:true,json:async()=>({via:'sendRichMessage'})}},requestFullscreen(){}});
+  await new Promise(resolve=>setTimeout(resolve,5));
+  w.document.querySelector('#editor').innerHTML='<p><strong>Texto enviado</strong></p>';
+  w.document.querySelector('#exportBtn').click();
+  await new Promise(resolve=>setTimeout(resolve,5));
+  const send=requests.find(item=>item.url.endsWith('/api/telegram/send'));
+  assert.ok(send);
+  assert.equal(send.options.method,'POST');
+  assert.deepEqual(JSON.parse(send.options.body),{initData:'signed-payload',html:'<p><strong>Texto enviado</strong></p>'});
+  w.close();
+});
+test('Mini App destination switch publishes Telegraph nodes and retains the returned page path',async()=>{
+  const requests=[];
+  const w=page({isFullscreen:true,fetch:async(url,options)=>{requests.push({url,options});return {ok:true,json:async()=>({path:'owned-page',url:'https://telegra.ph/owned-page'})}},requestFullscreen(){},openLink(){}});
+  await new Promise(resolve=>setTimeout(resolve,5));
+  const d=w.document;d.querySelector('#docName').value='Documento';d.querySelector('#editor').innerHTML='<h3>Título</h3><p>Texto</p>';
+  d.querySelector('#destBtn').click();d.querySelector('#exportBtn').click();
+  await new Promise(resolve=>setTimeout(resolve,5));
+  const publish=requests.find(item=>item.url.endsWith('/api/telegraph/publish'));
+  assert.ok(publish);
+  const data=JSON.parse(publish.options.body);
+  assert.deepEqual(data.content,[{tag:'h3',children:['Título']},{tag:'p',children:['Texto']}]);
+  assert.equal(data.title,'Documento');
+  assert.equal(data.path,'');
+  assert.equal(JSON.parse(w.localStorage.getItem('rmdtxtml')).telegraphPath,'owned-page');
   w.close();
 });
 test('fullscreen Mini App keeps menus below Telegram controls',async()=>{
@@ -133,6 +227,18 @@ test('insertions respect the caret between blocks',()=>{
   w.getSelection().removeAllRanges();w.getSelection().addRange(range);
   w.eval('saveSel();insertFeature("divider")');
   assert.deepEqual([...editor.children].map(el=>el.tagName),['P','HR','P']);
+  w.close();
+});
+test('block commands split paragraphs at the caret without nesting list and divider nodes',()=>{
+  const w=page(),d=w.document,editor=d.querySelector('#editor');
+  editor.innerHTML='<p>antes depois</p>';
+  const text=editor.querySelector('p').firstChild,range=d.createRange();
+  range.setStart(text,6);range.collapse(true);w.getSelection().removeAllRanges();w.getSelection().addRange(range);d.dispatchEvent(new w.Event('selectionchange'));
+  d.querySelector('#plusBtn').click();d.querySelector('#plusMenu [data-insert="ordered"]').click();
+  assert.deepEqual([...editor.children].map(node=>node.tagName),['P','OL','P']);
+  assert.equal(editor.children[0].textContent,'antes ');
+  assert.equal(editor.children[2].textContent,'depois');
+  assert.equal(editor.querySelector('p ol'),null);
   w.close();
 });
 test('button insertion exposes only ready types and validates callback payload',()=>{

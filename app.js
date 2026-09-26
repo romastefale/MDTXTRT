@@ -210,7 +210,8 @@ function formatBlock(tag){
   restoreSel();
   const node = document.getSelection()?.anchorNode;
   const fromEl = node && (node.nodeType === 1 ? node : node.parentElement);
-  const block = fromEl && fromEl.closest('p,h1,h2,h3,h4,h5,h6,blockquote,footer,div,li');
+  const found = fromEl && fromEl !== editor ? fromEl.closest('p,h1,h2,h3,h4,h5,h6,blockquote,footer,div,li') : null;
+  const block = found && editor.contains(found) ? found : null;
   const unwrapBold = el => {
     el.querySelectorAll('strong,b').forEach(n => {
       while(n.firstChild) n.parentNode.insertBefore(n.firstChild, n);
@@ -269,13 +270,35 @@ function formatBlock(tag){
   }
   saveSel(); pushHist(); markDirty(); closePanels();
 }
-function insertHTML(html){
+function insertHTML(html, asBlock=false){
   restoreSel();
-  const range = window.getSelection()?.rangeCount ? window.getSelection().getRangeAt(0) : null;
+  const sel=window.getSelection(),range=sel?.rangeCount?sel.getRangeAt(0):null;
   if(!range || !editor.contains(range.commonAncestorContainer)) throw new Error('Posicione o cursor no texto');
-  range.deleteContents();
   const t=document.createElement('template'); t.innerHTML=html;
-  const frag=t.content; const last=frag.lastChild;
+  const frag=t.content;
+  if(asBlock){
+    range.deleteContents();
+    let node=range.startContainer.nodeType===1?range.startContainer:range.startContainer.parentElement;
+    let block=node?.closest('p,h1,h2,h3,h4,h5,h6,blockquote,footer,aside,div,li,ul,ol,table,figure,details,tg-map,tg-collage,tg-slideshow,tg-math-block');
+    while(block&&block.parentElement!==editor)block=block.parentElement?.closest('p,h1,h2,h3,h4,h5,h6,blockquote,footer,aside,div,li,ul,ol,table,figure,details,tg-map,tg-collage,tg-slideshow,tg-math-block');
+    if(block?.tagName==='LI')block=block.parentElement;
+    if(block&&block.parentElement===editor&&['P','H1','H2','H3','H4','H5','H6','BLOCKQUOTE','FOOTER','ASIDE','DIV'].includes(block.tagName)){
+      const left=range.cloneRange(),right=range.cloneRange();
+      left.selectNodeContents(block);left.setEnd(range.startContainer,range.startOffset);
+      right.selectNodeContents(block);right.setStart(range.startContainer,range.startOffset);
+      const before=left.cloneContents(),after=right.cloneContents();
+      const meaningful=part=>Boolean(part.textContent||part.querySelector('img,video,audio,iframe,input,tg-button,tg-map,hr'))||[...part.childNodes].some(child=>child.nodeType===1&&child.tagName!=='BR');
+      const a=meaningful(before)?block.cloneNode(false):null,b=meaningful(after)?block.cloneNode(false):null;
+      if(a)a.append(before);if(b)b.append(after);
+      const inserted=frag.lastChild;
+      if(a)block.before(a);block.before(frag);if(b)block.before(b);block.remove();
+      if(inserted){range.setStartAfter(inserted);range.collapse(true);sel.removeAllRanges();sel.addRange(range);}
+      saveSel();pushHist();markDirty();closePanels();return;
+    }
+    if(block&&block.parentElement===editor){range.setStartAfter(block);range.collapse(true);}
+  }
+  range.deleteContents();
+  const last=frag.lastChild;
   range.insertNode(frag);
   if(last){range.setStartAfter(last);range.collapse(true);const sel=window.getSelection();sel.removeAllRanges();sel.addRange(range);}
   saveSel(); pushHist(); markDirty(); closePanels();
@@ -318,22 +341,22 @@ function figure(kind){
     kind === 'video' ? '<video src="'+escapeHTML(url)+'"></video>' :
     kind === 'audio' ? '<audio src="'+escapeHTML(url)+'"></audio>' :
     '<tg-document src="'+escapeHTML(url)+'"></tg-document>';
-  insertHTML('<figure>'+tag+cap+'</figure>');
+  insertHTML('<figure>'+tag+cap+'</figure>',true);
 }
 function insertFeature(kind){
-  if(kind === 'task') return insertHTML('<ul><li><input type="checkbox">Nova tarefa</li></ul>');
-  if(kind === 'ordered') return insertHTML('<ol><li>Novo item</li></ol>');
-  if(kind === 'divider') return insertHTML('<hr/>');
+  if(kind === 'task') return insertHTML('<ul><li><input type="checkbox">Nova tarefa</li></ul>',true);
+  if(kind === 'ordered') return insertHTML('<ol><li>Novo item</li></ol>',true);
+  if(kind === 'divider') return insertHTML('<hr/>',true);
   if(kind === 'table'){
     const caption = prompt('Legenda da tabela', '') || '';
-    return insertHTML('<table bordered striped compact>'+(caption?'<caption>'+escapeHTML(caption)+'</caption>':'')+'<tr><th>A</th><th>B</th></tr><tr><td>—</td><td>—</td></tr></table>');
+    return insertHTML('<table bordered striped compact>'+(caption?'<caption>'+escapeHTML(caption)+'</caption>':'')+'<tr><th>A</th><th>B</th></tr><tr><td>—</td><td>—</td></tr></table>',true);
   }
-  if(kind === 'expandquote') return insertHTML('<blockquote data-expandable="true"><p>Citação expansível</p></blockquote>');
-  if(kind === 'pullquote') return insertHTML('<aside>Citação em destaque</aside>');
-  if(kind === 'details') return insertHTML('<details open><summary>Conteúdo</summary><p>Texto expansível</p></details>');
+  if(kind === 'expandquote') return insertHTML('<blockquote data-expandable="true"><p>Citação expansível</p></blockquote>',true);
+  if(kind === 'pullquote') return insertHTML('<aside>Citação em destaque</aside>',true);
+  if(kind === 'details') return insertHTML('<details open><summary>Conteúdo</summary><p>Texto expansível</p></details>',true);
   if(kind === 'mathblock'){
     const value = prompt('Fórmula LaTeX', 'E = mc^2');
-    if(value) return insertHTML('<tg-math-block>'+escapeHTML(value)+'</tg-math-block>');
+    if(value) return insertHTML('<tg-math-block>'+escapeHTML(value)+'</tg-math-block>',true);
     return;
   }
   if(kind === 'anchor'){
@@ -366,7 +389,7 @@ function insertFeature(kind){
   if(kind === 'document') return figure('document');
   if(kind === 'embed'){
     const url = askUrl('Link do conteúdo incorporado');
-    if(url) return insertHTML('<figure><iframe src="'+escapeHTML(url)+'"></iframe></figure>');
+    if(url) return insertHTML('<figure><iframe src="'+escapeHTML(url)+'"></iframe></figure>',true);
     return;
   }
   if(kind === 'map'){
@@ -376,7 +399,7 @@ function insertFeature(kind){
     if(!Number.isFinite(lat)||lat < -90||lat > 90||!Number.isFinite(lon)||lon < -180||lon > 180||!Number.isInteger(zoom)||zoom<0||zoom>24) return showToast('Mapa inválido');
     const caption = prompt('Legenda', '') || '';
     const map = '<tg-map lat="'+lat+'" long="'+lon+'" zoom="'+zoom+'"/>';
-    return insertHTML(caption?'<figure>'+map+'<figcaption>'+escapeHTML(caption)+'</figcaption></figure>':map);
+    return insertHTML(caption?'<figure>'+map+'<figcaption>'+escapeHTML(caption)+'</figcaption></figure>':map,true);
   }
   if(kind === 'collage' || kind === 'slideshow'){
     const value = prompt('Links de imagens ou vídeos, um por linha', '');
@@ -392,7 +415,7 @@ function insertFeature(kind){
     if(!tags.length) return;
     const caption=prompt('Legenda','')||'';
     const tag=kind==='collage'?'tg-collage':'tg-slideshow';
-    return insertHTML('<'+tag+'>'+tags.join('')+(caption?'<figcaption>'+escapeHTML(caption)+'</figcaption>':'')+'</'+tag+'>');
+    return insertHTML('<'+tag+'>'+tags.join('')+(caption?'<figcaption>'+escapeHTML(caption)+'</figcaption>':'')+'</'+tag+'>',true);
   }
   if(kind === 'button') {
     const type=(prompt('Tipo: url, callback_data, web_app, copy_text, disabled','url')||'url').trim();
@@ -413,7 +436,7 @@ function insertFeature(kind){
     }else if(type==='copy_text'){
       const text=prompt('Texto para copiar','')||''; if(!text) return; attr+=' text="'+escapeHTML(text)+'"';
     }
-    return insertHTML('<tg-button-row align="center"><tg-button'+attr+'>'+escapeHTML(label)+'</tg-button></tg-button-row>');
+    return insertHTML('<tg-button-row align="center"><tg-button'+attr+'>'+escapeHTML(label)+'</tg-button></tg-button-row>',true);
   }
 }
 function insertPlainText(text){
@@ -444,7 +467,23 @@ function loadLocal(){
   }catch{ showToast('O rascunho salvo não pôde ser aberto'); }
 }
 function escapeHTML(s){ return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-function htmlToText(html){ if(importedTxt && editor.innerHTML===importedHtml)return importedTxt;const d = document.createElement('div'); d.innerHTML = html;if(d.querySelector('img,video,audio,iframe,tg-document,tg-map,tg-collage,tg-slideshow,tg-button'))throw new Error('TXT não comporta mídia ou botões');return d.innerText; }
+function htmlToText(html){
+  if(importedTxt && editor.innerHTML===importedHtml)return importedTxt;
+  const d=document.createElement('div');d.innerHTML=html;
+  if(d.querySelector('img,video,audio,iframe,tg-document,tg-map,tg-collage,tg-slideshow,tg-button'))throw new Error('TXT não comporta mídia ou botões');
+  const block=new Set(['P','DIV','H1','H2','H3','H4','H5','H6','FOOTER','BLOCKQUOTE','PRE','UL','OL','LI','TABLE','TR','FIGURE','DETAILS','ASIDE']);
+  const read=node=>{
+    if(node.nodeType===3)return node.nodeValue||'';
+    if(node.nodeType!==1)return '';
+    if(node.tagName==='BR')return '\n';
+    const children=Array.from(node.childNodes);
+    if(node.tagName==='TABLE')return Array.from(node.rows).map(row=>Array.from(row.cells).map(read).join('\t')).join('\n');
+    const value=children.map(read).join('');
+    return block.has(node.tagName)?'\n'+value+'\n':value;
+  };
+  return Array.from(d.childNodes).map(read).join('').replace(/^\n+|\n+$/g,'').replace(/\n{3,}/g,'\n\n');
+}
+function txtLosesStructure(){return Boolean(editor.querySelector('h1,h2,h3,h4,h5,h6,strong,b,em,i,u,ins,s,strike,del,code,mark,sub,sup,tg-spoiler,tg-reference,tg-emoji,tg-time,tg-math,tg-math-block,hr,ul,ol,li,blockquote,aside,footer,table,details,summary,a[href],figure,figcaption,input'))||Boolean(editor.querySelector('.tg-footer,[data-expandable]'));}
 function htmlToMarkdown(html){
   if(importedMd && editor.innerHTML === importedHtml) return importedMd;
   if(editor.querySelector('[data-media-id]')) throw new Error('Anexos locais precisam de URL pública para exportar Markdown');
@@ -667,6 +706,7 @@ async function exportFile(format) {
       type = "text/markdown";
       ext = "md";
     } else {
+      if (txtLosesStructure() && !confirm('TXT não preserva formatação nem estrutura. Deseja exportar como texto simples?')) return;
       content = htmlToText(editor.innerHTML);
       type = "text/plain";
       ext = "txt";

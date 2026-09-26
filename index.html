@@ -233,6 +233,12 @@
     #findMenu .tools:last-child{flex-wrap:wrap}
     #findMenu .tools button{flex:1 1 auto;white-space:nowrap}
     @media (prefers-reduced-motion:reduce){.sheet{animation:none}}
+    @media (min-width:760px){
+      .meta{width:min(calc(100% - 32px),960px);margin:8px auto 0}
+      .canvas{width:100%;max-width:960px;margin-inline:auto;padding-inline:32px}
+      .bar-wrap{padding-inline:24px}
+      .bar{max-width:760px;margin-inline:auto}
+    }
   </style>
 </head>
 <body>
