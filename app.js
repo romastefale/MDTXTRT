@@ -149,17 +149,19 @@ async function claimHandoff(){
     const blob=await fileRes.blob();
     const file=new File([blob],data.file.name||'anexo',{type:data.file.mime||blob.type,lastModified:Date.now()});
     await installMedia(file,data.file.id,data.file.kind,true);
-  }else{mediaFile=null;}
+  }else{
+    if(mediaFile?.url)URL.revokeObjectURL(mediaFile.url);
+    mediaFile=null;await mediaClear();
+  }
   decorateSpecials();setDestination(dest,false);hist=[];histI=-1;pushHist();saveLocal();showToast('Rascunho aberto no Mini App');
 }
 async function recoverTelegraph(){
   if(!inTg||!/^[a-f0-9-]{36}$/i.test(docId))return;
-  try{
-    const res=await fetch(API+'/api/telegraph/recover',{method:'POST',signal:AbortSignal.timeout(15000),headers:{'content-type':'application/json'},body:JSON.stringify({initData:getTg()?.initData||'',doc:docId})});
-    if(res.status===404)return;
-    const data=await readResponse(res);
-    if(res.ok&&data.path){telegraphPath=data.path;saveLocal();}
-  }catch{}
+  const res=await fetch(API+'/api/telegraph/recover',{method:'POST',signal:AbortSignal.timeout(15000),headers:{'content-type':'application/json'},body:JSON.stringify({initData:getTg()?.initData||'',doc:docId})});
+  if(res.status===404)return;
+  const data=await readResponse(res);
+  if(!res.ok)throw new Error(data.error||'Não foi possível recuperar a página do Telegraph');
+  if(data.path){telegraphPath=data.path;saveLocal();}
 }
 async function openMiniApp(){
   if(busy)return;busy=true;
