@@ -2,7 +2,7 @@ import {test,before,after} from 'node:test';
 import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
 import {createHmac} from 'node:crypto';
-import {mkdtempSync,writeFileSync,rmSync} from 'node:fs';
+import {mkdtempSync,writeFileSync,readFileSync,rmSync} from 'node:fs';
 import {join} from 'node:path';
 
 const token='123456:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef';
@@ -19,12 +19,15 @@ async function post(path,body){
   const res=await fetch(`http://127.0.0.1:${port}${path}`,{method:'POST',headers:{origin,'content-type':'application/json'},body:JSON.stringify(body)});
   return {status:res.status,data:await res.json()};
 }
+async function start(){
+  child=spawn(process.execPath,['--import','./tests/mocks.mjs','server.mjs'],{cwd:new URL('../',import.meta.url),env:{...process.env,PORT:String(port),TOKEN:token,TELEGRAPH_ACCESS_TOKEN:'',RAILWAY_VOLUME_MOUNT_PATH:dir},stdio:'ignore'});
+  for(let i=0;i<30;i++){try{const res=await fetch(`http://127.0.0.1:${port}/`);if(res.ok)return;}catch{}await new Promise(resolve=>setTimeout(resolve,100));}
+  throw Error('Server did not start');
+}
 before(async()=>{
   dir=mkdtempSync(join(process.cwd(),'.test-data-'));
   writeFileSync(join(dir,'telegraph-token-pages.json'),JSON.stringify({'7:11111111-1111-4111-8111-111111111111':'owned-page'}));
-  child=spawn(process.execPath,['--import','./tests/mocks.mjs','server.mjs'],{cwd:new URL('../',import.meta.url),env:{...process.env,PORT:String(port),TOKEN:token,TELEGRAPH_ACCESS_TOKEN:'fake',RAILWAY_VOLUME_MOUNT_PATH:dir},stdio:'ignore'});
-  for(let i=0;i<30;i++){try{const res=await fetch(`http://127.0.0.1:${port}/`);if(res.ok)return;}catch{}await new Promise(resolve=>setTimeout(resolve,100));}
-  throw Error('Server did not start');
+  await start();
 });
 after(()=>{child?.kill();if(dir)rmSync(dir,{recursive:true,force:true});});
 test('homepage and local browser assets',async()=>{
@@ -63,6 +66,9 @@ test('Rich Message send and Telegraph create/edit on same owned document',async(
   const created=await post('/api/telegraph/publish',page);
   assert.equal(created.status,200);
   assert.equal(created.data.path,'test-page-09-26');
+  assert.equal(readFileSync(join(dir,'telegraph-token'),'utf8'),'persistent-test-token');
+  await new Promise(resolve=>{child.once('exit',resolve);child.kill();});
+  await start();
   const edited=await post('/api/telegraph/publish',{...page,path:created.data.path,title:'Página revisada'});
   assert.equal(edited.status,200);
   assert.equal(edited.data.path,created.data.path);
