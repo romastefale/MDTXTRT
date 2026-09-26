@@ -401,3 +401,31 @@ test('rapid publish clicks send once and network failures allow retry',async()=>
   finish({ok:false,json:async()=>({error:'Falha temporária'})});await new Promise(resolve=>setTimeout(resolve,5));assert.equal(d.querySelector('#exportBtn').disabled,false);assert.equal(d.querySelector('#toast').textContent,'Falha temporária');
   d.querySelector('#exportBtn').click();assert.equal(count,2);finish({ok:true,json:async()=>({})});await new Promise(resolve=>setTimeout(resolve,5));w.close();
 });
+
+test('rejected file import preserves name, document and publication identity',async()=>{
+  const w=page(),d=w.document;
+  d.querySelector('#editor').innerHTML='<p>Documento existente</p>';
+  d.querySelector('#docName').value='Original';
+  w.localStorage.setItem('rmdtxtml',JSON.stringify({html:'<p>Documento existente</p>',name:'Original',telegraphPath:'owned-page',docId:'existing-document'}));
+  w.eval('loadLocal()');
+  Object.defineProperty(d.querySelector('#fileInput'),'files',{value:[{name:'invalido.md',text:async()=>'<script>alert(1)</script>'}]});
+  d.querySelector('#fileInput').dispatchEvent(new w.Event('change'));
+  await new Promise(resolve=>setTimeout(resolve,0));
+  assert.equal(d.querySelector('#docName').value,'Original');
+  assert.equal(d.querySelector('#editor').innerHTML,'<p>Documento existente</p>');
+  w.eval('saveLocal()');
+  const saved=JSON.parse(w.localStorage.getItem('rmdtxtml'));
+  assert.equal(saved.telegraphPath,'owned-page');
+  assert.equal(saved.docId,'existing-document');
+  w.close();
+});
+test('empty saved document restores its name and destination',()=>{
+  const w=page();
+  w.localStorage.setItem('rmdtxtml',JSON.stringify({html:'',name:'Vazio',dest:'telegraph',docId:'empty-document'}));
+  w.eval('loadLocal()');
+  assert.equal(w.document.querySelector('#editor').innerHTML,'');
+  assert.equal(w.document.querySelector('#docName').value,'Vazio');
+  w.eval('saveLocal()');
+  assert.equal(JSON.parse(w.localStorage.getItem('rmdtxtml')).dest,'telegraph');
+  w.close();
+});

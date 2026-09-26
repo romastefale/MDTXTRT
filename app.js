@@ -499,7 +499,7 @@ function saveLocal(){
 function loadLocal(){
   try{
     const d = JSON.parse(localStorage.getItem('rmdtxtml') || 'null');
-    if(d?.html){ editor.innerHTML = d.html; docName.value = d.name || 'Ideia'; telegraphPath = d.telegraphPath || ''; docId = d.docId || docId; importedMd = d.importedMd || ''; importedTxt = d.importedTxt || ''; importedHtml = d.importedHtml || ''; if(d.dest === 'telegram' || d.dest === 'telegraph') dest = d.dest; }
+    if(typeof d?.html === 'string'){ editor.innerHTML = d.html; docName.value = d.name || 'Ideia'; telegraphPath = d.telegraphPath || ''; docId = d.docId || docId; importedMd = d.importedMd || ''; importedTxt = d.importedTxt || ''; importedHtml = d.importedHtml || ''; if(d.dest === 'telegram' || d.dest === 'telegraph') dest = d.dest; }
   }catch{ showToast('O rascunho salvo não pôde ser aberto'); }
 }
 function escapeHTML(s){ return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
@@ -551,7 +551,7 @@ function mdToBasicHTML(md){
 function download(name, content, type){
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([content], {type}));
-  a.download = name; a.click();
+  a.download = name; a.hidden = true; document.body.append(a); a.click(); a.remove();
   setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
 }
 function telegraphNodes(root){
@@ -820,8 +820,9 @@ fileInput.addEventListener('change', async ()=>{
   try{
     if(!/\.(md|txt)$/i.test(file.name)) throw new Error('Escolha um arquivo Markdown ou TXT');
     const text = await file.text();
+    const html = /\.md$/i.test(file.name) ? mdToBasicHTML(text.replace(/^\uFEFF/,'')) : '<p>'+escapeHTML(text.replace(/^\uFEFF/,'')).replace(/\n/g,'<br>')+'</p>';
     docName.value = file.name.replace(/\.(md|txt)$/i,'');
-    editor.innerHTML = /\.md$/i.test(file.name) ? mdToBasicHTML(text.replace(/^\uFEFF/,'')) : '<p>'+escapeHTML(text.replace(/^\uFEFF/,'')).replace(/\n/g,'<br>')+'</p>';
+    editor.innerHTML = html;
     importedMd = /\.md$/i.test(file.name) ? text.replace(/^\uFEFF/,'') : '';
     importedTxt = /\.txt$/i.test(file.name) ? text.replace(/^\uFEFF/,'') : '';
     importedHtml = editor.innerHTML;
