@@ -43,6 +43,7 @@
       --safe-left:max(var(--tg-safe-area-inset-left),var(--tg-content-safe-area-inset-left));
       --safe-right:max(var(--tg-safe-area-inset-right),var(--tg-content-safe-area-inset-right));
       --view-h:var(--tg-viewport-stable-height);
+      --head-inset:calc(var(--safe-top) + var(--gap) + var(--meta-h) + var(--gap));
     }
     html.light{
       --bg:#f8fbff; --text:#151515; --muted:#5c6478; --accent:#ff6a00;
@@ -102,6 +103,7 @@
     .chrome-top{position:fixed;inset:0 0 auto 0;z-index:20;padding:var(--safe-top) var(--safe-right) var(--gap) var(--safe-left);pointer-events:none}
     html.tg-shell .chrome-top{position:absolute}
     .chrome-top .topbar,.chrome-top .meta{pointer-events:auto}
+    body.tg .topbar{display:none}
     .topbar{position:relative;z-index:1;display:flex;align-items:center;justify-content:center;height:var(--topbar-h);margin:var(--gap) 12px 0;padding:0 12px}
     .brand{font-weight:700;font-size:15px;letter-spacing:.08em;text-align:center;border:0;background:transparent;color:inherit;padding:8px 12px;margin:0;border-radius:999px;font-family:inherit;appearance:none;-webkit-appearance:none}
     .meta{position:relative;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:var(--gap);height:var(--meta-h);margin:var(--gap) 16px 0}
