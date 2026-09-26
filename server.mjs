@@ -134,7 +134,7 @@ async function readJson(req, maxBytes = 80_000) {
 async function sendRich(initData, html) {
   const token = botToken();
   if (!token) throw new Error("O envio para o Telegram não está configurado");
-  if (!html || !String(html).replace(/<[^>]*>/g, "").replace(/&nbsp;/gi, " ").trim()) throw new Error("Escreva algo antes de publicar");
+  if (!html || !String(html).trim()) throw new Error("Escreva algo antes de publicar");
   if (Buffer.byteLength(String(html), "utf8") > 32768) throw new Error("Mensagem rica acima de 32.768 caracteres");
   const { chatId } = userFromInitData(String(initData || ""), token);
   const msg = await telegramCall(token, "sendRichMessage", {
