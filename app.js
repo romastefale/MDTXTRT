@@ -33,6 +33,7 @@ function applyScheme(){
 applyScheme();
 window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', applyScheme);
 function getTg(){ return window.Telegram?.WebApp; }
+if(getTg()?.initData)document.documentElement.classList.add('tg-shell');
 function isInsideTelegram(){ return inTg; }
 const API = 'https://mdtxtrt.up.railway.app';
 const DB_NAME='mdtxtrt',DB_STORE='media';
@@ -191,7 +192,6 @@ async function verifyTelegram(){
     try{await recoverTelegraph();}catch(err){showToast(err.message||'Não foi possível recuperar a página do Telegraph');}
   }catch(err){
     session='invalid';
-    document.documentElement.classList.remove('tg-shell');
     document.body.classList.remove('tg');
     applyScheme();
     showToast(err.message||'Não foi possível validar a sessão Telegram');
