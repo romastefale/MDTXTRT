@@ -344,11 +344,12 @@ async function sendBotRich(chatId, html, replyTo) {
 }
 
 function appButton() {
-  return "<tg-button-row align=\"center\"><tg-button type=\"web_app\" url=\"" + htmlEscape(MINI_APP_URL) + "\">Abrir MDTXTRT</tg-button></tg-button-row>";
+  return "<tg-button-row align=\"center\"><tg-button type=\"web_app\" style=\"success\" url=\"" + htmlEscape(MINI_APP_URL) + "\">Mini App MDTXTRT</tg-button></tg-button-row>" +
+    "<tg-button-row align=\"center\"><tg-button type=\"url\" style=\"danger\" url=\"" + htmlEscape(WEBHOOK_BASE + "/") + "\">Abrir MDTXTRT no browser</tg-button></tg-button-row>";
 }
 
 function appMessage(title) {
-  return "<h1>MDTXTRT</h1><p>" + title + "</p>" + appButton() + "<p><a href=\"" + htmlEscape(MINI_APP_URL) + "\">Abrir no navegador</a></p>";
+  return "<h1>MDTXTRT</h1><p>" + title + "</p>" + appButton();
 }
 
 async function sendDocument(chatId, name, content, type) {
@@ -435,7 +436,7 @@ async function configureBot() {
   try { secret = webhookSecret(token); } catch (error) { console.error("Telegram webhook", error); return; }
   const steps = [
     ["setMyCommands", { commands: BOT_COMMANDS }],
-    ["setChatMenuButton", { menu_button: { type: "web_app", text: "Abrir MDTXTRT", web_app: { url: MINI_APP_URL } } }],
+    ["setChatMenuButton", { menu_button: { type: "web_app", text: "Mini App MDTXTRT", web_app: { url: MINI_APP_URL } } }],
     ["setWebhook", { url: WEBHOOK_BASE + "/telegram/webhook", secret_token: secret, allowed_updates: ["message", "callback_query"] }],
   ];
   for (const [method, body] of steps) {

@@ -20,7 +20,7 @@ async function post(path,body){
   return {status:res.status,data:await res.json()};
 }
 async function start(){
-  child=spawn(process.execPath,['--import','./tests/mocks.mjs','server.mjs'],{cwd:new URL('../',import.meta.url),env:{...process.env,PORT:String(port),TOKEN:token,TELEGRAPH_ACCESS_TOKEN:'',RAILWAY_VOLUME_MOUNT_PATH:dir},stdio:'ignore'});
+  child=spawn(process.execPath,['--import','./tests/mocks.mjs','server.mjs'],{cwd:new URL('../',import.meta.url),env:{...process.env,PORT:String(port),TOKEN:token,TELEGRAPH_ACCESS_TOKEN:'',RAILWAY_VOLUME_MOUNT_PATH:dir,TEST_CALLS:join(dir,'calls')},stdio:'ignore'});
   for(let i=0;i<30;i++){try{const res=await fetch(`http://127.0.0.1:${port}/`);if(res.ok)return;}catch{}await new Promise(resolve=>setTimeout(resolve,100));}
   throw Error('Server did not start');
 }
@@ -56,6 +56,16 @@ test('Telegraph page ownership checked before edit',async()=>{
 test('webhook and legacy export are protected',async()=>{
   assert.equal((await fetch(`http://127.0.0.1:${port}/telegram/webhook`,{method:'POST',body:'{}'})).status,401);
   assert.equal((await post('/api/telegram/export',{})).status,405);
+});
+test('start command offers green Mini App and red browser buttons',async()=>{
+  const secret=createHmac('sha256',token).update('MDTXTRT_WEBHOOK').digest('hex');
+  const res=await fetch(`http://127.0.0.1:${port}/telegram/webhook`,{method:'POST',headers:{'content-type':'application/json','x-telegram-bot-api-secret-token':secret},body:JSON.stringify({message:{text:'/start',message_id:3,chat:{id:7,type:'private'}}})});
+  assert.equal(res.status,200);
+  const calls=readFileSync(join(dir,'calls'),'utf8').trim().split('\n');
+  const html=JSON.parse(calls.at(-1)).rich_message.html;
+  assert.match(html,/<tg-button type="web_app" style="success"[^>]+>Mini App MDTXTRT<\/tg-button>/);
+  assert.match(html,/<tg-button type="url" style="danger" url="https:\/\/mdtxtrt\.up\.railway\.app\/">Abrir MDTXTRT no browser<\/tg-button>/);
+  assert.doesNotMatch(html,/<a\b/);
 });
 
 test('Rich Message send and Telegraph create/edit on same owned document',async()=>{
