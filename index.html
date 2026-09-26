@@ -69,7 +69,7 @@
       overflow:hidden;
     }
     html{background-image:radial-gradient(95% 32% at -12% 0%, rgba(76, 76, 76, .34) 0%, rgba(42, 42, 42, .18) 38%, transparent 76%), radial-gradient(86% 34% at 112% 17%, rgba(68, 68, 68, .31) 0%, rgba(39, 39, 39, .18) 42%, transparent 78%), radial-gradient(104% 42% at -23% 39%, rgba(58, 58, 58, .34) 0%, rgba(34, 34, 34, .23) 36%, rgba(20, 20, 20, .1) 62%, transparent 83%), radial-gradient(90% 33% at 114% 45%, rgba(54, 54, 54, .22) 0%, rgba(32, 32, 32, .14) 48%, transparent 80%), radial-gradient(94% 38% at -20% 78%, rgba(72, 72, 72, .3) 0%, rgba(42, 42, 42, .2) 42%, rgba(22, 22, 22, .1) 66%, transparent 86%), radial-gradient(84% 30% at 111% 91%, rgba(56, 56, 56, .21) 0%, rgba(34, 34, 34, .13) 49%, transparent 82%);background-repeat:no-repeat;background-size:100% 100lvh;background-attachment:fixed}
-    html.light{background-image:#f8fbff}
+    html.light{background-image:radial-gradient( 92% 30% at -10% 0%, rgba(246, 236, 255, 0.72) 0%, rgba(248, 243, 255, 0.42) 44%, rgba(250, 251, 255, 0) 78% ), radial-gradient( 84% 30% at 112% 19%, rgba(255, 237, 245, 0.78) 0%, rgba(255, 247, 250, 0.42) 47%, rgba(250, 252, 255, 0) 80% ), radial-gradient( 100% 38% at -18% 40%, rgba(230, 255, 248, 0.88) 0%, rgba(239, 255, 251, 0.56) 39%, rgba(248, 253, 255, 0.18) 63%, rgba(250, 252, 255, 0) 84% ), radial-gradient( 96% 40% at 56% 49%, rgba(231, 246, 255, 0.88) 0%, rgba(240, 249, 255, 0.58) 46%, rgba(248, 252, 255, 0.18) 69%, rgba(250, 252, 255, 0) 86% ), radial-gradient( 82% 31% at 112% 72%, rgba(247, 244, 255, 0.52) 0%, rgba(250, 248, 255, 0.30) 49%, rgba(250, 252, 255, 0) 82% ), radial-gradient( 76% 28% at 108% 100%, rgba(255, 247, 242, 0.70) 0%, rgba(255, 251, 248, 0.38) 48%, rgba(250, 252, 255, 0) 81% ), radial-gradient( 42% 16% at 57% 98%, rgba(229, 252, 255, 0.46) 0%, rgba(242, 253, 255, 0.20) 54%, rgba(250, 252, 255, 0) 82% ), linear-gradient( 180deg, #faf8fe 0%, #f7fbff 28%, #f4fbff 52%, #f8fbff 78%, #fbfaff 100% )}
     ::selection{background:color-mix(in srgb,var(--accent) 38%, transparent);color:inherit}
     button,input{font:inherit;color:inherit}
     button{cursor:pointer;-webkit-tap-highlight-color:transparent}
@@ -137,10 +137,10 @@
     html.dark .bar > button.on{color:var(--accent)}
     html.dark .bar > button.on::before{background:color-mix(in srgb,var(--accent) 22%,transparent)}
     .bar > button > *{position:relative;z-index:1}
-    .canvas{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:calc(var(--top) + 108px) 16px calc(var(--bar-h) + var(--kb) + var(--safe-bottom) + 28px);position:relative}
+    .canvas{flex:1;min-height:0;display:flex;flex-direction:column;overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:calc(var(--top) + 108px) 16px calc(var(--bar-h) + var(--kb) + var(--safe-bottom) + 28px);position:relative}
     .editor:empty::before{content:attr(data-placeholder);color:var(--muted);pointer-events:none}
     .editor{
-      outline:none;min-height:100%;caret-color:var(--accent);
+      outline:none;flex:1 0 auto;min-height:0;caret-color:var(--accent);
       -webkit-user-select:text;user-select:text
     }
     .editor p{margin:.7em 0}
