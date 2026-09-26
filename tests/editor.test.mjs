@@ -276,10 +276,10 @@ test('Mini App destination switch publishes Telegraph nodes and retains the retu
 test('fullscreen Mini App delegates viewport and safe areas to official Telegram CSS variables',async()=>{
   const w=page({fetch:async()=>({ok:true,status:404,json:async()=>({})}),isFullscreen:true,viewportStableHeight:620,safeAreaInset:{top:59,bottom:34,left:0,right:0},contentSafeAreaInset:{top:44,bottom:0,left:8,right:7}});
   await new Promise(r=>setTimeout(r,10));
-  const root=w.document.documentElement;
+  const htmlRoot=w.document.documentElement;
   const html=readFileSync(new URL('index.html',root),'utf8');
   const app=readFileSync(new URL('app.js',root),'utf8');
-  assert.equal(root.classList.contains('tg-shell'),true);
+  assert.equal(htmlRoot.classList.contains('tg-shell'),true);
   assert.match(html,/--view-h:var\(--tg-viewport-stable-height,100dvh\)/);
   assert.match(html,/--tg-safe-area-inset-top/);
   assert.match(html,/--tg-content-safe-area-inset-top/);
