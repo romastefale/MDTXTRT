@@ -216,6 +216,9 @@ async function verifyTelegram(){
 }
 function setupTelegram(){
   const tg=getTg();
+  const shell=one('.app');
+  shell.style.removeProperty('height');
+  shell.style.removeProperty('transform');
   inTg=true;session='ready';
   document.documentElement.classList.add('tg-shell');
   document.body.classList.add('tg');
@@ -1125,6 +1128,23 @@ document.addEventListener('keydown', e => {
   if(k==='z' && !e.shiftKey){ e.preventDefault(); histUndo(); flashBtn(one('#undoBtn')); }
   if(k==='z' && e.shiftKey || k==='y'){ e.preventDefault(); histRedo(); flashBtn(one('#redoBtn')); }
 });
+let viewportFrame=0;
+function syncBrowserViewport(){
+  if(getTg()?.initData)return;
+  const viewport=window.visualViewport;
+  if(!viewport)return;
+  const shell=one('.app');
+  shell.style.height=viewport.height+'px';
+  shell.style.transform='translate3d(0,'+viewport.offsetTop+'px,0)';
+}
+function scheduleBrowserViewport(){
+  cancelAnimationFrame(viewportFrame);
+  viewportFrame=requestAnimationFrame(syncBrowserViewport);
+}
+window.visualViewport?.addEventListener('resize',scheduleBrowserViewport);
+window.visualViewport?.addEventListener('scroll',scheduleBrowserViewport);
+syncBrowserViewport();
+
 function boot(){
   let notice='';
   try{loadLocal();}catch(err){notice=err.message;}
