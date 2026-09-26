@@ -60,6 +60,7 @@
       font:16px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;
     }
     html.tg-shell body{height:var(--tg-viewport-stable-height)}
+    html:not(.tg-shell) body:has(#editor:focus,#docName:focus,#dialogInput:focus,#findText:focus,#replaceText:focus){--safe-bottom:0px}
 
     html.light body{background-image:radial-gradient(92% 30% at -10% 0%,rgba(246,236,255,.72) 0%,rgba(248,243,255,.42) 44%,transparent 78%),radial-gradient(84% 30% at 112% 19%,rgba(255,237,245,.78) 0%,rgba(255,247,250,.42) 47%,transparent 80%),radial-gradient(100% 38% at -18% 40%,rgba(230,255,248,.88) 0%,rgba(239,255,251,.56) 39%,rgba(248,253,255,.18) 63%,transparent 84%),radial-gradient(96% 40% at 56% 49%,rgba(231,246,255,.88) 0%,rgba(240,249,255,.58) 46%,rgba(248,252,255,.18) 69%,transparent 86%),radial-gradient(82% 31% at 112% 72%,rgba(247,244,255,.52) 0%,rgba(250,248,255,.30) 49%,transparent 82%),radial-gradient(76% 28% at 108% 100%,rgba(255,247,242,.70) 0%,rgba(255,251,248,.38) 48%,transparent 81%),radial-gradient(42% 16% at 57% 98%,rgba(229,252,255,.46) 0%,rgba(242,253,255,.20) 54%,transparent 82%),linear-gradient(180deg,#faf8fe 0%,#f7fbff 28%,#f4fbff 52%,#f8fbff 78%,#fbfaff 100%)}
     ::selection{background:color-mix(in srgb,var(--accent) 38%, transparent);color:inherit}
