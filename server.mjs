@@ -369,8 +369,10 @@ function richValid(html){
     details:new Set(["open"]),"tg-button-row":new Set(["align"]),"tg-button":new Set(["type","style","url","data","query","text","forward-text","request-write-access","allow-user-chats","allow-bot-chats","allow-group-chats","allow-channel-chats"])
   };
   const media=new Set(["img","video","audio","tg-document"]);
+  const blocks=new Set(["h1","h2","h3","h4","h5","h6","p","pre","footer","hr","ul","ol","li","blockquote","aside","figure","tg-map","tg-collage","tg-slideshow","table","tr","details","tg-math-block","tg-button-row"]);
   const buttons=new Set(["url","callback_data","web_app","login_url","switch_inline_query","switch_inline_query_current_chat","switch_inline_query_chosen_chat","copy_text","disabled"]);
   const bool=new Set(["reversed","checked","expandable","tg-spoiler","bordered","striped","compact","open","request-write-access","allow-user-chats","allow-bot-chats","allow-group-chats","allow-channel-chats"]);
+  let blockCount=0,mediaCount=0;
   const urlValid=(value,mediaTag=false)=>{
     let url;try{url=new URL(value);}catch{throw new Error("Link inválido");}
     if(mediaTag){
@@ -380,18 +382,46 @@ function richValid(html){
     }
     if(!["https:","http:","tg:","mailto:","tel:"].includes(url.protocol))throw new Error("Link inválido");
   };
-  const walk=node=>{
+  const walk=(node,depth=0,parent="")=>{
+    if(depth>16)throw new Error("A mensagem excede 16 níveis de aninhamento");
     if(node.type==="text")return;
     if(node.type!=="tag"||!tags.has(node.name))throw new Error("O conteúdo contém elemento inválido: "+(node.name||node.type));
+    if(blocks.has(node.name)&&++blockCount>500)throw new Error("A mensagem excede 500 blocos");
     const allowed=attrs[node.name]||new Set();
     for(const [key,value] of Object.entries(node.attribs)){
       if(!allowed.has(key))throw new Error("Atributo inválido em "+node.name+": "+key);
       if(bool.has(key)&&value!=="")throw new Error("Atributo booleano inválido: "+key);
     }
+    if(media.has(node.name)){
+      if(++mediaCount>50)throw new Error("A mensagem excede 50 mídias");
+      if(!["","figure","tg-collage","tg-slideshow"].includes(parent))throw new Error("Mídia precisa ser um bloco separado");
+    }
+    if(node.name==="figcaption"&&!["figure","tg-collage","tg-slideshow"].includes(parent))throw new Error("Legenda fora de bloco de mídia");
+    if(node.name==="cite"&&!["figcaption","blockquote","aside"].includes(parent))throw new Error("Crédito fora de citação ou legenda");
+    if(node.name==="caption"&&parent!=="table")throw new Error("Legenda de tabela inválida");
+    if(node.name==="tr"&&parent!=="table")throw new Error("Linha de tabela inválida");
+    if(["th","td"].includes(node.name)&&parent!=="tr")throw new Error("Célula de tabela inválida");
+    if(node.name==="summary"&&parent!=="details")throw new Error("Resumo expansível inválido");
+    if(node.name==="input"&&parent!=="li")throw new Error("Checkbox precisa estar em item de lista");
+    if(node.name==="tg-button-row"){
+      const count=node.children.filter(child=>child.type==="tag"&&child.name==="tg-button").length;
+      if(count<1||count>8)throw new Error("Uma linha deve conter de 1 a 8 botões");
+    }
+    if(node.name==="table"){
+      const rows=node.children.filter(child=>child.type==="tag"&&child.name==="tr");
+      for(const row of rows){
+        let cols=0;
+        for(const cell of row.children.filter(child=>child.type==="tag"&&["th","td"].includes(child.name))){
+          const span=Number(cell.attribs.colspan||1);
+          if(!Number.isInteger(span)||span<1||span>20)throw new Error("Colspan de tabela inválido");
+          cols+=span;
+        }
+        if(cols>20)throw new Error("A tabela excede 20 colunas");
+      }
+    }
     if(node.name==="code"&&node.attribs.class&&!/^language-[a-z0-9+-]+$/i.test(node.attribs.class))throw new Error("Linguagem de código inválida");
     if(node.name==="a"){
-      const href=node.attribs.href;
-      const name=node.attribs.name;
+      const href=node.attribs.href,name=node.attribs.name;
       if(Boolean(href)===Boolean(name))throw new Error("Âncora ou link inválido");
       if(href&&!href.startsWith("#"))urlValid(href);
       if(name&&!/^[A-Za-z0-9_-]{1,64}$/.test(name))throw new Error("Nome de âncora inválido");
@@ -408,6 +438,7 @@ function richValid(html){
       if(zoom!==undefined&&(!Number.isInteger(zoom)||zoom<0||zoom>24))throw new Error("Zoom inválido");
       if(width!==undefined&&(!Number.isInteger(width)||width<0||width>10000))throw new Error("Largura do mapa inválida");
       if(height!==undefined&&(!Number.isInteger(height)||height<0||height>10000))throw new Error("Altura do mapa inválida");
+      if((width||0)+(height||0)>10000)throw new Error("Dimensões do mapa excedem o limite");
       if(width&&height&&Math.max(width/height,height/width)>20)throw new Error("Proporção do mapa inválida");
     }
     if(node.name==="tg-button-row"&&node.attribs.align&&!["left","center","right"].includes(node.attribs.align))throw new Error("Alinhamento de botão inválido");
@@ -429,9 +460,9 @@ function richValid(html){
       if(!node.attribs.src)throw new Error("Mídia sem endereço");
       urlValid(node.attribs.src,true);
     }
-    node.children.forEach(walk);
+    node.children.forEach(child=>walk(child,depth+1,node.name));
   };
-  parseDocument(html).children.forEach(walk);
+  parseDocument(html).children.forEach(node=>walk(node));
 }
 
 function telegraphValid(content) {
