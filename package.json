@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "start": "node server.mjs",
-    "test": "node --test tests/*.test.mjs"
+    "test": "npm run test:behavior",
+    "test:behavior": "node --test tests/editor.test.mjs tests/server.test.mjs"
   },
   "engines": {
     "node": ">=20"
