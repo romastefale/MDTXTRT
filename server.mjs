@@ -264,7 +264,7 @@ function createDownload(name, content, type) {
   const fallback = type === "text/markdown" ? "document.md" : "document.txt";
   const fileName = cleanFileName(name, fallback);
   const bytes = Buffer.from(String(content), "utf8");
-  if (!bytes.length || bytes.length > 1_500_000) throw new Error("O arquivo está vazio ou excede o limite de exportação");
+  if (bytes.length > 1_500_000) throw new Error("O arquivo excede o limite de exportação");
   cleanDownloads();
   const token = randomUUID().replace(/-/g, "");
   downloads.set(token, { name: fileName, bytes, type: mime, expires: Date.now() + DOWNLOAD_TTL });
