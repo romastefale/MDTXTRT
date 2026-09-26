@@ -118,7 +118,7 @@ async function installMedia(file,id,kind,persist=true){
   if(mediaFile?.url)URL.revokeObjectURL(mediaFile.url);
   const url=URL.createObjectURL(file);
   mediaFile={file,id,kind,url};
-  if(persist)await mediaStore({id,file,kind,name:file.name,type:file.type,lastModified:file.lastModified||Date.now()});
+  if(persist){await mediaClear();await mediaStore({id,file,kind,name:file.name,type:file.type,lastModified:file.lastModified||Date.now()});}
   const node=mediaNode(id);
   if(node){node.setAttribute('src',url);node.removeAttribute('data-media-missing');}
   decorateSpecials();
@@ -664,6 +664,10 @@ window.addEventListener('pagehide',saveLocal);
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')saveLocal();});
 function saveLocal(){
   clearTimeout(saveTimer);
+  if(!editor.querySelector('[data-media-id]')&&mediaFile){
+    if(mediaFile.url)URL.revokeObjectURL(mediaFile.url);
+    mediaFile=null;void mediaClear();
+  }
   try{ localStorage.setItem('rmdtxtml', JSON.stringify(draftState())); }
   catch{ showToast('Não foi possível salvar neste dispositivo'); }
 }
