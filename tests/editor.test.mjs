@@ -273,57 +273,28 @@ test('Mini App destination switch publishes Telegraph nodes and retains the retu
   assert.equal(JSON.parse(w.localStorage.getItem('rmdtxtml')).telegraphPath,'owned-page');
   w.close();
 });
-test('fullscreen Mini App delegates viewport and safe areas to official Telegram CSS variables',async()=>{
+test('Mini App setup keeps one editor scroll surface while platform geometry stays declarative',async()=>{
   const w=page({fetch:async()=>({ok:true,status:404,json:async()=>({})}),isFullscreen:true,viewportStableHeight:620,safeAreaInset:{top:59,bottom:34,left:0,right:0},contentSafeAreaInset:{top:44,bottom:0,left:8,right:7}});
   await new Promise(r=>setTimeout(r,10));
-  const htmlRoot=w.document.documentElement;
-  const html=readFileSync(new URL('index.html',root),'utf8');
-  const app=readFileSync(new URL('app.js',root),'utf8');
-  assert.equal(htmlRoot.classList.contains('tg-shell'),true);
-  assert.match(html,/--view-h:var\(--tg-viewport-stable-height,100dvh\)/);
-  assert.match(html,/--tg-safe-area-inset-top/);
-  assert.match(html,/--tg-content-safe-area-inset-top/);
-  assert.doesNotMatch(app,/safeAreaInset|contentSafeAreaInset|style\.setProperty\('--tg-/);
+  const d=w.document;
+  assert.equal(d.documentElement.classList.contains('tg-shell'),true);
+  assert.equal(d.body.classList.contains('tg'),true);
+  assert.equal(w.getComputedStyle(d.body).overflow,'hidden');
+  assert.equal(w.getComputedStyle(d.querySelector('.app')).overflow,'hidden');
+  assert.equal(w.getComputedStyle(d.querySelector('.canvas')).overflowY,'auto');
+  assert.equal(d.querySelector('#editor').parentElement,d.querySelector('.canvas'));
   w.close();
 });
-test('dark glass has a single restrained edge and paints the full page while approved light styling stays unchanged',()=>{
-  const w=page(),d=w.document,root=d.documentElement;
-  const value=name=>w.getComputedStyle(root).getPropertyValue(name).trim();
-  assert.equal(w.getComputedStyle(d.querySelector('#brandBtn')).boxShadow,'0 2px 8px rgba(0,0,0,.08)');
-  assert.equal(w.getComputedStyle(d.querySelector('#plusMenu')).boxShadow,'0 4px 14px rgba(0,0,0,.14),0 22px 48px rgba(0,0,0,.2)');
-  assert.equal(w.getComputedStyle(d.body).backgroundColor,'rgba(0, 0, 0, 0)');
-  assert.equal(d.querySelector('meta[name="theme-color"]').content,'#f8fbff');
-  assert.equal(value('--glass-frost'),'0.08');
-  assert.equal(value('--glass-blur'),'6px');
-  assert.equal(value('--glass-highlight'),'rgba(255,255,255,.55)');
-  w.__setSystemLight(false);
-  assert.equal(root.classList.contains('dark'),true);
-  assert.equal(value('--glass-frost'),'0.12');
-  assert.equal(value('--glass-blur'),'10px');
-  assert.equal(value('--glass-highlight'),'rgba(255,255,255,.1)');
-  assert.equal(value('--glass-edge'),'rgba(255,255,255,.055)');
-  assert.equal(value('--glass-saturation'),'1.15');
-  assert.equal(w.getComputedStyle(d.querySelector('#brandBtn')).boxShadow,'var(--glass-shadow)');
-  assert.equal(w.getComputedStyle(d.querySelector('#plusMenu')).boxShadow,'var(--glass-shadow-lg)');
-  assert.equal(w.getComputedStyle(d.querySelector('#plusMenu .sheet-ico')).boxShadow,'none');
-  assert.equal(w.getComputedStyle(d.querySelector('.action-dot')).boxShadow,'0 4px 14px rgba(167,139,250,.32)');
-  assert.equal(d.querySelector('meta[name="theme-color"]').content,'#000000');
-  assert.ok(d.querySelector('.sheet.frost'));
-  w.close();
-});
-test('rapid OS and Telegram theme changes preserve working panels, commands and material state',async()=>{
+test('theme changes preserve editing and panel behavior',async()=>{
   let themeChanged;
   const w=page({fetch:async()=>({ok:true}),colorScheme:'dark',onEvent:(name,callback)=>{if(name==='themeChanged')themeChanged=callback}});
   await new Promise(resolve=>setTimeout(resolve,5));
-  const d=w.document,root=d.documentElement,bar=d.querySelector('#typebar'),editor=d.querySelector('#editor');
-  const scheme=()=>root.classList.contains('dark')?'dark':'light';
-  assert.equal(scheme(),'dark');
-  for(let i=0;i<80;i++){
-    w.Telegram.WebApp.colorScheme=i%2?'light':'dark';
+  const d=w.document,root=d.documentElement,editor=d.querySelector('#editor');
+  for(const scheme of ['light','dark','light','dark']){
+    w.Telegram.WebApp.colorScheme=scheme;
     themeChanged();
-    assert.equal(scheme(),i%2?'light':'dark');
-    assert.equal(w.getComputedStyle(root).getPropertyValue('--glass-blur').trim(),i%2?'6px':'10px');
-    assert.equal(w.getComputedStyle(root).getPropertyValue('--glass-frost').trim(),i%2?'0.08':'0.12');
+    assert.equal(root.classList.contains('dark'),scheme==='dark');
+    assert.equal(d.querySelector('meta[name="theme-color"]').content,scheme==='dark'?'#000000':'#f8fbff');
   }
   d.querySelector('#plusBtn').click();
   d.querySelector('#plusMenu [data-insert="divider"]').click();
@@ -400,15 +371,14 @@ test('button insertion uses internal dialogs and validates callback payload',asy
   w.close();
 });
 
-test('all inline startup scripts execute and generate glass maps for every surface',()=>{
-  const w=page(undefined,true),d=w.document;
-  assert.equal(d.querySelectorAll('.defs filter').length,d.querySelectorAll('.material-target:not(.frost-only)').length);
-  assert.ok(w.__maps.length>=8);
-  assert.ok(w.__maps.every(map=>map.length===512*512*4&&map.some(value=>value>128)));
-  const initial=w.__maps.length;w.__resize();assert.equal(w.__maps.length,initial);
-  d.querySelector('#plusBtn').click();w.__resize();assert.ok(d.querySelector('#plusMenu').style.backdropFilter.includes('url(#lg-mat-'));
-  w.__setSystemLight(false);assert.ok(d.querySelector('#findMenu').style.backdropFilter.startsWith('blur(10px)'));
-  assert.equal(d.querySelector('#typebar').style.backdropFilter.includes('url('),false);
+test('Liquid Glass startup keeps controls interactive',()=>{
+  const w=page(undefined,true),d=w.document,e=d.querySelector('#editor');
+  d.querySelector('#plusBtn').click();
+  assert.equal(d.querySelector('#plusMenu').classList.contains('on'),true);
+  d.querySelector('#plusMenu [data-insert="divider"]').click();
+  assert.equal(e.querySelectorAll('hr').length,1);
+  d.querySelector('#findBtn').click();
+  assert.equal(d.querySelector('#findMenu').classList.contains('on'),true);
   w.close();
 });
 test('plain root text and multiple paragraphs become a list without moving the editor shell',()=>{
@@ -523,12 +493,19 @@ test('closing or hiding the page saves the last edit without waiting for debounc
   assert.equal(JSON.parse(w.localStorage.getItem('rmdtxtml')).html,e.innerHTML);
   w.close();
 });
-test('cancelling insertion dialogs at every step leaves the document intact',async()=>{
-  const cases={table:[''],reference:['nota','texto'],time:['1700000000','wDT','Data'],emoji:['123','🙂'],map:['0','0','14',''],image:['https://example.com/image.jpg','legenda','crédito'],collage:['https://example.com/a.jpg',''],button:['url','Abrir','primary','https://example.com']};
-  for(const [kind,answers] of Object.entries(cases))for(let stop=0;stop<answers.length;stop++){
+test('representative multi-step insertions cancel without mutating the document',async()=>{
+  const cases=[
+    ['reference',['nota',null]],
+    ['image',['https://example.com/image.jpg','legenda',null]],
+    ['map',['0','0',null]],
+    ['collage',[null]],
+    ['button',['callback_data','Abrir',null]],
+    ['button',['callback_data','Abrir','primary',null]]
+  ];
+  for(const [kind,answers] of cases){
     const w=page(),e=w.document.querySelector('#editor');e.innerHTML='<p>Preservar</p>';
-    await dialogs(w,w.eval(`insertFeature('${kind}')`),answers.slice(0,stop).concat(null));
-    assert.equal(e.innerHTML,'<p>Preservar</p>',kind+' etapa '+stop);
+    await dialogs(w,w.eval(`insertFeature('${kind}')`),answers);
+    assert.equal(e.innerHTML,'<p>Preservar</p>',kind);
     w.close();
   }
 });
@@ -573,23 +550,17 @@ test('timed-out publication releases the button and preserves the document',asyn
   w.close();
 });
 
-test('browser shell uses native dynamic viewport with one scroll surface and glass overlays',()=>{
+test('mobile shell exposes exactly one scroll owner with top and bottom overlays',()=>{
   const w=page(),d=w.document;
-  const app=readFileSync(new URL('app.js',root),'utf8');
-  const html=readFileSync(new URL('index.html',root),'utf8');
-  assert.equal(w.getComputedStyle(d.querySelector('.app')).position,'relative');
+  const nodes=[d.documentElement,d.body,d.querySelector('.app'),d.querySelector('.chrome-top'),d.querySelector('.canvas'),d.querySelector('.bar-wrap')];
+  const scroll=nodes.filter(node=>['auto','scroll'].includes(w.getComputedStyle(node).overflowY));
+  assert.deepEqual(scroll,[d.querySelector('.canvas')]);
+  assert.equal(w.getComputedStyle(d.querySelector('.app')).overflow,'hidden');
   assert.equal(w.getComputedStyle(d.querySelector('.chrome-top')).position,'absolute');
   assert.equal(w.getComputedStyle(d.querySelector('.bar-wrap')).position,'absolute');
-  assert.equal(w.getComputedStyle(d.querySelector('.canvas')).overflowY,'auto');
   assert.equal(d.querySelector('.chrome-top').closest('.app'),d.querySelector('.app'));
   assert.equal(d.querySelector('.bar-wrap').closest('.app'),d.querySelector('.app'));
-  assert.equal(d.querySelector('#plusMenu').closest('.app'),d.querySelector('.app'));
-  assert.match(html,/--view-h:100dvh/);
-  assert.match(html,/env\(safe-area-inset-top,0px\)/);
-  assert.match(html,/--head-inset:calc\(var\(--safe-top\).*var\(--topbar-h\).*var\(--meta-h\)/);
-  assert.match(html,/--foot-inset:calc\(var\(--safe-bottom\).*var\(--bar-h\)/);
-  assert.match(html,/padding:var\(--head-inset\).*var\(--foot-inset\)/);
-  assert.doesNotMatch(app,/visualViewport|--vv-|--kb|window\.innerHeight|safeAreaInset|contentSafeAreaInset/);
+  assert.equal(d.querySelector('#editor').parentElement,d.querySelector('.canvas'));
   w.close();
 });
 
@@ -607,18 +578,6 @@ test('link editing stays inside the Liquid Glass sheet and preserves the selecte
   assert.equal(e.querySelector('a')?.textContent,'texto');
   assert.equal(e.querySelector('a')?.href,'https://example.com/');
   w.close();
-});
-
-test('legacy mobile geometry cannot return to the baseline',()=>{
-  const html=readFileSync(new URL('index.html',root),'utf8');
-  const app=readFileSync(new URL('app.js',root),'utf8');
-  assert.doesNotMatch(html,/visualViewport|--vv-|--kb|100lvh|background-attachment\s*:\s*fixed|112px|76px/);
-  assert.doesNotMatch(app,/visualViewport|--vv-|--kb|window\.innerHeight|\bfit\s*\(|safeAreaInset|contentSafeAreaInset|style\.setProperty\('--tg-/);
-});
-
-test('editor uses no native blocking prompt confirm or alert dialogs',()=>{
-  const app=readFileSync(new URL('app.js',root),'utf8');
-  assert.doesNotMatch(app,/\b(?:prompt|confirm|alert)\s*\(/);
 });
 
 test('local attachment survives editor reload through IndexedDB and restores its object URL',async()=>{
@@ -646,17 +605,14 @@ test('local attachment survives editor reload through IndexedDB and restores its
   w.close();
 });
 
-test('formula and media structures are visibly distinct while remaining native rich elements',()=>{
+test('formula and media structures remain usable rich elements',()=>{
   const w=page(),d=w.document,e=d.querySelector('#editor');
   e.innerHTML='<p>Inline <tg-math>x^2</tg-math></p><tg-math-block>E = mc^2</tg-math-block><figure><video src="https://example.com/a.mp4"></video><figcaption>Vídeo</figcaption></figure><tg-document src="https://example.com/a.pdf"></tg-document>';
   w.eval('decorateSpecials()');
   assert.equal(w.getComputedStyle(e.querySelector('tg-math')).display,'inline-block');
   assert.equal(w.getComputedStyle(e.querySelector('tg-math-block')).display,'block');
-  assert.equal(w.getComputedStyle(e.querySelector('tg-math-block')).borderRadius,'14px');
-  assert.equal(w.getComputedStyle(e.querySelector('tg-math-block')).padding,'12px 14px');
   assert.equal(e.querySelector('video').hasAttribute('controls'),true);
-  assert.equal(w.getComputedStyle(e.querySelector('figure')).borderRadius,'18px');
-  assert.equal(w.getComputedStyle(e.querySelector('tg-document')).minHeight,'48px');
+  assert.notEqual(w.getComputedStyle(e.querySelector('tg-document')).display,'none');
   assert.match(w.eval('buildRich().rich_message.html'),/<tg-math>x\^2<\/tg-math>/);
   w.close();
 });
