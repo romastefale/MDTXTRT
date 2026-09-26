@@ -511,7 +511,7 @@ const server = createServer(async (req, res) => {
         return;
       }
       try {
-        const body = await readJson(req);
+        const body = await readJson(req, 150_000);
         if (!body || typeof body !== "object" || typeof body.title !== "string" || !Array.isArray(body.content) || (body.path !== undefined && typeof body.path !== "string")) throw new Error("Os dados da página estão incompletos");
         const page = await publishTelegraph(body.title, body.content, body.path || "");
         res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
