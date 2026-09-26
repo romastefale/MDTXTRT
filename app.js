@@ -82,7 +82,7 @@ function draftState(){
 function cleanDraftHTML(html){
   const box=document.createElement('div');box.innerHTML=String(html||'');
   const allowed=new Set('a b strong i em u ins s strike del code mark sub sup tg-spoiler tg-reference tg-emoji tg-time tg-math h1 h2 h3 h4 h5 h6 p pre footer hr ul ol li input blockquote aside cite img video audio tg-document figure figcaption iframe tg-map tg-collage tg-slideshow table caption thead tbody tfoot tr th td details summary tg-math-block tg-button tg-button-row br div'.split(' '));
-  const attrs=new Set('href name class style src alt tg-spoiler start type reversed value checked disabled expandable data-expandable unix format emoji-id lat long zoom width height bordered striped compact colspan rowspan align valign open url data query text forward-text request-write-access allow-user-chats allow-bot-chats allow-group-chats allow-channel-chats data-media-id'.split(' '));
+  const attrs=new Set('href name class style src alt tg-spoiler start type reversed value checked disabled controls expandable data-expandable unix format emoji-id lat long zoom width height bordered striped compact colspan rowspan align valign open url data query text forward-text request-write-access allow-user-chats allow-bot-chats allow-group-chats allow-channel-chats data-media-id data-media-missing'.split(' '));
   for(const el of [...box.querySelectorAll('*')]){
     if(!allowed.has(el.localName))throw new Error('O rascunho contém um elemento não suportado');
     for(const a of [...el.attributes]){
@@ -98,7 +98,7 @@ function cleanDraftHTML(html){
   }
   return box.innerHTML;
 }
-function mediaNode(id){return editor.querySelector('[data-media-id="'+CSS.escape(id)+'"]');}
+function mediaNode(id){return [...editor.querySelectorAll('[data-media-id]')].find(node=>node.getAttribute('data-media-id')===id)||null;}
 async function restoreMedia(){
   const node=editor.querySelector('[data-media-id]');
   if(!node)return;
@@ -125,10 +125,6 @@ async function installMedia(file,id,kind,persist=true){
 }
 function decorateSpecials(){
   editor.querySelectorAll('video,audio').forEach(node=>node.setAttribute('controls',''));
-  editor.querySelectorAll('tg-math').forEach(node=>node.setAttribute('data-kind','Fórmula'));
-  editor.querySelectorAll('tg-math-block').forEach(node=>node.setAttribute('data-kind','Fórmula'));
-  editor.querySelectorAll('figure').forEach(node=>node.setAttribute('data-structure','media'));
-  editor.querySelectorAll('tg-document').forEach(node=>node.setAttribute('data-kind','Documento'));
 }
 function handoffToken(){
   const raw=getTg()?.initDataUnsafe?.start_param||new URLSearchParams(location.search).get('tgWebAppStartParam')||'';
@@ -189,8 +185,8 @@ async function verifyTelegram(){
     const res=await fetch(API+'/api/telegram/session',{signal:AbortSignal.timeout(15000),method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({initData})});
     if(!res.ok)throw new Error('Sessão Telegram inválida ou expirada');
     setupTelegram();
-    await claimHandoff();
-    await recoverTelegraph();
+    try{await claimHandoff();}catch(err){showToast(err.message||'Não foi possível recuperar o rascunho');}
+    try{await recoverTelegraph();}catch(err){showToast(err.message||'Não foi possível recuperar a página do Telegraph');}
   }catch(err){session='invalid';showToast(err.message||'Não foi possível validar a sessão Telegram');}
 }
 function setupTelegram(){
