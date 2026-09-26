@@ -647,9 +647,13 @@ async function insertFeature(kind){
     const type=answer.trim();
     const types=new Set(['url','callback_data','web_app','copy_text','disabled']);
     if(!types.has(type))return showToast('Tipo de botão inválido');
-    const label=((await ask('Texto do botão','Abrir'))||'').trim();
+    const labelAnswer=await ask('Texto do botão','Abrir');
+    if(labelAnswer===null)return;
+    const label=labelAnswer.trim();
     if(!label)return;
-    const style=((await ask('Estilo: link, primary, success ou danger','primary'))||'').trim();
+    const styleAnswer=await ask('Estilo: link, primary, success ou danger','primary');
+    if(styleAnswer===null)return;
+    const style=styleAnswer.trim();
     if(style&&!['link','primary','success','danger'].includes(style))return showToast('Estilo inválido');
     if(style==='link'&&type!=='callback_data')return showToast('O estilo link exige um botão de callback');
     let attr=' type="'+type+'"'+(style?' style="'+style+'"':'');
