@@ -40,7 +40,7 @@ async function verifyTelegram(){
   if(!initData)return;
   session='pending';
   try{
-    const res=await fetch(API+'/api/telegram/session',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({initData})});
+    const res=await fetch(API+'/api/telegram/session',{signal:AbortSignal.timeout(15000),method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({initData})});
     if(!res.ok)throw new Error('Sessão Telegram inválida ou expirada');
     setupTelegram();
   }catch(err){session='invalid';showToast(err.message||'Não foi possível validar a sessão Telegram');}
@@ -812,7 +812,7 @@ async function publishTelegram(){
     const form = data ? new FormData() : null;
     if(form){form.set('initData',initData);form.set('html',p.rich_message.html);form.set('kind',data.kind);form.set('id',data.id);form.set('upload',data.file,data.file.name);}
     const res = await fetch(API+'/api/telegram/send', {
-      method:'POST',
+      method:'POST',signal:AbortSignal.timeout(60000),
       ...(form?{}:{headers:{'content-type':'application/json'}}),
       body: form || JSON.stringify({ initData, html: p.rich_message.html })
     });
@@ -820,7 +820,7 @@ async function publishTelegram(){
     if(!res.ok) throw new Error(json.error || 'Não foi possível enviar a mensagem');
     showToast('Mensagem enviada no chat do bot');
   }catch(err){
-    showToast(err instanceof TypeError?'Não foi possível conectar ao Telegram':err.message || 'Não foi possível enviar a mensagem');
+    showToast(err.name==='TimeoutError'?'Tempo de envio esgotado. Confira o chat antes de tentar novamente.':err instanceof TypeError?'Não foi possível conectar ao Telegram':err.message || 'Não foi possível enviar a mensagem');
   }
 }
 async function publishTelegraph(){
@@ -828,7 +828,7 @@ async function publishTelegraph(){
   try{ payload = buildTelegraph(); }catch(err){ showToast(err.message); return; }
   try{
     const res = await fetch(API+'/api/telegraph/publish', {
-      method:'POST',
+      method:'POST',signal:AbortSignal.timeout(60000),
       headers:{'content-type':'application/json'},
       body: JSON.stringify(payload)
     });
@@ -839,7 +839,7 @@ async function publishTelegraph(){
     showToast(telegraphPath ? 'Página salva no Telegraph' : 'Publicado no Telegraph');
     if(inTg)getTg().openLink(result.url,{try_instant_view:true});
     else window.location.assign(result.url);
-  }catch(err){ showToast(err instanceof TypeError?'Não foi possível conectar ao Telegraph':err.message || 'Não foi possível publicar no Telegraph'); }
+  }catch(err){ showToast(err.name==='TimeoutError'?'Tempo de publicação esgotado. Confira a página antes de tentar novamente.':err instanceof TypeError?'Não foi possível conectar ao Telegraph':err.message || 'Não foi possível publicar no Telegraph'); }
 }
 fileInput.addEventListener('change', async ()=>{
   const file = fileInput.files?.[0]; if(!file) return;

@@ -490,3 +490,22 @@ test('oversized gallery is rejected rather than silently truncated',()=>{
   assert.equal(w.document.querySelector('#toast').textContent,'Use no máximo 50 itens por galeria');
   w.close();
 });
+
+test('timed-out publication releases the button and preserves the document',async()=>{
+  let aborted=false;
+  const w=page({fetch:async(url,options)=>{
+    if(url.endsWith('/session'))return {ok:true,json:async()=>({ok:true})};
+    aborted=options.signal.aborted;
+    throw options.signal.reason;
+  }});
+  await new Promise(resolve=>setTimeout(resolve,0));
+  w.AbortSignal.timeout=()=>w.AbortSignal.abort(new w.DOMException('Timed out','TimeoutError'));
+  const d=w.document;d.querySelector('#editor').innerHTML='<p>Manter texto</p>';
+  d.querySelector('#exportBtn').click();
+  await new Promise(resolve=>setTimeout(resolve,0));
+  assert.equal(aborted,true);
+  assert.equal(d.querySelector('#exportBtn').disabled,false);
+  assert.equal(d.querySelector('#editor').innerHTML,'<p>Manter texto</p>');
+  assert.equal(d.querySelector('#toast').textContent,'Tempo de envio esgotado. Confira o chat antes de tentar novamente.');
+  w.close();
+});
