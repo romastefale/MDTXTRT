@@ -1133,12 +1133,11 @@ function syncBrowserViewport(){
   if(getTg()?.initData)return;
   const viewport=window.visualViewport;
   if(!viewport)return;
-  const layout=one('.app').getBoundingClientRect().height;
-  const shift=viewport.height-layout+viewport.offsetTop;
+  const layout=document.documentElement.clientHeight;
   const root=document.documentElement;
   root.style.setProperty('--vv-top',viewport.offsetTop+'px');
-  root.style.setProperty('--vv-bottom-shift',shift+'px');
-  root.style.setProperty('--vv-occlusion',Math.max(0,-shift)+'px');
+  root.style.setProperty('--vv-height',viewport.height+'px');
+  root.style.setProperty('--vv-bottom-shift',(viewport.offsetTop+viewport.height-layout)+'px');
 }
 function scheduleBrowserViewport(){
   cancelAnimationFrame(viewportFrame);
