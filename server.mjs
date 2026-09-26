@@ -404,13 +404,11 @@ function telegraphValid(content) {
   content.forEach(node => walk(node));
 }
 
-function safeLink(value) {
-  try {
-    const url = new URL(value);
-    return ["http:", "https:", "tg:", "mailto:"].includes(url.protocol) ? url.href : "";
-  } catch {
-    return "";
-  }
+function safeLink(value){
+  let url;
+  try{url=new URL(value);}catch{throw new Error("Link inválido");}
+  if(!["http:","https:","tg:","mailto:"].includes(url.protocol))throw new Error("Link inválido");
+  return url.href;
 }
 
 function entityWrap(entity, inner, text, mode) {
@@ -703,21 +701,15 @@ function safeFile(urlPath) {
 const server = createServer(async (req, res) => {
   try {
     const url = new URL(req.url || "/", "http://localhost");
-    if (url.pathname === "/telegram/open" && req.method === "GET") {
-      try {
-        if (!botLink) {
-          const bot = await telegramCall(botToken(), "getMe", {});
-          if (!/^[A-Za-z0-9_]{5,32}$/.test(bot.username || "")) throw new Error("Mini App indisponível");
-          botLink = "https://t.me/" + bot.username;
-        }
-        const handoff = String(url.searchParams.get("handoff") || "");
-        const start = readHandoff(handoff) ? "=h_" + handoff : "";
-        res.writeHead(302, { location: botLink + "?startapp" + start, "cache-control": "no-store" });
-        res.end();
-      } catch {
-        res.writeHead(503, { "content-type": "text/plain; charset=utf-8" });
-        res.end("Não foi possível abrir o Mini App. Tente novamente.");
+    if(url.pathname==="/telegram/open"&&req.method==="GET"){
+      const handoff=String(url.searchParams.get("handoff")||"");
+      if(!/^[a-f0-9]{32}$/.test(handoff)||!readHandoff(handoff)){
+        res.writeHead(410,{"content-type":"text/plain; charset=utf-8","cache-control":"no-store"});
+        res.end("A transferência expirou ou é inválida.");
+        return;
       }
+      res.writeHead(302,{location:botLink+"?startapp=h_"+handoff,"cache-control":"no-store"});
+      res.end();
       return;
     }
 
