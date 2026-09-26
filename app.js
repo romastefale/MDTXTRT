@@ -280,7 +280,7 @@ function dialogOpen(label,value='',rows=1,confirmMode=false){
   input.value=confirmMode?'':String(value===null||value===undefined?'':value);
   input.rows=Math.max(1,Math.min(5,rows));
   one('#dialogOk').textContent=confirmMode?'Continuar':'OK';
-  openPanel('#dialogMenu',document.activeElement);
+  openPanel('#dialogMenu');
   return new Promise(resolve=>{
     dialogResolve=resolve;
     if(!confirmMode){
@@ -898,19 +898,19 @@ one('#undoBtn').addEventListener('click', ()=>{ histUndo(); flashBtn(one('#undoB
 one('#redoBtn').addEventListener('click', ()=>{ histRedo(); flashBtn(one('#redoBtn')); });
 one('#undoBtn').addEventListener('mousedown', e => e.preventDefault());
 one('#redoBtn').addEventListener('mousedown', e => e.preventDefault());
-one('#plusBtn').addEventListener('click', e=>openPanel('#plusMenu', e.currentTarget));
-one('#headingBtn')?.addEventListener('click', e=>openPanel('#headingMenu', e.currentTarget));
-one('#listBtn').addEventListener('click',e=>openPanel('#listMenu',e.currentTarget));
+one('#plusBtn').addEventListener('click', e=>openPanel('#plusMenu'));
+one('#headingBtn')?.addEventListener('click', e=>openPanel('#headingMenu'));
+one('#listBtn').addEventListener('click',e=>openPanel('#listMenu'));
 one('#openAppBtn').addEventListener('click',()=>{void openMiniApp();});
-one('#quoteBtn')?.addEventListener('click', e=>openPanel('#quoteMenu', e.currentTarget));
+one('#quoteBtn')?.addEventListener('click', e=>openPanel('#quoteMenu'));
 one('#destBtn').addEventListener('click', ()=>setDestination(dest === 'telegram' ? 'telegraph' : 'telegram'));
 one('#exportBtn').addEventListener('click', e=>{
   if(getTg()?.initData && !inTg){showToast(session==='invalid'?'Sessão inválida ou expirada. Reabra o Mini App.':'Aguarde a validação da sessão Telegram');return;}
   if(inTg) return publishCurrent();
-  openPanel('#exportMenu', e.currentTarget);
+  openPanel('#exportMenu');
 });
 docName.addEventListener('input',markDirty);
-one('#brandBtn')?.addEventListener('click', e=>openPanel('#importMenu', e.currentTarget));
+one('#brandBtn')?.addEventListener('click', e=>openPanel('#importMenu'));
 one('#importMdBtn')?.addEventListener('click', ()=>{ fileInput.accept='.md,text/markdown'; fileInput.click(); closePanels(); });
 one('#importTxtBtn')?.addEventListener('click', ()=>{ fileInput.accept='.txt,text/plain'; fileInput.click(); closePanels(); });
 one('#exportTxtBtn')?.addEventListener('click', ()=>exportFile('txt'));
@@ -928,7 +928,7 @@ one('#mediaInput').addEventListener('change',async()=>{
   try{await installMedia(file,id,kind,true);saveLocal();}
   catch(err){mediaNode(id)?.closest('figure')?.remove();showToast(err.message||'Não foi possível salvar o anexo');}
 });
-one('#findBtn').addEventListener('click', ()=>openPanel('#findMenu', one('#brandBtn')));
+one('#findBtn').addEventListener('click', ()=>openPanel('#findMenu'));
 function matches(){
   const term=one('#findText').value;if(!term)return [];
   const walk=document.createTreeWalker(editor,NodeFilter.SHOW_TEXT),groups=[];let node,group;
