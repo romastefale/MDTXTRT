@@ -1001,5 +1001,11 @@ server.listen(PORT, "0.0.0.0", () => {
   console.log(`MDTXTRT on ${PORT}`);
   sweepHandoffs();
   void configureBot();
-  void ensureTelegraphToken().then(token => telegraphCall("getAccountInfo", { access_token: token, fields: '["short_name","page_count"]' })).then(() => console.log("Telegraph ready")).catch(error => console.error("Telegraph startup", error));
+  const ready=telegraphQueue.then(async()=>{
+    const token=await ensureTelegraphToken();
+    await telegraphCall("getAccountInfo",{access_token:token,fields:'["short_name","page_count"]'});
+    console.log("Telegraph ready");
+  });
+  telegraphQueue=ready.catch(()=>{});
+  void ready.catch(error=>console.error("Telegraph startup",error));
 });
