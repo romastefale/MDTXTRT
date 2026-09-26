@@ -57,6 +57,7 @@ test('find is under the app name and menu icons match their actions',()=>{
   d.querySelector('#findBtn').click();
   assert.equal(d.querySelector('#findMenu').classList.contains('on'),true);
   assert.equal(d.querySelector('#importMenu').classList.contains('on'),false);
+  assert.deepEqual([...d.querySelectorAll('#findMenu .tools button')].map(el=>el.id),['findNext','replaceOne','replaceAll']);
   const items=[...d.querySelectorAll('#plusMenu button [data-icon]')].map(el=>el.dataset.icon);
   assert.equal(items.length,new Set(items).size);
   assert.equal(d.querySelector('#plusMenu [data-cmd="strike"] [data-icon]').dataset.icon,'strikethrough_s');
