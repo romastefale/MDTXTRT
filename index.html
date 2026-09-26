@@ -36,8 +36,8 @@
       --head-inset:calc(var(--safe-top) + var(--gap) + var(--topbar-h) + var(--gap) + var(--meta-h) + var(--gap));
       --foot-inset:calc(var(--safe-bottom) + var(--gap) + var(--bar-h) + var(--gap));
       --vv-top:0px;
+      --vv-height:100dvh;
       --vv-bottom-shift:0px;
-      --vv-occlusion:0px;
     }
     html.tg-shell{
       --safe-top:max(var(--tg-safe-area-inset-top),var(--tg-content-safe-area-inset-top));
@@ -145,8 +145,8 @@
     html.dark .bar > button.on{color:var(--accent)}
     html.dark .bar > button.on::before{background:color-mix(in srgb,var(--accent) 22%,transparent)}
     .bar > button > *{position:relative;z-index:1}
-    .canvas{position:absolute;inset:0;min-height:0;display:flex;flex-direction:column;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;padding:var(--head-inset) max(16px,var(--safe-right)) calc(var(--foot-inset) + var(--vv-occlusion)) max(16px,var(--safe-left));scroll-padding-block:var(--head-inset) calc(var(--foot-inset) + var(--vv-occlusion))}
-    html.tg-shell .canvas{padding-bottom:var(--foot-inset);scroll-padding-bottom:var(--foot-inset)}
+    .canvas{position:absolute;left:0;right:0;top:var(--vv-top);height:var(--vv-height);min-height:0;display:flex;flex-direction:column;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;padding:var(--head-inset) max(16px,var(--safe-right)) var(--foot-inset) max(16px,var(--safe-left));scroll-padding-block:var(--head-inset) var(--foot-inset)}
+    html.tg-shell .canvas{inset:0;height:auto}
     .editor:empty::before{content:attr(data-placeholder);color:var(--muted);pointer-events:none}
     .editor{
       outline:none;flex:1 0 auto;min-height:0;caret-color:var(--accent);
@@ -204,7 +204,7 @@
       position:fixed;inset:auto 12px calc(var(--foot-inset) + 4px);z-index:40;
       translate:0 var(--vv-bottom-shift);
       width:auto;max-width:420px;margin:0 auto;
-      max-height:calc(100dvh - var(--safe-top) - var(--foot-inset) - 16px);
+      max-height:calc(var(--vv-height) - var(--safe-top) - var(--foot-inset) - 16px);
       overflow:hidden;padding:8px;border:0;border-radius:30px;
       color:var(--text);
       transform-origin:50% 100%
@@ -213,7 +213,7 @@
     .sheet:popover-open,.sheet[open]{display:flex;flex-direction:column;animation:sheet-in .16s cubic-bezier(.2,.75,.25,1)}
     #importMenu,#exportMenu,#findMenu{
       top:var(--head-inset);bottom:auto;
-      max-height:calc(100dvh - var(--head-inset) - var(--safe-bottom) - 12px);
+      max-height:calc(var(--vv-height) - var(--head-inset) - var(--safe-bottom) - 12px);
       transform-origin:50% 0;translate:0 var(--vv-top)
     }
     html.tg-shell .sheet{position:absolute;translate:none;max-height:calc(var(--tg-viewport-stable-height) - var(--safe-top) - var(--foot-inset) - 16px)}
