@@ -182,27 +182,27 @@
     .action-dot svg{width:16px;height:16px}
     .seg .export{width:36px;height:36px;border:0;background:transparent;display:grid;place-items:center;padding:0;border-radius:50%}
     .seg .action-dot{width:36px;height:36px}
-    .backdrop{position:fixed;inset:0;z-index:30;display:none;background:transparent;-webkit-backdrop-filter:none;backdrop-filter:none}
-    html.tg-shell .backdrop{position:absolute}
-    .backdrop.on{display:block}
     .sheet{
-      position:fixed;left:12px;right:12px;bottom:calc(var(--foot-inset) + 4px);
-      z-index:40;width:auto;max-width:420px;margin-inline:auto;
-      max-height:max(0px,calc(100% - var(--safe-top) - var(--foot-inset) - 16px));
-      overflow:hidden;
-      display:none;padding:8px;border:0;border-radius:30px;
+      position:fixed;inset:auto 12px calc(var(--foot-inset) + 4px);z-index:40;
+      width:auto;max-width:420px;margin:0 auto;
+      max-height:calc(100dvh - var(--safe-top) - var(--foot-inset) - 16px);
+      overflow:hidden;padding:8px;border:0;border-radius:30px;
       color:var(--text);background:rgba(28,28,30,.42);
       box-shadow:inset 0 0 0 1px rgba(255,255,255,.16),0 0 0 .5px rgba(0,0,0,.35),0 16px 40px rgba(0,0,0,.26),0 2px 6px rgba(0,0,0,.18);
-      transform-origin:50% 100%;animation:sheet-in .16s cubic-bezier(.2,.75,.25,1)
+      transform-origin:50% 100%
     }
+    .sheet:not(:popover-open):not([open]){display:none}
+    .sheet:popover-open,.sheet[open]{display:flex;flex-direction:column;animation:sheet-in .16s cubic-bezier(.2,.75,.25,1)}
     html.light .sheet{background:rgba(255,255,255,.38);box-shadow:inset 0 0 0 1px rgba(255,255,255,.5),0 0 0 .5px rgba(0,0,0,.18),0 16px 40px rgba(0,0,0,.12),0 2px 6px rgba(0,0,0,.08)}
-    .sheet.is-top{
-      bottom:auto;top:var(--head-inset);
-      max-height:max(0px,calc(100% - var(--head-inset) - var(--safe-bottom) - 12px));
-      transform-origin:50% 0;
+    #importMenu,#exportMenu,#findMenu{
+      top:var(--head-inset);bottom:auto;
+      max-height:calc(100dvh - var(--head-inset) - var(--safe-bottom) - 12px);
+      transform-origin:50% 0
     }
-    html.tg-shell .sheet{position:absolute}
-        @keyframes sheet-in{from{opacity:0;transform:translateY(8px) scale(.98)}to{opacity:1;transform:none}}
+    html.tg-shell .sheet{max-height:calc(var(--tg-viewport-stable-height) - var(--safe-top) - var(--foot-inset) - 16px)}
+    html.tg-shell #importMenu,html.tg-shell #exportMenu,html.tg-shell #findMenu{max-height:calc(var(--tg-viewport-stable-height) - var(--head-inset) - var(--safe-bottom) - 12px)}
+    #dialogMenu::backdrop{background:transparent}
+    @keyframes sheet-in{from{opacity:0;transform:translateY(8px) scale(.98)}to{opacity:1;transform:none}}
     .menu-list{display:flex;flex-direction:column;gap:2px;min-height:0;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain}
     .menu-list > button{display:flex;align-items:center;justify-content:flex-start;text-align:left;width:auto;min-width:100%;white-space:nowrap;min-height:50px;border-radius:20px;border:0;background:transparent;box-shadow:none;padding:4px 18px 4px 6px;font-size:17px;gap:12px}
     .menu-list > button[hidden]{display:none}
@@ -212,7 +212,6 @@
     html.dark .sheet-ico{background:rgba(255,255,255,.055)}
     html.light .sheet-ico{background:rgba(0,0,0,.055)}
     .sheet-ico .ui-icon,.sheet-ico svg{width:20px;height:20px}
-    .sheet.on{display:flex;flex-direction:column}
     .toast{
       position:fixed;left:50%;bottom:calc(var(--foot-inset) + 8px);
       transform:translateX(-50%);z-index:50;display:none;
@@ -249,7 +248,7 @@
   <div class="app">
     <div class="chrome-top">
       <header class="topbar">
-        <button type="button" class="brand frost" id="brandBtn">MDTXTRT</button>
+        <button type="button" class="brand frost" id="brandBtn" popovertarget="importMenu">MDTXTRT</button>
       </header>
       <div class="meta">
       <div class="seg frost">
@@ -267,18 +266,17 @@
     </div>
   <div class="bar-wrap">
     <div class="bar frost" id="typebar">
-      <button class="plus" id="plusBtn" aria-label="Mais"><span class="ui-icon" data-icon="plus"></span></button>
+      <button class="plus" id="plusBtn" aria-label="Mais" popovertarget="plusMenu"><span class="ui-icon" data-icon="plus"></span></button>
       <button type="button" data-cmd="bold" aria-label="Negrito"><span class="ui-icon" data-icon="bold"></span></button>
       <button type="button" data-cmd="italic" aria-label="Itálico"><span class="ui-icon" data-icon="italic"></span></button>
       <button type="button" data-cmd="underline" aria-label="Sublinhado"><span class="ui-icon" data-icon="underline"></span></button>
-      <button type="button" id="quoteBtn" aria-label="Citação"><span class="ui-icon" data-icon="quote"></span></button>
+      <button type="button" id="quoteBtn" aria-label="Citação" popovertarget="quoteMenu"><span class="ui-icon" data-icon="quote"></span></button>
       <button type="button" id="linkBtn" aria-label="Link"><span class="ui-icon" data-icon="link"></span></button>
-      <button type="button" id="headingBtn" aria-label="Título"><span class="ui-icon" data-icon="heading"></span></button>
-      <button type="button" id="listBtn" aria-label="Lista"><span class="ui-icon" data-icon="list"></span></button>
+      <button type="button" id="headingBtn" aria-label="Título" popovertarget="headingMenu"><span class="ui-icon" data-icon="heading"></span></button>
+      <button type="button" id="listBtn" aria-label="Lista" popovertarget="listMenu"><span class="ui-icon" data-icon="list"></span></button>
     </div>
   </div>
-  <div class="backdrop" id="backdrop"></div>
-  <div class="sheet frost" id="headingMenu">
+  <div class="sheet frost" id="headingMenu" popover="auto">
     <div class="menu-list heading-list">
       <button class="h-opt h1" data-block="h1"><span class="sheet-ico"><span class="ui-icon" data-icon="h1"></span></span>Título H1</button>
       <button class="h-opt h2" data-block="h2"><span class="sheet-ico"><span class="ui-icon" data-icon="h2"></span></span>Título H2</button>
@@ -290,21 +288,21 @@
       <button class="h-opt footer" data-block="footer"><span class="sheet-ico"><span class="ui-icon" data-icon="footer"></span></span>Rodapé</button>
     </div>
   </div>
-  <div class="sheet frost" id="listMenu">
+  <div class="sheet frost" id="listMenu" popover="auto">
     <div class="menu-list">
       <button data-cmd="insertUnorderedList"><span class="sheet-ico"><span class="ui-icon" data-icon="list"></span></span>Lista com marcadores</button>
       <button data-insert="ordered"><span class="sheet-ico"><span class="ui-icon" data-icon="format_list_numbered"></span></span>Lista ordenada</button>
       <button data-insert="task" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="task"></span></span>Checklist</button>
     </div>
   </div>
-  <div class="sheet frost" id="quoteMenu">
+  <div class="sheet frost" id="quoteMenu" popover="auto">
     <div class="menu-list">
       <button data-block="blockquote"><span class="sheet-ico"><span class="ui-icon" data-icon="quote"></span></span>Citação</button>
       <button data-insert="pullquote" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="quote"></span></span>Citação em destaque</button>
       <button data-insert="expandquote"><span class="sheet-ico"><span class="ui-icon" data-icon="more"></span></span>Citação expansível</button>
     </div>
   </div>
-  <div class="sheet frost" id="importMenu">
+  <div class="sheet frost" id="importMenu" popover="auto">
     <div class="tools"><input id="docName" value="Ideia" aria-label="Nome do documento" maxlength="256"></div>
     <div class="menu-list">
       <button id="importMdBtn"><span class="sheet-ico"><span class="ui-icon" data-icon="markdown"></span></span>Importar Markdown</button>
@@ -312,7 +310,7 @@
       <button id="findBtn"><span class="sheet-ico"><span class="ui-icon" data-icon="search"></span></span>Localizar e substituir</button>
     </div>
   </div>
-  <div class="sheet frost" id="exportMenu">
+  <div class="sheet frost" id="exportMenu" popover="auto">
     <p class="hint">Para publicar no Telegram ou Telegraph, abra o Mini App. Para levar este documento, exporte Markdown e importe lá.</p>
     <div class="menu-list">
       <button id="openAppBtn"><span class="sheet-ico"><span class="ui-icon" data-icon="telegram"></span></span>Abrir Mini App para publicar</button>
@@ -320,7 +318,7 @@
       <button id="exportTxtBtn"><span class="sheet-ico"><span class="ui-icon" data-icon="text_fields"></span></span>Exportar TXT</button>
     </div>
   </div>
-  <div class="sheet frost" id="plusMenu">
+  <div class="sheet frost" id="plusMenu" popover="auto">
     <div class="menu-list">
       <button data-cmd="strike"><span class="sheet-ico"><span class="ui-icon" data-icon="strikethrough_s"></span></span>Riscado</button>
       <button data-cmd="mark" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="ink_highlighter"></span></span>Marca-texto</button>
@@ -352,14 +350,14 @@
   <input id="fileInput" type="file" accept=".txt,.md,text/plain,text/markdown" hidden>
   <input id="mediaInput" type="file" accept="image/*,video/*,audio/*,.pdf,.zip" hidden>
   <div class="toast frost" id="toast"></div>
-  <div class="sheet frost" id="dialogMenu">
+  <dialog class="sheet frost" id="dialogMenu">
     <div class="dialog">
       <div class="dialog-label" id="dialogLabel"></div>
       <textarea id="dialogInput" rows="1" spellcheck="false"></textarea>
       <div class="dialog-actions"><button type="button" id="dialogCancel">Cancelar</button><button type="button" id="dialogOk">OK</button></div>
     </div>
-  </div>
-  <div class="sheet frost" id="findMenu"><div class="menu-list"><div class="tools"><input id="findText" placeholder="Localizar"></div><div class="tools"><input id="replaceText" placeholder="Substituir"></div><div class="tools"><button id="findNext">Próximo</button><button id="replaceOne">Substituir</button><button id="replaceAll">Substituir tudo</button></div></div></div>
+  </dialog>
+  <div class="sheet frost" id="findMenu" popover="auto"><div class="menu-list"><div class="tools"><input id="findText" placeholder="Localizar"></div><div class="tools"><input id="replaceText" placeholder="Substituir"></div><div class="tools"><button id="findNext">Próximo</button><button id="replaceOne">Substituir</button><button id="replaceAll">Substituir tudo</button></div></div></div>
   </div>
   <script src="marked.js"></script>
   <script src="turndown.js"></script>
