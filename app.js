@@ -282,8 +282,20 @@ function askUrl(label){
     return '';
   }
 }
+function mediaUrl(){
+  const value = prompt('Link da mídia', 'https://');
+  if(!value) return '';
+  try{
+    const url = new URL(value.trim());
+    if(!['http:','https:'].includes(url.protocol)) throw new Error();
+    return url.href;
+  }catch{
+    showToast('A mídia precisa usar HTTP ou HTTPS');
+    return '';
+  }
+}
 function figure(kind){
-  const url = askUrl('Link da mídia');
+  const url = mediaUrl();
   if(!url) return;
   const caption = prompt('Legenda', '') || '';
   const credit = caption ? prompt('Crédito', '') || '' : '';
@@ -446,7 +458,7 @@ function htmlToMarkdown(html){
     if(t==='ul'||t==='ol')return '\n'+Array.from(n.children).map((li,i)=>(t==='ol'?(i+1)+'. ':'- ')+Array.from(li.childNodes).map(walk).join('').trim()).join('\n')+'\n';
     if(t==='li')return inner;
     if(t==='div'||t==='article'||t==='section'||t==='span')return inner;
-    if(['u','sub','sup','mark','details','table','tg-button','tg-button-row','footer','aside'].includes(t))return '\n'+n.outerHTML+'\n';
+    if(['u','sub','sup','mark','tg-spoiler','tg-reference','tg-emoji','tg-time','tg-math','details','table','tg-button','tg-button-row','footer','aside','figure','img','video','audio','tg-document','tg-map','tg-collage','tg-slideshow','tg-math-block'].includes(t))return '\n'+n.outerHTML+'\n';
     if(t==='pre')return '\n'+n.outerHTML+'\n';
     throw new Error('O conteúdo não pode ser exportado em Markdown: '+t);
   };
