@@ -290,9 +290,8 @@ function contentDisposition(name) {
   return `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(name)}`;
 }
 
-async function sendRich(initData, html, file = null) {
-  const token = botToken();
-  if (!token) throw new Error("O envio para o Telegram não está configurado");
+async function sendRich(initData,html,file=null){
+  const token=botToken();
   richValid(html);
   const { chatId } = userFromInitData(String(initData || ""), token);
   const doc = parseDocument(String(html));
@@ -499,9 +498,8 @@ function cutBody(body, length) {
   return { text, entities };
 }
 
-async function sendBotRich(chatId, html, replyTo) {
-  const token = botToken();
-  if (!token) throw new Error("O envio para o Telegram não está configurado");
+async function sendBotRich(chatId,html,replyTo){
+  const token=botToken();
   const body = { chat_id: chatId, rich_message: { html } };
   if (replyTo) body.reply_parameters = { message_id: replyTo };
   return telegramCall(token, "sendRichMessage", body);
@@ -516,14 +514,16 @@ function appMessage(title) {
   return "<h1>MDTXTRT</h1><p>" + title + "</p>" + appButton();
 }
 
-async function sendDocument(chatId, name, content, type) {
-  const token = botToken();
-  if (!token) throw new Error("O envio para o Telegram não está configurado");
-  const data = String(content || "");
-  if (!data.trim()) throw new Error("Não há texto para exportar");
-  if (Buffer.byteLength(data, "utf8") > 1_500_000) throw new Error("O arquivo excede o limite de exportação");
-  const fileName = String(name || "texto.txt").replace(/[\\/:*?"<>|\u0000-\u001f]/g, "-").slice(0, 120) || "texto.txt";
-  const mime = type === "text/markdown" ? "text/markdown" : "text/plain";
+async function sendDocument(chatId,name,content,type){
+  const token=botToken();
+  if(typeof content!=="string"||!content.trim())throw new Error("Não há texto para exportar");
+  if(Buffer.byteLength(content,"utf8")>1_500_000)throw new Error("O arquivo excede o limite de exportação");
+  const fileName=cleanFileName(name);
+  const mime=type==="text/markdown"?"text/markdown":type==="text/plain"?"text/plain":"";
+  if(!mime)throw new Error("Formato de exportação inválido");
+  const ext=type==="text/markdown"?".md":".txt";
+  if(!fileName.toLowerCase().endsWith(ext))throw new Error("Extensão de arquivo incompatível");
+  const data=content;
   const form = new FormData();
   form.set("chat_id", String(chatId));
   form.set("caption", "Exportado pelo MDTXTRT");
@@ -533,11 +533,10 @@ async function sendDocument(chatId, name, content, type) {
 }
 
 async function handleBotUpdate(update) {
-  if (update.callback_query) {
-    const q = update.callback_query;
-    const token = botToken();
-    if (!token) return;
-    await telegramCall(token, "answerCallbackQuery", {
+  if(update.callback_query){
+    const q=update.callback_query;
+    const token=botToken();
+    await telegramCall(token,"answerCallbackQuery",{
       callback_query_id: q.id,
       text: q.data ? String(q.data).slice(0, 200) : "OK"
     });
