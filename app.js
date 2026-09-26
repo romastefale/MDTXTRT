@@ -217,6 +217,9 @@ function setupTelegram(){
   tg.expand();
   applyScheme();
   tg.onEvent('themeChanged',applyScheme);
+  tg.SettingsButton.show();
+  tg.SettingsButton.onClick(()=>openPanel('#importMenu'));
+  tg.BackButton.onClick(closeTopLayer);
   tg.BackButton.hide();
   tg.MainButton.hide();
 }
@@ -246,10 +249,25 @@ function setDestination(value, notify=true){
   saveLocal();
   if(notify) showToast('Destino: ' + name);
 }
+function hasOpenLayer(){
+  return one('#dialogMenu').open||sheets.some(sel=>one(sel).matches(':popover-open'));
+}
+function syncBackButton(){
+  if(!inTg)return;
+  if(hasOpenLayer())getTg().BackButton.show();
+  else getTg().BackButton.hide();
+}
+function closeTopLayer(){
+  const dialog=one('#dialogMenu');
+  if(dialog.open){finishDialog(dialogConfirm?false:null);return;}
+  const sel=sheets.find(name=>one(name).matches(':popover-open'));
+  if(sel)one(sel).hidePopover();
+}
 function openPanel(sel){
   const panel=one(sel);
   if(!panel)throw new Error('Painel indisponível: '+sel);
   panel.showPopover();
+  syncBackButton();
   const list=panel.querySelector('.menu-list');
   if(list)list.scrollTop=0;
   document.dispatchEvent(new Event('selectionchange'));
@@ -259,6 +277,7 @@ function closePanels(){
     const panel=one(sel);
     if(panel.matches(':popover-open'))panel.hidePopover();
   }
+  syncBackButton();
   document.dispatchEvent(new Event('selectionchange'));
 }
 let dialogResolve=null,dialogConfirm=false;
@@ -267,6 +286,7 @@ function finishDialog(value){
   dialogResolve=null;
   const dialog=one('#dialogMenu');
   if(dialog.open)dialog.close();
+  syncBackButton();
   if(resolve)resolve(value);
 }
 function dialogOpen(label,value='',rows=1,confirmMode=false){
@@ -281,6 +301,7 @@ function dialogOpen(label,value='',rows=1,confirmMode=false){
   input.rows=Math.max(1,Math.min(5,rows));
   one('#dialogOk').textContent=confirmMode?'Continuar':'OK';
   dialog.showModal();
+  syncBackButton();
   return new Promise(resolve=>{
     dialogResolve=resolve;
     if(!confirmMode){
@@ -300,6 +321,7 @@ for(const sel of sheets){
       const list=event.currentTarget.querySelector('.menu-list');
       if(list)list.scrollTop=0;
     }
+    syncBackButton();
     document.dispatchEvent(new Event('selectionchange'));
   });
 }
