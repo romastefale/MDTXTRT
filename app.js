@@ -684,7 +684,8 @@ async function insertFeature(kind){
     if(style==='link'&&type!=='callback_data')return showToast('O estilo link exige um botão de callback');
     let attr=' type="'+type+'"'+(style?' style="'+style+'"':'');
     if(type==='url'||type==='web_app'||type==='login_url'){
-      const url=await askUrl('Link do botão','https://',type==='login_url'?['https:']:['http:','https:','tg:']);
+      const protocols=type==='url'?['http:','https:','tg:']:['https:'];
+      const url=await askUrl('Link do botão','https://',protocols);
       if(!url)return;
       attr+=' url="'+escapeHTML(url)+'"';
       if(type==='login_url'){
@@ -699,8 +700,10 @@ async function insertFeature(kind){
       if(new TextEncoder().encode(data).length>64)return showToast('O callback aceita até 64 bytes');
       attr+=' data="'+escapeHTML(data)+'"';
     }else if(type==='copy_text'){
-      const text=(await ask('Texto para copiar',''))||'';
-      if(!text)return;
+      const answer=await ask('Texto para copiar','');
+      if(answer===null)return;
+      const text=answer.trim();
+      if(!text||Array.from(text).length>256)return showToast('O texto para copiar deve ter de 1 a 256 caracteres');
       attr+=' text="'+escapeHTML(text)+'"';
     }else if(type.startsWith('switch_inline_query')){
       const query=await ask('Consulta inline','');
