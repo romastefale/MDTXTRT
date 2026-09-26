@@ -50,11 +50,11 @@
       --foot-inset:calc(var(--safe-bottom) + var(--gap) + var(--bar-h) + var(--gap));
     }
     html.tg-shell{
-      --safe-top:max(env(safe-area-inset-top,0px),var(--tg-safe-area-inset-top,0px),var(--tg-content-safe-area-inset-top,0px));
-      --safe-bottom:max(env(safe-area-inset-bottom,0px),var(--tg-safe-area-inset-bottom,0px),var(--tg-content-safe-area-inset-bottom,0px));
-      --safe-left:max(env(safe-area-inset-left,0px),var(--tg-safe-area-inset-left,0px),var(--tg-content-safe-area-inset-left,0px));
-      --safe-right:max(env(safe-area-inset-right,0px),var(--tg-safe-area-inset-right,0px),var(--tg-content-safe-area-inset-right,0px));
-      --view-h:var(--tg-viewport-stable-height,100dvh);
+      --safe-top:max(var(--tg-safe-area-inset-top),var(--tg-content-safe-area-inset-top));
+      --safe-bottom:max(var(--tg-safe-area-inset-bottom),var(--tg-content-safe-area-inset-bottom));
+      --safe-left:max(var(--tg-safe-area-inset-left),var(--tg-content-safe-area-inset-left));
+      --safe-right:max(var(--tg-safe-area-inset-right),var(--tg-content-safe-area-inset-right));
+      --view-h:var(--tg-viewport-stable-height);
     }
     html.light{
       --bg:#f8fbff; --text:#151515; --muted:#5c6478; --accent:#ff6a00;
@@ -261,14 +261,14 @@
   <div class="app">
     <div class="chrome-top">
       <header class="topbar">
-        <button type="button" class="brand frost material-target" id="brandBtn">MDTXTRT</button>
+        <button type="button" class="brand frost" id="brandBtn">MDTXTRT</button>
       </header>
       <div class="meta">
-      <div class="seg frost material-target">
+      <div class="seg frost">
         <button type="button" id="undoBtn" aria-label="Desfazer"><span class="ui-icon" data-icon="undo"></span></button>
         <button type="button" id="redoBtn" aria-label="Refazer"><span class="ui-icon" data-icon="redo"></span></button>
       </div>
-      <div class="seg frost material-target">
+      <div class="seg frost">
         <button type="button" id="destBtn" aria-label="Destino: Telegram" title="Destino: Telegram"><span class="ui-icon" data-icon="telegram"></span></button>
         <button type="button" class="export" id="exportBtn" aria-label="Exportar" title="Exportar"><span class="action-dot"><span class="ui-icon" data-icon="export"></span></span></button>
       </div>
@@ -278,7 +278,7 @@
       <article id="editor" class="editor" contenteditable="true" spellcheck="true" inputmode="text" enterkeyhint="enter" aria-label="Editor" data-placeholder="Escreva aqui…"></article>
     </div>
   <div class="bar-wrap">
-    <div class="bar frost material-target frost-only" id="typebar">
+    <div class="bar frost" id="typebar">
       <button class="plus" id="plusBtn" aria-label="Mais"><span class="ui-icon" data-icon="plus"></span></button>
       <button type="button" data-cmd="bold" aria-label="Negrito"><span class="ui-icon" data-icon="bold"></span></button>
       <button type="button" data-cmd="italic" aria-label="Itálico"><span class="ui-icon" data-icon="italic"></span></button>
@@ -290,7 +290,7 @@
     </div>
   </div>
   <div class="backdrop" id="backdrop"></div>
-  <div class="sheet frost material-target" id="headingMenu">
+  <div class="sheet frost" id="headingMenu">
     <div class="menu-list heading-list">
       <button class="h-opt h1" data-block="h1"><span class="sheet-ico"><span class="ui-icon" data-icon="h1"></span></span>Título H1</button>
       <button class="h-opt h2" data-block="h2"><span class="sheet-ico"><span class="ui-icon" data-icon="h2"></span></span>Título H2</button>
@@ -302,21 +302,21 @@
       <button class="h-opt footer" data-block="footer"><span class="sheet-ico"><span class="ui-icon" data-icon="footer"></span></span>Rodapé</button>
     </div>
   </div>
-  <div class="sheet frost material-target" id="listMenu">
+  <div class="sheet frost" id="listMenu">
     <div class="menu-list">
       <button data-cmd="insertUnorderedList"><span class="sheet-ico"><span class="ui-icon" data-icon="list"></span></span>Lista com marcadores</button>
       <button data-insert="ordered"><span class="sheet-ico"><span class="ui-icon" data-icon="format_list_numbered"></span></span>Lista ordenada</button>
       <button data-insert="task" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="task"></span></span>Checklist</button>
     </div>
   </div>
-  <div class="sheet frost material-target" id="quoteMenu">
+  <div class="sheet frost" id="quoteMenu">
     <div class="menu-list">
       <button data-block="blockquote"><span class="sheet-ico"><span class="ui-icon" data-icon="quote"></span></span>Citação</button>
       <button data-insert="pullquote" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="quote"></span></span>Citação em destaque</button>
       <button data-insert="expandquote"><span class="sheet-ico"><span class="ui-icon" data-icon="more"></span></span>Citação expansível</button>
     </div>
   </div>
-  <div class="sheet frost material-target" id="importMenu">
+  <div class="sheet frost" id="importMenu">
     <div class="tools"><input id="docName" value="Ideia" aria-label="Nome do documento" maxlength="256"></div>
     <div class="menu-list">
       <button id="importMdBtn"><span class="sheet-ico"><span class="ui-icon" data-icon="markdown"></span></span>Importar Markdown</button>
@@ -324,7 +324,7 @@
       <button id="findBtn"><span class="sheet-ico"><span class="ui-icon" data-icon="search"></span></span>Localizar e substituir</button>
     </div>
   </div>
-  <div class="sheet frost material-target" id="exportMenu">
+  <div class="sheet frost" id="exportMenu">
     <p class="hint">Para publicar no Telegram ou Telegraph, abra o Mini App. Para levar este documento, exporte Markdown e importe lá.</p>
     <div class="menu-list">
       <button id="openAppBtn"><span class="sheet-ico"><span class="ui-icon" data-icon="telegram"></span></span>Abrir Mini App para publicar</button>
@@ -332,7 +332,7 @@
       <button id="exportTxtBtn"><span class="sheet-ico"><span class="ui-icon" data-icon="text_fields"></span></span>Exportar TXT</button>
     </div>
   </div>
-  <div class="sheet frost material-target" id="plusMenu">
+  <div class="sheet frost" id="plusMenu">
     <div class="menu-list">
       <button data-cmd="strike"><span class="sheet-ico"><span class="ui-icon" data-icon="strikethrough_s"></span></span>Riscado</button>
       <button data-cmd="mark" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="ink_highlighter"></span></span>Marca-texto</button>
@@ -363,15 +363,15 @@
   </div>
   <input id="fileInput" type="file" accept=".txt,.md,text/plain,text/markdown" hidden>
   <input id="mediaInput" type="file" accept="image/*,video/*,audio/*,.pdf,.zip" hidden>
-  <div class="toast frost material-target" id="toast"></div>
-  <div class="sheet frost material-target" id="dialogMenu">
+  <div class="toast frost" id="toast"></div>
+  <div class="sheet frost" id="dialogMenu">
     <div class="dialog">
       <div class="dialog-label" id="dialogLabel"></div>
       <textarea id="dialogInput" rows="1" spellcheck="false"></textarea>
       <div class="dialog-actions"><button type="button" id="dialogCancel">Cancelar</button><button type="button" id="dialogOk">OK</button></div>
     </div>
   </div>
-  <div class="sheet frost material-target" id="findMenu"><div class="menu-list"><div class="tools"><input id="findText" placeholder="Localizar"></div><div class="tools"><input id="replaceText" placeholder="Substituir"></div><div class="tools"><button id="findNext">Próximo</button><button id="replaceOne">Substituir</button><button id="replaceAll">Substituir tudo</button></div></div></div>
+  <div class="sheet frost" id="findMenu"><div class="menu-list"><div class="tools"><input id="findText" placeholder="Localizar"></div><div class="tools"><input id="replaceText" placeholder="Substituir"></div><div class="tools"><button id="findNext">Próximo</button><button id="replaceOne">Substituir</button><button id="replaceAll">Substituir tudo</button></div></div></div>
   </div>
   <script src="marked.js"></script>
   <script src="turndown.js"></script>
