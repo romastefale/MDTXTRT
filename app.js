@@ -862,7 +862,7 @@ document.addEventListener('selectionchange', ()=>{
 $('#typebar').addEventListener('mousedown', e => e.preventDefault());
 $$('#typebar [data-cmd], #plusMenu [data-cmd], #listMenu [data-cmd]').forEach(btn => btn.addEventListener('click', ()=>{try{exec(btn.dataset.cmd);closePanels();}catch(err){showToast(err.message);}}));
 $$('#typebar [data-block], #headingMenu [data-block], #quoteMenu [data-block]').forEach(btn => btn.addEventListener('click', ()=>{try{formatBlock(btn.dataset.block);}catch(err){showToast(err.message);}}));
-$('#plusMenu [data-insert], #quoteMenu [data-insert], #listMenu [data-insert]').forEach(btn => btn.addEventListener('click', ()=>{void insertFeature(btn.dataset.insert).catch(err=>showToast(err.message));}));
+document.querySelectorAll('#plusMenu [data-insert], #quoteMenu [data-insert], #listMenu [data-insert]').forEach(btn => btn.addEventListener('click', ()=>{void insertFeature(btn.dataset.insert).catch(err=>showToast(err.message));}));
 $('#linkBtn').addEventListener('click',async()=>{
   restoreSel();expandWord();saveSel();
   const node=document.getSelection()?.anchorNode;
