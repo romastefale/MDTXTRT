@@ -1,10 +1,16 @@
 const $ = s => document.querySelector(s);
-const $$ = s => Array.from(document.querySelectorAll(s));
+const $ = s => Array.from(document.querySelectorAll(s));
+const required=['#editor','#docName','#toast','#backdrop','#fileInput','#mediaInput','#plusMenu','#headingMenu','#quoteMenu','#listMenu','#importMenu','#exportMenu','#findMenu','#dialogMenu','#typebar','#plusBtn','#headingBtn','#listBtn','#quoteBtn','#linkBtn','#destBtn','#exportBtn','#brandBtn','#undoBtn','#redoBtn','meta[name="theme-color"]'];
+for(const selector of required)if(!$(selector))throw new Error('Inicialização incompleta: '+selector);
+if(typeof crypto?.randomUUID!=='function')throw new Error('Inicialização incompleta: crypto.randomUUID');
+if(typeof window.marked?.parse!=='function')throw new Error('Inicialização incompleta: marked');
+if(typeof window.TurndownService!=='function')throw new Error('Inicialização incompleta: TurndownService');
 const editor = $('#editor');
 const docName = $('#docName');
 const toast = $('#toast');
 const backdrop = $('#backdrop');
 const fileInput = $('#fileInput');
+const STATE_VERSION=2;
 let dest = 'telegram';
 let inTg = false, session = 'browser', busy = false;
 const sheets = ['#plusMenu','#headingMenu','#quoteMenu','#listMenu','#importMenu','#exportMenu','#findMenu','#dialogMenu'];
@@ -21,13 +27,12 @@ function applyScheme(){
   const light = tg?.colorScheme ? tg.colorScheme === 'light' : window.matchMedia('(prefers-color-scheme: light)').matches;
   document.documentElement.classList.toggle('light', light);
   document.documentElement.classList.toggle('dark', !light);
-  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', light ? '#f8fbff' : '#000000');
-  window.dispatchEvent(new CustomEvent('mdtxtrt:themechange', {detail:{scheme:light?'light':'dark'}}));
-  if(tg){
+  $('meta[name="theme-color"]').setAttribute('content', light ? '#f8fbff' : '#000000');
+  if(tg&&inTg){
     const header = light ? '#f8fbff' : '#000000';
-    tg.setHeaderColor?.(header);
-    tg.setBackgroundColor?.(header);
-    tg.setBottomBarColor?.(header);
+    tg.setHeaderColor(header);
+    tg.setBackgroundColor(header);
+    tg.setBottomBarColor(header);
   }
 }
 applyScheme();
@@ -78,7 +83,7 @@ function draftHTML(){
   return clone.innerHTML;
 }
 function draftState(){
-  return {name:docName.value,html:draftHTML(),dest,telegraphPath,docId,importedMd,importedTxt,importedHtml,media:mediaFile?{id:mediaFile.id,kind:mediaFile.kind}:null};
+  return {version:STATE_VERSION,name:docName.value,html:draftHTML(),dest,telegraphPath,docId,importedMd,importedTxt,importedHtml,media:mediaFile?{id:mediaFile.id,kind:mediaFile.kind}:null};
 }
 function cleanDraftHTML(html){
   const box=document.createElement('div');box.innerHTML=String(html||'');
@@ -128,9 +133,10 @@ function decorateSpecials(){
   editor.querySelectorAll('video,audio').forEach(node=>node.setAttribute('controls',''));
 }
 function handoffToken(){
-  const raw=getTg()?.initDataUnsafe?.start_param||new URLSearchParams(location.search).get('tgWebAppStartParam')||'';
+  const raw=getTg()?.initDataUnsafe?.start_param;
+  if(typeof raw!=='string')return '';
   const match=/^h_([a-f0-9]{32})$/.exec(raw);
-  return match?.[1]||'';
+  return match?match[1]:'';
 }
 async function claimHandoff(){
   const token=handoffToken();if(!token||!inTg)return;
@@ -139,11 +145,10 @@ async function claimHandoff(){
   const data=await readResponse(res);
   if(!res.ok)throw new Error(data.error||'Não foi possível recuperar o rascunho');
   const d=data.draft;
-  if(!d||typeof d.html!=='string')throw new Error('Rascunho transferido inválido');
-  editor.innerHTML=cleanDraftHTML(d.html);docName.value=String(d.name||'Ideia').slice(0,120);
-  dest=d.dest==='telegraph'?'telegraph':'telegram';telegraphPath=typeof d.telegraphPath==='string'?d.telegraphPath:'';
-  docId=/^[a-f0-9-]{36}$/i.test(String(d.docId||''))?d.docId:crypto.randomUUID();
-  importedMd=typeof d.importedMd==='string'?d.importedMd:'';importedTxt=typeof d.importedTxt==='string'?d.importedTxt:'';importedHtml=typeof d.importedHtml==='string'?d.importedHtml:'';
+  if(!d||d.version!==STATE_VERSION||typeof d.html!=='string'||typeof d.name!=='string'||!['telegram','telegraph'].includes(d.dest)||typeof d.telegraphPath!=='string'||!/^[a-f0-9-]{36}$/i.test(d.docId)||typeof d.importedMd!=='string'||typeof d.importedTxt!=='string'||typeof d.importedHtml!=='string')throw new Error('Rascunho transferido incompatível');
+  editor.innerHTML=cleanDraftHTML(d.html);docName.value=d.name.slice(0,120);
+  dest=d.dest;telegraphPath=d.telegraphPath;docId=d.docId;
+  importedMd=d.importedMd;importedTxt=d.importedTxt;importedHtml=d.importedHtml;
   if(data.file){
     const fileRes=await fetch(API+'/api/handoff/file',{method:'POST',signal:AbortSignal.timeout(60000),headers:{'content-type':'application/json'},body:JSON.stringify({initData,token})});
     if(!fileRes.ok)throw new Error('Não foi possível recuperar o anexo transferido');
@@ -198,17 +203,20 @@ async function verifyTelegram(){
   }
 }
 function setupTelegram(){
+  const tg=getTg();
+  if(!tg)throw new Error('Cliente Telegram indisponível');
+  for(const name of ['ready','expand','requestFullscreen','onEvent','setHeaderColor','setBackgroundColor','setBottomBarColor','disableVerticalSwipes','downloadFile'])if(typeof tg[name]!=='function')throw new Error('Cliente Telegram incompatível: '+name);
+  if(typeof tg.BackButton?.hide!=='function'||typeof tg.MainButton?.hide!=='function')throw new Error('Cliente Telegram incompatível: controles nativos');
   inTg=true;session='ready';
-  const tg = getTg();
   document.documentElement.classList.add('tg-shell');
   document.body.classList.add('tg');
   tg.ready();tg.expand();
-  if(!tg.isFullscreen)tg.requestFullscreen?.();
+  if(!tg.isFullscreen)tg.requestFullscreen();
   applyScheme();
-  tg.onEvent?.('themeChanged',applyScheme);
-  tg.BackButton?.hide?.();
-  tg.disableVerticalSwipes?.();
-  tg.MainButton?.hide?.();
+  tg.onEvent('themeChanged',applyScheme);
+  tg.BackButton.hide();
+  tg.disableVerticalSwipes();
+  tg.MainButton.hide();
 }
 function showToast(msg){
   toast.textContent = msg; toast.classList.add('on');
@@ -236,31 +244,14 @@ function setDestination(value, notify=true){
   saveLocal();
   if(notify) showToast('Destino: ' + name);
 }
-function openPanel(sel, anchor){
-  const panel = $(sel);
-  const ref = anchor || document.activeElement;
-  const rect = ref?.getBoundingClientRect?.();
-  const shell = $('.app');
-  const shellRect = shell?.getBoundingClientRect?.() || {top:0,left:0,width:innerWidth};
-  sheets.forEach(s => { const el = $(s); el.classList.remove('on'); el.classList.remove('is-top'); });
-  const placeTop = sel === '#importMenu' || sel === '#exportMenu' || sel === '#findMenu';
-  panel.classList.toggle('is-top', placeTop);
-  if(placeTop && rect){
-    panel.style.setProperty('--sheet-top', Math.round(rect.bottom - shellRect.top + 8) + 'px');
-  }else{
-    panel.style.removeProperty('--sheet-top');
-  }
-  panel.style.visibility = 'hidden';
+function openPanel(sel){
+  const panel=$(sel);
+  if(!panel)throw new Error('Painel indisponível: '+sel);
+  sheets.forEach(name=>$(name).classList.remove('on','is-top'));
+  panel.classList.toggle('is-top',sel==='#importMenu'||sel==='#exportMenu'||sel==='#findMenu');
   panel.classList.add('on');
-  const list = panel.querySelector('.menu-list');
-  if(list) list.scrollTop = 0;
-  const viewportWidth = shellRect.width || innerWidth;
-  const width = Math.min(panel.offsetWidth || 0, viewportWidth - 28) || Math.min(280, viewportWidth - 28);
-  const center = rect ? rect.left - shellRect.left + rect.width / 2 : viewportWidth / 2;
-  const left = Math.max(14, Math.min(viewportWidth - width - 14, center - width / 2));
-  panel.style.setProperty('--sheet-left', left + 'px');
-  panel.style.setProperty('--sheet-origin', Math.max(20, Math.min(width - 20, center - left)) + 'px');
-  panel.style.visibility = '';
+  const list=panel.querySelector('.menu-list');
+  if(list)list.scrollTop=0;
   backdrop.classList.add('on');
   document.dispatchEvent(new Event('selectionchange'));
 }
@@ -282,7 +273,7 @@ function dialogOpen(label,value='',rows=1,confirmMode=false){
   $('#dialogLabel').textContent=label;
   dialogConfirm=confirmMode;
   input.hidden=confirmMode;
-  input.value=confirmMode?'':String(value??'');
+  input.value=confirmMode?'':String(value===null||value===undefined?'':value);
   input.rows=Math.max(1,Math.min(5,rows));
   $('#dialogOk').textContent=confirmMode?'Continuar':'OK';
   openPanel('#dialogMenu',document.activeElement);
@@ -704,10 +695,15 @@ function saveLocal(){
   catch{ showToast('Não foi possível salvar neste dispositivo'); }
 }
 function loadLocal(){
-  try{
-    const d = JSON.parse(localStorage.getItem('rmdtxtml') || 'null');
-    if(typeof d?.html === 'string'){ editor.innerHTML = d.html; docName.value = d.name || 'Ideia'; telegraphPath = d.telegraphPath || ''; docId = d.docId || docId; importedMd = d.importedMd || ''; importedTxt = d.importedTxt || ''; importedHtml = d.importedHtml || ''; if(d.dest === 'telegram' || d.dest === 'telegraph') dest = d.dest; }
-  }catch{ showToast('O rascunho salvo não pôde ser aberto'); }
+  const raw=localStorage.getItem('rmdtxtml');
+  if(raw===null)return;
+  let d;
+  try{d=JSON.parse(raw);}catch{localStorage.removeItem('rmdtxtml');throw new Error('Rascunho local inválido foi descartado');}
+  if(!d||d.version!==STATE_VERSION||typeof d.html!=='string'||typeof d.name!=='string'||!['telegram','telegraph'].includes(d.dest)||typeof d.telegraphPath!=='string'||!/^[a-f0-9-]{36}$/i.test(d.docId)||typeof d.importedMd!=='string'||typeof d.importedTxt!=='string'||typeof d.importedHtml!=='string'){
+    localStorage.removeItem('rmdtxtml');
+    throw new Error('Rascunho local antigo foi descartado');
+  }
+  editor.innerHTML=d.html;docName.value=d.name;telegraphPath=d.telegraphPath;docId=d.docId;importedMd=d.importedMd;importedTxt=d.importedTxt;importedHtml=d.importedHtml;dest=d.dest;
 }
 function escapeHTML(s){ return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function htmlToText(html){
@@ -1064,7 +1060,10 @@ document.addEventListener('keydown', e => {
   if(k==='z' && e.shiftKey || k==='y'){ e.preventDefault(); histRedo(); flashBtn($('#redoBtn')); }
 });
 function boot(){
-  loadLocal();decorateSpecials();setDestination(dest,false);pushHist();
+  let notice='';
+  try{loadLocal();}catch(err){notice=err.message;}
+  decorateSpecials();setDestination(dest,false);pushHist();
+  if(notice)showToast(notice);
   void restoreMedia().then(()=>verifyTelegram()).catch(err=>showToast(err.message||'Não foi possível restaurar o documento'));
 }
 boot();
