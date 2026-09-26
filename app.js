@@ -239,11 +239,11 @@ function setDestination(value, notify=true){
   btn.title = 'Destino: ' + name;
   applyAssets();
   all('#headingMenu [data-block]').forEach(item => {
-    item.hidden = dest === 'telegraph' && !['p','h3','h4','footer'].includes(item.dataset.block);
+    item.hidden=dest==='telegraph'&&!['p','h3','h4'].includes(item.dataset.block);
   });
   one('#quoteMenu [data-insert="expandquote"]').hidden = dest === 'telegraph';
-  all('[data-tg="no"]').forEach(item => item.hidden = dest === 'telegraph');
-  all('[data-telegraph="only"]').forEach(item => item.hidden = dest !== 'telegraph');
+  all('[data-telegram-only]').forEach(item=>item.hidden=dest==='telegraph');
+  all('[data-telegraph-only]').forEach(item=>item.hidden=dest!=='telegraph');
   document.body.dataset.destination = dest;
   closePanels();
   saveLocal();
@@ -805,7 +805,6 @@ function telegraphNodes(root){
     if(el.nodeType !== 1) return null;
     let tag = el.tagName.toLowerCase();
     if(el.hasAttribute('data-media-id')) throw new Error('O Telegraph precisa de uma URL pública para mídia');
-    if(tag === 'footer' || el.classList.contains('tg-footer')) tag = 'aside';
     if(['div','article','section','span','thead','tbody','tfoot'].includes(tag)) return Array.from(el.childNodes).map(child=>conv(child,standalone)).flat().filter(Boolean);
     if(!allow.has(tag)) throw new Error('O conteúdo contém um elemento que o Telegraph não aceita: ' + tag);
     const node = {tag};
