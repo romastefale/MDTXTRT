@@ -1,5 +1,5 @@
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
-import { createReadStream, existsSync, statSync, readFileSync, writeFileSync, renameSync, mkdirSync } from "node:fs";
+import { createReadStream, existsSync, statSync, readFileSync, writeFileSync, renameSync, mkdirSync, unlinkSync, readdirSync } from "node:fs";
 import { DomUtils, parseDocument } from "htmlparser2";
 import Busboy from "busboy";
 import { createServer } from "node:http";
@@ -13,11 +13,17 @@ const ALLOW_ORIGINS = new Set([
   "https://romastefale.github.io",
   "https://mdtxtrt.up.railway.app",
 ]);
-const TELEGRAPH_FILE = ((process.env.RAILWAY_VOLUME_MOUNT_PATH || "/data").replace(/\/+$/, "") || "/data") + "/telegraph-token";
+const DATA = (process.env.RAILWAY_VOLUME_MOUNT_PATH || "/data").replace(/\/+$/, "") || "/data";
+const TELEGRAPH_FILE = DATA + "/telegraph-token";
 const PAGES_FILE = TELEGRAPH_FILE + "-pages.json";
+const HANDOFF_DIR = DATA + "/handoffs";
+const HANDOFF_TTL = 15 * 60 * 1000;
+const DOWNLOAD_TTL = 5 * 60 * 1000;
+const downloads = new Map();
 let telegraphToken = (process.env.TELEGRAPH_ACCESS_TOKEN || "").trim();
 let telegraphQueue = Promise.resolve();
 let botLink;
+mkdirSync(HANDOFF_DIR, { recursive: true });
 if (!telegraphToken && existsSync(TELEGRAPH_FILE)) {
   try { telegraphToken = readFileSync(TELEGRAPH_FILE, "utf8").trim(); } catch {}
 }
@@ -142,7 +148,7 @@ async function readMedia(req) {
   if (!/^multipart\/form-data;\s*boundary=/i.test(req.headers["content-type"] || "")) throw new Error("Formato de mídia inválido");
   return new Promise((resolve, reject) => {
     const fields = {}, files = [];
-    const bus = Busboy({headers:req.headers,limits:{files:1,fileSize:20_000_000,fields:4,fieldSize:40000}});
+    const bus = Busboy({headers:req.headers,limits:{files:1,fileSize:20_000_000,fields:6,fieldSize:400000}});
     bus.on("field",(key,value)=>{fields[key]=value;});
     bus.on("file",(key,stream,info)=>{
       if (key !== "upload") {stream.resume();reject(new Error("Mídia inválida"));return;}
@@ -155,6 +161,119 @@ async function readMedia(req) {
     bus.on("close",()=>resolve({fields,file:files[0]}));
     req.pipe(bus);
   });
+}
+
+function cleanFileName(value, fallback = "document.txt") {
+  const name = String(value || "").replace(/[\\/:*?"<>|\u0000-\u001f]/g, "-").replace(/^\.+|\.+$/g, "").trim().slice(0, 120);
+  return name || fallback;
+}
+
+function draftValid(draft) {
+  if (!draft || typeof draft !== "object" || Array.isArray(draft)) throw new Error("Rascunho inválido");
+  const json = JSON.stringify(draft);
+  if (Buffer.byteLength(json, "utf8") > 350_000) throw new Error("Rascunho grande demais");
+  if (typeof draft.html !== "string" || Buffer.byteLength(draft.html, "utf8") > 160_000) throw new Error("Conteúdo do rascunho inválido");
+  if (typeof draft.name !== "string" || draft.name.length > 120) throw new Error("Nome do rascunho inválido");
+  if (!["telegram", "telegraph"].includes(draft.dest)) throw new Error("Destino do rascunho inválido");
+  if (!/^[a-f0-9-]{36}$/i.test(String(draft.docId || ""))) throw new Error("Documento inválido");
+  if (typeof draft.telegraphPath !== "string" || draft.telegraphPath.length > 256) throw new Error("Página do rascunho inválida");
+  const tags = new Set("a b strong i em u ins s strike del code mark sub sup tg-spoiler tg-reference tg-emoji tg-time tg-math h1 h2 h3 h4 h5 h6 p pre footer hr ul ol li input blockquote aside cite img video audio tg-document figure figcaption iframe tg-map tg-collage tg-slideshow table caption thead tbody tfoot tr th td details summary tg-math-block tg-button tg-button-row br div".split(" "));
+  const attrs = new Set("href name class style src alt tg-spoiler start type reversed value checked disabled expandable data-expandable unix format emoji-id lat long zoom width height bordered striped compact colspan rowspan align valign open url data query text forward-text request-write-access allow-user-chats allow-bot-chats allow-group-chats allow-channel-chats data-media-id".split(" "));
+  const doc = parseDocument(draft.html);
+  const walk = node => {
+    if (node.type === "text") return;
+    if (node.type !== "tag" || !tags.has(node.name)) throw new Error("O rascunho contém marcação inválida");
+    for (const [key, value] of Object.entries(node.attribs)) {
+      if (!attrs.has(key)) throw new Error("O rascunho contém atributo inválido");
+      if (key === "class" && !(/^language-[a-z0-9+-]+$/i.test(value) || value === "tg-footer")) throw new Error("O rascunho contém classe inválida");
+      if (key === "style" && !(node.name === "tg-button" && ["link","primary","success","danger"].includes(value))) throw new Error("O rascunho contém estilo inválido");
+      if (key === "data-media-id" && !/^[A-Za-z0-9_-]{1,64}$/.test(value)) throw new Error("Identificador de mídia inválido");
+      if (["href","src","url"].includes(key) && value) {
+        if (key === "href" && value.startsWith("#")) continue;
+        let parsed;
+        try { parsed = new URL(value); } catch { throw new Error("Link do rascunho inválido"); }
+        if (!["https:","http:","tg:","mailto:","tel:"].includes(parsed.protocol)) throw new Error("Link do rascunho inválido");
+      }
+    }
+    node.children?.forEach(walk);
+  };
+  doc.children.forEach(walk);
+  return draft;
+}
+
+function handoffFiles(token) {
+  return { meta: HANDOFF_DIR + "/" + token + ".json", file: HANDOFF_DIR + "/" + token + ".bin" };
+}
+
+function dropHandoff(token) {
+  const paths = handoffFiles(token);
+  for (const path of [paths.meta, paths.file]) {
+    try { unlinkSync(path); } catch {}
+  }
+}
+
+function readHandoff(token) {
+  if (!/^[a-f0-9]{32}$/.test(token)) return null;
+  const paths = handoffFiles(token);
+  if (!existsSync(paths.meta)) return null;
+  let meta;
+  try { meta = JSON.parse(readFileSync(paths.meta, "utf8")); } catch { dropHandoff(token); return null; }
+  if (!meta?.expires || meta.expires < Date.now()) { dropHandoff(token); return null; }
+  return meta;
+}
+
+function sweepHandoffs() {
+  let names = [];
+  try { names = readdirSync(HANDOFF_DIR); } catch { return; }
+  for (const name of names) {
+    const match = /^([a-f0-9]{32})\.json$/.exec(name);
+    if (match) readHandoff(match[1]);
+  }
+}
+
+function saveHandoff(draft, file) {
+  sweepHandoffs();
+  draftValid(draft);
+  const local = draft.html.match(/data-media-id="([A-Za-z0-9_-]{1,64})"/);
+  if (local && !file) throw new Error("O anexo local precisa acompanhar o rascunho");
+  if (file) {
+    if (!local || !draft.media || draft.media.id !== local[1] || !["image","video","audio","document"].includes(draft.media.kind)) throw new Error("Anexo do rascunho inválido");
+    if (!file.bytes?.length || file.bytes.length > 20_000_000) throw new Error("Mídia grande demais");
+  }
+  const token = randomUUID().replace(/-/g, "");
+  const paths = handoffFiles(token);
+  const meta = {
+    expires: Date.now() + HANDOFF_TTL,
+    draft,
+    file: file ? { id: draft.media.id, kind: draft.media.kind, name: cleanFileName(file.name, "anexo"), mime: file.mime || "application/octet-stream", size: file.bytes.length } : null,
+    claimedBy: ""
+  };
+  if (file) writeFileSync(paths.file, file.bytes, { mode: 0o600 });
+  writeFileSync(paths.meta + ".tmp", JSON.stringify(meta), { mode: 0o600 });
+  renameSync(paths.meta + ".tmp", paths.meta);
+  return token;
+}
+
+function cleanDownloads() {
+  const now = Date.now();
+  for (const [token, item] of downloads) if (item.expires < now) downloads.delete(token);
+}
+
+function createDownload(name, content, type) {
+  const mime = type === "text/markdown" ? "text/markdown; charset=utf-8" : "text/plain; charset=utf-8";
+  const fallback = type === "text/markdown" ? "document.md" : "document.txt";
+  const fileName = cleanFileName(name, fallback);
+  const bytes = Buffer.from(String(content), "utf8");
+  if (!bytes.length || bytes.length > 1_500_000) throw new Error("O arquivo está vazio ou excede o limite de exportação");
+  cleanDownloads();
+  const token = randomUUID().replace(/-/g, "");
+  downloads.set(token, { name: fileName, bytes, type: mime, expires: Date.now() + DOWNLOAD_TTL });
+  return { token, name: fileName };
+}
+
+function contentDisposition(name) {
+  const ascii = name.replace(/[^\x20-\x7e]/g, "_").replace(/["\\]/g, "_");
+  return `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(name)}`;
 }
 
 async function sendRich(initData, html, file = null) {
@@ -463,6 +582,15 @@ async function configureBot() {
     console.error("Telegram bot não configurado");
     return;
   }
+  try {
+    const bot = await telegramCall(token, "getMe", {});
+    if (!/^[A-Za-z0-9_]{5,32}$/.test(bot.username || "")) throw new Error("Bot sem nome de usuário");
+    botLink = "https://t.me/" + bot.username;
+    console.log("Telegram ready");
+  } catch (error) {
+    console.error("Telegram getMe", error);
+    return;
+  }
   let secret;
   try { secret = webhookSecret(token); } catch (error) { console.error("Telegram webhook", error); return; }
   const steps = [
@@ -498,39 +626,63 @@ async function telegraphCall(method, body) {
   return json.result;
 }
 
+function readPages() {
+  if (!existsSync(PAGES_FILE)) return {};
+  let pages;
+  try { pages = JSON.parse(readFileSync(PAGES_FILE, "utf8")); } catch { throw new Error("Não foi possível recuperar as páginas do Telegraph"); }
+  return pages && typeof pages === "object" && !Array.isArray(pages) ? pages : {};
+}
+
+function writePages(pages) {
+  writeFileSync(PAGES_FILE + ".tmp", JSON.stringify(pages), { mode: 0o600 });
+  renameSync(PAGES_FILE + ".tmp", PAGES_FILE);
+}
+
+async function ensureTelegraphToken() {
+  if (telegraphToken) return telegraphToken;
+  const account = await telegraphCall("createAccount", { short_name: "MDTXTRT", author_name: "MDTXTRT" });
+  telegraphToken = account.access_token;
+  mkdirSync(DATA, { recursive: true });
+  writeFileSync(TELEGRAPH_FILE, telegraphToken, { mode: 0o600 });
+  return telegraphToken;
+}
+
+async function verifyTelegraphPage(path) {
+  const page = await telegraphCall("getPage", { path, return_content: "true" });
+  if (!page?.path || page.path !== path || !page.url) throw new Error("O Telegraph não confirmou a página");
+  return page;
+}
+
 async function publishTelegraphOne(title, content, path = "", user = "", doc = "") {
   const pageTitle = String(title || "").trim();
   if (!pageTitle) throw new Error("Dê um nome à página antes de publicar");
   if (pageTitle.length > 256) throw new Error("O nome da página deve ter até 256 caracteres");
   telegraphValid(content);
   if (!/^[a-f0-9-]{36}$/i.test(doc)) throw new Error("Documento inválido");
-  let pages = {};
-  if (existsSync(PAGES_FILE)) pages = JSON.parse(readFileSync(PAGES_FILE, "utf8"));
+  const pages = readPages();
   const key = user + ":" + doc;
-  if (path && pages[key] !== path) throw new Error("Esta página não pertence a este documento");
-  if (!path && pages[key]) throw new Error("Este documento já possui uma página");
-  if (!telegraphToken) {
-    const account = await telegraphCall("createAccount", { short_name: "MDTXTRT", author_name: "MDTXTRT" });
-    telegraphToken = account.access_token;
-    mkdirSync(TELEGRAPH_FILE.slice(0, TELEGRAPH_FILE.lastIndexOf("/")), { recursive: true });
-    writeFileSync(TELEGRAPH_FILE, telegraphToken, { mode: 0o600 });
-  }
+  const known = pages[key] || "";
+  if (path && known !== path) throw new Error("Esta página não pertence a este documento");
+  const target = String(path || known).trim();
+  const token = await ensureTelegraphToken();
   const body = {
-    access_token: telegraphToken,
+    access_token: token,
     title: pageTitle,
     author_name: "MDTXTRT",
     content: JSON.stringify(content),
-    return_content: "false",
+    return_content: "true",
   };
-  if (String(path || "").trim()) {
-    body.path = String(path).trim();
-    return telegraphCall("editPage", body);
+  let page;
+  if (target) {
+    body.path = target;
+    page = await telegraphCall("editPage", body);
+  } else {
+    page = await telegraphCall("createPage", body);
+    pages[key] = page.path;
+    writePages(pages);
   }
-  const page = await telegraphCall("createPage", body);
-  pages[key] = page.path;
-  writeFileSync(PAGES_FILE + ".tmp", JSON.stringify(pages), { mode: 0o600 });
-  renameSync(PAGES_FILE + ".tmp", PAGES_FILE);
-  return page;
+  const verified = await verifyTelegraphPage(page.path);
+  return { ...page, url: verified.url, path: verified.path };
 }
 
 function publishTelegraph(...args) {
@@ -559,9 +711,11 @@ const server = createServer(async (req, res) => {
         if (!botLink) {
           const bot = await telegramCall(botToken(), "getMe", {});
           if (!/^[A-Za-z0-9_]{5,32}$/.test(bot.username || "")) throw new Error("Mini App indisponível");
-          botLink = "https://t.me/" + bot.username + "?startapp";
+          botLink = "https://t.me/" + bot.username;
         }
-        res.writeHead(302, { location: botLink, "cache-control": "public, max-age=300" });
+        const handoff = String(url.searchParams.get("handoff") || "");
+        const start = readHandoff(handoff) ? "=h_" + handoff : "";
+        res.writeHead(302, { location: botLink + "?startapp" + start, "cache-control": "no-store" });
         res.end();
       } catch {
         res.writeHead(503, { "content-type": "text/plain; charset=utf-8" });
@@ -569,6 +723,146 @@ const server = createServer(async (req, res) => {
       }
       return;
     }
+
+    const downloadMatch = /^\/download\/([a-f0-9]{32})\/([^/]+)$/.exec(url.pathname);
+    if (downloadMatch && (req.method === "GET" || req.method === "HEAD")) {
+      cleanDownloads();
+      const item = downloads.get(downloadMatch[1]);
+      const name = (() => { try { return decodeURIComponent(downloadMatch[2]); } catch { return ""; } })();
+      if (!item || item.name !== name) {
+        res.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
+        res.end("Arquivo expirado");
+        return;
+      }
+      res.writeHead(200, {
+        "content-type": item.type,
+        "content-length": item.bytes.length,
+        "content-disposition": contentDisposition(item.name),
+        "cache-control": "no-store",
+        "access-control-allow-origin": "https://web.telegram.org",
+        "cross-origin-resource-policy": "cross-origin"
+      });
+      if (req.method === "HEAD") res.end();
+      else res.end(item.bytes);
+      return;
+    }
+    if (url.pathname === "/api/export" && req.method === "POST") {
+      if (!setCors(req, res)) {
+        res.writeHead(403, { "content-type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ error: "Acesso não autorizado" }));
+        return;
+      }
+      try {
+        const body = await readJson(req, 1_700_000);
+        if (!body || typeof body.content !== "string" || typeof body.name !== "string" || !["text/plain","text/markdown"].includes(body.type)) throw new Error("Dados de exportação inválidos");
+        const file = createDownload(body.name, body.content, body.type);
+        res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+        res.end(JSON.stringify({ name: file.name, url: WEBHOOK_BASE + "/download/" + file.token + "/" + encodeURIComponent(file.name) }));
+      } catch (err) {
+        res.writeHead(400, { "content-type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ error: err.message || "Não foi possível preparar o arquivo" }));
+      }
+      return;
+    }
+
+    if (url.pathname === "/api/handoff" && req.method === "POST") {
+      if (!setCors(req, res)) {
+        res.writeHead(403, { "content-type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ error: "Acesso não autorizado" }));
+        return;
+      }
+      try {
+        const media = await readMedia(req);
+        let draft;
+        try { draft = JSON.parse(media.fields.draft || ""); } catch { throw new Error("Rascunho inválido"); }
+        const token = saveHandoff(draft, media.file || null);
+        res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+        res.end(JSON.stringify({ token, open: WEBHOOK_BASE + "/telegram/open?handoff=" + token }));
+      } catch (err) {
+        res.writeHead(400, { "content-type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ error: err.message || "Não foi possível transferir o rascunho" }));
+      }
+      return;
+    }
+
+    if (url.pathname === "/api/handoff/claim" && req.method === "POST") {
+      if (!setCors(req, res)) {
+        res.writeHead(403, { "content-type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ error: "Acesso não autorizado" }));
+        return;
+      }
+      try {
+        const body = await readJson(req, 20000);
+        const token = String(body?.token || "");
+        const state = readHandoff(token);
+        if (!state) throw new Error("Transferência expirada ou inválida");
+        const { chatId } = userFromInitData(String(body?.initData || ""), botToken());
+        if (state.claimedBy && state.claimedBy !== chatId) throw new Error("Transferência não pertence a esta sessão");
+        state.claimedBy = chatId;
+        const paths = handoffFiles(token);
+        writeFileSync(paths.meta + ".tmp", JSON.stringify(state), { mode: 0o600 });
+        renameSync(paths.meta + ".tmp", paths.meta);
+        res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+        res.end(JSON.stringify({ draft: state.draft, file: state.file }));
+      } catch (err) {
+        res.writeHead(400, { "content-type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ error: err.message || "Não foi possível recuperar o rascunho" }));
+      }
+      return;
+    }
+
+    if (url.pathname === "/api/handoff/file" && req.method === "POST") {
+      if (!setCors(req, res)) {
+        res.writeHead(403, { "content-type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ error: "Acesso não autorizado" }));
+        return;
+      }
+      try {
+        const body = await readJson(req, 20000);
+        const token = String(body?.token || "");
+        const state = readHandoff(token);
+        if (!state?.file) throw new Error("Anexo da transferência indisponível");
+        const { chatId } = userFromInitData(String(body?.initData || ""), botToken());
+        if (!state.claimedBy || state.claimedBy !== chatId) throw new Error("Transferência não pertence a esta sessão");
+        const path = handoffFiles(token).file;
+        if (!existsSync(path)) throw new Error("Anexo da transferência indisponível");
+        const bytes = readFileSync(path);
+        res.writeHead(200, { "content-type": state.file.mime || "application/octet-stream", "content-length": bytes.length, "cache-control": "no-store" });
+        res.end(bytes);
+      } catch (err) {
+        res.writeHead(400, { "content-type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ error: err.message || "Não foi possível recuperar o anexo" }));
+      }
+      return;
+    }
+
+    if (url.pathname === "/api/telegraph/recover" && req.method === "POST") {
+      if (!setCors(req, res)) {
+        res.writeHead(403, { "content-type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ error: "Acesso não autorizado" }));
+        return;
+      }
+      try {
+        const body = await readJson(req, 20000);
+        if (!/^[a-f0-9-]{36}$/i.test(String(body?.doc || ""))) throw new Error("Documento inválido");
+        const { chatId } = userFromInitData(String(body?.initData || ""), botToken());
+        const path = readPages()[chatId + ":" + body.doc] || "";
+        if (!path) {
+          res.writeHead(404, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+          res.end(JSON.stringify({ error: "Página não encontrada" }));
+          return;
+        }
+        const page = await verifyTelegraphPage(path);
+        res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+        res.end(JSON.stringify({ path: page.path, url: page.url }));
+      } catch (err) {
+        const code = /não encontrada/i.test(err.message || "") ? 404 : 400;
+        res.writeHead(code, { "content-type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ error: err.message || "Não foi possível recuperar a página" }));
+      }
+      return;
+    }
+
     if (req.method === "OPTIONS") {
       if (!setCors(req, res)) {
         res.writeHead(403, { "content-type": "application/json; charset=utf-8" });
@@ -705,5 +999,7 @@ const server = createServer(async (req, res) => {
 
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`MDTXTRT on ${PORT}`);
+  sweepHandoffs();
   void configureBot();
+  void ensureTelegraphToken().then(token => telegraphCall("getAccountInfo", { access_token: token, fields: '["short_name","page_count"]' })).then(() => console.log("Telegraph ready")).catch(error => console.error("Telegraph startup", error));
 });
