@@ -49,7 +49,13 @@ function page(tg,render=false,setup={}){
     }
     return {ok:false,status:404,json:async()=>({error:'not found'})};
   };
-  if(tg){w.Telegram={WebApp:{initData:'signed-payload',colorScheme:'dark',ready(){},expand(){},setHeaderColor(){},MainButton:{setText(){},show(){},onClick(){}},...tg}};w.fetch=tg.fetch;}
+  if(tg){
+    const version=String(tg.version||'10.3');
+    const parts=value=>String(value).split('.').map(Number);
+    const atLeast=value=>{const a=parts(version),b=parts(value),n=Math.max(a.length,b.length);for(let i=0;i<n;i++){const x=a[i]||0,y=b[i]||0;if(x!==y)return x>y;}return true;};
+    w.Telegram={WebApp:{initData:'signed-payload',version,platform:'ios',colorScheme:'dark',isVersionAtLeast:atLeast,ready(){},expand(){},requestFullscreen(){},setHeaderColor(){},setBackgroundColor(){},setBottomBarColor(){},disableVerticalSwipes(){},downloadFile(params,callback){callback?.(true);},onEvent(){},BackButton:{hide(){}},MainButton:{hide(){},setText(){},show(){},onClick(){}},...tg}};
+    if(tg.fetch)w.fetch=tg.fetch;
+  }
   if(render){
     const callbacks=[];w.__maps=[];
     w.ResizeObserver=class{constructor(callback){callbacks.push(callback)}observe(){}};
@@ -273,6 +279,27 @@ test('Mini App destination switch publishes Telegraph nodes and retains the retu
   assert.equal(JSON.parse(w.localStorage.getItem('rmdtxtml')).telegraphPath,'owned-page');
   w.close();
 });
+test('Telegram capability gates follow the official Bot API version without emulating missing methods',async()=>{
+  let fullscreen=0,swipes=0;
+  const w=page({version:'7.7',fetch:async url=>String(url).endsWith('/session')?{ok:true,status:200,json:async()=>({})}:{ok:false,status:404,json:async()=>({})},requestFullscreen(){fullscreen++;},disableVerticalSwipes(){swipes++;}});
+  await new Promise(resolve=>setTimeout(resolve,10));
+  assert.equal(w.document.body.classList.contains('tg'),true);
+  assert.equal(w.document.documentElement.classList.contains('tg-shell'),false);
+  assert.equal(fullscreen,0);
+  assert.equal(swipes,1);
+  await assert.rejects(()=>w.eval('download("teste.txt","x","text/plain")'),/Atualize o Telegram/);
+  w.close();
+});
+
+test('legacy local state is rejected instead of being silently reinterpreted',()=>{
+  const legacy=JSON.stringify({html:'<p>antigo</p>',name:'Antigo',dest:'telegram'});
+  const w=page(undefined,false,{local:{rmdtxtml:legacy}});
+  assert.equal(w.localStorage.getItem('rmdtxtml'),null);
+  assert.notEqual(w.document.querySelector('#editor').innerHTML,'<p>antigo</p>');
+  assert.match(w.document.querySelector('#toast').textContent,/antigo foi descartado/);
+  w.close();
+});
+
 test('Mini App setup keeps one editor scroll surface while platform geometry stays declarative',async()=>{
   const w=page({fetch:async()=>({ok:true,status:404,json:async()=>({})}),isFullscreen:true,viewportStableHeight:620,safeAreaInset:{top:59,bottom:34,left:0,right:0},contentSafeAreaInset:{top:44,bottom:0,left:8,right:7}});
   await new Promise(r=>setTimeout(r,10));
@@ -440,7 +467,7 @@ test('rejected file import preserves name, document and publication identity',as
   const w=page(),d=w.document;
   d.querySelector('#editor').innerHTML='<p>Documento existente</p>';
   d.querySelector('#docName').value='Original';
-  w.localStorage.setItem('rmdtxtml',JSON.stringify({html:'<p>Documento existente</p>',name:'Original',telegraphPath:'owned-page',docId:'existing-document'}));
+  w.localStorage.setItem('rmdtxtml',JSON.stringify({version:2,html:'<p>Documento existente</p>',name:'Original',dest:'telegram',telegraphPath:'owned-page',docId:'11111111-1111-4111-8111-111111111111',importedMd:'',importedTxt:'',importedHtml:'',media:null}));
   w.eval('loadLocal()');
   Object.defineProperty(d.querySelector('#fileInput'),'files',{value:[{name:'invalido.md',text:async()=>'<script>alert(1)</script>'}]});
   d.querySelector('#fileInput').dispatchEvent(new w.Event('change'));
@@ -450,12 +477,12 @@ test('rejected file import preserves name, document and publication identity',as
   w.eval('saveLocal()');
   const saved=JSON.parse(w.localStorage.getItem('rmdtxtml'));
   assert.equal(saved.telegraphPath,'owned-page');
-  assert.equal(saved.docId,'existing-document');
+  assert.equal(saved.docId,'11111111-1111-4111-8111-111111111111');
   w.close();
 });
 test('empty saved document restores its name and destination',()=>{
   const w=page();
-  w.localStorage.setItem('rmdtxtml',JSON.stringify({html:'',name:'Vazio',dest:'telegraph',docId:'empty-document'}));
+  w.localStorage.setItem('rmdtxtml',JSON.stringify({version:2,html:'',name:'Vazio',dest:'telegraph',telegraphPath:'',docId:'22222222-2222-4222-8222-222222222222',importedMd:'',importedTxt:'',importedHtml:'',media:null}));
   w.eval('loadLocal()');
   assert.equal(w.document.querySelector('#editor').innerHTML,'');
   assert.equal(w.document.querySelector('#docName').value,'Vazio');
