@@ -106,14 +106,19 @@ async function restoreMedia(){
   const id=node.getAttribute('data-media-id');
   try{
     const saved=await mediaLoad(id);
-    if(!saved?.file){node.removeAttribute('src');node.setAttribute('data-media-missing','true');return;}
+    if(!saved||saved.id!==id||!['image','video','audio','document'].includes(saved.kind)||typeof saved.name!=='string'||!saved.name||typeof saved.type!=='string'||!saved.type||!(saved.file instanceof Blob))throw new Error('Anexo persistido incompatível');
     if(mediaFile?.url)URL.revokeObjectURL(mediaFile.url);
-    const file=saved.file instanceof File?saved.file:new File([saved.file],saved.name||'anexo',{type:saved.type||saved.file.type,lastModified:saved.lastModified||Date.now()});
+    const file=saved.file instanceof File?saved.file:new File([saved.file],saved.name,{type:saved.type,lastModified:Number.isFinite(saved.lastModified)?saved.lastModified:0});
     const url=URL.createObjectURL(file);
     mediaFile={file,id,kind:saved.kind,url};
     node.setAttribute('src',url);node.removeAttribute('data-media-missing');
     decorateSpecials();
-  }catch(err){node.removeAttribute('src');node.setAttribute('data-media-missing','true');showToast(err.message||'Não foi possível recuperar o anexo');}
+  }catch(err){
+    await mediaClear();
+    node.removeAttribute('src');
+    node.setAttribute('data-media-missing','true');
+    showToast(err.message||'Não foi possível recuperar o anexo');
+  }
 }
 async function installMedia(file,id,kind,persist=true){
   if(mediaFile?.url)URL.revokeObjectURL(mediaFile.url);
@@ -135,7 +140,7 @@ function handoffToken(){
 }
 async function claimHandoff(){
   const token=handoffToken();if(!token||!inTg)return;
-  const initData=getTg()?.initData||'';
+  const initData=getTg().initData;
   const res=await fetch(API+'/api/handoff/claim',{method:'POST',signal:AbortSignal.timeout(20000),headers:{'content-type':'application/json'},body:JSON.stringify({initData,token})});
   const data=await readResponse(res);
   if(!res.ok)throw new Error(data.error||'Não foi possível recuperar o rascunho');
@@ -147,8 +152,9 @@ async function claimHandoff(){
   if(data.file){
     const fileRes=await fetch(API+'/api/handoff/file',{method:'POST',signal:AbortSignal.timeout(60000),headers:{'content-type':'application/json'},body:JSON.stringify({initData,token})});
     if(!fileRes.ok)throw new Error('Não foi possível recuperar o anexo transferido');
+    if(typeof data.file.name!=='string'||!data.file.name||typeof data.file.mime!=='string'||!data.file.mime||!['image','video','audio','document'].includes(data.file.kind)||!/^[A-Za-z0-9_-]{1,64}$/.test(data.file.id))throw new Error('Metadados do anexo transferido inválidos');
     const blob=await fileRes.blob();
-    const file=new File([blob],data.file.name||'anexo',{type:data.file.mime||blob.type,lastModified:Date.now()});
+    const file=new File([blob],data.file.name,{type:data.file.mime,lastModified:Date.now()});
     await installMedia(file,data.file.id,data.file.kind,true);
   }else{
     if(mediaFile?.url)URL.revokeObjectURL(mediaFile.url);
@@ -158,7 +164,7 @@ async function claimHandoff(){
 }
 async function recoverTelegraph(){
   if(!inTg||!/^[a-f0-9-]{36}$/i.test(docId))return;
-  const res=await fetch(API+'/api/telegraph/recover',{method:'POST',signal:AbortSignal.timeout(15000),headers:{'content-type':'application/json'},body:JSON.stringify({initData:getTg()?.initData||'',doc:docId})});
+  const res=await fetch(API+'/api/telegraph/recover',{method:'POST',signal:AbortSignal.timeout(15000),headers:{'content-type':'application/json'},body:JSON.stringify({initData:getTg().initData,doc:docId})});
   if(res.status===404)return;
   const data=await readResponse(res);
   if(!res.ok)throw new Error(data.error||'Não foi possível recuperar a página do Telegraph');
@@ -188,14 +194,18 @@ async function verifyTelegram(){
     const res=await fetch(API+'/api/telegram/session',{signal:AbortSignal.timeout(15000),method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({initData})});
     if(!res.ok)throw new Error('Sessão Telegram inválida ou expirada');
     setupTelegram();
-    try{await claimHandoff();}catch(err){showToast(err.message||'Não foi possível recuperar o rascunho');}
-    try{await recoverTelegraph();}catch(err){showToast(err.message||'Não foi possível recuperar a página do Telegraph');}
   }catch(err){
     session='invalid';
     document.body.classList.remove('tg');
     applyScheme();
     showToast(err.message||'Não foi possível validar a sessão Telegram');
+    return;
   }
+  if(handoffToken()){
+    try{await claimHandoff();}catch(err){showToast(err.message||'Não foi possível recuperar o rascunho');}
+    return;
+  }
+  try{await recoverTelegraph();}catch(err){showToast(err.message||'Não foi possível recuperar a página do Telegraph');}
 }
 function setupTelegram(){
   const tg=getTg();
@@ -208,7 +218,6 @@ function setupTelegram(){
   applyScheme();
   tg.onEvent('themeChanged',applyScheme);
   tg.BackButton.hide();
-  if(tg.isVersionAtLeast('7.7'))tg.disableVerticalSwipes();
   tg.MainButton.hide();
 }
 function showToast(msg){
@@ -747,14 +756,15 @@ function mdToBasicHTML(md){
 async function download(name, content, type){
   const res=await fetch(API+'/api/export',{method:'POST',signal:AbortSignal.timeout(30000),headers:{'content-type':'application/json'},body:JSON.stringify({name,content,type})});
   const data=await readResponse(res);
-  if(!res.ok||!data.url)throw new Error(data.error||'Não foi possível preparar o arquivo');
+  if(!res.ok)throw new Error(data.error||'Não foi possível preparar o arquivo');
+  if(typeof data.url!=='string'||!/^https:\/\//.test(data.url)||typeof data.name!=='string'||!data.name)throw new Error('Resposta de download inválida');
   const tg=getTg();
   if(inTg){
     if(!tg.isVersionAtLeast('8.0'))throw new Error('Atualize o Telegram para baixar arquivos pelo Mini App');
-    await new Promise((resolve,reject)=>tg.downloadFile({url:data.url,file_name:data.name||name},accepted=>accepted?resolve():reject(new Error('Download cancelado'))));
+    await new Promise((resolve,reject)=>tg.downloadFile({url:data.url,file_name:data.name},accepted=>accepted?resolve():reject(new Error('Download cancelado'))));
     return;
   }
-  const a=document.createElement('a');a.href=data.url;a.download=data.name||name;a.hidden=true;document.body.append(a);a.click();a.remove();
+  const a=document.createElement('a');a.href=data.url;a.download=data.name;a.hidden=true;document.body.append(a);a.click();a.remove();
 }
 function telegraphNodes(root){
   const allow = new Set(['a','aside','b','blockquote','br','code','em','figcaption','figure','h3','h4','hr','i','iframe','img','li','ol','p','pre','s','strong','u','ul','video']);
@@ -810,7 +820,9 @@ function toRichHTML(root){
     if(empty.has(tag)) return open.slice(0,-1)+'/>';
     return open+Array.from(n.childNodes).map(walk).join('')+'</'+tag+'>';
   };
-  return Array.from(root.childNodes).map(walk).join('')||'<p></p>';
+  const html=Array.from(root.childNodes).map(walk).join('');
+  if(!html.trim())throw new Error('Escreva algo antes de enviar');
+  return html;
 }
 function buildRich(){
   return {rich_message: {html:toRichHTML(editor)}};
@@ -828,7 +840,7 @@ editor.addEventListener('keyup', saveSel);
 editor.addEventListener('mouseup', saveSel);
 editor.addEventListener('paste', e => {
   e.preventDefault();
-  const text = (e.clipboardData || window.clipboardData).getData('text/plain');
+  const text=e.clipboardData.getData('text/plain');
   insertPlainText(text);
 });
 document.addEventListener('selectionchange', ()=>{
@@ -950,9 +962,10 @@ one('#replaceAll').addEventListener('click',()=>{
   if(all.length){savedRange=null;pushHist();markDirty();}showToast(all.length+' substituições');
 });
 
-function exportName(ext) {
-  const base = (docName.value || "document").trim().replace(/[\\/:*?"<>|]+/g, "-").replace(/^\.+|\.+$/g, "").slice(0, 80) || "document";
-  return base + "." + ext;
+function exportName(ext){
+  const base=docName.value.trim().replace(/[\\/:*?"<>|]+/g,"-").replace(/^\.+|\.+$/g,"").slice(0,80);
+  if(!base)throw new Error('Dê um nome ao documento antes de exportar');
+  return base+"."+ext;
 }
 async function exportFile(format) {
   if (inTg) {
@@ -990,8 +1003,8 @@ async function publishCurrent(){
 }
 async function publishTelegram(){
   if(!editor.childNodes.length){ showToast('Escreva algo antes de enviar'); return; }
-  const initData = getTg()?.initData || '';
-  if(!initData){ showToast('Abra pelo bot no Telegram'); return; }
+  const initData=getTg()?.initData;
+  if(!initData){showToast('Abra pelo bot no Telegram');return;}
   try{
     const p = buildRich();
     const data=mediaFile;
@@ -1020,10 +1033,11 @@ async function publishTelegraph(){
       body: JSON.stringify(payload)
     });
     const result = await readResponse(res);
-    if(!res.ok) throw new Error(result.error || 'Não foi possível publicar no Telegraph');
-    telegraphPath = result.path || telegraphPath;
+    if(!res.ok)throw new Error(result.error||'Não foi possível publicar no Telegraph');
+    if(typeof result.path!=='string'||!result.path||typeof result.url!=='string'||!/^https:\/\//.test(result.url))throw new Error('Resposta do Telegraph inválida');
+    telegraphPath=result.path;
     saveLocal();
-    showToast(telegraphPath ? 'Página salva no Telegraph' : 'Publicado no Telegraph');
+    showToast('Página salva no Telegraph');
     if(inTg)getTg().openLink(result.url,{try_instant_view:true});
     else window.location.assign(result.url);
   }catch(err){ showToast(err.name==='TimeoutError'?'Tempo de publicação esgotado. Confira a página antes de tentar novamente.':err instanceof TypeError?'Não foi possível conectar ao Telegraph':err.message || 'Não foi possível publicar no Telegraph'); }
