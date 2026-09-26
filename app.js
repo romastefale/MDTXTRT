@@ -133,7 +133,9 @@ function decorateSpecials(){
   editor.querySelectorAll('video,audio').forEach(node=>node.setAttribute('controls',''));
 }
 function handoffToken(){
-  const raw=getTg()?.initDataUnsafe?.start_param;
+  const initData=getTg()?.initData;
+  if(typeof initData!=='string'||!initData)return '';
+  const raw=new URLSearchParams(initData).get('start_param');
   if(typeof raw!=='string')return '';
   const match=/^h_([a-f0-9]{32})$/.exec(raw);
   return match?match[1]:'';
