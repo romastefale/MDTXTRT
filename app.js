@@ -21,6 +21,7 @@ function applyScheme(){
   const light = tg?.colorScheme ? tg.colorScheme === 'light' : window.matchMedia('(prefers-color-scheme: light)').matches;
   document.documentElement.classList.toggle('light', light);
   document.documentElement.classList.toggle('dark', !light);
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', light ? '#f8fbff' : '#000000');
   window.dispatchEvent(new CustomEvent('mdtxtrt:themechange', {detail:{scheme:light?'light':'dark'}}));
   if(tg){
     const header = light ? '#f8fbff' : '#000';

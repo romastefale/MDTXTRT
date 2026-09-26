@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {readFileSync} from 'node:fs';
+import {readFileSync,existsSync} from 'node:fs';
 import {JSDOM} from 'jsdom';
 import {randomUUID} from 'node:crypto';
 import {TextEncoder} from 'node:util';
@@ -85,6 +85,18 @@ test('find is under the app name and menu icons match their actions',()=>{
   assert.equal(items.length,new Set(items).size);
   assert.equal(d.querySelector('#plusMenu [data-cmd="strike"] [data-icon]').dataset.icon,'strikethrough_s');
   assert.equal(d.querySelector('#plusMenu [data-insert="video"] [data-icon]').dataset.icon,'movie');
+  w.close();
+});
+test('all visible interface icons resolve to local Google Material SVG assets',()=>{
+  const w=page(),d=w.document;
+  const icons=[...d.querySelectorAll('[data-icon]')];
+  assert.ok(icons.length>40);
+  for(const icon of icons){
+    const name=icon.dataset.icon;
+    assert.match(name,/^[a-z0-9_]+$/);
+    assert.ok(existsSync(new URL(`../icons/${name}.svg`,import.meta.url)),`missing Material icon ${name}`);
+    assert.match(icon.style.getPropertyValue('--ui-icon'),new RegExp(`icons/${name}\\.svg`));
+  }
   w.close();
 });
 test('Markdown import, editor replacement and export retain supported structures',async()=>{
@@ -200,11 +212,13 @@ test('fullscreen Mini App keeps menus below Telegram controls',async()=>{
   assert.equal(w.document.documentElement.style.getPropertyValue('--tg-bottom'),'34px');
   w.close();
 });
-test('dark glass keeps a light veil, shared blur and restrained edge while light optics stay unchanged',()=>{
+test('dark glass has a single restrained edge and paints the full page while approved light styling stays unchanged',()=>{
   const w=page(),d=w.document,root=d.documentElement;
   const value=name=>w.getComputedStyle(root).getPropertyValue(name).trim();
   assert.equal(w.getComputedStyle(d.querySelector('#brandBtn')).boxShadow,'0 2px 8px rgba(0,0,0,.08)');
   assert.equal(w.getComputedStyle(d.querySelector('#plusMenu')).boxShadow,'0 4px 14px rgba(0,0,0,.14),0 22px 48px rgba(0,0,0,.2)');
+  assert.equal(w.getComputedStyle(d.body).backgroundColor,'var(--bg)');
+  assert.equal(d.querySelector('meta[name="theme-color"]').content,'#f8fbff');
   assert.equal(value('--glass-frost'),'0.08');
   assert.equal(value('--glass-blur'),'6px');
   assert.equal(value('--glass-highlight'),'rgba(255,255,255,.55)');
@@ -212,11 +226,14 @@ test('dark glass keeps a light veil, shared blur and restrained edge while light
   assert.equal(root.classList.contains('dark'),true);
   assert.equal(value('--glass-frost'),'0.12');
   assert.equal(value('--glass-blur'),'10px');
-  assert.equal(value('--glass-highlight'),'rgba(255,255,255,.2)');
-  assert.equal(value('--glass-edge'),'rgba(255,255,255,.12)');
+  assert.equal(value('--glass-highlight'),'rgba(255,255,255,.1)');
+  assert.equal(value('--glass-edge'),'rgba(255,255,255,.055)');
   assert.equal(value('--glass-saturation'),'1.15');
   assert.equal(w.getComputedStyle(d.querySelector('#brandBtn')).boxShadow,'var(--glass-shadow)');
   assert.equal(w.getComputedStyle(d.querySelector('#plusMenu')).boxShadow,'var(--glass-shadow-lg)');
+  assert.equal(w.getComputedStyle(d.querySelector('#plusMenu .sheet-ico')).boxShadow,'none');
+  assert.equal(w.getComputedStyle(d.querySelector('.action-dot')).boxShadow,'0 4px 14px rgba(167,139,250,.32)');
+  assert.equal(d.querySelector('meta[name="theme-color"]').content,'#000000');
   assert.ok(d.querySelector('.sheet.frost'));
   w.close();
 });
