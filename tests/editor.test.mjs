@@ -6,7 +6,7 @@ import {randomUUID} from 'node:crypto';
 import {TextEncoder} from 'node:util';
 
 const root = new URL('../', import.meta.url);
-function page(tg){
+function page(tg,render=false){
   const dom = new JSDOM(readFileSync(new URL('index.html',root),'utf8'),{url:'https://mdtxtrt.up.railway.app/',runScripts:'outside-only'});
   const w = dom.window;
   let systemLight=true, mediaListener=()=>{};
@@ -15,6 +15,16 @@ function page(tg){
   w.TextEncoder = TextEncoder;
   Object.defineProperty(w.crypto,'randomUUID',{value:randomUUID});
   if(tg){w.Telegram={WebApp:{initData:'signed-payload',colorScheme:'dark',ready(){},expand(){},setHeaderColor(){},MainButton:{setText(){},show(){},onClick(){}},...tg}};w.fetch=tg.fetch;}
+  if(render){
+    const callbacks=[];w.__maps=[];
+    w.ResizeObserver=class{constructor(callback){callbacks.push(callback)}observe(){}};
+    w.__resize=()=>callbacks.forEach(callback=>callback());
+    Object.defineProperty(w.navigator,'userAgent',{value:'Mozilla/5.0 Chrome/130.0.0.0 Safari/537.36'});
+    w.HTMLElement.prototype.getBoundingClientRect=function(){return {width:this.classList.contains('material-target')?160:0,height:44,top:0,left:0,right:160,bottom:44}};
+    w.HTMLCanvasElement.prototype.getContext=()=>({createImageData:(x,y)=>({data:new Uint8ClampedArray(x*y*4)}),putImageData:image=>w.__maps.push(image.data.slice())});
+    w.HTMLCanvasElement.prototype.toDataURL=()=> 'data:image/png;base64,cGl4ZWxz';
+    for(const script of w.document.querySelectorAll('script:not([src])'))w.eval(script.textContent);
+  }
   w.eval(readFileSync(new URL('marked.js',root),'utf8'));
   w.eval(readFileSync(new URL('turndown.js',root),'utf8'));
   w.eval(readFileSync(new URL('app.js',root),'utf8'));
@@ -301,15 +311,14 @@ test('insertions respect the caret between blocks',()=>{
   assert.deepEqual([...editor.children].map(el=>el.tagName),['P','HR','P']);
   w.close();
 });
-test('block commands split paragraphs at the caret without nesting list and divider nodes',()=>{
+test('ordered list converts the current paragraph without splitting or losing text',()=>{
   const w=page(),d=w.document,editor=d.querySelector('#editor');
   editor.innerHTML='<p>antes depois</p>';
   const text=editor.querySelector('p').firstChild,range=d.createRange();
   range.setStart(text,6);range.collapse(true);w.getSelection().removeAllRanges();w.getSelection().addRange(range);d.dispatchEvent(new w.Event('selectionchange'));
   d.querySelector('#plusBtn').click();d.querySelector('#plusMenu [data-insert="ordered"]').click();
-  assert.deepEqual([...editor.children].map(node=>node.tagName),['P','OL','P']);
-  assert.equal(editor.children[0].textContent,'antes ');
-  assert.equal(editor.children[2].textContent,'depois');
+  assert.deepEqual([...editor.children].map(node=>node.tagName),['OL']);
+  assert.equal(editor.querySelector('ol > li').textContent,'antes depois');
   assert.equal(editor.querySelector('p ol'),null);
   w.close();
 });
@@ -329,4 +338,66 @@ test('button insertion exposes only ready types and validates callback payload',
   w.eval('insertFeature("button")');
   assert.equal(editor.querySelectorAll('tg-button').length,1);
   w.close();
+});
+
+test('all inline startup scripts execute and generate glass maps for every surface',()=>{
+  const w=page(undefined,true),d=w.document;
+  assert.equal(d.querySelectorAll('.defs filter').length,d.querySelectorAll('.material-target:not(.frost-only)').length);
+  assert.ok(w.__maps.length>=8);
+  assert.ok(w.__maps.every(map=>map.length===512*512*4&&map.some(value=>value>128)));
+  const initial=w.__maps.length;w.__resize();assert.equal(w.__maps.length,initial);
+  d.querySelector('#plusBtn').click();w.__resize();assert.ok(d.querySelector('#plusMenu').style.backdropFilter.includes('url(#lg-mat-'));
+  w.__setSystemLight(false);assert.ok(d.querySelector('#findMenu').style.backdropFilter.startsWith('blur(10px)'));
+  assert.equal(d.querySelector('#typebar').style.backdropFilter.includes('url('),false);
+  w.close();
+});
+test('plain root text and multiple paragraphs become a list without moving the editor shell',()=>{
+  const w=page(),d=w.document,e=d.querySelector('#editor'),canvas=e.parentElement;
+  e.innerHTML='primeiro<div>segundo</div>';e.dispatchEvent(new w.Event('input',{bubbles:true}));
+  const range=d.createRange();range.selectNodeContents(e);w.getSelection().addRange(range);d.dispatchEvent(new w.Event('selectionchange'));
+  d.querySelector('[data-cmd="insertUnorderedList"]').click();
+  assert.equal(e.parentElement,canvas);assert.equal(canvas.id,'canvas');
+  assert.deepEqual([...e.querySelectorAll('ul > li')].map(el=>el.textContent),['primeiro','segundo']);
+  d.querySelector('#undoBtn').click();assert.equal(e.textContent,'primeirosegundo');
+  d.querySelector('#headingBtn').click();d.querySelector('#headingMenu [data-block="h3"]').click();
+  assert.ok(e.querySelector('h3'));assert.equal(e.parentElement,canvas);w.close();
+});
+test('inline marks toggle off on selection and preserve paragraphs across a multi-block selection',()=>{
+  const w=page(),d=w.document,e=d.querySelector('#editor');e.innerHTML='<p>um dois</p><p>três quatro</p>';
+  const range=d.createRange();range.selectNodeContents(e);w.getSelection().addRange(range);d.dispatchEvent(new w.Event('selectionchange'));
+  d.querySelector('[data-cmd="bold"]').click();assert.equal(e.querySelectorAll('p > strong').length,2);assert.equal(e.querySelector('strong p'),null);
+  d.querySelector('[data-cmd="bold"]').click();assert.equal(e.querySelector('strong'),null);assert.equal(e.querySelectorAll('p').length,2);
+  const r=d.createRange();r.setStart(e.firstChild.firstChild,3);r.setEnd(e.firstChild.firstChild,7);w.getSelection().removeAllRanges();w.getSelection().addRange(r);d.dispatchEvent(new w.Event('selectionchange'));
+  d.querySelector('[data-cmd="italic"]').click();assert.equal(e.querySelector('em').textContent,'dois');
+  d.querySelector('[data-cmd="italic"]').click();assert.equal(e.querySelector('em'),null);assert.equal(e.textContent,'um doistrês quatro');w.close();
+});
+test('find advances, wraps and replaces the chosen occurrence after input focus changes',()=>{
+  const w=page(),d=w.document,e=d.querySelector('#editor');w.HTMLElement.prototype.scrollIntoView=function(){};
+  e.innerHTML='<p>ação ação ação</p>';d.querySelector('#findText').value='ação';
+  const offsets=[];for(let i=0;i<4;i++){d.querySelector('#findNext').click();offsets.push(w.getSelection().getRangeAt(0).startOffset);}
+  assert.deepEqual(offsets,[0,5,10,0]);
+  d.querySelector('#replaceText').focus();d.querySelector('#replaceText').value='feito';d.querySelector('#replaceOne').click();
+  assert.equal(e.textContent,'feito ação ação');w.close();
+});
+test('styled rich buttons and footers survive an edited Markdown round trip',()=>{
+  const w=page(),e=w.document.querySelector('#editor');e.innerHTML='<p class="tg-footer">Rodapé</p><tg-button-row><tg-button type="url" style="danger" url="https://example.com">Abrir</tg-button></tg-button-row>';
+  const md=w.eval('htmlToMarkdown(editor.innerHTML)');const html=w.eval('mdToBasicHTML('+JSON.stringify(md)+')');
+  const box=w.document.createElement('div');box.innerHTML=html;assert.equal(box.querySelector('tg-button').getAttribute('style'),'danger');assert.equal(box.querySelector('.tg-footer').textContent,'Rodapé');w.close();
+});
+test('replace spans inline formatting and checklists retain changed state in exports',()=>{
+  const w=page(),d=w.document,e=d.querySelector('#editor');
+  e.innerHTML='<p><strong>con</strong><em>teúdo</em> conteúdo</p>';
+  d.querySelector('#findText').value='conteúdo';d.querySelector('#replaceText').value='texto';d.querySelector('#replaceAll').click();
+  assert.equal(e.textContent,'texto texto');assert.equal(e.querySelectorAll('p').length,1);
+  e.innerHTML=w.eval('mdToBasicHTML("- [ ] tarefa")');const box=e.querySelector('input');assert.equal(box.disabled,false);box.checked=true;box.dispatchEvent(new w.Event('change',{bubbles:true}));
+  assert.match(w.eval('toRichHTML(editor)'),/<input type="checkbox" checked\/>/);
+  const md=w.eval('htmlToMarkdown(editor.innerHTML)');assert.match(w.eval('mdToBasicHTML('+JSON.stringify(md)+')'),/checked/);w.close();
+});
+test('rapid publish clicks send once and network failures allow retry',async()=>{
+  let count=0,finish;
+  const w=page({fetch:async url=>url.endsWith('/session')?{ok:true}:(count++,await new Promise(resolve=>finish=resolve))});
+  await new Promise(resolve=>setTimeout(resolve,5));const d=w.document;d.querySelector('#editor').innerHTML='<p>teste</p>';
+  d.querySelector('#exportBtn').click();d.querySelector('#exportBtn').click();assert.equal(count,1);assert.equal(d.querySelector('#exportBtn').disabled,true);
+  finish({ok:false,json:async()=>({error:'Falha temporária'})});await new Promise(resolve=>setTimeout(resolve,5));assert.equal(d.querySelector('#exportBtn').disabled,false);assert.equal(d.querySelector('#toast').textContent,'Falha temporária');
+  d.querySelector('#exportBtn').click();assert.equal(count,2);finish({ok:true,json:async()=>({})});await new Promise(resolve=>setTimeout(resolve,5));w.close();
 });

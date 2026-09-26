@@ -6,7 +6,7 @@ const toast = $('#toast');
 const backdrop = $('#backdrop');
 const fileInput = $('#fileInput');
 let dest = 'telegram';
-let inTg = false;
+let inTg = false, session = 'browser', busy = false;
 const sheets = ['#plusMenu','#headingMenu','#quoteMenu','#importMenu','#exportMenu','#findMenu'];
 let savedRange = null, hist = [], histI = -1, histLock = false, composing = false, saveTimer = null, telegraphPath = '', docId = crypto.randomUUID(), importedMd = '', importedTxt = '', importedHtml = '', mediaFile = null;
 function applyAssets(){
@@ -36,14 +36,15 @@ const API = 'https://mdtxtrt.up.railway.app';
 async function verifyTelegram(){
   const initData=getTg()?.initData;
   if(!initData)return;
+  session='pending';
   try{
     const res=await fetch(API+'/api/telegram/session',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({initData})});
     if(!res.ok)throw new Error('Sessão Telegram inválida ou expirada');
     setupTelegram();
-  }catch(err){showToast(err.message||'Não foi possível validar a sessão Telegram');}
+  }catch(err){session='invalid';showToast(err.message||'Não foi possível validar a sessão Telegram');}
 }
 function setupTelegram(){
-  inTg=true;
+  inTg=true;session='ready';
   const tg = getTg();
   document.body.classList.add('tg');
   tg.ready(); tg.expand();
@@ -131,7 +132,7 @@ function restoreSel(){
   editor.focus();
   const sel = window.getSelection();
   if(!sel) return;
-  if(savedRange){ sel.removeAllRanges(); sel.addRange(savedRange); return; }
+  if(savedRange && editor.contains(savedRange.startContainer) && editor.contains(savedRange.endContainer)){ sel.removeAllRanges(); sel.addRange(savedRange); return; }
   const last = editor.lastElementChild;
   const range = document.createRange();
   if(last) range.setStartAfter(last);
@@ -147,7 +148,7 @@ function pushHist(){
   hist.push(html); if(hist.length > 80) hist.shift();
   histI = hist.length - 1;
 }
-function applyHist(html){ histLock = true; editor.innerHTML = html; histLock = false; markDirty(); }
+function applyHist(html){ histLock = true; editor.innerHTML = html; savedRange=null; restoreSel(); saveSel(); histLock = false; markDirty(); }
 function histUndo(){ if(histI > 0){ histI--; applyHist(hist[histI]); } }
 function histRedo(){ if(histI < hist.length - 1){ histI++; applyHist(hist[histI]); } }
 function expandWord(){
@@ -171,45 +172,78 @@ function exec(cmd, value=null){
   const sel = window.getSelection();
   if(!sel || !sel.rangeCount) throw new Error('Selecione o texto para formatar');
   const range = sel.getRangeAt(0);
-  const node = range.startContainer.nodeType === 1 ? range.startContainer : range.startContainer.parentElement;
-  const active = range.collapsed && node?.closest(tag);
-  if(active){
-    const next = document.createRange();
-    next.setStartAfter(active); next.collapse(true);
-    sel.removeAllRanges(); sel.addRange(next);
+  if(range.collapsed){
+    const mark=document.createElement(tag);if(value)mark.setAttribute('href',value);
+    mark.append(document.createElement('br'));range.insertNode(mark);range.selectNodeContents(mark);range.collapse(false);
   }else{
-    const mark = document.createElement(tag);
-    if(cmd==='createLink')mark.setAttribute('href',value);
-    if(range.collapsed){ mark.append(document.createElement('br')); range.insertNode(mark); }
-    else mark.append(range.extractContents()), range.insertNode(mark);
-    const next = document.createRange();
-    next.selectNodeContents(mark); next.collapse(false);
-    sel.removeAllRanges(); sel.addRange(next);
+    const start=document.createComment(''),end=document.createComment('');
+    const tail=range.cloneRange();tail.collapse(false);tail.insertNode(end);
+    const head=range.cloneRange();head.collapse(true);head.insertNode(start);
+    range.setStartAfter(start);range.setEndBefore(end);
+    const walk=document.createTreeWalker(editor,NodeFilter.SHOW_TEXT),texts=[];let text;
+    while((text=walk.nextNode()))if(text.length&&range.intersectsNode(text))texts.push(text);
+    const remove=cmd!=='createLink'&&texts.length&&texts.every(text=>text.parentElement.closest(tag));
+    if(remove){
+      for(const [marker,before] of [[start,true],[end,false]]){
+        const mark=marker.parentElement?.closest(tag);if(!mark||!editor.contains(mark))continue;
+        const part=document.createRange();part.selectNodeContents(mark);
+        if(before)part.setEndBefore(marker);else part.setStartAfter(marker);
+        const content=part.extractContents();
+        if(content.textContent||content.querySelector('*')){const copy=mark.cloneNode(false);copy.append(content);if(before)mark.before(copy);else mark.after(copy);}
+      }
+      range.setStartAfter(start);range.setEndBefore(end);
+      for(const mark of [...editor.querySelectorAll(tag)])if(range.intersectsNode(mark))mark.replaceWith(...mark.childNodes);
+    }else{
+      for(const text of texts){const active=text.parentElement.closest(tag);if(active){if(value)active.setAttribute('href',value);continue;}
+        const mark=document.createElement(tag);if(value)mark.setAttribute('href',value);text.replaceWith(mark);mark.append(text);
+      }
+    }
+    range.setStartAfter(start);range.setEndBefore(end);start.remove();end.remove();
   }
+  sel.removeAllRanges();sel.addRange(range);
   saveSel(); pushHist(); markDirty();
 }
-function toggleList(){
-  restoreSel();
-  const sel = window.getSelection();
-  if(!sel || !sel.rangeCount) throw new Error('Selecione o trecho da lista');
-  const range = sel.getRangeAt(0);
-  const node = range.startContainer.nodeType === 1 ? range.startContainer : range.startContainer.parentElement;
-  const list = node?.closest('ul');
-  if(list){
-    const frag = document.createDocumentFragment();
-    Array.from(list.children).forEach(li=>{const p=document.createElement('p');while(li.firstChild)p.append(li.firstChild);frag.append(p);});
-    list.replaceWith(frag);
-  }else{
-    const block = node?.closest('p,div,h1,h2,h3,h4,h5,h6');
-    const li = document.createElement('li');
-    if(block){while(block.firstChild)li.append(block.firstChild);const ul=document.createElement('ul');ul.append(li);block.replaceWith(ul);}
-    else{const ul=document.createElement('ul');ul.append(li);range.insertNode(ul);}
-    const next=document.createRange();next.selectNodeContents(li);next.collapse(false);sel.removeAllRanges();sel.addRange(next);
+function normalizeBlocks(){
+  const sel=window.getSelection(),range=sel?.rangeCount?sel.getRangeAt(0):null;
+  if(!range || !editor.contains(range.commonAncestorContainer))return;
+  const start=[range.startContainer,range.startOffset,editor.childNodes[range.startOffset]],end=[range.endContainer,range.endOffset,editor.childNodes[range.endOffset]];
+  let p=null;
+  const blocks=new Set('P DIV H1 H2 H3 H4 H5 H6 BLOCKQUOTE FOOTER ASIDE PRE UL OL TABLE FIGURE DETAILS HR TG-MAP TG-COLLAGE TG-SLIDESHOW TG-MATH-BLOCK TG-BUTTON-ROW'.split(' '));
+  for(const node of [...editor.childNodes]){
+    if(node.nodeType===1&&blocks.has(node.tagName)){p=null;continue;}
+    if(!p){p=document.createElement('p');editor.insertBefore(p,node);}
+    p.append(node);
   }
-  saveSel(); pushHist(); markDirty();
+  for(const [point,[node,offset,next]] of [['Start',start],['End',end]]){
+    if(node===editor){if(next?.parentNode)range['set'+point+'Before'](next);else range['set'+point](editor,editor.childNodes.length);}
+    else range['set'+point](node,offset);
+  }
+  sel.removeAllRanges();sel.addRange(range);saveSel();
+}
+function toggleList(type='ul'){
+  restoreSel();normalizeBlocks();
+  const sel=window.getSelection(),range=sel?.rangeCount?sel.getRangeAt(0):null;
+  if(!range || !editor.contains(range.commonAncestorContainer))throw new Error('Selecione o trecho da lista');
+  const node=range.startContainer.nodeType===1?range.startContainer:range.startContainer.parentElement;
+  const list=node?.closest('ul,ol');let last;
+  if(list&&editor.contains(list)){
+    if(list.localName===type){
+      const frag=document.createDocumentFragment();
+      for(const li of [...list.children]){last=document.createElement('p');while(li.firstChild)last.append(li.firstChild);frag.append(last);}
+      list.replaceWith(frag);
+    }else{const next=document.createElement(type);while(list.firstChild)next.append(list.firstChild);list.replaceWith(next);last=next.lastElementChild;}
+  }else{
+    const selected=[...editor.children].filter(el=>range.intersectsNode(el));
+    if(selected.some(el=>!['P','DIV','H1','H2','H3','H4','H5','H6','BLOCKQUOTE','FOOTER'].includes(el.tagName)))throw new Error('Selecione parágrafos para criar a lista');
+    const ul=document.createElement(type);
+    if(selected.length){selected[0].before(ul);for(const block of selected){last=document.createElement('li');while(block.firstChild)last.append(block.firstChild);ul.append(last);block.remove();}}
+    else{last=document.createElement('li');last.append(document.createElement('br'));ul.append(last);range.insertNode(ul);}
+  }
+  if(last){range.selectNodeContents(last);range.collapse(false);sel.removeAllRanges();sel.addRange(range);}
+  saveSel();pushHist();markDirty();closePanels();
 }
 function formatBlock(tag){
-  restoreSel();
+  restoreSel();normalizeBlocks();
   const node = document.getSelection()?.anchorNode;
   const fromEl = node && (node.nodeType === 1 ? node : node.parentElement);
   const found = fromEl && fromEl !== editor ? fromEl.closest('p,h1,h2,h3,h4,h5,h6,blockquote,footer,div,li') : null;
@@ -347,7 +381,7 @@ function figure(kind){
 }
 function insertFeature(kind){
   if(kind === 'task') return insertHTML('<ul><li><input type="checkbox">Nova tarefa</li></ul>',true);
-  if(kind === 'ordered') return insertHTML('<ol><li>Novo item</li></ol>',true);
+  if(kind === 'ordered') return toggleList('ol');
   if(kind === 'divider') return insertHTML('<hr/>',true);
   if(kind === 'table'){
     const caption = prompt('Legenda da tabela', '') || '';
@@ -491,7 +525,7 @@ function htmlToMarkdown(html){
   if(editor.querySelector('[data-media-id]')) throw new Error('Anexos locais precisam de URL pública para exportar Markdown');
   if(!window.TurndownService) throw new Error('Conversão Markdown indisponível');
   const svc = new TurndownService({headingStyle:'atx', codeBlockStyle:'fenced', bulletListMarker:'-', emDelimiter:'*'});
-  svc.addRule('special', {filter: node => ['TG-SPOILER','TG-REFERENCE','TG-EMOJI','TG-TIME','TG-MATH','TG-MATH-BLOCK','TG-MAP','TG-COLLAGE','TG-SLIDESHOW','TG-DOCUMENT','TG-BUTTON','TG-BUTTON-ROW','DETAILS','TABLE','FIGURE','ASIDE','FOOTER','SUB','SUP','MARK','U','INPUT','IFRAME'].includes(node.nodeName) || node.nodeName==='BLOCKQUOTE' && node.dataset.expandable==='true' || node.classList?.contains('tg-footer') || node.nodeName === 'A' && node.hasAttribute('name'), replacement: (_,node)=>'\n'+node.outerHTML+'\n'});
+  svc.addRule('special', {filter: node => ['TG-SPOILER','TG-REFERENCE','TG-EMOJI','TG-TIME','TG-MATH','TG-MATH-BLOCK','TG-MAP','TG-COLLAGE','TG-SLIDESHOW','TG-DOCUMENT','TG-BUTTON','TG-BUTTON-ROW','DETAILS','TABLE','FIGURE','ASIDE','FOOTER','SUB','SUP','MARK','U','INPUT','IFRAME','VIDEO','AUDIO'].includes(node.nodeName) || node.nodeName==='BLOCKQUOTE' && node.dataset.expandable==='true' || node.classList?.contains('tg-footer') || node.nodeName === 'A' && node.hasAttribute('name'), replacement: (_,node)=>['DETAILS','TABLE','FIGURE','ASIDE','FOOTER','IFRAME','VIDEO','AUDIO','BLOCKQUOTE','TG-MAP','TG-COLLAGE','TG-SLIDESHOW','TG-DOCUMENT','TG-MATH-BLOCK','TG-BUTTON-ROW','P'].includes(node.nodeName)?'\n\n'+node.outerHTML+'\n\n':node.outerHTML});
   return svc.turndown(html);
 
 }
@@ -500,14 +534,15 @@ function mdToBasicHTML(md){
   const box = document.createElement('div');
   box.innerHTML = window.marked.parse(md, {gfm:true, breaks:false});
   const allowed = new Set('a b strong i em u ins s strike del code mark sub sup tg-spoiler tg-reference tg-emoji tg-time tg-math h1 h2 h3 h4 h5 h6 p pre footer hr ul ol li input blockquote aside cite img video audio tg-document figure figcaption iframe tg-map tg-collage tg-slideshow table caption thead tbody tfoot tr th td details summary tg-math-block tg-button tg-button-row br div'.split(' '));
-  const attrs = new Set('href name class src alt tg-spoiler start type reversed value checked disabled expandable data-expandable unix format emoji-id lat long zoom width height bordered striped compact colspan rowspan align valign open url data query text forward-text request-write-access allow-user-chats allow-bot-chats allow-group-chats allow-channel-chats'.split(' '));
+  const attrs = new Set('href name class style src alt tg-spoiler start type reversed value checked disabled expandable data-expandable unix format emoji-id lat long zoom width height bordered striped compact colspan rowspan align valign open url data query text forward-text request-write-access allow-user-chats allow-bot-chats allow-group-chats allow-channel-chats'.split(' '));
   for(const el of box.querySelectorAll('*')){
     const tag = el.localName;
     if(!allowed.has(tag)) throw new Error('Elemento Markdown não suportado: '+tag);
     for(const a of [...el.attributes]) {
-      if(!attrs.has(a.name) || a.name==='class' && !(tag==='code'&&/^language-[a-z0-9+-]+$/i.test(a.value))) throw new Error('Atributo Markdown não suportado: '+a.name);
+      if(!attrs.has(a.name) || a.name==='class' && !(tag==='code'&&/^language-[a-z0-9+-]+$/i.test(a.value)||['p','footer'].includes(tag)&&a.value==='tg-footer') || a.name==='style' && !(tag==='tg-button'&&['link','primary','success','danger'].includes(a.value))) throw new Error('Atributo Markdown não suportado: '+a.name);
       if(['src','href','url'].includes(a.name) && !/^(https?:|mailto:|tel:|tg:|#)/i.test(a.value)) throw new Error('Link Markdown inválido');
     }
+    if(tag==='input'&&el.getAttribute('type')==='checkbox')el.removeAttribute('disabled');
     if(tag==='blockquote'&&el.hasAttribute('expandable')){el.dataset.expandable='true';el.removeAttribute('expandable');}
   }
   return box.innerHTML;
@@ -584,6 +619,7 @@ function buildTelegraph(){
   return {title, content: telegraphNodes(editor), path: telegraphPath, doc: docId, initData: getTg()?.initData || ''};
 }
 editor.addEventListener('input', ()=>{ if(!composing){ markDirty(); pushHist(); }});
+editor.addEventListener('change',e=>{if(e.target.matches('input[type=checkbox]')){e.target.toggleAttribute('checked',e.target.checked);pushHist();markDirty();}});
 editor.addEventListener('compositionstart', ()=> composing = true);
 editor.addEventListener('compositionend', ()=>{ composing = false; markDirty(); pushHist(); });
 editor.addEventListener('keyup', saveSel);
@@ -643,10 +679,11 @@ $('#headingBtn')?.addEventListener('click', e=>openPanel('#headingMenu', e.curre
 $('#quoteBtn')?.addEventListener('click', e=>openPanel('#quoteMenu', e.currentTarget));
 $('#destBtn').addEventListener('click', ()=>setDestination(dest === 'telegram' ? 'telegraph' : 'telegram'));
 $('#exportBtn').addEventListener('click', e=>{
-  if(getTg()?.initData && !inTg){showToast('Aguarde a validação da sessão Telegram');return;}
+  if(getTg()?.initData && !inTg){showToast(session==='invalid'?'Sessão inválida ou expirada. Reabra o Mini App.':'Aguarde a validação da sessão Telegram');return;}
   if(inTg) return publishCurrent();
   openPanel('#exportMenu', e.currentTarget);
 });
+docName.addEventListener('input',markDirty);
 $('#brandBtn')?.addEventListener('click', e=>openPanel('#importMenu', e.currentTarget));
 $('#importMdBtn')?.addEventListener('click', ()=>{ fileInput.accept='.md,text/markdown'; fileInput.click(); closePanels(); });
 $('#importTxtBtn')?.addEventListener('click', ()=>{ fileInput.accept='.txt,text/plain'; fileInput.click(); closePanels(); });
@@ -662,34 +699,43 @@ $('#mediaInput').addEventListener('change',()=>{
   mediaFile={file,id,kind,url:URL.createObjectURL(file)};
   editor.querySelectorAll('[data-media-id]').forEach(el=>el.closest('figure')?.remove());
   const tag={image:'img',video:'video',audio:'audio',document:'tg-document'}[kind];
-  insertHTML('<figure><'+tag+' data-media-id="'+id+'" src="'+mediaFile.url+'"></'+tag+'><figcaption>'+escapeHTML(file.name)+'</figcaption></figure>');
+  insertHTML('<figure><'+tag+' data-media-id="'+id+'" src="'+mediaFile.url+'"></'+tag+'><figcaption>'+escapeHTML(file.name)+'</figcaption></figure>',true);
   $('#mediaInput').value='';
 });
 $('#findBtn').addEventListener('click', ()=>openPanel('#findMenu', $('#brandBtn')));
 function matches(){
-  const term=$('#findText').value;
-  if(!term) return [];
-  const walk=document.createTreeWalker(editor,NodeFilter.SHOW_TEXT);
-  const found=[];let node;
-  while((node=walk.nextNode())){let at=0;while((at=node.textContent.toLocaleLowerCase().indexOf(term.toLocaleLowerCase(),at))>=0){found.push([node,at]);at+=term.length;}}
+  const term=$('#findText').value;if(!term)return [];
+  const walk=document.createTreeWalker(editor,NodeFilter.SHOW_TEXT),groups=[];let node,group;
+  while((node=walk.nextNode())){
+    const block=node.parentElement.closest('p,div,li,h1,h2,h3,h4,h5,h6,blockquote,pre,td,th,summary,figcaption,footer')||editor;
+    if(!group||group.block!==block){group={block,text:'',nodes:[]};groups.push(group);}
+    group.nodes.push({node,start:group.text.length,end:group.text.length+node.length});group.text+=node.textContent;
+  }
+  const found=[];
+  for(const group of groups){let at=0;while((at=group.text.toLocaleLowerCase().indexOf(term.toLocaleLowerCase(),at))>=0){
+    const start=group.nodes.find(x=>x.end>at),end=group.nodes.find(x=>x.end>=at+term.length);
+    if(start&&end){const r=document.createRange();r.setStart(start.node,at-start.start);r.setEnd(end.node,at+term.length-end.start);found.push(r);}
+    at+=term.length;
+  }}
   return found;
 }
 $('#findNext').addEventListener('click',()=>{
   const all=matches();if(!all.length)return showToast('Nenhuma ocorrência');
-  const sel=window.getSelection(), cur=sel.rangeCount?sel.getRangeAt(0):null;
-  const i=all.findIndex(([node,at])=>!cur||cur.comparePoint(node,at)<0);
-  const [node,at]=all[i<0?0:i],r=document.createRange();r.setStart(node,at);r.setEnd(node,at+$('#findText').value.length);sel.removeAllRanges();sel.addRange(r);savedRange=r.cloneRange();node.parentElement.scrollIntoView({block:'center'});
+  const sel=window.getSelection(),cur=savedRange&&editor.contains(savedRange.startContainer)?savedRange:null;
+  const range=all.find(r=>!cur||cur.comparePoint(r.startContainer,r.startOffset)>0||cur.collapsed&&cur.comparePoint(r.startContainer,r.startOffset)===0)||all[0];
+  sel.removeAllRanges();sel.addRange(range);savedRange=range.cloneRange();range.startContainer.parentElement.scrollIntoView({block:'nearest'});
 });
 $('#replaceOne').addEventListener('click',()=>{
   const sel=window.getSelection();
+  if(savedRange&&editor.contains(savedRange.startContainer)){sel.removeAllRanges();sel.addRange(savedRange);}
   if(!sel.rangeCount||sel.toString().toLocaleLowerCase()!==$('#findText').value.toLocaleLowerCase())$('#findNext').click();
   if(sel.toString().toLocaleLowerCase()!==$('#findText').value.toLocaleLowerCase()||!$('#findText').value)return;
-  const r=sel.getRangeAt(0);r.deleteContents();r.insertNode(document.createTextNode($('#replaceText').value));pushHist();markDirty();$('#findNext').click();
+  const r=sel.getRangeAt(0),text=document.createTextNode($('#replaceText').value);r.deleteContents();r.insertNode(text);r.setStartAfter(text);r.collapse(true);savedRange=r.cloneRange();pushHist();markDirty();$('#findNext').click();
 });
 $('#replaceAll').addEventListener('click',()=>{
-  const all=matches();const find=$('#findText').value,replace=$('#replaceText').value;
-  for(const [node,at] of all.reverse())node.textContent=node.textContent.slice(0,at)+replace+node.textContent.slice(at+find.length);
-  if(all.length){pushHist();markDirty();}showToast(all.length+' substituições');
+  const all=matches(),replace=$('#replaceText').value;
+  for(const r of all.reverse()){r.deleteContents();r.insertNode(document.createTextNode(replace));}
+  if(all.length){savedRange=null;pushHist();markDirty();}showToast(all.length+' substituições');
 });
 
 function exportName(ext) {
@@ -724,8 +770,10 @@ async function readResponse(res){
   try{return await res.json();}catch{throw new Error('A resposta do serviço não pôde ser lida');}
 }
 async function publishCurrent(){
-  if(dest === 'telegram') return publishTelegram();
-  return publishTelegraph();
+  if(busy)return;
+  busy=true;$('#exportBtn').disabled=true;
+  try{if(dest==='telegram')await publishTelegram();else await publishTelegraph();}
+  finally{busy=false;$('#exportBtn').disabled=false;}
 }
 async function publishTelegram(){
   if(!editor.childNodes.length){ showToast('Escreva algo antes de enviar'); return; }
@@ -795,6 +843,7 @@ const fit = ()=>{
   const vh = vv ? vv.height : window.innerHeight;
   const top = vv ? vv.offsetTop : 0;
   document.documentElement.style.setProperty('--kb', Math.max(0, window.innerHeight - vh - top) + 'px');
+  document.documentElement.style.setProperty('--vv-top', Math.max(0, top) + 'px');
   document.documentElement.style.setProperty('--vv-h', Math.max(0, vh) + 'px');
   document.documentElement.style.setProperty('--vv-end', Math.max(0, top + vh) + 'px');
 };
@@ -807,7 +856,3 @@ loadLocal();
 setDestination(dest, false);
 pushHist();
 void verifyTelegram();
-const canvasEl = document.getElementById('canvas');
-canvasEl?.addEventListener('scroll', () => {
-  document.documentElement.style.setProperty('--top-blur', String(Math.min(1, canvasEl.scrollTop / 52)));
-}, {passive:true});

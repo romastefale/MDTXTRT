@@ -18,7 +18,7 @@
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:image" content="https://romastefale.github.io/MDTXTRT/x-banner.jpg" />
   <script src="https://telegram.org/js/telegram-web-app.js?63"></script>
-  <script>const t=window.Telegram?.WebApp;const l=t?.colorScheme?t.colorScheme==="light":matchMedia("(prefers-color-scheme: light)").matches;document.documentElement.classList.toggle("light",l);document.documentElement.classList.toggle("dark",!l);</script>
+  <script>const t=window.Telegram?.WebApp;const l=t?.initData&&t?.colorScheme?t.colorScheme==="light":matchMedia("(prefers-color-scheme: light)").matches;document.documentElement.classList.toggle("light",l);document.documentElement.classList.toggle("dark",!l);</script>
   <style>
     :root{
       --bg:#000;
@@ -43,22 +43,7 @@
       --kb:0px;
       --vv-h:100dvh;
       --vv-end:100dvh;
-      --bar-h:52px; --top-blur:0;
-    }
-    @media (prefers-color-scheme: light){
-      :root{
-        --bg:#f8fbff; --text:#151515; --muted:#5c6478; --accent:#ff6a00;
-        --bar:rgba(255,255,255,.46); --line:rgba(255,255,255,.7);
-        --glass-frost:0.08; --glass-saturation:1.15;
-        --glass-blur:6px;
-        --glass:rgba(255,255,255,var(--glass-frost));
-        --glass-edge:transparent;
-        --glass-highlight:rgba(255,255,255,.55);
-        --glass-control:color-mix(in srgb,var(--text) 11%,transparent);
-        --glass-control-edge:rgba(255,255,255,.12);
-        --glass-shadow:inset 0 .5px 0 rgba(255,255,255,.45),0 1px 2px rgba(20,24,36,.04),0 8px 20px rgba(20,24,36,.07),0 18px 36px rgba(20,24,36,.05);
-        --glass-shadow-lg:inset 0 .5px 0 rgba(255,255,255,.5),0 4px 12px rgba(20,24,36,.05),0 16px 32px rgba(20,24,36,.08),0 28px 48px rgba(20,24,36,.06);
-      }
+      --bar-h:52px; --vv-top:0px; --top:max(var(--safe-top),var(--tg-top));
     }
     html.light{
       --bg:#f8fbff; --text:#151515; --muted:#5c6478; --accent:#ff6a00;
@@ -73,21 +58,11 @@
       --glass-shadow:inset 0 .5px 0 rgba(255,255,255,.45),0 1px 2px rgba(20,24,36,.04),0 8px 20px rgba(20,24,36,.07),0 18px 36px rgba(20,24,36,.05);
       --glass-shadow-lg:inset 0 .5px 0 rgba(255,255,255,.5),0 4px 12px rgba(20,24,36,.05),0 16px 32px rgba(20,24,36,.08),0 28px 48px rgba(20,24,36,.06);
     }
-    html.dark{
-      --bg:#000; --text:#f5f5f7; --muted:#c5c8d8; --accent:#a78bfa;
-      --bar:rgba(255,255,255,.08); --line:rgba(255,255,255,.18);
-      --glass-frost:0.12; --glass-blur:10px;
-      --glass:rgba(255,255,255,var(--glass-frost));
-      --glass-edge:rgba(255,255,255,.055);
-      --glass-highlight:rgba(255,255,255,.1);
-      --glass-control:rgba(255,255,255,.08);
-      --glass-control-edge:rgba(255,255,255,.08);
-    }
     html{color-scheme:light dark}
     html.light{color-scheme:light}
     html.dark{color-scheme:dark}
     *{box-sizing:border-box}
-    html,body{margin:0;width:100%;height:100%;min-height:100%;min-height:100dvh;touch-action:pan-x pan-y;-ms-touch-action:pan-x pan-y;accent-color:var(--accent);caret-color:var(--accent);background-color:var(--bg)}
+    html,body{margin:0;width:100%;height:100dvh;min-height:0;touch-action:pan-x pan-y;-ms-touch-action:pan-x pan-y;accent-color:var(--accent);caret-color:var(--accent);background-color:var(--bg)}
     body{
       padding:0!important;color:var(--text);background-color:var(--bg);
       font:16px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;
@@ -103,6 +78,7 @@
     ::selection{background:color-mix(in srgb,var(--accent) 38%, transparent);color:inherit}
     button,input{font:inherit;color:inherit}
     button{cursor:pointer;-webkit-tap-highlight-color:transparent}
+    .defs{position:absolute;width:0;height:0;overflow:hidden;pointer-events:none}
     .ui-icon{display:block;width:18px;height:18px;flex:none;background-color:currentColor;-webkit-mask:var(--ui-icon) center/contain no-repeat;mask:var(--ui-icon) center/contain no-repeat}
     .seg button .ui-icon,.action-dot .ui-icon,.sheet-ico .ui-icon{width:16px;height:16px}
     .editor h1,.editor h2,.editor h3,.editor h4,.editor h5,.editor h6{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;letter-spacing:-.03em;line-height:1.2;font-weight:650}
@@ -134,16 +110,15 @@
     html.dark .frost{box-shadow:var(--glass-shadow)}
     .app{
       position:relative;z-index:1;
-      width:100%;height:100%;min-height:100lvh;max-width:none;margin:0;padding:0;
+      width:100%;height:100%;min-height:0;max-width:none;margin:0;padding:0;
       display:flex;flex-direction:column;
       overflow:hidden;background:transparent;
     }
-    .chrome-top{position:absolute;top:0;left:0;right:0;z-index:12;padding:var(--tg-top) 0 8px;pointer-events:none}
+    .chrome-top{position:fixed;top:var(--vv-top);left:0;right:0;z-index:12;padding:var(--top) 0 8px;pointer-events:none}
     .chrome-top .topbar,.chrome-top .meta{pointer-events:auto}
     .topbar{position:relative;z-index:1;display:flex;align-items:center;justify-content:center;margin:8px 12px 0;padding:4px 12px;min-height:36px}
     .brand{font-weight:700;font-size:15px;letter-spacing:.08em;text-align:center;border:0;background:var(--glass);color:inherit;padding:8px 12px;margin:0;border-radius:999px;font-family:inherit;appearance:none;-webkit-appearance:none}
     .meta{position:relative;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:8px;margin:8px 16px 0}
-    .title{display:none}
     .meta .seg:last-child{margin-left:auto}
     .seg{display:flex;align-items:center;gap:4px;padding:4px;height:44px;border-radius:999px}
     .seg button{
@@ -167,7 +142,7 @@
     html.dark .bar > button.on{color:var(--accent)}
     html.dark .bar > button.on::before{background:color-mix(in srgb,var(--accent) 22%,transparent)}
     .bar > button > *{position:relative;z-index:1}
-    .canvas{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;padding:calc(var(--tg-top) + 108px) 16px calc(var(--bar-h) + var(--kb) + var(--safe-bottom) + 28px);position:relative}
+    .canvas{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:calc(var(--top) + 108px) 16px calc(var(--bar-h) + var(--kb) + var(--safe-bottom) + 28px);position:relative}
     .editor:empty::before{content:attr(data-placeholder);color:var(--muted);pointer-events:none}
     .editor{
       outline:none;min-height:100%;caret-color:var(--accent);
@@ -278,7 +253,6 @@
         <button type="button" id="undoBtn" aria-label="Desfazer"><span class="ui-icon" data-icon="undo"></span></button>
         <button type="button" id="redoBtn" aria-label="Refazer"><span class="ui-icon" data-icon="redo"></span></button>
       </div>
-      <input id="docName" class="title" value="Ideia" aria-label="Nome">
       <div class="seg frost material-target">
         <button type="button" id="destBtn" aria-label="Destino: Telegram" title="Destino: Telegram"><span class="ui-icon" data-icon="telegram"></span></button>
         <button type="button" class="export" id="exportBtn" aria-label="Exportar" title="Exportar"><span class="action-dot"><span class="ui-icon" data-icon="export"></span></span></button>
@@ -321,6 +295,7 @@
     </div>
   </div>
   <div class="sheet frost material-target" id="importMenu">
+    <div class="tools"><input id="docName" value="Ideia" aria-label="Nome do documento" maxlength="256"></div>
     <div class="menu-list">
       <button id="importMdBtn"><span class="sheet-ico"><span class="ui-icon" data-icon="markdown"></span></span>Importar Markdown</button>
       <button id="importTxtBtn"><span class="sheet-ico"><span class="ui-icon" data-icon="text_fields"></span></span>Importar TXT</button>
@@ -365,9 +340,15 @@
       <button data-insert="button" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="buttons"></span></span>Botão</button>
     </div>
   </div>
+  <input id="fileInput" type="file" accept=".txt,.md,text/plain,text/markdown" hidden>
+  <input id="mediaInput" type="file" accept="image/*,video/*,audio/*,.pdf,.zip" hidden>
+  <div class="toast frost material-target" id="toast"></div>
+  <div class="sheet frost material-target" id="findMenu"><div class="menu-list"><div class="tools"><input id="findText" placeholder="Localizar"></div><div class="tools"><input id="replaceText" placeholder="Substituir"></div><div class="tools"><button id="findNext">Próximo</button><button id="replaceOne">Substituir</button><button id="replaceAll">Substituir tudo</button></div></div></div>
   <svg class="defs" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><defs></defs></svg>
-  <script>(()=>{const SVG='http://www.w3.org/2000/svg',root=document.documentElement,viewport=window.visualViewport,defs=document.querySelector('.defs defs')
+  <script>(()=>{const SVG='http://www.w3.org/2000/svg',defs=document.querySelector('.defs defs')
 let serial=0
+const encodeAxis=signed=>((.5+signed)*255+.5)|0
+const encodeSpec=spec=>(127*spec+128+.5)|0
 const ERF_K=Math.sqrt(Math.PI)
 const erf=x=>Math.tanh(ERF_K*x)
 const domeGradientMean=(radius,halfExtent)=>halfExtent>0?(radius-Math.sqrt(radius*radius-halfExtent*halfExtent))/halfExtent:0
@@ -649,9 +630,9 @@ const materialOptics={mapSize:512,strength:.05,depth:.5,dispersion:.32,clipToSha
 const materialGenerator=createLensMapGenerator(materialOptics.mapSize)
 const ua=navigator.userAgent,hasUAData=navigator.userAgentData!=null,supportsBackdropUrl=hasUAData||((ua.includes('Chrome/')||ua.includes('Chromium/')||ua.includes('Edg/'))&&!['CriOS','EdgiOS','FxiOS','OPiOS'].some(x=>ua.includes(x))&&!/iPhone|iPad|iPod/.test(ua))
 const makeMaterial=(el)=>{
-const base=()=>`blur(${parseFloat(getComputedStyle(el).getPropertyValue('--glass-blur'))||materialOptics.frost}px) saturate(${parseFloat(getComputedStyle(el).getPropertyValue('--glass-saturation'))||materialOptics.saturate})`
+const base=()=>`blur(${parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--glass-blur'))||materialOptics.frost}px) saturate(${parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--glass-saturation'))||materialOptics.saturate})`
 if(el.classList.contains('frost-only')){const update=()=>{el.style.backdropFilter=base();el.style.webkitBackdropFilter=base()};update();return {update}}
-const id=`lg-mat-${serial++}`,filter=document.createElementNS(SVG,'filter'),mapImage=document.createElementNS(SVG,'feImage')
+const id=`lg-mat-${serial++}`,filter=document.createElementNS(SVG,'filter')
 filter.setAttribute('id',id);filter.setAttribute('filterUnits','userSpaceOnUse');filter.setAttribute('primitiveUnits','userSpaceOnUse');filter.setAttribute('color-interpolation-filters','sRGB')
 filter.innerHTML=`<feFlood flood-color="rgb(128,128,128)" flood-opacity="1" result="mapBg"/><feImage data-role="map" preserveAspectRatio="none" result="rawMap"/><feComposite in="rawMap" in2="mapBg" operator="over" result="map"/><feDisplacementMap in="SourceGraphic" in2="map" data-role="red" xChannelSelector="R" yChannelSelector="G"/><feColorMatrix type="matrix" values="1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0" result="refractR"/><feDisplacementMap in="SourceGraphic" in2="map" data-role="green" xChannelSelector="R" yChannelSelector="G"/><feColorMatrix type="matrix" values="0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 1 0" result="refractG"/><feDisplacementMap in="SourceGraphic" in2="map" data-role="blue" xChannelSelector="R" yChannelSelector="G"/><feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 1 0" result="refractB"/><feComposite in="refractR" in2="refractG" operator="arithmetic" k1="0" k2="1" k3="1" k4="0" result="refractRG"/><feComposite in="refractRG" in2="refractB" operator="arithmetic" k1="0" k2="1" k3="1" k4="0" result="lensOut"/><feColorMatrix in="map" type="matrix" values="0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 1 0 -0.5019607843137255" result="sheenMask"/><feComposite in="sheenMask" in2="lensOut" operator="arithmetic" k1="0" k2="${materialOptics.specular}" k3="1" k4="0"/>`
 const map=filter.querySelector('[data-role=map]'),red=filter.querySelector('[data-role=red]'),green=filter.querySelector('[data-role=green]'),blue=filter.querySelector('[data-role=blue]');defs.append(filter)
@@ -668,10 +649,6 @@ el.style.backdropFilter=value;el.style.webkitBackdropFilter=value
 update();const ro=new ResizeObserver(update);ro.observe(el);return {update}
 }
 const mats=[...document.querySelectorAll('.material-target')].map(makeMaterial);window.addEventListener('mdtxtrt:themechange',()=>mats.forEach(m=>m.update()))})()</script>
-  <input id="fileInput" type="file" accept=".txt,.md,text/plain,text/markdown" hidden>
-  <input id="mediaInput" type="file" accept="image/*,video/*,audio/*,.pdf,.zip" hidden>
-  <div class="toast frost material-target" id="toast"></div>
-  <div class="sheet frost material-target" id="findMenu"><div class="menu-list"><div class="tools"><input id="findText" placeholder="Localizar"></div><div class="tools"><input id="replaceText" placeholder="Substituir"></div><div class="tools"><button id="findNext">Próximo</button><button id="replaceOne">Substituir</button><button id="replaceAll">Substituir tudo</button></div></div></div>
   <script src="marked.js"></script>
   <script src="turndown.js"></script>
   <script src="app.js"></script>
