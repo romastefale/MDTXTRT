@@ -17,5 +17,4 @@ jobs:
           node-version: '20'
           cache: npm
       - run: npm ci
-      - name: Run semantic and contract tests
-        run: npm run test:behavior
+      - run: npm test
