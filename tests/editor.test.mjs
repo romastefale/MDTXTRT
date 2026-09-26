@@ -9,7 +9,9 @@ const root = new URL('../', import.meta.url);
 function page(tg){
   const dom = new JSDOM(readFileSync(new URL('index.html',root),'utf8'),{url:'https://mdtxtrt.up.railway.app/',runScripts:'outside-only'});
   const w = dom.window;
-  w.matchMedia = () => ({matches:true,addEventListener(){}});
+  let systemLight=true, mediaListener=()=>{};
+  w.matchMedia = query => ({media:query,get matches(){return systemLight},addEventListener(type,callback){if(type==='change')mediaListener=callback}});
+  w.__setSystemLight = value => {systemLight=value;mediaListener({matches:value})};
   w.TextEncoder = TextEncoder;
   Object.defineProperty(w.crypto,'randomUUID',{value:randomUUID});
   if(tg){w.Telegram={WebApp:{initData:'signed-payload',colorScheme:'dark',ready(){},expand(){},setHeaderColor(){},MainButton:{setText(){},show(){},onClick(){}},...tg}};w.fetch=tg.fetch;}
@@ -196,6 +198,55 @@ test('fullscreen Mini App keeps menus below Telegram controls',async()=>{
   await new Promise(r=>setTimeout(r,5));
   assert.equal(w.document.documentElement.style.getPropertyValue('--tg-top'),'111px');
   assert.equal(w.document.documentElement.style.getPropertyValue('--tg-bottom'),'34px');
+  w.close();
+});
+test('dark glass keeps a light veil, shared blur and restrained edge while light optics stay unchanged',()=>{
+  const w=page(),d=w.document,root=d.documentElement;
+  const value=name=>w.getComputedStyle(root).getPropertyValue(name).trim();
+  assert.equal(value('--glass-frost'),'0.08');
+  assert.equal(value('--glass-blur'),'6px');
+  assert.equal(value('--glass-highlight'),'rgba(255,255,255,.55)');
+  w.__setSystemLight(false);
+  assert.equal(root.classList.contains('dark'),true);
+  assert.equal(value('--glass-frost'),'0.12');
+  assert.equal(value('--glass-blur'),'10px');
+  assert.equal(value('--glass-highlight'),'rgba(255,255,255,.2)');
+  assert.equal(value('--glass-edge'),'rgba(255,255,255,.12)');
+  assert.equal(value('--glass-saturation'),'1.15');
+  assert.ok(d.querySelector('.sheet.frost'));
+  w.close();
+});
+test('rapid OS and Telegram theme changes preserve working panels, commands and material state',async()=>{
+  let themeChanged;
+  const w=page({fetch:async()=>({ok:true}),colorScheme:'dark',onEvent:(name,callback)=>{if(name==='themeChanged')themeChanged=callback}});
+  await new Promise(resolve=>setTimeout(resolve,5));
+  const d=w.document,root=d.documentElement,bar=d.querySelector('#typebar'),editor=d.querySelector('#editor');
+  const scheme=()=>root.classList.contains('dark')?'dark':'light';
+  assert.equal(scheme(),'dark');
+  for(let i=0;i<80;i++){
+    w.Telegram.WebApp.colorScheme=i%2?'light':'dark';
+    themeChanged();
+    assert.equal(scheme(),i%2?'light':'dark');
+    assert.equal(w.getComputedStyle(root).getPropertyValue('--glass-blur').trim(),i%2?'6px':'10px');
+    assert.equal(w.getComputedStyle(root).getPropertyValue('--glass-frost').trim(),i%2?'0.08':'0.12');
+  }
+  d.querySelector('#plusBtn').click();
+  d.querySelector('#plusMenu [data-insert="divider"]').click();
+  assert.equal(editor.querySelectorAll('hr').length,1);
+  assert.equal(d.querySelector('#plusMenu').classList.contains('on'),false);
+  w.close();
+});
+test('invalid Telegram session never enters Mini App mode and system theme changes remain usable',async()=>{
+  const w=page({fetch:async()=>({ok:false,status:403})});
+  await new Promise(resolve=>setTimeout(resolve,5));
+  const root=w.document.documentElement;
+  assert.equal(w.document.body.classList.contains('tg'),false);
+  assert.equal(root.classList.contains('dark'),false);
+  w.__setSystemLight(false);
+  assert.equal(root.classList.contains('dark'),true);
+  assert.equal(w.getComputedStyle(root).getPropertyValue('--glass-blur').trim(),'10px');
+  w.document.querySelector('#plusBtn').click();
+  assert.equal(w.document.querySelector('#plusMenu').classList.contains('on'),true);
   w.close();
 });
 test('Markdown preserves embeds and expandable quotes, rejects styles',()=>{

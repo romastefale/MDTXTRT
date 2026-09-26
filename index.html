@@ -26,10 +26,14 @@
       --accent:#a78bfa;
       --bar:rgba(255,255,255,.08);
       --line:rgba(255,255,255,.18);
-      --glass-frost:0.22;
+      --glass-frost:0.12;
       --glass-saturation:1.15;
+      --glass-blur:10px;
       --glass:rgba(255,255,255,var(--glass-frost));
-      --glass-edge:transparent;
+      --glass-edge:rgba(255,255,255,.12);
+      --glass-highlight:rgba(255,255,255,.2);
+      --glass-control:rgba(255,255,255,.08);
+      --glass-control-edge:rgba(255,255,255,.08);
       --glass-shadow:inset 0 .5px 0 rgba(255,255,255,.12),0 1px 2px rgba(0,0,0,.16),0 6px 18px rgba(0,0,0,.14),0 18px 40px rgba(0,0,0,.1);
       --glass-shadow-lg:inset 0 .5px 0 rgba(255,255,255,.14),0 2px 6px rgba(0,0,0,.14),0 12px 28px rgba(0,0,0,.16),0 28px 56px rgba(0,0,0,.12);
       --safe-top:env(safe-area-inset-top,0px);
@@ -45,8 +49,12 @@
         --bg:#f8fbff; --text:#151515; --muted:#5c6478; --accent:#ff6a00;
         --bar:rgba(255,255,255,.46); --line:rgba(255,255,255,.7);
         --glass-frost:0.08; --glass-saturation:1.15;
+        --glass-blur:6px;
         --glass:rgba(255,255,255,var(--glass-frost));
         --glass-edge:transparent;
+        --glass-highlight:rgba(255,255,255,.55);
+        --glass-control:color-mix(in srgb,var(--text) 11%,transparent);
+        --glass-control-edge:rgba(255,255,255,.12);
         --glass-shadow:inset 0 .5px 0 rgba(255,255,255,.45),0 1px 2px rgba(20,24,36,.04),0 8px 20px rgba(20,24,36,.07),0 18px 36px rgba(20,24,36,.05);
         --glass-shadow-lg:inset 0 .5px 0 rgba(255,255,255,.5),0 4px 12px rgba(20,24,36,.05),0 16px 32px rgba(20,24,36,.08),0 28px 48px rgba(20,24,36,.06);
       }
@@ -55,15 +63,24 @@
       --bg:#f8fbff; --text:#151515; --muted:#5c6478; --accent:#ff6a00;
       --bar:rgba(255,255,255,.46); --line:rgba(255,255,255,.7);
       --glass-frost:0.08;
+      --glass-blur:6px;
       --glass:rgba(255,255,255,var(--glass-frost));
       --glass-edge:transparent;
+      --glass-highlight:rgba(255,255,255,.55);
+      --glass-control:color-mix(in srgb,var(--text) 11%,transparent);
+      --glass-control-edge:rgba(255,255,255,.12);
       --glass-shadow:inset 0 .5px 0 rgba(255,255,255,.45),0 1px 2px rgba(20,24,36,.04),0 8px 20px rgba(20,24,36,.07),0 18px 36px rgba(20,24,36,.05);
       --glass-shadow-lg:inset 0 .5px 0 rgba(255,255,255,.5),0 4px 12px rgba(20,24,36,.05),0 16px 32px rgba(20,24,36,.08),0 28px 48px rgba(20,24,36,.06);
     }
     html.dark{
       --bg:#000; --text:#f5f5f7; --muted:#c5c8d8; --accent:#a78bfa;
       --bar:rgba(255,255,255,.08); --line:rgba(255,255,255,.18);
-      --glass-frost:0.22; --glass:rgba(255,255,255,var(--glass-frost));
+      --glass-frost:0.12; --glass-blur:10px;
+      --glass:rgba(255,255,255,var(--glass-frost));
+      --glass-edge:rgba(255,255,255,.12);
+      --glass-highlight:rgba(255,255,255,.2);
+      --glass-control:rgba(255,255,255,.08);
+      --glass-control-edge:rgba(255,255,255,.08);
     }
     html{color-scheme:light dark}
     html.light{color-scheme:light}
@@ -108,11 +125,11 @@
       position:relative;
       background:var(--glass);
       border:0;
-      box-shadow:0 2px 8px rgba(0,0,0,.08);
-      backdrop-filter:blur(6px) saturate(1.15);
-      -webkit-backdrop-filter:blur(6px) saturate(1.15);
+      box-shadow:var(--glass-shadow);
+      backdrop-filter:blur(var(--glass-blur)) saturate(var(--glass-saturation));
+      -webkit-backdrop-filter:blur(var(--glass-blur)) saturate(var(--glass-saturation));
     }
-    .frost::before{content:"";position:absolute;inset:0;pointer-events:none;border-radius:inherit;background:transparent;box-shadow:inset 0 1px 0 rgba(255,255,255,.55),inset 0 0 0 1px rgba(255,255,255,.12)}
+    .frost::before{content:"";position:absolute;inset:0;pointer-events:none;border-radius:inherit;background:transparent;box-shadow:inset 0 1px 0 var(--glass-highlight),inset 0 0 0 1px var(--glass-edge)}
     .app{
       position:relative;z-index:1;
       width:100%;height:100%;min-height:100lvh;max-width:none;margin:0;padding:0;
@@ -202,7 +219,7 @@
       overflow:hidden;
       display:none;padding:8px;border:0;border-radius:30px;
       color:var(--text);background:var(--glass);
-      box-shadow:0 4px 14px rgba(0,0,0,.14),0 22px 48px rgba(0,0,0,.2);
+      box-shadow:var(--glass-shadow-lg);
       transform-origin:var(--sheet-origin,50%) 100%;animation:sheet-in .16s cubic-bezier(.2,.75,.25,1)
     }
     .sheet.is-top{
@@ -216,7 +233,7 @@
     .menu-list > button[hidden]{display:none}
     .menu-list > button:hover{background:color-mix(in srgb,var(--text) 7%,transparent)}
     .menu-list > button:active{background:color-mix(in srgb,var(--text) 12%,transparent)}
-    .sheet-ico{width:42px;height:42px;border-radius:50%;flex:none;display:grid;place-items:center;background:color-mix(in srgb,var(--text) 11%,transparent);box-shadow:inset 0 1px 0 rgba(255,255,255,.12)}
+    .sheet-ico{width:42px;height:42px;border-radius:50%;flex:none;display:grid;place-items:center;background:var(--glass-control);box-shadow:inset 0 1px 0 var(--glass-control-edge)}
     .sheet-ico .ui-icon,.sheet-ico svg{width:20px;height:20px}
     .sheet.on{display:flex;flex-direction:column}
     .toast{
@@ -627,8 +644,8 @@ const materialOptics={mapSize:512,strength:.05,depth:.5,dispersion:.32,clipToSha
 const materialGenerator=createLensMapGenerator(materialOptics.mapSize)
 const ua=navigator.userAgent,hasUAData=navigator.userAgentData!=null,supportsBackdropUrl=hasUAData||((ua.includes('Chrome/')||ua.includes('Chromium/')||ua.includes('Edg/'))&&!['CriOS','EdgiOS','FxiOS','OPiOS'].some(x=>ua.includes(x))&&!/iPhone|iPad|iPod/.test(ua))
 const makeMaterial=(el)=>{
-const base=`blur(${materialOptics.frost}px) saturate(${materialOptics.saturate})`
-if(el.classList.contains('frost-only')){const update=()=>{el.style.backdropFilter=base;el.style.webkitBackdropFilter=base};update();return {update}}
+const base=()=>`blur(${parseFloat(getComputedStyle(el).getPropertyValue('--glass-blur'))||materialOptics.frost}px) saturate(${parseFloat(getComputedStyle(el).getPropertyValue('--glass-saturation'))||materialOptics.saturate})`
+if(el.classList.contains('frost-only')){const update=()=>{el.style.backdropFilter=base();el.style.webkitBackdropFilter=base()};update();return {update}}
 const id=`lg-mat-${serial++}`,filter=document.createElementNS(SVG,'filter'),mapImage=document.createElementNS(SVG,'feImage')
 filter.setAttribute('id',id);filter.setAttribute('filterUnits','userSpaceOnUse');filter.setAttribute('primitiveUnits','userSpaceOnUse');filter.setAttribute('color-interpolation-filters','sRGB')
 filter.innerHTML=`<feFlood flood-color="rgb(128,128,128)" flood-opacity="1" result="mapBg"/><feImage data-role="map" preserveAspectRatio="none" result="rawMap"/><feComposite in="rawMap" in2="mapBg" operator="over" result="map"/><feDisplacementMap in="SourceGraphic" in2="map" data-role="red" xChannelSelector="R" yChannelSelector="G"/><feColorMatrix type="matrix" values="1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0" result="refractR"/><feDisplacementMap in="SourceGraphic" in2="map" data-role="green" xChannelSelector="R" yChannelSelector="G"/><feColorMatrix type="matrix" values="0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 1 0" result="refractG"/><feDisplacementMap in="SourceGraphic" in2="map" data-role="blue" xChannelSelector="R" yChannelSelector="G"/><feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 1 0" result="refractB"/><feComposite in="refractR" in2="refractG" operator="arithmetic" k1="0" k2="1" k3="1" k4="0" result="refractRG"/><feComposite in="refractRG" in2="refractB" operator="arithmetic" k1="0" k2="1" k3="1" k4="0" result="lensOut"/><feColorMatrix in="map" type="matrix" values="0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 1 0 -0.5019607843137255" result="sheenMask"/><feComposite in="sheenMask" in2="lensOut" operator="arithmetic" k1="0" k2="${materialOptics.specular}" k3="1" k4="0"/>`
@@ -640,12 +657,12 @@ if(!w||!h)return
 const r=parseFloat(getComputedStyle(el).borderTopLeftRadius)||0,norm=Math.sqrt((w*w+h*h)/2),scale=materialOptics.strength*norm,margin=Math.ceil(scale*(materialOptics.dispersion>0?1.2:1)*.5+28),shape=`${w}:${h}:${r}`
 if(shape!==old){map.setAttribute('href',materialGenerator.generate({lensHalfWidth:w/2,lensHalfHeight:h/2,borderRadius:r,depth:materialOptics.depth,clipToShape:materialOptics.clipToShape,softEdge:materialOptics.softEdge,sheenAngle:materialOptics.sheenAngle,glow:materialOptics.glow,glowSpread:materialOptics.glowSpread,glowFalloff:materialOptics.glowFalloff,sheen:materialOptics.sheen,sheenWidth:materialOptics.sheenWidth,sheenFalloff:materialOptics.sheenFalloff,curvature:materialOptics.curvature,splay:materialOptics.splay,bend:materialOptics.bend,bendWidth:materialOptics.bendWidth}));map.setAttribute('width',String(w));map.setAttribute('height',String(h));old=shape}
 map.setAttribute('x','0');map.setAttribute('y','0');filter.setAttribute('x',String(-margin));filter.setAttribute('y',String(-margin));filter.setAttribute('width',String(w+2*margin));filter.setAttribute('height',String(h+2*margin));red.setAttribute('scale',String(scale*(1+.22*materialOptics.dispersion)));green.setAttribute('scale',String(scale*(1+.22*.5*materialOptics.dispersion)));blue.setAttribute('scale',String(scale));filter.id=`${id}-v${++version}`
-const value=supportsBackdropUrl?`${base} url(#${filter.id})`:base
+const value=supportsBackdropUrl?`${base()} url(#${filter.id})`:base()
 el.style.backdropFilter=value;el.style.webkitBackdropFilter=value
 }
 update();const ro=new ResizeObserver(update);ro.observe(el);return {update}
 }
-const mats=[...document.querySelectorAll('.material-target')].map(makeMaterial)})()</script>
+const mats=[...document.querySelectorAll('.material-target')].map(makeMaterial);window.addEventListener('mdtxtrt:themechange',()=>mats.forEach(m=>m.update()))})()</script>
   <input id="fileInput" type="file" accept=".txt,.md,text/plain,text/markdown" hidden>
   <input id="mediaInput" type="file" accept="image/*,video/*,audio/*,.pdf,.zip" hidden>
   <div class="toast frost material-target" id="toast"></div>
