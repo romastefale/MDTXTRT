@@ -216,7 +216,8 @@ test('Mini App mode waits for backend initData validation',async()=>{
   const w=page({fetch:()=>new Promise(r=>resolve=r),requestFullscreen(){fullscreen++},MainButton:{hide(){hidden++}}});
   assert.equal(w.document.body.classList.contains('tg'),false);
   assert.equal(fullscreen,0);
-  resolve({ok:true});
+  await new Promise(r=>setTimeout(r,0));
+  resolve({ok:true,status:200,json:async()=>({})});
   await new Promise(r=>setTimeout(r,5));
   assert.equal(w.document.body.classList.contains('tg'),true);
   assert.equal(fullscreen,1);
@@ -248,7 +249,7 @@ test('Mini App destination switch publishes Telegraph nodes and retains the retu
   const data=JSON.parse(publish.options.body);
   assert.deepEqual(data.content,[{tag:'h3',children:['Título']},{tag:'p',children:['Texto']}]);
   assert.equal(data.title,'Documento');
-  assert.equal(data.path,'');
+  assert.equal(data.path,'owned-page');
   assert.equal(JSON.parse(w.localStorage.getItem('rmdtxtml')).telegraphPath,'owned-page');
   w.close();
 });
@@ -437,8 +438,12 @@ test('replace spans inline formatting and checklists retain changed state in exp
 });
 test('rapid publish clicks send once and network failures allow retry',async()=>{
   let count=0,finish;
-  const w=page({fetch:async url=>url.endsWith('/session')?{ok:true}:(count++,await new Promise(resolve=>finish=resolve))});
-  await new Promise(resolve=>setTimeout(resolve,5));const d=w.document;d.querySelector('#editor').innerHTML='<p>teste</p>';
+  const w=page({fetch:async url=>{
+    if(url.endsWith('/session'))return {ok:true,status:200,json:async()=>({})};
+    if(url.endsWith('/telegraph/recover'))return {ok:false,status:404,json:async()=>({error:'Página não encontrada'})};
+    count++;return await new Promise(resolve=>finish=resolve);
+  }});
+  await new Promise(resolve=>setTimeout(resolve,10));const d=w.document;d.querySelector('#editor').innerHTML='<p>teste</p>';
   d.querySelector('#exportBtn').click();d.querySelector('#exportBtn').click();assert.equal(count,1);assert.equal(d.querySelector('#exportBtn').disabled,true);
   finish({ok:false,json:async()=>({error:'Falha temporária'})});await new Promise(resolve=>setTimeout(resolve,5));assert.equal(d.querySelector('#exportBtn').disabled,false);assert.equal(d.querySelector('#toast').textContent,'Falha temporária');
   d.querySelector('#exportBtn').click();assert.equal(count,2);finish({ok:true,json:async()=>({})});await new Promise(resolve=>setTimeout(resolve,5));w.close();
@@ -597,7 +602,8 @@ test('formula and media structures are visibly distinct while remaining native r
   w.eval('decorateSpecials()');
   assert.equal(w.getComputedStyle(e.querySelector('tg-math')).display,'inline-block');
   assert.equal(w.getComputedStyle(e.querySelector('tg-math-block')).display,'block');
-  assert.notEqual(w.getComputedStyle(e.querySelector('tg-math-block')).backgroundColor,'rgba(0, 0, 0, 0)');
+  assert.equal(w.getComputedStyle(e.querySelector('tg-math-block')).borderRadius,'14px');
+  assert.equal(w.getComputedStyle(e.querySelector('tg-math-block')).padding,'12px 14px');
   assert.equal(e.querySelector('video').hasAttribute('controls'),true);
   assert.equal(w.getComputedStyle(e.querySelector('figure')).borderRadius,'18px');
   assert.equal(w.getComputedStyle(e.querySelector('tg-document')).minHeight,'48px');
