@@ -589,32 +589,16 @@ async function handleBotUpdate(update) {
   }
 }
 
-async function configureBot() {
-  const token = botToken();
-  if (!token) {
-    console.error("Telegram bot não configurado");
-    return;
-  }
-  try {
-    const bot = await telegramCall(token, "getMe", {});
-    if (!/^[A-Za-z0-9_]{5,32}$/.test(bot.username || "")) throw new Error("Bot sem nome de usuário");
-    botLink = "https://t.me/" + bot.username;
-    console.log("Telegram ready");
-  } catch (error) {
-    console.error("Telegram getMe", error);
-    return;
-  }
-  let secret;
-  try { secret = webhookSecret(token); } catch (error) { console.error("Telegram webhook", error); return; }
-  const steps = [
-    ["setMyCommands", { commands: BOT_COMMANDS }],
-    ["setChatMenuButton", { menu_button: { type: "web_app", text: "Mini App MDTXTRT", web_app: { url: MINI_APP_URL } } }],
-    ["setWebhook", { url: WEBHOOK_BASE + "/telegram/webhook", secret_token: secret, allowed_updates: ["message", "callback_query"] }],
-  ];
-  for (const [method, body] of steps) {
-    try { await telegramCall(token, method, body); }
-    catch (error) { console.error("Telegram", method, error); }
-  }
+async function configureBot(){
+  const token=botToken();
+  const bot=await telegramCall(token,"getMe",{});
+  if(!/^[A-Za-z0-9_]{5,32}$/.test(bot.username||""))throw new Error("Bot sem nome de usuário");
+  botLink="https://t.me/"+bot.username;
+  const secret=webhookSecret(token);
+  await telegramCall(token,"setMyCommands",{commands:BOT_COMMANDS});
+  await telegramCall(token,"setChatMenuButton",{menu_button:{type:"web_app",text:"Mini App MDTXTRT",web_app:{url:MINI_APP_URL}}});
+  await telegramCall(token,"setWebhook",{url:WEBHOOK_BASE+"/telegram/webhook",secret_token:secret,allowed_updates:["message","callback_query"]});
+  console.log("Telegram ready");
 }
 
 async function telegraphCall(method, body) {
@@ -886,13 +870,8 @@ const server = createServer(async (req, res) => {
       res.end();
       return;
     }
-    if (url.pathname === "/telegram/webhook" && req.method === "POST") {
-      const token = botToken();
-      if (!token) {
-        res.writeHead(503, { "content-type": "application/json; charset=utf-8" });
-        res.end(JSON.stringify({ error: "Bot do Telegram não configurado" }));
-        return;
-      }
+    if(url.pathname==="/telegram/webhook"&&req.method==="POST"){
+      const token=botToken();
       if (!sameSecret(req.headers["x-telegram-bot-api-secret-token"], webhookSecret(token))) {
         res.writeHead(401, { "content-type": "application/json; charset=utf-8" });
         res.end(JSON.stringify({ error: "Acesso não autorizado" }));
@@ -938,10 +917,8 @@ const server = createServer(async (req, res) => {
         return;
       }
       try {
-        const body = await readJson(req, 10000);
-        const token = botToken();
-        if (!token) throw new Error("O Telegram não está configurado");
-        userFromInitData(String(body?.initData || ""), token);
+        const body=await readJson(req,10000);
+        userFromInitData(String(body?.initData||""),botToken());
         res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
         res.end(JSON.stringify({ ok: true }));
       } catch (err) {
@@ -959,9 +936,8 @@ const server = createServer(async (req, res) => {
       try {
         const body = await readJson(req, 150_000);
         if (!body || typeof body !== "object" || typeof body.title !== "string" || !Array.isArray(body.content) || (body.path !== undefined && typeof body.path !== "string")) throw new Error("Os dados da página estão incompletos");
-        const token = botToken();
-        if (!token || typeof body.initData !== "string") throw new Error("Abra pelo bot no Telegram para publicar no Telegraph");
-        const { chatId } = userFromInitData(body.initData, token);
+        if(typeof body.initData!=="string")throw new Error("Abra pelo bot no Telegram para publicar no Telegraph");
+        const {chatId}=userFromInitData(body.initData,botToken());
         const page = await publishTelegraph(body.title, body.content, body.path || "", chatId, body.doc);
         res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
         res.end(JSON.stringify({ url: page.url, path: page.path }));
@@ -1010,15 +986,15 @@ const server = createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, "0.0.0.0", () => {
-  console.log(`MDTXTRT on ${PORT}`);
+async function start(){
   sweepHandoffs();
-  void configureBot();
-  const ready=telegraphQueue.then(async()=>{
-    const token=await ensureTelegraphToken();
-    await telegraphCall("getAccountInfo",{access_token:token,fields:'["short_name","page_count"]'});
-    console.log("Telegraph ready");
-  });
-  telegraphQueue=ready.catch(error=>{console.error("Telegraph startup queue",error);});
-  void ready.catch(error=>console.error("Telegraph startup",error));
+  await configureBot();
+  const token=await ensureTelegraphToken();
+  await telegraphCall("getAccountInfo",{access_token:token,fields:'["short_name","page_count"]'});
+  console.log("Telegraph ready");
+  server.listen(PORT,"0.0.0.0",()=>console.log(`MDTXTRT on ${PORT}`));
+}
+start().catch(error=>{
+  console.error("MDTXTRT startup",error);
+  process.exitCode=1;
 });
