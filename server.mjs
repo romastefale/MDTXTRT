@@ -824,7 +824,7 @@ const server = createServer(async (req, res) => {
         const path = handoffFiles(token).file;
         if (!existsSync(path)) throw new Error("Anexo da transferência indisponível");
         const bytes = readFileSync(path);
-        res.writeHead(200, { "content-type": state.file.mime || "application/octet-stream", "content-length": bytes.length, "cache-control": "no-store" });
+        res.writeHead(200,{"content-type":state.file.mime,"content-length":bytes.length,"cache-control":"no-store"});
         res.end(bytes);
       } catch (err) {
         res.writeHead(400, { "content-type": "application/json; charset=utf-8" });
