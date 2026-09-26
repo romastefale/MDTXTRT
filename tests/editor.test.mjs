@@ -203,6 +203,8 @@ test('fullscreen Mini App keeps menus below Telegram controls',async()=>{
 test('dark glass keeps a light veil, shared blur and restrained edge while light optics stay unchanged',()=>{
   const w=page(),d=w.document,root=d.documentElement;
   const value=name=>w.getComputedStyle(root).getPropertyValue(name).trim();
+  assert.equal(w.getComputedStyle(d.querySelector('#brandBtn')).boxShadow,'0 2px 8px rgba(0,0,0,.08)');
+  assert.equal(w.getComputedStyle(d.querySelector('#plusMenu')).boxShadow,'0 4px 14px rgba(0,0,0,.14),0 22px 48px rgba(0,0,0,.2)');
   assert.equal(value('--glass-frost'),'0.08');
   assert.equal(value('--glass-blur'),'6px');
   assert.equal(value('--glass-highlight'),'rgba(255,255,255,.55)');
@@ -213,6 +215,8 @@ test('dark glass keeps a light veil, shared blur and restrained edge while light
   assert.equal(value('--glass-highlight'),'rgba(255,255,255,.2)');
   assert.equal(value('--glass-edge'),'rgba(255,255,255,.12)');
   assert.equal(value('--glass-saturation'),'1.15');
+  assert.equal(w.getComputedStyle(d.querySelector('#brandBtn')).boxShadow,'var(--glass-shadow)');
+  assert.equal(w.getComputedStyle(d.querySelector('#plusMenu')).boxShadow,'var(--glass-shadow-lg)');
   assert.ok(d.querySelector('.sheet.frost'));
   w.close();
 });
