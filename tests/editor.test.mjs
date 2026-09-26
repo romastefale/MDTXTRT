@@ -6,7 +6,30 @@ import {randomUUID} from 'node:crypto';
 import {TextEncoder} from 'node:util';
 
 const root = new URL('../', import.meta.url);
-function page(tg,render=false){
+function memoryIndexedDB(){
+  const rows=new Map();
+  return {
+    rows,
+    open(){
+      const req={};
+      queueMicrotask(()=>{
+        const store={
+          put(value){rows.set(value.id,value);return {};},
+          clear(){rows.clear();return {};},
+          get(id){const out={};queueMicrotask(()=>{out.result=rows.get(id);out.onsuccess?.();});return out;}
+        };
+        const db={
+          objectStoreNames:{contains:()=>true},
+          transaction(){const tx={objectStore:()=>store};queueMicrotask(()=>tx.oncomplete?.());return tx;},
+          close(){}
+        };
+        req.result=db;req.onsuccess?.();
+      });
+      return req;
+    }
+  };
+}
+function page(tg,render=false,setup={}){
   const dom = new JSDOM(readFileSync(new URL('index.html',root),'utf8'),{url:'https://mdtxtrt.up.railway.app/',runScripts:'outside-only'});
   const w = dom.window;
   let systemLight=true, mediaListener=()=>{};
@@ -14,6 +37,19 @@ function page(tg,render=false){
   w.__setSystemLight = value => {systemLight=value;mediaListener({matches:value})};
   w.TextEncoder = TextEncoder;
   Object.defineProperty(w.crypto,'randomUUID',{value:randomUUID});
+  if(setup.indexedDB)Object.defineProperty(w,'indexedDB',{value:setup.indexedDB,configurable:true});
+  if(setup.visualViewport)Object.defineProperty(w,'visualViewport',{value:setup.visualViewport,configurable:true});
+  if(setup.objectURL){w.URL.createObjectURL=setup.objectURL;w.URL.revokeObjectURL=()=>{};}
+  for(const [key,value] of Object.entries(setup.local||{}))w.localStorage.setItem(key,value);
+  w.__requests=[];
+  w.fetch=async(url,options={})=>{
+    w.__requests.push({url:String(url),options});
+    if(String(url).endsWith('/api/export')){
+      const body=JSON.parse(options.body);w.__exportRequest=body;
+      return {ok:true,status:200,json:async()=>({name:body.name,url:'https://mdtxtrt.up.railway.app/download/test/'+encodeURIComponent(body.name)})};
+    }
+    return {ok:false,status:404,json:async()=>({error:'not found'})};
+  };
   if(tg){w.Telegram={WebApp:{initData:'signed-payload',colorScheme:'dark',ready(){},expand(){},setHeaderColor(){},MainButton:{setText(){},show(){},onClick(){}},...tg}};w.fetch=tg.fetch;}
   if(render){
     const callbacks=[];w.__maps=[];
@@ -112,8 +148,7 @@ test('all visible interface icons resolve to local Google Material SVG assets',(
 test('Markdown import, editor replacement and export retain supported structures',async()=>{
   const w=page(),d=w.document,editor=d.querySelector('#editor');
   let saved;
-  w.URL.createObjectURL=blob=>(saved={blob},'blob:download');
-  w.HTMLAnchorElement.prototype.click=function(){saved.name=this.download};
+  w.HTMLAnchorElement.prototype.click=function(){saved={name:this.download,href:this.href}};
   const source='# Nome\n\n- [x] tarefa\n- [ ] próxima\n\n| A | B |\n| --- | --- |\n| 1 | 2 |\n\n**forte** e [site](https://example.com)';
   d.querySelector('#brandBtn').click();d.querySelector('#importMdBtn').click();
   assert.equal(d.querySelector('#fileInput').accept,'.md,text/markdown');
@@ -130,7 +165,9 @@ test('Markdown import, editor replacement and export retain supported structures
   d.querySelector('#exportMdBtn').click();
   await new Promise(resolve=>setTimeout(resolve,10));
   assert.equal(saved.name,'source.md');
-  const output=await new Promise((resolve,reject)=>{const reader=new w.FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=reject;reader.readAsText(saved.blob)});
+  const output=w.__exportRequest.content;
+  assert.equal(w.__exportRequest.type,'text/markdown');
+  assert.match(saved.href,/\/download\/test\/source\.md$/);
   const again=w.eval('mdToBasicHTML('+JSON.stringify(output)+')');
   const round=w.document.createElement('div');round.innerHTML=again;
   assert.equal(round.querySelector('h1')?.textContent,'Nome');
@@ -144,22 +181,22 @@ test('Markdown import, editor replacement and export retain supported structures
 test('TXT import stays literal and lossy export requires an explicit choice',async()=>{
   const w=page(),d=w.document;let saved,asked=0,allow=false;
   w.confirm=()=>{asked++;return allow};
-  w.URL.createObjectURL=blob=>(saved={blob},'blob:download');
-  w.HTMLAnchorElement.prototype.click=function(){saved.name=this.download};
+  w.HTMLAnchorElement.prototype.click=function(){saved={name:this.download,href:this.href}};
   const source='literal <texto>\nlinha dois\n';
   Object.defineProperty(d.querySelector('#fileInput'),'files',{configurable:true,value:[{name:'texto.txt',text:async()=>source}]});
   d.querySelector('#fileInput').dispatchEvent(new w.Event('change'));
   await new Promise(resolve=>setTimeout(resolve,10));
   d.querySelector('#exportBtn').click();d.querySelector('#exportTxtBtn').click();
   await new Promise(resolve=>setTimeout(resolve,10));
-  let output=await new Promise((resolve,reject)=>{const reader=new w.FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=reject;reader.readAsText(saved.blob)});
+  let output=w.__exportRequest.content;
+  assert.equal(w.__exportRequest.type,'text/plain');
   assert.equal(output,source);
   const editor=d.querySelector('#editor');editor.innerHTML='<p><strong>formato</strong></p>';
   d.querySelector('#exportTxtBtn').click();
   assert.equal(asked,1);
   allow=true;d.querySelector('#exportTxtBtn').click();
   await new Promise(resolve=>setTimeout(resolve,10));
-  output=await new Promise((resolve,reject)=>{const reader=new w.FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=reject;reader.readAsText(saved.blob)});
+  output=w.__exportRequest.content;
   assert.equal(output,'formato');
   w.close();
 });
@@ -215,11 +252,16 @@ test('Mini App destination switch publishes Telegraph nodes and retains the retu
   assert.equal(JSON.parse(w.localStorage.getItem('rmdtxtml')).telegraphPath,'owned-page');
   w.close();
 });
-test('fullscreen Mini App keeps menus below Telegram controls',async()=>{
-  const w=page({fetch:async()=>({ok:true}),isFullscreen:true,safeAreaInset:{top:59,bottom:34},contentSafeAreaInset:{top:44,bottom:0}});
-  await new Promise(r=>setTimeout(r,5));
-  assert.equal(w.document.documentElement.style.getPropertyValue('--tg-top'),'111px');
-  assert.equal(w.document.documentElement.style.getPropertyValue('--tg-bottom'),'34px');
+test('fullscreen Mini App uses Telegram safe areas and stable viewport without manual header offsets',async()=>{
+  const w=page({fetch:async()=>({ok:true,status:404,json:async()=>({})}),isFullscreen:true,viewportStableHeight:620,safeAreaInset:{top:59,bottom:34,left:0,right:0},contentSafeAreaInset:{top:44,bottom:0,left:8,right:7}});
+  await new Promise(r=>setTimeout(r,10));
+  const root=w.document.documentElement;
+  assert.equal(root.style.getPropertyValue('--tg-top'),'59px');
+  assert.equal(root.style.getPropertyValue('--tg-bottom'),'34px');
+  assert.equal(root.style.getPropertyValue('--tg-left'),'8px');
+  assert.equal(root.style.getPropertyValue('--tg-right'),'7px');
+  assert.equal(root.style.getPropertyValue('--vv-h'),'620px');
+  assert.equal(root.style.getPropertyValue('--kb'),Math.max(0,w.innerHeight-620)+'px');
   w.close();
 });
 test('dark glass has a single restrained edge and paints the full page while approved light styling stays unchanged',()=>{
@@ -507,5 +549,58 @@ test('timed-out publication releases the button and preserves the document',asyn
   assert.equal(d.querySelector('#exportBtn').disabled,false);
   assert.equal(d.querySelector('#editor').innerHTML,'<p>Manter texto</p>');
   assert.equal(d.querySelector('#toast').textContent,'Tempo de envio esgotado. Confira o chat antes de tentar novamente.');
+  w.close();
+});
+
+test('browser viewport follows VisualViewport while Telegram geometry remains separate',()=>{
+  const listeners={};
+  const vv={height:480,offsetTop:24,addEventListener(name,fn){listeners[name]=fn;}};
+  const w=page(undefined,false,{visualViewport:vv});
+  const root=w.document.documentElement;
+  assert.equal(root.style.getPropertyValue('--vv-top'),'24px');
+  assert.equal(root.style.getPropertyValue('--vv-h'),'480px');
+  assert.equal(root.style.getPropertyValue('--kb'),Math.max(0,w.innerHeight-504)+'px');
+  vv.height=420;vv.offsetTop=12;listeners.resize();
+  assert.equal(root.style.getPropertyValue('--vv-h'),'420px');
+  assert.equal(root.style.getPropertyValue('--vv-top'),'12px');
+  w.close();
+});
+
+test('local attachment survives editor reload through IndexedDB and restores its object URL',async()=>{
+  const db=memoryIndexedDB();
+  let n=0;
+  const w=page(undefined,false,{indexedDB:db,objectURL:()=>`blob:persisted-${++n}`});
+  const d=w.document,input=d.querySelector('#mediaInput');
+  const file=new w.File([new Uint8Array([1,2,3,4])],'foto.png',{type:'image/png'});
+  Object.defineProperty(input,'files',{configurable:true,value:[file]});
+  input.dispatchEvent(new w.Event('change'));
+  await new Promise(resolve=>setTimeout(resolve,10));
+  const saved=w.localStorage.getItem('rmdtxtml');
+  const id=d.querySelector('[data-media-id]')?.getAttribute('data-media-id');
+  assert.ok(id);
+  assert.equal(db.rows.has(id),true);
+  w.eval('mediaFile=null');
+  d.querySelector('#editor').innerHTML='';
+  w.localStorage.setItem('rmdtxtml',saved);
+  w.eval('loadLocal()');
+  await w.eval('restoreMedia()');
+  const node=d.querySelector('[data-media-id]');
+  assert.equal(node.getAttribute('data-media-id'),id);
+  assert.match(node.getAttribute('src'),/^blob:persisted-/);
+  assert.match(w.eval('buildRich().rich_message.html'),new RegExp('tg:\\/\\/photo\\?id='+id));
+  w.close();
+});
+
+test('formula and media structures are visibly distinct while remaining native rich elements',()=>{
+  const w=page(),d=w.document,e=d.querySelector('#editor');
+  e.innerHTML='<p>Inline <tg-math>x^2</tg-math></p><tg-math-block>E = mc^2</tg-math-block><figure><video src="https://example.com/a.mp4"></video><figcaption>Vídeo</figcaption></figure><tg-document src="https://example.com/a.pdf"></tg-document>';
+  w.eval('decorateSpecials()');
+  assert.equal(w.getComputedStyle(e.querySelector('tg-math')).display,'inline-block');
+  assert.equal(w.getComputedStyle(e.querySelector('tg-math-block')).display,'block');
+  assert.notEqual(w.getComputedStyle(e.querySelector('tg-math-block')).backgroundColor,'rgba(0, 0, 0, 0)');
+  assert.equal(e.querySelector('video').hasAttribute('controls'),true);
+  assert.equal(w.getComputedStyle(e.querySelector('figure')).borderRadius,'18px');
+  assert.equal(w.getComputedStyle(e.querySelector('tg-document')).minHeight,'48px');
+  assert.match(w.eval('buildRich().rich_message.html'),/<tg-math>x\^2<\/tg-math>/);
   w.close();
 });
