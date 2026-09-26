@@ -83,7 +83,6 @@
     ::selection{background:color-mix(in srgb,var(--accent) 38%, transparent);color:inherit}
     button,input{font:inherit;color:inherit}
     button{cursor:pointer;-webkit-tap-highlight-color:transparent}
-    .defs{position:absolute;width:0;height:0;overflow:hidden;pointer-events:none}
     .ui-icon{display:block;width:18px;height:18px;flex:none;background-color:currentColor;-webkit-mask:var(--ui-icon) center/contain no-repeat;mask:var(--ui-icon) center/contain no-repeat}
     .seg button .ui-icon,.action-dot .ui-icon,.sheet-ico .ui-icon{width:16px;height:16px}
     .editor h1,.editor h2,.editor h3,.editor h4,.editor h5,.editor h6{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;letter-spacing:-.03em;line-height:1.2;font-weight:650}
@@ -202,19 +201,19 @@
     .backdrop{position:absolute;inset:0;z-index:30;display:none;background:transparent;-webkit-backdrop-filter:none;backdrop-filter:none}
     .backdrop.on{display:block}
     .sheet{
-      position:absolute;left:var(--sheet-left,14px);right:auto;bottom:calc(var(--foot-inset) + 4px);
-      z-index:40;width:max-content;max-width:calc(100% - 28px);
+      position:absolute;left:12px;right:12px;bottom:calc(var(--foot-inset) + 4px);
+      z-index:40;width:auto;max-width:420px;margin-inline:auto;
       max-height:max(0px,calc(100% - var(--safe-top) - var(--foot-inset) - 16px));
       overflow:hidden;
       display:none;padding:8px;border:0;border-radius:30px;
       color:var(--text);background:var(--glass);
       box-shadow:0 4px 14px rgba(0,0,0,.14),0 22px 48px rgba(0,0,0,.2);
-      transform-origin:var(--sheet-origin,50%) 100%;animation:sheet-in .16s cubic-bezier(.2,.75,.25,1)
+      transform-origin:50% 100%;animation:sheet-in .16s cubic-bezier(.2,.75,.25,1)
     }
     .sheet.is-top{
-      bottom:auto;top:var(--sheet-top,72px);
-      max-height:max(0px,calc(100% - var(--sheet-top,72px) - var(--safe-bottom) - 12px));
-      transform-origin:var(--sheet-origin,50%) 0;
+      bottom:auto;top:var(--head-inset);
+      max-height:max(0px,calc(100% - var(--head-inset) - var(--safe-bottom) - 12px));
+      transform-origin:50% 0;
     }
     html.dark .sheet{box-shadow:var(--glass-shadow-lg)}
     @keyframes sheet-in{from{opacity:0;transform:translateY(8px) scale(.98)}to{opacity:1;transform:none}}
@@ -237,7 +236,7 @@
     .hint{max-width:280px;white-space:normal;margin:8px 12px 12px;font-size:14px}
     .tools input{min-width:0;width:100%;border:0;border-radius:12px;background:color-mix(in srgb,var(--text) 10%,transparent);padding:10px;outline:0}
     .tools button{border:0;border-radius:12px;background:color-mix(in srgb,var(--accent) 22%,transparent);padding:10px;color:var(--text)}
-    #findMenu,#dialogMenu{width:min(350px,calc(100% - 28px))}
+    #findMenu,#dialogMenu{max-width:350px}
     .dialog{display:flex;flex-direction:column;gap:10px;width:100%;padding:8px}
     .dialog-label{font-size:14px;line-height:1.35;color:var(--muted);padding:2px 4px}
     #dialogInput{width:100%;min-height:42px;max-height:132px;resize:none;border:0;border-radius:16px;background:color-mix(in srgb,var(--text) 10%,transparent);color:var(--text);padding:11px 12px;outline:0;font:inherit}
@@ -374,311 +373,6 @@
   </div>
   <div class="sheet frost material-target" id="findMenu"><div class="menu-list"><div class="tools"><input id="findText" placeholder="Localizar"></div><div class="tools"><input id="replaceText" placeholder="Substituir"></div><div class="tools"><button id="findNext">Próximo</button><button id="replaceOne">Substituir</button><button id="replaceAll">Substituir tudo</button></div></div></div>
   </div>
-  <svg class="defs" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><defs></defs></svg>
-  <script>(()=>{const SVG='http://www.w3.org/2000/svg',defs=document.querySelector('.defs defs')
-let serial=0
-const encodeAxis=signed=>((.5+signed)*255+.5)|0
-const encodeSpec=spec=>(127*spec+128+.5)|0
-const ERF_K=Math.sqrt(Math.PI)
-const erf=x=>Math.tanh(ERF_K*x)
-const domeGradientMean=(radius,halfExtent)=>halfExtent>0?(radius-Math.sqrt(radius*radius-halfExtent*halfExtent))/halfExtent:0
-const computeDomeConstants=(capDepth,halfW,halfH)=>{const cap=Math.max(.01,Math.min(capDepth,Math.min(halfW,halfH)-1)),Rx=(halfW*halfW+cap*cap)/(2*cap),Ry=(halfH*halfH+cap*cap)/(2*cap),meanX=domeGradientMean(Rx,halfW),meanY=domeGradientMean(Ry,halfH);return {Rx,Ry,scaleX:meanX>0?.5/meanX:1,scaleY:meanY>0?.5/meanY:1}}
-const domeGradient=(distance,radius,scale)=>{const inside=Math.min(distance,radius*(1-1e-3));return inside/Math.sqrt(radius*radius-inside*inside)*scale}
-const createLensMapGenerator = (size) => {
-  let canvas;
-  let ctx;
-  let image;
-  let domeLut;
-  let lutDome = -Infinity;
-  let lutHalfW = -Infinity;
-  let lutHalfH = -Infinity;
-  let lutLen = 0;
-  let lutDirty = true;
-  let dome;
-
-  return {
-    generate(shape) {
-      if (!canvas) {
-        canvas = document.createElement("canvas");
-        canvas.width = size;
-        canvas.height = size;
-        ctx = canvas.getContext("2d");
-        image = ctx.createImageData(size, size);
-      }
-      const {
-        lensHalfWidth: halfW,
-        lensHalfHeight: halfH,
-        borderRadius,
-        depth,
-        clipToShape,
-        softEdge,
-        sheenAngle = 45,
-        glow = 0,
-        glowSpread = 1,
-        glowFalloff = 1.5,
-        sheen = 0,
-        sheenWidth = 3,
-        sheenFalloff = 1.5,
-        curvature = 0,
-        splay = 0,
-        bend = 0,
-        bendWidth = 0.16,
-      } = shape;
-      const data = image.data;
-      const half = size >> 1;
-      const radius = Math.min(borderRadius, Math.min(halfW, halfH));
-      const minHalf = Math.min(halfW, halfH);
-      const depthPx = Math.min(depth * minHalf, minHalf - 1);
-      const innerHalfW = Math.max(0, halfW - depthPx);
-      const innerHalfH = Math.max(0, halfH - depthPx);
-      const innerRadius = Math.max(
-        0,
-        Math.min(borderRadius, Math.min(innerHalfW, innerHalfH)),
-      );
-      const falloff = depthPx > 0 ? Math.SQRT1_2 / depthPx : 1e6;
-      const hasSpecular = glow > 0 || sheen > 0;
-      const angle = (sheenAngle * Math.PI) / 180;
-      const cosA = Math.cos(angle);
-      const sinA = Math.sin(angle);
-      const edgeInv = sheenWidth > 0 ? 1 / sheenWidth : 0;
-      const glowReachInv = 1 / Math.max(2, glowSpread * Math.min(halfW, halfH));
-      const stepX = (2 * halfW) / size;
-      const stepY = (2 * halfH) / size;
-      const invW = 1 / halfW;
-      const invH = 1 / halfH;
-      const hasDome = curvature > 0;
-      const domeCap = curvature * Math.min(halfW, halfH);
-      const hasSplay = splay > 0;
-      const hasEdgeRefract = bend > 0;
-      const erInv = 1 / Math.max(2, bendWidth * Math.min(halfW, halfH));
-      const cornerDistance = (ox, oy) =>
-        ox > 0 || oy > 0 ? Math.sqrt(ox * ox + oy * oy) : 0;
-
-      if (hasDome) {
-        if (
-          !dome ||
-          Math.abs(domeCap - lutDome) > 0.5 ||
-          Math.abs(halfW - lutHalfW) > 1 ||
-          Math.abs(halfH - lutHalfH) > 1
-        ) {
-          dome = computeDomeConstants(domeCap, halfW, halfH);
-          lutDome = domeCap;
-          lutHalfW = halfW;
-          lutHalfH = halfH;
-          lutDirty = true;
-        }
-        if (lutLen !== half) {
-          domeLut = new Float32Array(half);
-          lutLen = half;
-          lutDirty = true;
-        }
-        if (lutDirty) {
-          const lut = domeLut;
-          const d = dome;
-          const r2 = d.Rx * d.Rx;
-          const rMax = d.Rx * (1 - 1e-3);
-          for (let col = 0; col < half; col += 1) {
-            const px = -((col + 0.5) * stepX - halfW);
-            const clamped = px < rMax ? px : rMax;
-            lut[col] = (clamped / Math.sqrt(r2 - clamped * clamped)) * d.scaleX;
-          }
-          lutDirty = false;
-        }
-      }
-      const lut = hasDome ? domeLut : null;
-      const splayHalf = 0.5 * Math.min(halfW, halfH);
-      const splayInv = splayHalf > 0 ? 1 / splayHalf : 0;
-      const sheenNorm = Math.SQRT1_2; // 1/√2: normalizes the diagonal projection
-
-      for (let row = 0; row < half; row += 1) {
-        const mirrorRow = size - 1 - row;
-        const py = -((row + 0.5) * stepY - halfH);
-        const edgeY = py - halfH + radius;
-        const innerEdgeY = softEdge ? py - innerHalfH + innerRadius : 0;
-        const dirYBase =
-          hasDome && lut
-            ? domeGradient(py, dome.Ry, dome.scaleY)
-            : py * invH > 1
-              ? 1
-              : py * invH;
-        const normY = py * invH > 1 ? 1 : py * invH;
-        const splayY = hasSplay ? Math.max(0, 1 - (halfH - py) * splayInv) : 0;
-        const rowBase = row * size;
-        const mirrorRowBase = mirrorRow * size;
-        for (let col = 0; col < half; col += 1) {
-          const mirrorCol = size - 1 - col;
-          const px = -((col + 0.5) * stepX - halfW);
-          const edgeX = px - halfW + radius;
-          const sdf =
-            cornerDistance(edgeX > 0 ? edgeX : 0, edgeY > 0 ? edgeY : 0) +
-            (edgeX > edgeY ? (edgeX > 0 ? 0 : edgeX) : edgeY > 0 ? 0 : edgeY) -
-            radius;
-          const i00 = (rowBase + col) * 4; // top-left  (canonical)
-          const i01 = (rowBase + mirrorCol) * 4; // top-right (mirror X)
-          const i10 = (mirrorRowBase + col) * 4; // bottom-left (mirror Y)
-          const i11 = (mirrorRowBase + mirrorCol) * 4; // bottom-right (mirror XY)
-
-          if (clipToShape && sdf >= 0) {
-            for (const idx of [i00, i01, i10, i11]) {
-              data[idx] = 128;
-              data[idx + 1] = 128;
-              data[idx + 2] = 128;
-              data[idx + 3] = 255;
-            }
-            continue;
-          }
-
-          let dirX = lut ? lut[col] : px * invW > 1 ? 1 : px * invW;
-          let dirY = dirYBase;
-          if (hasSplay) {
-            const yAtt = splayY * splay;
-            const xAtt = Math.max(0, 1 - (halfW - px) * splayInv) * splay;
-            if (yAtt > 0.001 || xAtt > 0.001) {
-              const prevX = dirX;
-              const prevY = dirY;
-              dirX = prevX * (1 - yAtt);
-              dirY = prevY * (1 - xAtt);
-              const prevLen = Math.sqrt(prevX * prevX + prevY * prevY);
-              const nextLen = Math.sqrt(dirX * dirX + dirY * dirY);
-              if (nextLen > 0.001) {
-                const restore = prevLen / nextLen;
-                dirX *= restore;
-                dirY *= restore;
-              }
-            }
-          }
-
-          let edgeOpacity = 1;
-          if (softEdge) {
-            const ix = px - innerHalfW + innerRadius;
-            const innerSdf =
-              cornerDistance(ix > 0 ? ix : 0, innerEdgeY > 0 ? innerEdgeY : 0) +
-              (ix > innerEdgeY
-                ? ix > 0
-                  ? 0
-                  : ix
-                : innerEdgeY > 0
-                  ? 0
-                  : innerEdgeY) -
-              innerRadius;
-            edgeOpacity = 0.5 * (1 + erf(innerSdf * falloff));
-          }
-
-          let dx = 0.5 * dirX * edgeOpacity;
-          let dy = 0.5 * dirY * edgeOpacity;
-          if (hasEdgeRefract) {
-            const s = sdf < 0 ? Math.max(0, 1 + sdf * erInv) : 0;
-            if (s > 0) {
-              const len = Math.sqrt(dirX * dirX + dirY * dirY);
-              if (len > 1e-4) {
-                const m = 6.75 * s * s * (1 - s);
-                const a = (0.5 * bend * m * edgeOpacity) / len;
-                dx += dirX * a;
-                dy += dirY * a;
-              }
-            }
-          }
-          let specMain = 0;
-          let specCross = 0;
-          if (hasSpecular) {
-            const normX = px * invW > 1 ? 1 : px * invW;
-            const axisMain = Math.min(
-              1,
-              Math.abs(normX * cosA + normY * sinA) * sheenNorm,
-            );
-            const axisCross = Math.min(
-              1,
-              Math.abs(normX * cosA - normY * sinA) * sheenNorm,
-            );
-            if (sheen > 0) {
-              const band = sdf < 0 ? Math.max(0, 1 + sdf * edgeInv) : 0;
-              const b = sheen * Math.pow(band, sheenFalloff);
-              specMain += b * (0.16 + 0.84 * Math.pow(axisMain, 1.6));
-              specCross += b * (0.16 + 0.84 * Math.pow(axisCross, 1.6));
-            }
-            if (glow > 0) {
-              const reach = sdf < 0 ? Math.min(1, -sdf * glowReachInv) : 1;
-              const t = 1 - reach;
-              const g =
-                glow * Math.pow(t * t * (3 - 2 * t), glowFalloff) * edgeOpacity;
-              specMain += g * (0.6 + 0.4 * axisMain);
-              specCross += g * (0.6 + 0.4 * axisCross);
-            }
-            if (specMain > 1) specMain = 1;
-            else if (specMain < -1) specMain = -1;
-            if (specCross > 1) specCross = 1;
-            else if (specCross < -1) specCross = -1;
-          }
-
-          const rPos = encodeAxis(dx);
-          const rNeg = encodeAxis(-dx);
-          const gPos = encodeAxis(dy);
-          const gNeg = encodeAxis(-dy);
-          const bMain = encodeSpec(specMain);
-          const bCross = encodeSpec(specCross);
-
-          data[i00] = rPos;
-          data[i00 + 1] = gPos;
-          data[i00 + 2] = bMain;
-          data[i00 + 3] = 255;
-          data[i01] = rNeg;
-          data[i01 + 1] = gPos;
-          data[i01 + 2] = bCross;
-          data[i01 + 3] = 255;
-          data[i10] = rPos;
-          data[i10 + 1] = gNeg;
-          data[i10 + 2] = bCross;
-          data[i10 + 3] = 255;
-          data[i11] = rNeg;
-          data[i11 + 1] = gNeg;
-          data[i11 + 2] = bMain;
-          data[i11 + 3] = 255;
-        }
-      }
-      ctx.putImageData(image, 0, 0);
-      return canvas.toDataURL();
-    },
-    dispose() {
-      if (canvas) {
-        canvas.width = 0;
-        canvas.height = 0;
-        canvas = null;
-      }
-      ctx = null;
-      image = null;
-      domeLut = null;
-      dome = null;
-      lutDome = -Infinity;
-      lutHalfW = -Infinity;
-      lutHalfH = -Infinity;
-      lutLen = 0;
-      lutDirty = true;
-    },
-  };
-};
-const materialOptics={mapSize:512,strength:.05,depth:.5,dispersion:.32,clipToShape:true,softEdge:true,curvature:.3,splay:0,bend:.45,bendWidth:.16,frost:6,saturate:1.15,brightness:0,specular:1,sheenAngle:45,glow:.1,glowSpread:1,glowFalloff:.5,sheen:.32,sheenWidth:3,sheenFalloff:1.5}
-const materialGenerator=createLensMapGenerator(materialOptics.mapSize)
-const ua=navigator.userAgent,hasUAData=navigator.userAgentData!=null,supportsBackdropUrl=hasUAData||((ua.includes('Chrome/')||ua.includes('Chromium/')||ua.includes('Edg/'))&&!['CriOS','EdgiOS','FxiOS','OPiOS'].some(x=>ua.includes(x))&&!/iPhone|iPad|iPod/.test(ua))
-const makeMaterial=(el)=>{
-const base=()=>`blur(${parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--glass-blur'))||materialOptics.frost}px) saturate(${parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--glass-saturation'))||materialOptics.saturate})`
-if(el.classList.contains('frost-only')){const update=()=>{el.style.backdropFilter=base();el.style.webkitBackdropFilter=base()};update();return {update}}
-const id=`lg-mat-${serial++}`,filter=document.createElementNS(SVG,'filter')
-filter.setAttribute('id',id);filter.setAttribute('filterUnits','userSpaceOnUse');filter.setAttribute('primitiveUnits','userSpaceOnUse');filter.setAttribute('color-interpolation-filters','sRGB')
-filter.innerHTML=`<feFlood flood-color="rgb(128,128,128)" flood-opacity="1" result="mapBg"/><feImage data-role="map" preserveAspectRatio="none" result="rawMap"/><feComposite in="rawMap" in2="mapBg" operator="over" result="map"/><feDisplacementMap in="SourceGraphic" in2="map" data-role="red" xChannelSelector="R" yChannelSelector="G"/><feColorMatrix type="matrix" values="1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0" result="refractR"/><feDisplacementMap in="SourceGraphic" in2="map" data-role="green" xChannelSelector="R" yChannelSelector="G"/><feColorMatrix type="matrix" values="0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 1 0" result="refractG"/><feDisplacementMap in="SourceGraphic" in2="map" data-role="blue" xChannelSelector="R" yChannelSelector="G"/><feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 1 0" result="refractB"/><feComposite in="refractR" in2="refractG" operator="arithmetic" k1="0" k2="1" k3="1" k4="0" result="refractRG"/><feComposite in="refractRG" in2="refractB" operator="arithmetic" k1="0" k2="1" k3="1" k4="0" result="lensOut"/><feColorMatrix in="map" type="matrix" values="0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 1 0 -0.5019607843137255" result="sheenMask"/><feComposite in="sheenMask" in2="lensOut" operator="arithmetic" k1="0" k2="${materialOptics.specular}" k3="1" k4="0"/>`
-const map=filter.querySelector('[data-role=map]'),red=filter.querySelector('[data-role=red]'),green=filter.querySelector('[data-role=green]'),blue=filter.querySelector('[data-role=blue]');defs.append(filter)
-let old='',version=0
-const update=()=>{
-const box=el.getBoundingClientRect(),w=box.width,h=box.height
-if(!w||!h)return
-const r=parseFloat(getComputedStyle(el).borderTopLeftRadius)||0,norm=Math.sqrt((w*w+h*h)/2),scale=materialOptics.strength*norm,margin=Math.ceil(scale*(materialOptics.dispersion>0?1.2:1)*.5+28),shape=`${w}:${h}:${r}`
-if(shape!==old){map.setAttribute('href',materialGenerator.generate({lensHalfWidth:w/2,lensHalfHeight:h/2,borderRadius:r,depth:materialOptics.depth,clipToShape:materialOptics.clipToShape,softEdge:materialOptics.softEdge,sheenAngle:materialOptics.sheenAngle,glow:materialOptics.glow,glowSpread:materialOptics.glowSpread,glowFalloff:materialOptics.glowFalloff,sheen:materialOptics.sheen,sheenWidth:materialOptics.sheenWidth,sheenFalloff:materialOptics.sheenFalloff,curvature:materialOptics.curvature,splay:materialOptics.splay,bend:materialOptics.bend,bendWidth:materialOptics.bendWidth}));map.setAttribute('width',String(w));map.setAttribute('height',String(h));old=shape}
-map.setAttribute('x','0');map.setAttribute('y','0');filter.setAttribute('x',String(-margin));filter.setAttribute('y',String(-margin));filter.setAttribute('width',String(w+2*margin));filter.setAttribute('height',String(h+2*margin));red.setAttribute('scale',String(scale*(1+.22*materialOptics.dispersion)));green.setAttribute('scale',String(scale*(1+.22*.5*materialOptics.dispersion)));blue.setAttribute('scale',String(scale));filter.id=`${id}-v${++version}`
-const value=supportsBackdropUrl?`${base()} url(#${filter.id})`:base()
-el.style.backdropFilter=value;el.style.webkitBackdropFilter=value
-}
-update();const ro=new ResizeObserver(update);ro.observe(el);return {update}
-}
-const mats=[...document.querySelectorAll('.material-target')].map(makeMaterial);window.addEventListener('mdtxtrt:themechange',()=>mats.forEach(m=>m.update()))})()</script>
   <script src="marked.js"></script>
   <script src="turndown.js"></script>
   <script src="app.js"></script>
