@@ -27,7 +27,7 @@ function applyScheme(){
     const header=light?'#f8fbff':'#000000';
     tg.setHeaderColor(header);
     tg.setBackgroundColor(header);
-    if(tg.isVersionAtLeast('7.10'))tg.setBottomBarColor(header);
+    tg.setBottomBarColor(header);
   }
 }
 applyScheme();
@@ -212,7 +212,7 @@ async function verifyTelegram(){
 function setupTelegram(){
   const tg=getTg();
   inTg=true;session='ready';
-  document.documentElement.classList.toggle('tg-shell',tg.isVersionAtLeast('8.0'));
+  document.documentElement.classList.add('tg-shell');
   document.body.classList.add('tg');
   tg.ready();
   tg.expand();
@@ -756,7 +756,6 @@ function mdToBasicHTML(md){
 }
 async function download(name,content,type){
   const tg=getTg();
-  if(inTg&&!tg.isVersionAtLeast('8.0'))throw new Error('Atualize o Telegram para baixar arquivos pelo Mini App');
   const res=await fetch(API+'/api/export',{method:'POST',signal:AbortSignal.timeout(30000),headers:{'content-type':'application/json'},body:JSON.stringify({name,content,type})});
   const data=await readResponse(res);
   if(!res.ok)throw new Error(data.error||'Não foi possível preparar o arquivo');
