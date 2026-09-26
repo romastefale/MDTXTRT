@@ -96,3 +96,14 @@ test('local attachments cannot become unusable downloads',()=>{
   assert.throws(()=>w.eval('htmlToText(document.querySelector("#editor").innerHTML)'),/TXT não comporta/);
   w.close();
 });
+test('insertions respect the caret between blocks',()=>{
+  const w=page();
+  const editor=w.document.querySelector('#editor');
+  editor.innerHTML='<p>Antes</p><p>Depois</p>';
+  const range=w.document.createRange();
+  range.setStartAfter(editor.firstElementChild);range.collapse(true);
+  w.getSelection().removeAllRanges();w.getSelection().addRange(range);
+  w.eval('saveSel();insertFeature("divider")');
+  assert.deepEqual([...editor.children].map(el=>el.tagName),['P','HR','P']);
+  w.close();
+});

@@ -317,14 +317,6 @@ function figure(kind){
   insertHTML('<figure>'+tag+cap+'</figure>');
 }
 function insertFeature(kind){
-  const last = editor.lastElementChild;
-  if(last){
-    const range = document.createRange();
-    range.setStartAfter(last); range.collapse(true);
-    const sel = window.getSelection();
-    sel.removeAllRanges(); sel.addRange(range);
-    savedRange = range.cloneRange();
-  }
   if(kind === 'task') return insertHTML('<ul><li><input type="checkbox">Nova tarefa</li></ul>');
   if(kind === 'ordered') return insertHTML('<ol><li>Novo item</li></ol>');
   if(kind === 'divider') return insertHTML('<hr/>');
