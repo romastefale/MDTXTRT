@@ -24,7 +24,6 @@
       --text:#f5f5f7;
       --muted:#c5c8d8;
       --accent:#a78bfa;
-      --bar:rgba(255,255,255,.08);
       --line:rgba(255,255,255,.18);
       --safe-top:env(safe-area-inset-top,0px);
       --safe-bottom:env(safe-area-inset-bottom,0px);
@@ -47,7 +46,7 @@
     }
     html.light{
       --bg:#f8fbff; --text:#151515; --muted:#5c6478; --accent:#ff6a00;
-      --bar:rgba(255,255,255,.46); --line:rgba(255,255,255,.7);
+      --line:rgba(255,255,255,.7);
     }
     html{color-scheme:light dark}
     html.light{color-scheme:light}
@@ -107,9 +106,9 @@
     .brand{font-weight:700;font-size:15px;letter-spacing:.08em;text-align:center;border:0;background:transparent;color:inherit;padding:8px 12px;margin:0;border-radius:999px;font-family:inherit;appearance:none;-webkit-appearance:none}
     .meta{position:relative;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:var(--gap);height:var(--meta-h);margin:var(--gap) 16px 0}
     .meta .seg:last-child{margin-left:auto}
-    .seg{display:flex;align-items:center;gap:4px;padding:4px;height:44px;border-radius:999px}
+    .seg{display:flex;align-items:center;gap:4px;padding:4px;height:var(--meta-h);border-radius:999px}
     .seg button{
-      width:36px;height:36px;border:0;border-radius:50%;background:transparent;display:grid;place-items:center
+      width:calc(var(--meta-h) - 8px);height:calc(var(--meta-h) - 8px);border:0;border-radius:50%;background:transparent;display:grid;place-items:center
     }
     .seg button.active{background:color-mix(in srgb,var(--text) 12%, transparent)}
     .seg #destBtn{background:color-mix(in srgb,var(--text) 7%,transparent)}
@@ -204,7 +203,7 @@
     }
     html.tg-shell .sheet{position:absolute}
         @keyframes sheet-in{from{opacity:0;transform:translateY(8px) scale(.98)}to{opacity:1;transform:none}}
-    .menu-list{display:flex;flex-direction:column;gap:2px;min-height:0;overflow-x:hidden;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
+    .menu-list{display:flex;flex-direction:column;gap:2px;min-height:0;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain}
     .menu-list > button{display:flex;align-items:center;justify-content:flex-start;text-align:left;width:auto;min-width:100%;white-space:nowrap;min-height:50px;border-radius:20px;border:0;background:transparent;box-shadow:none;padding:4px 18px 4px 6px;font-size:17px;gap:12px}
     .menu-list > button[hidden]{display:none}
     .menu-list > button:hover{background:color-mix(in srgb,var(--text) 7%,transparent)}
