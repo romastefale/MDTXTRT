@@ -245,11 +245,13 @@ function openPanel(sel, anchor){
   const panel = $(sel);
   const ref = anchor || document.activeElement;
   const rect = ref?.getBoundingClientRect?.();
+  const shell = $('.app');
+  const shellRect = shell?.getBoundingClientRect?.() || {top:0,left:0,width:innerWidth};
   sheets.forEach(s => { const el = $(s); el.classList.remove('on'); el.classList.remove('is-top'); });
   const placeTop = sel === '#importMenu' || sel === '#exportMenu' || sel === '#findMenu';
   panel.classList.toggle('is-top', placeTop);
   if(placeTop && rect){
-    panel.style.setProperty('--sheet-top', Math.round(rect.bottom + 8) + 'px');
+    panel.style.setProperty('--sheet-top', Math.round(rect.bottom - shellRect.top + 8) + 'px');
   }else{
     panel.style.removeProperty('--sheet-top');
   }
@@ -257,9 +259,10 @@ function openPanel(sel, anchor){
   panel.classList.add('on');
   const list = panel.querySelector('.menu-list');
   if(list) list.scrollTop = 0;
-  const width = Math.min(panel.offsetWidth || 0, innerWidth - 28) || Math.min(280, innerWidth - 28);
-  const center = rect ? rect.left + rect.width / 2 : innerWidth / 2;
-  const left = Math.max(14, Math.min(innerWidth - width - 14, center - width / 2));
+  const viewportWidth = shellRect.width || innerWidth;
+  const width = Math.min(panel.offsetWidth || 0, viewportWidth - 28) || Math.min(280, viewportWidth - 28);
+  const center = rect ? rect.left - shellRect.left + rect.width / 2 : viewportWidth / 2;
+  const left = Math.max(14, Math.min(viewportWidth - width - 14, center - width / 2));
   panel.style.setProperty('--sheet-left', left + 'px');
   panel.style.setProperty('--sheet-origin', Math.max(20, Math.min(width - 20, center - left)) + 'px');
   panel.style.visibility = '';
@@ -1028,17 +1031,17 @@ const vv=window.visualViewport;
 const fit=()=>{
   if(inTg){
     const tg=getTg(),vh=Math.max(0,Number(tg?.viewportStableHeight||tg?.viewportHeight||window.innerHeight));
-    document.documentElement.style.setProperty('--kb',Math.max(0,window.innerHeight-vh)+'px');
+    document.documentElement.style.setProperty('--kb','0px');
     document.documentElement.style.setProperty('--vv-top','0px');
     document.documentElement.style.setProperty('--vv-h',vh+'px');
     document.documentElement.style.setProperty('--vv-end',vh+'px');
     return;
   }
-  const vh=vv?vv.height:window.innerHeight,top=vv?vv.offsetTop:0;
-  document.documentElement.style.setProperty('--kb',Math.max(0,window.innerHeight-vh-top)+'px');
-  document.documentElement.style.setProperty('--vv-top',Math.max(0,top)+'px');
-  document.documentElement.style.setProperty('--vv-h',Math.max(0,vh)+'px');
-  document.documentElement.style.setProperty('--vv-end',Math.max(0,top+vh)+'px');
+  const vh=Math.max(0,vv?vv.height:window.innerHeight),top=Math.max(0,vv?vv.offsetTop:0);
+  document.documentElement.style.setProperty('--kb','0px');
+  document.documentElement.style.setProperty('--vv-top',top+'px');
+  document.documentElement.style.setProperty('--vv-h',vh+'px');
+  document.documentElement.style.setProperty('--vv-end',top+vh+'px');
 };
 fit();
 vv?.addEventListener('resize',fit);
