@@ -637,7 +637,7 @@ async function publishCurrent(){
   return publishTelegraph();
 }
 async function publishTelegram(){
-  if(!editor.textContent.trim()){ showToast('Escreva algo antes de enviar'); return; }
+  if(!editor.childNodes.length){ showToast('Escreva algo antes de enviar'); return; }
   const initData = getTg()?.initData || '';
   if(!initData){ showToast('Abra pelo bot no Telegram'); return; }
   try{
