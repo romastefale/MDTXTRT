@@ -38,7 +38,6 @@ function page(tg,render=false,setup={}){
   w.TextEncoder = TextEncoder;
   Object.defineProperty(w.crypto,'randomUUID',{value:randomUUID});
   if(setup.indexedDB)Object.defineProperty(w,'indexedDB',{value:setup.indexedDB,configurable:true});
-  if(setup.visualViewport)Object.defineProperty(w,'visualViewport',{value:setup.visualViewport,configurable:true});
   if(setup.objectURL){w.URL.createObjectURL=setup.objectURL;w.URL.revokeObjectURL=()=>{};}
   for(const [key,value] of Object.entries(setup.local||{}))w.localStorage.setItem(key,value);
   w.__requests=[];
@@ -65,6 +64,21 @@ function page(tg,render=false,setup={}){
   w.eval(readFileSync(new URL('turndown.js',root),'utf8'));
   w.eval(readFileSync(new URL('app.js',root),'utf8'));
   return w;
+}
+const tick=()=>new Promise(resolve=>setTimeout(resolve,0));
+async function dialogs(w,promise,answers){
+  const d=w.document;
+  for(const answer of answers){
+    await tick();
+    assert.equal(d.querySelector('#dialogMenu').classList.contains('on'),true);
+    if(answer===null)d.querySelector('#dialogCancel').click();
+    else{
+      const input=d.querySelector('#dialogInput');
+      if(!input.hidden)input.value=String(answer);
+      d.querySelector('#dialogOk').click();
+    }
+  }
+  await promise;
 }
 test('editor starts and destination controls work',()=>{
   const w=page();
@@ -178,9 +192,8 @@ test('Markdown import, editor replacement and export retain supported structures
   assert.match(round.textContent,/feito/);
   w.close();
 });
-test('TXT import stays literal and lossy export requires an explicit choice',async()=>{
-  const w=page(),d=w.document;let saved,asked=0,allow=false;
-  w.confirm=()=>{asked++;return allow};
+test('TXT import stays literal and lossy export requires an internal confirmation sheet',async()=>{
+  const w=page(),d=w.document;let saved;
   w.HTMLAnchorElement.prototype.click=function(){saved={name:this.download,href:this.href}};
   const source='literal <texto>\nlinha dois\n';
   Object.defineProperty(d.querySelector('#fileInput'),'files',{configurable:true,value:[{name:'texto.txt',text:async()=>source}]});
@@ -192,9 +205,16 @@ test('TXT import stays literal and lossy export requires an explicit choice',asy
   assert.equal(w.__exportRequest.type,'text/plain');
   assert.equal(output,source);
   const editor=d.querySelector('#editor');editor.innerHTML='<p><strong>formato</strong></p>';
+  const before=w.__requests.filter(x=>x.url.endsWith('/api/export')).length;
   d.querySelector('#exportTxtBtn').click();
-  assert.equal(asked,1);
-  allow=true;d.querySelector('#exportTxtBtn').click();
+  assert.equal(d.querySelector('#dialogMenu').classList.contains('on'),true);
+  assert.equal(d.querySelector('#dialogInput').hidden,true);
+  d.querySelector('#dialogCancel').click();
+  await tick();
+  assert.equal(w.__requests.filter(x=>x.url.endsWith('/api/export')).length,before);
+  d.querySelector('#exportTxtBtn').click();
+  assert.equal(d.querySelector('#dialogMenu').classList.contains('on'),true);
+  d.querySelector('#dialogOk').click();
   await new Promise(resolve=>setTimeout(resolve,10));
   output=w.__exportRequest.content;
   assert.equal(output,'formato');
@@ -253,16 +273,17 @@ test('Mini App destination switch publishes Telegraph nodes and retains the retu
   assert.equal(JSON.parse(w.localStorage.getItem('rmdtxtml')).telegraphPath,'owned-page');
   w.close();
 });
-test('fullscreen Mini App uses Telegram safe areas and stable viewport without manual header offsets',async()=>{
+test('fullscreen Mini App delegates viewport and safe areas to official Telegram CSS variables',async()=>{
   const w=page({fetch:async()=>({ok:true,status:404,json:async()=>({})}),isFullscreen:true,viewportStableHeight:620,safeAreaInset:{top:59,bottom:34,left:0,right:0},contentSafeAreaInset:{top:44,bottom:0,left:8,right:7}});
   await new Promise(r=>setTimeout(r,10));
   const root=w.document.documentElement;
-  assert.equal(root.style.getPropertyValue('--tg-top'),'59px');
-  assert.equal(root.style.getPropertyValue('--tg-bottom'),'34px');
-  assert.equal(root.style.getPropertyValue('--tg-left'),'8px');
-  assert.equal(root.style.getPropertyValue('--tg-right'),'7px');
-  assert.equal(root.style.getPropertyValue('--vv-h'),'620px');
-  assert.equal(root.style.getPropertyValue('--kb'),'0px');
+  const html=readFileSync(new URL('index.html',root),'utf8');
+  const app=readFileSync(new URL('app.js',root),'utf8');
+  assert.equal(root.classList.contains('tg-shell'),true);
+  assert.match(html,/--view-h:var\(--tg-viewport-stable-height,100dvh\)/);
+  assert.match(html,/--tg-safe-area-inset-top/);
+  assert.match(html,/--tg-content-safe-area-inset-top/);
+  assert.doesNotMatch(app,/safeAreaInset|contentSafeAreaInset|style\.setProperty\('--tg-/);
   w.close();
 });
 test('dark glass has a single restrained edge and paints the full page while approved light styling stays unchanged',()=>{
@@ -310,13 +331,14 @@ test('rapid OS and Telegram theme changes preserve working panels, commands and 
   assert.equal(d.querySelector('#plusMenu').classList.contains('on'),false);
   w.close();
 });
-test('invalid Telegram session never enters Mini App mode and system theme changes remain usable',async()=>{
+test('invalid Telegram session blocks publishing without discarding Telegram visual geometry',async()=>{
   const w=page({fetch:async()=>({ok:false,status:403})});
   await new Promise(resolve=>setTimeout(resolve,5));
   const root=w.document.documentElement;
   assert.equal(w.document.body.classList.contains('tg'),false);
-  assert.equal(root.classList.contains('dark'),false);
-  w.__setSystemLight(false);
+  assert.equal(root.classList.contains('tg-shell'),true);
+  assert.equal(root.classList.contains('dark'),true);
+  w.__setSystemLight(true);
   assert.equal(root.classList.contains('dark'),true);
   assert.equal(w.getComputedStyle(root).getPropertyValue('--glass-blur').trim(),'10px');
   w.document.querySelector('#plusBtn').click();
@@ -365,20 +387,15 @@ test('ordered list converts the current paragraph without splitting or losing te
   assert.equal(editor.querySelector('p ol'),null);
   w.close();
 });
-test('button insertion exposes only ready types and validates callback payload',()=>{
+test('button insertion uses internal dialogs and validates callback payload',async()=>{
   const w=page();
   const editor=w.document.querySelector('#editor');
-  w.prompt=()=> 'switch_inline_query';
-  w.eval('insertFeature("button")');
+  await dialogs(w,w.eval('insertFeature("button")'),['switch_inline_query']);
   assert.equal(editor.querySelector('tg-button'),null);
-  const answers=['callback_data','Abrir','link','ação'];
-  w.prompt=()=>answers.shift();
-  w.eval('insertFeature("button")');
+  await dialogs(w,w.eval('insertFeature("button")'),['callback_data','Abrir','link','ação']);
   assert.equal(editor.querySelector('tg-button')?.getAttribute('data'),'ação');
   assert.match(w.eval('buildRich().rich_message.html'),/type="callback_data"/);
-  const tooLong=['callback_data','Outro','primary','a'.repeat(65)];
-  w.prompt=()=>tooLong.shift();
-  w.eval('insertFeature("button")');
+  await dialogs(w,w.eval('insertFeature("button")'),['callback_data','Outro','primary','a'.repeat(65)]);
   assert.equal(editor.querySelectorAll('tg-button').length,1);
   w.close();
 });
@@ -506,12 +523,11 @@ test('closing or hiding the page saves the last edit without waiting for debounc
   assert.equal(JSON.parse(w.localStorage.getItem('rmdtxtml')).html,e.innerHTML);
   w.close();
 });
-test('cancelling insertion dialogs at every step leaves the document intact',()=>{
+test('cancelling insertion dialogs at every step leaves the document intact',async()=>{
   const cases={table:[''],reference:['nota','texto'],time:['1700000000','wDT','Data'],emoji:['123','🙂'],map:['0','0','14',''],image:['https://example.com/image.jpg','legenda','crédito'],collage:['https://example.com/a.jpg',''],button:['url','Abrir','primary','https://example.com']};
   for(const [kind,answers] of Object.entries(cases))for(let stop=0;stop<answers.length;stop++){
     const w=page(),e=w.document.querySelector('#editor');e.innerHTML='<p>Preservar</p>';
-    let i=0;w.prompt=()=>i===stop?null:answers[i++];
-    w.eval(`insertFeature('${kind}')`);
+    await dialogs(w,w.eval(`insertFeature('${kind}')`),answers.slice(0,stop).concat(null));
     assert.equal(e.innerHTML,'<p>Preservar</p>',kind+' etapa '+stop);
     w.close();
   }
@@ -529,10 +545,10 @@ test('a second local attachment and an oversized attachment never remove the fir
   assert.equal(d.querySelector('#editor').innerHTML,original);assert.equal(input.value,'');
   w.close();
 });
-test('oversized gallery is rejected rather than silently truncated',()=>{
+test('oversized gallery is rejected rather than silently truncated',async()=>{
   const w=page(),e=w.document.querySelector('#editor');e.innerHTML='<p>Original</p>';
-  w.prompt=()=>Array.from({length:51},(_,i)=>'https://example.com/'+i+'.jpg').join('\n');
-  w.eval('insertFeature("collage")');
+  const value=Array.from({length:51},(_,i)=>'https://example.com/'+i+'.jpg').join('\n');
+  await dialogs(w,w.eval('insertFeature("collage")'),[value]);
   assert.equal(e.innerHTML,'<p>Original</p>');
   assert.equal(w.document.querySelector('#toast').textContent,'Use no máximo 50 itens por galeria');
   w.close();
@@ -557,32 +573,45 @@ test('timed-out publication releases the button and preserves the document',asyn
   w.close();
 });
 
-test('browser viewport follows VisualViewport while Telegram geometry remains separate',()=>{
-  const listeners={};
-  const vv={height:480,offsetTop:24,addEventListener(name,fn){listeners[name]=fn;}};
-  const w=page(undefined,false,{visualViewport:vv});
-  const root=w.document.documentElement;
-  assert.equal(root.style.getPropertyValue('--vv-top'),'24px');
-  assert.equal(root.style.getPropertyValue('--vv-h'),'480px');
-  assert.equal(root.style.getPropertyValue('--kb'),'0px');
-  vv.height=420;vv.offsetTop=12;listeners.resize();
-  assert.equal(root.style.getPropertyValue('--vv-h'),'420px');
-  assert.equal(root.style.getPropertyValue('--vv-top'),'12px');
+test('browser shell uses native dynamic viewport with one scroll surface and glass overlays',()=>{
+  const w=page(),d=w.document;
+  const app=readFileSync(new URL('app.js',root),'utf8');
+  const html=readFileSync(new URL('index.html',root),'utf8');
+  assert.equal(w.getComputedStyle(d.querySelector('.app')).position,'relative');
+  assert.equal(w.getComputedStyle(d.querySelector('.chrome-top')).position,'absolute');
+  assert.equal(w.getComputedStyle(d.querySelector('.bar-wrap')).position,'absolute');
+  assert.equal(w.getComputedStyle(d.querySelector('.canvas')).overflowY,'auto');
+  assert.equal(d.querySelector('.chrome-top').closest('.app'),d.querySelector('.app'));
+  assert.equal(d.querySelector('.bar-wrap').closest('.app'),d.querySelector('.app'));
+  assert.equal(d.querySelector('#plusMenu').closest('.app'),d.querySelector('.app'));
+  assert.match(html,/--view-h:100dvh/);
+  assert.match(html,/env\(safe-area-inset-top,0px\)/);
+  assert.match(html,/--head-inset:calc\(var\(--safe-top\).*var\(--topbar-h\).*var\(--meta-h\)/);
+  assert.match(html,/--foot-inset:calc\(var\(--safe-bottom\).*var\(--bar-h\)/);
+  assert.match(html,/padding:var\(--head-inset\).*var\(--foot-inset\)/);
+  assert.doesNotMatch(app,/visualViewport|--vv-|--kb|window\.innerHeight|safeAreaInset|contentSafeAreaInset/);
   w.close();
 });
 
-test('visual viewport is one bounded shell with chrome outside the editor scroller',()=>{
-  const listeners={};
-  const vv={height:480,offsetTop:24,addEventListener(name,fn){listeners[name]=fn;}};
-  const w=page(undefined,false,{visualViewport:vv}),d=w.document;
-  assert.equal(w.getComputedStyle(d.querySelector('.app')).position,'absolute');
-  assert.equal(w.getComputedStyle(d.querySelector('.chrome-top')).position,'relative');
-  assert.equal(w.getComputedStyle(d.querySelector('.bar-wrap')).position,'relative');
-  assert.equal(w.getComputedStyle(d.querySelector('.canvas')).overflow,'auto');
-  assert.equal(d.querySelector('.bar-wrap').closest('.app'),d.querySelector('.app'));
-  assert.equal(d.querySelector('#plusMenu').closest('.app'),d.querySelector('.app'));
-  assert.equal(d.querySelector('.app').style.bottom,'');
+test('link editing stays inside the Liquid Glass sheet and preserves the selected range',async()=>{
+  const w=page(),d=w.document,e=d.querySelector('#editor');
+  e.innerHTML='<p>texto selecionado</p>';
+  const text=e.querySelector('p').firstChild,range=d.createRange();
+  range.setStart(text,0);range.setEnd(text,5);w.getSelection().removeAllRanges();w.getSelection().addRange(range);d.dispatchEvent(new w.Event('selectionchange'));
+  d.querySelector('#linkBtn').click();
+  assert.equal(d.querySelector('#dialogMenu').classList.contains('on'),true);
+  assert.equal(d.querySelector('#dialogInput').hidden,false);
+  d.querySelector('#dialogInput').value='https://example.com/';
+  d.querySelector('#dialogOk').click();
+  await tick();
+  assert.equal(e.querySelector('a')?.textContent,'texto');
+  assert.equal(e.querySelector('a')?.href,'https://example.com/');
   w.close();
+});
+
+test('editor uses no native blocking prompt confirm or alert dialogs',()=>{
+  const app=readFileSync(new URL('app.js',root),'utf8');
+  assert.doesNotMatch(app,/\b(?:prompt|confirm|alert)\s*\(/);
 });
 
 test('local attachment survives editor reload through IndexedDB and restores its object URL',async()=>{
