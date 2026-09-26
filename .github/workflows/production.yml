@@ -1,13 +1,11 @@
-name: Behavioral checks
+name: Post-merge verification
 on:
   push:
-    branches: [main]
-  pull_request:
     branches: [main]
 permissions:
   contents: read
 concurrency:
-  group: behavioral-${{ github.workflow }}-${{ github.ref }}
+  group: post-merge-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 jobs:
   test:
