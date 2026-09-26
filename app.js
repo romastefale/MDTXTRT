@@ -47,8 +47,10 @@ function setupTelegram(){
   tg.ready(); tg.expand();
   if(!tg.isFullscreen)tg.requestFullscreen?.();
   const applySafe = () => {
-    const top = Math.max(tg.contentSafeAreaInset?.top || 0, tg.safeAreaInset?.top || 0);
+    const safe = tg.safeAreaInset?.top || 0;
+    const top = tg.isFullscreen ? Math.max(safe + 52, tg.contentSafeAreaInset?.top || 0) : Math.max(safe, tg.contentSafeAreaInset?.top || 0);
     document.documentElement.style.setProperty('--tg-top', top + 'px');
+    document.documentElement.style.setProperty('--tg-bottom', Math.max(tg.contentSafeAreaInset?.bottom || 0, tg.safeAreaInset?.bottom || 0) + 'px');
   };
   applySafe(); applyScheme();
   tg.onEvent?.('safeAreaChanged', applySafe);

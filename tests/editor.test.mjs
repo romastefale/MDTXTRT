@@ -97,6 +97,13 @@ test('Mini App mode waits for backend initData validation',async()=>{
   assert.equal(hidden,1);
   w.close();
 });
+test('fullscreen Mini App keeps menus below Telegram controls',async()=>{
+  const w=page({fetch:async()=>({ok:true}),isFullscreen:true,safeAreaInset:{top:59,bottom:34},contentSafeAreaInset:{top:44,bottom:0}});
+  await new Promise(r=>setTimeout(r,5));
+  assert.equal(w.document.documentElement.style.getPropertyValue('--tg-top'),'111px');
+  assert.equal(w.document.documentElement.style.getPropertyValue('--tg-bottom'),'34px');
+  w.close();
+});
 test('Markdown preserves embeds and expandable quotes, rejects styles',()=>{
   const w=page();
   const html=w.eval('mdToBasicHTML("<figure><iframe src=\\\"https://example.com/\\\"></iframe></figure>\\n\\n<blockquote expandable>Mais</blockquote>")');
