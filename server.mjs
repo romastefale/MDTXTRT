@@ -7,28 +7,43 @@ import { extname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = fileURLToPath(new URL(".", import.meta.url));
-const PORT = Number(process.env.PORT) || 8080;
 const BOT_TOKEN_RE = /^\d{6,}:[A-Za-z0-9_-]{20,}$/;
-const ALLOW_ORIGINS = new Set([
-  "https://romastefale.github.io",
-  "https://mdtxtrt.up.railway.app",
-]);
-const DATA = (process.env.RAILWAY_VOLUME_MOUNT_PATH || "/data").replace(/\/+$/, "") || "/data";
+function required(name){
+  const value=String(process.env[name]??"").trim();
+  if(!value)throw new Error("Configuração ausente: "+name);
+  return value;
+}
+function httpsUrl(name){
+  let url;
+  try{url=new URL(required(name));}catch{throw new Error("Configuração inválida: "+name);}
+  if(url.protocol!=="https:")throw new Error("Configuração inválida: "+name);
+  return url;
+}
+const PORT=Number(required("PORT"));
+if(!Number.isInteger(PORT)||PORT<1||PORT>65535)throw new Error("Configuração inválida: PORT");
+const DATA=required("RAILWAY_VOLUME_MOUNT_PATH").replace(/\/+$/,"");
+if(!DATA.startsWith("/"))throw new Error("Configuração inválida: RAILWAY_VOLUME_MOUNT_PATH");
+const MINI_APP=new URL(httpsUrl("MINI_APP_URL"));
+const PUBLIC_BASE=new URL(httpsUrl("PUBLIC_BASE_URL"));
+const MINI_APP_URL=MINI_APP.href;
+const WEBHOOK_BASE=PUBLIC_BASE.href.replace(/\/+$/,"");
+const ALLOW_ORIGINS=new Set([MINI_APP.origin,PUBLIC_BASE.origin]);
 const TELEGRAPH_FILE = DATA + "/telegraph-token";
 const PAGES_FILE = TELEGRAPH_FILE + "-pages.json";
 const HANDOFF_DIR = DATA + "/handoffs";
 const HANDOFF_TTL = 15 * 60 * 1000;
 const DOWNLOAD_TTL = 5 * 60 * 1000;
 const downloads = new Map();
-let telegraphToken = (process.env.TELEGRAPH_ACCESS_TOKEN || "").trim();
+const BOT_TOKEN=required("TOKEN");
+if(!BOT_TOKEN_RE.test(BOT_TOKEN))throw new Error("Configuração inválida: TOKEN");
+let telegraphToken=String(process.env.TELEGRAPH_ACCESS_TOKEN??"").trim();
 let telegraphQueue = Promise.resolve();
 let botLink;
 mkdirSync(HANDOFF_DIR, { recursive: true });
-if (!telegraphToken && existsSync(TELEGRAPH_FILE)) {
-  try { telegraphToken = readFileSync(TELEGRAPH_FILE, "utf8").trim(); } catch {}
+if(!telegraphToken&&existsSync(TELEGRAPH_FILE)){
+  telegraphToken=readFileSync(TELEGRAPH_FILE,"utf8").trim();
+  if(!telegraphToken)throw new Error("Credencial Telegraph persistida está vazia");
 }
-const MINI_APP_URL = (process.env.MINI_APP_URL || "https://romastefale.github.io/MDTXTRT/").trim();
-const WEBHOOK_BASE = (process.env.PUBLIC_BASE_URL || "https://" + (process.env.RAILWAY_PUBLIC_DOMAIN || "mdtxtrt.up.railway.app")).replace(/\/+$/, "");
 const BOT_COMMANDS = [
   { command: "start", description: "Abrir o MDTXTRT" },
   { command: "app", description: "Abrir o Mini App" },
@@ -59,11 +74,7 @@ const PUBLIC = new Set([
   ...["anchor","attach_file","calculate","code","format_list_numbered","functions","horizontal_rule","image","ink_highlighter","location_on","markdown","mood","movie","music_note","schedule","search","slideshow","sticky_note_2","strikethrough_s","subscript","superscript","text_fields","view_comfy","visibility_off","web"].map(name=>`icons/${name}.svg`),
 ]);
 
-function botToken() {
-  const token = (process.env.TOKEN || "").trim();
-  if (!token || !BOT_TOKEN_RE.test(token)) return "";
-  return token;
-}
+function botToken(){return BOT_TOKEN;}
 
 function corsOrigin(req) {
   const origin = req.headers.origin || "";
@@ -170,6 +181,7 @@ function cleanFileName(value, fallback = "document.txt") {
 
 function draftValid(draft) {
   if (!draft || typeof draft !== "object" || Array.isArray(draft)) throw new Error("Rascunho inválido");
+  if(draft.version!==2)throw new Error("Versão do rascunho incompatível");
   const json = JSON.stringify(draft);
   if (Buffer.byteLength(json, "utf8") > 350_000) throw new Error("Rascunho grande demais");
   if (typeof draft.html !== "string" || Buffer.byteLength(draft.html, "utf8") > 160_000) throw new Error("Conteúdo do rascunho inválido");
@@ -205,11 +217,9 @@ function handoffFiles(token) {
   return { meta: HANDOFF_DIR + "/" + token + ".json", file: HANDOFF_DIR + "/" + token + ".bin" };
 }
 
-function dropHandoff(token) {
-  const paths = handoffFiles(token);
-  for (const path of [paths.meta, paths.file]) {
-    try { unlinkSync(path); } catch {}
-  }
+function dropHandoff(token){
+  const paths=handoffFiles(token);
+  for(const path of [paths.meta,paths.file])if(existsSync(path))unlinkSync(path);
 }
 
 function readHandoff(token) {
@@ -217,7 +227,7 @@ function readHandoff(token) {
   const paths = handoffFiles(token);
   if (!existsSync(paths.meta)) return null;
   let meta;
-  try { meta = JSON.parse(readFileSync(paths.meta, "utf8")); } catch { dropHandoff(token); return null; }
+  try{meta=JSON.parse(readFileSync(paths.meta,"utf8"));}catch(error){throw new Error("Transferência persistida inválida",{cause:error});}
   if (!meta?.expires || meta.expires < Date.now()) { dropHandoff(token); return null; }
   return meta;
 }
@@ -687,7 +697,7 @@ async function publishTelegraphOne(title, content, path = "", user = "", doc = "
 
 function publishTelegraph(...args) {
   const next = telegraphQueue.then(() => publishTelegraphOne(...args));
-  telegraphQueue = next.catch(() => {});
+  telegraphQueue=next.catch(error=>{console.error("Telegraph queue",error);});
   return next;
 }
 
@@ -1006,6 +1016,6 @@ server.listen(PORT, "0.0.0.0", () => {
     await telegraphCall("getAccountInfo",{access_token:token,fields:'["short_name","page_count"]'});
     console.log("Telegraph ready");
   });
-  telegraphQueue=ready.catch(()=>{});
+  telegraphQueue=ready.catch(error=>{console.error("Telegraph startup queue",error);});
   void ready.catch(error=>console.error("Telegraph startup",error));
 });
