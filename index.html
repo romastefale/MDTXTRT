@@ -35,9 +35,7 @@
       --bar-h:48px;
       --head-inset:calc(var(--safe-top) + var(--gap) + var(--topbar-h) + var(--gap) + var(--meta-h) + var(--gap));
       --foot-inset:calc(var(--safe-bottom) + var(--gap) + var(--bar-h) + var(--gap));
-      --vv-top:0px;
-      --vv-height:100dvh;
-      --vv-bottom-shift:0px;
+      --kb:0px;
     }
     html.tg-shell{
       --safe-top:max(var(--tg-safe-area-inset-top),var(--tg-content-safe-area-inset-top));
@@ -63,7 +61,7 @@
     html.dark{color-scheme:dark}
     *{box-sizing:border-box}
     html,body{margin:0;width:100%;min-height:100%;touch-action:pan-x pan-y;accent-color:var(--accent);caret-color:var(--accent);background-color:var(--bg)}
-    html{overflow-x:hidden;overflow-y:auto;overscroll-behavior-y:none;scroll-padding-block:var(--head-inset) var(--foot-inset)}
+    html{overflow-x:hidden;overflow-y:auto;overscroll-behavior-y:none;scroll-padding-top:var(--head-inset);scroll-padding-bottom:calc(var(--foot-inset) + var(--kb))}
     body{
       position:relative;min-height:100dvh;padding:0;color:var(--text);background:var(--bg);overflow:visible;
       font:16px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;
@@ -117,8 +115,8 @@
       overflow:visible;background:transparent;
     }
     html.tg-shell .app{position:absolute;inset:0;height:100%;min-height:0;overflow:hidden}
-    .chrome-top{position:fixed;inset:0 0 auto 0;z-index:20;padding:var(--safe-top) var(--safe-right) var(--gap) var(--safe-left);pointer-events:none;translate:0 var(--vv-top)}
-    html.tg-shell .chrome-top{position:absolute;translate:none}
+    .chrome-top{position:fixed;inset:0 0 auto 0;z-index:20;padding:var(--safe-top) var(--safe-right) var(--gap) var(--safe-left);pointer-events:none}
+    html.tg-shell .chrome-top{position:absolute}
     .chrome-top .topbar,.chrome-top .meta{pointer-events:auto}
     body.tg .topbar{display:none}
     .topbar{position:relative;z-index:1;display:flex;align-items:center;justify-content:center;height:var(--topbar-h);margin:var(--gap) 12px 0;padding:0 12px}
@@ -179,11 +177,11 @@
     .editor tg-collage,.editor tg-slideshow{display:flex;flex-wrap:wrap;gap:8px;margin:1em 0}
     .editor tg-spoiler{background:color-mix(in srgb,var(--text) 18%,transparent);border-radius:4px}
     .bar-wrap{
-      position:fixed;left:0;right:0;bottom:0;z-index:20;
+      position:fixed;left:0;right:0;bottom:var(--kb);z-index:20;
       padding:var(--gap) max(12px,var(--safe-right)) calc(var(--safe-bottom) + var(--gap)) max(12px,var(--safe-left));
-      background:transparent;pointer-events:none;translate:0 var(--vv-bottom-shift);
+      background:transparent;pointer-events:none;
     }
-    html.tg-shell .bar-wrap{position:absolute;translate:none}
+    html.tg-shell .bar-wrap{position:absolute;bottom:0}
     .bar{
       position:relative;z-index:1;max-width:none;margin:0;
       display:flex;align-items:center;
@@ -204,10 +202,9 @@
     .seg .export{width:36px;height:36px;border:0;background:transparent;display:grid;place-items:center;padding:0;border-radius:50%}
     .seg .action-dot{width:36px;height:36px}
     .sheet{
-      position:fixed;inset:auto 12px calc(var(--foot-inset) + 4px);z-index:40;
-      translate:0 var(--vv-bottom-shift);
+      position:fixed;inset:auto 12px calc(var(--foot-inset) + var(--kb) + 4px);z-index:40;
       width:auto;max-width:420px;margin:0 auto;
-      max-height:calc(var(--vv-height) - var(--safe-top) - var(--foot-inset) - 16px);
+      max-height:calc(100dvh - var(--safe-top) - var(--foot-inset) - var(--kb) - 16px);
       overflow:hidden;padding:8px;border:0;border-radius:30px;
       color:var(--text);
       transform-origin:50% 100%
@@ -216,11 +213,11 @@
     .sheet:popover-open,.sheet[open]{display:flex;flex-direction:column;animation:sheet-in .16s cubic-bezier(.2,.75,.25,1)}
     #importMenu,#exportMenu,#findMenu{
       top:var(--head-inset);bottom:auto;
-      max-height:calc(var(--vv-height) - var(--head-inset) - var(--safe-bottom) - 12px);
-      transform-origin:50% 0;translate:0 var(--vv-top)
+      max-height:calc(100dvh - var(--head-inset) - var(--safe-bottom) - 12px);
+      transform-origin:50% 0
     }
-    html.tg-shell .sheet{position:absolute;translate:none;max-height:calc(var(--tg-viewport-stable-height) - var(--safe-top) - var(--foot-inset) - 16px)}
-    html.tg-shell #importMenu,html.tg-shell #exportMenu,html.tg-shell #findMenu{max-height:calc(var(--tg-viewport-stable-height) - var(--head-inset) - var(--safe-bottom) - 12px);translate:none}
+    html.tg-shell .sheet{position:absolute;bottom:calc(var(--foot-inset) + 4px);max-height:calc(var(--tg-viewport-stable-height) - var(--safe-top) - var(--foot-inset) - 16px)}
+    html.tg-shell #importMenu,html.tg-shell #exportMenu,html.tg-shell #findMenu{max-height:calc(var(--tg-viewport-stable-height) - var(--head-inset) - var(--safe-bottom) - 12px)}
     #dialogMenu::backdrop{background:transparent}
     @keyframes sheet-in{from{opacity:0;transform:translateY(8px) scale(.98)}to{opacity:1;transform:none}}
     .menu-list{display:flex;flex-direction:column;gap:2px;min-height:0;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain}
@@ -233,11 +230,11 @@
     html.light .sheet-ico{background:rgba(0,0,0,.055)}
     .sheet-ico .ui-icon,.sheet-ico svg{width:20px;height:20px}
     .toast{
-      position:fixed;left:50%;bottom:calc(var(--foot-inset) + 8px);
-      transform:translateX(-50%);translate:0 var(--vv-bottom-shift);z-index:50;display:none;
+      position:fixed;left:50%;bottom:calc(var(--foot-inset) + var(--kb) + 8px);
+      transform:translateX(-50%);z-index:50;display:none;
       padding:8px 12px;border-radius:999px;font-size:12px
     }
-    html.tg-shell .toast{position:absolute;translate:none}
+    html.tg-shell .toast{position:absolute;bottom:calc(var(--foot-inset) + 8px)}
     .toast.on{display:block}
     .tools{display:flex;gap:8px;align-items:center;padding:10px;max-width:100%}
     .hint{max-width:280px;white-space:normal;margin:8px 12px 12px;font-size:14px}
