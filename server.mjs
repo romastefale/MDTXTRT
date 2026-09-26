@@ -382,7 +382,7 @@ async function telegraphCall(method, body) {
   return json.result;
 }
 
-async function publishTelegraph(title, content) {
+async function publishTelegraph(title, content, path = "") {
   const pageTitle = String(title || "").trim();
   if (!pageTitle) throw new Error("Dê um nome à página antes de publicar");
   if (pageTitle.length > 256) throw new Error("O nome da página deve ter até 256 caracteres");
@@ -392,13 +392,18 @@ async function publishTelegraph(title, content) {
     const account = await telegraphCall("createAccount", { short_name: "MDTXTRT", author_name: "MDTXTRT" });
     telegraphToken = account.access_token;
   }
-  return telegraphCall("createPage", {
+  const body = {
     access_token: telegraphToken,
     title: pageTitle,
     author_name: "MDTXTRT",
     content: JSON.stringify(content),
     return_content: "false",
-  });
+  };
+  if (String(path || "").trim()) {
+    body.path = String(path).trim();
+    return telegraphCall("editPage", body);
+  }
+  return telegraphCall("createPage", body);
 }
 
 function safeFile(urlPath) {
@@ -502,10 +507,10 @@ const server = createServer(async (req, res) => {
       }
       try {
         const body = await readJson(req);
-        if (!body || typeof body !== "object" || typeof body.title !== "string" || !Array.isArray(body.content)) throw new Error("Os dados da página estão incompletos");
-        const page = await publishTelegraph(body.title, body.content);
+        if (!body || typeof body !== "object" || typeof body.title !== "string" || !Array.isArray(body.content) || (body.path !== undefined && typeof body.path !== "string")) throw new Error("Os dados da página estão incompletos");
+        const page = await publishTelegraph(body.title, body.content, body.path || "");
         res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
-        res.end(JSON.stringify({ url: page.url }));
+        res.end(JSON.stringify({ url: page.url, path: page.path }));
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Não foi possível publicar no Telegraph";
         const code = /nome (?:da|à) página|escreva algo|excede o limite|solicitação|dados da página|não foi possível ler/i.test(msg) ? 400 : 502;
