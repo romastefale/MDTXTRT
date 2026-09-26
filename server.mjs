@@ -21,8 +21,7 @@ function httpsUrl(name){
 }
 const PORT=Number(required("PORT"));
 if(!Number.isInteger(PORT)||PORT<1||PORT>65535)throw new Error("Configuração inválida: PORT");
-const DATA=required("RAILWAY_VOLUME_MOUNT_PATH").replace(/\/+$/,"");
-if(!DATA.startsWith("/"))throw new Error("Configuração inválida: RAILWAY_VOLUME_MOUNT_PATH");
+const DATA="/data";
 const MINI_APP=new URL(httpsUrl("MINI_APP_URL"));
 const PUBLIC_BASE=new URL(httpsUrl("PUBLIC_BASE_URL"));
 const MINI_APP_URL=MINI_APP.href;
