@@ -448,3 +448,45 @@ test('list and quote families open from their toolbar and honor destination',()=
   assert.equal(d.querySelector('#openAppBtn').hidden,false);
   w.close();
 });
+
+test('closing or hiding the page saves the last edit without waiting for debounce',()=>{
+  const w=page(),d=w.document,e=d.querySelector('#editor');
+  e.innerHTML='<p>Última edição</p>';e.dispatchEvent(new w.Event('input',{bubbles:true}));
+  w.dispatchEvent(new w.Event('pagehide'));
+  assert.equal(JSON.parse(w.localStorage.getItem('rmdtxtml')).html,e.innerHTML);
+  e.innerHTML='<p>Edição antes de trocar de aplicativo</p>';e.dispatchEvent(new w.Event('input',{bubbles:true}));
+  Object.defineProperty(d,'visibilityState',{value:'hidden'});d.dispatchEvent(new w.Event('visibilitychange'));
+  assert.equal(JSON.parse(w.localStorage.getItem('rmdtxtml')).html,e.innerHTML);
+  w.close();
+});
+test('cancelling insertion dialogs at every step leaves the document intact',()=>{
+  const cases={table:[''],reference:['nota','texto'],time:['1700000000','wDT','Data'],emoji:['123','🙂'],map:['0','0','14',''],image:['https://example.com/image.jpg','legenda','crédito'],collage:['https://example.com/a.jpg',''],button:['url','Abrir','primary','https://example.com']};
+  for(const [kind,answers] of Object.entries(cases))for(let stop=0;stop<answers.length;stop++){
+    const w=page(),e=w.document.querySelector('#editor');e.innerHTML='<p>Preservar</p>';
+    let i=0;w.prompt=()=>i===stop?null:answers[i++];
+    w.eval(`insertFeature('${kind}')`);
+    assert.equal(e.innerHTML,'<p>Preservar</p>',kind+' etapa '+stop);
+    w.close();
+  }
+});
+test('a second local attachment and an oversized attachment never remove the first',()=>{
+  const w=page(),d=w.document,input=d.querySelector('#mediaInput');
+  let files=[new w.File(['one'],'first.png',{type:'image/png'})],revoked=[];
+  Object.defineProperty(input,'files',{get:()=>files});
+  w.URL.createObjectURL=()=> 'blob:first';w.URL.revokeObjectURL=url=>revoked.push(url);
+  input.dispatchEvent(new w.Event('change'));
+  const original=d.querySelector('#editor').innerHTML;
+  files=[new w.File(['two'],'second.png',{type:'image/png'})];input.dispatchEvent(new w.Event('change'));
+  assert.equal(d.querySelector('#editor').innerHTML,original);assert.deepEqual(revoked,[]);
+  files=[{size:20_000_001,name:'large.png',type:'image/png'}];input.dispatchEvent(new w.Event('change'));
+  assert.equal(d.querySelector('#editor').innerHTML,original);assert.equal(input.value,'');
+  w.close();
+});
+test('oversized gallery is rejected rather than silently truncated',()=>{
+  const w=page(),e=w.document.querySelector('#editor');e.innerHTML='<p>Original</p>';
+  w.prompt=()=>Array.from({length:51},(_,i)=>'https://example.com/'+i+'.jpg').join('\n');
+  w.eval('insertFeature("collage")');
+  assert.equal(e.innerHTML,'<p>Original</p>');
+  assert.equal(w.document.querySelector('#toast').textContent,'Use no máximo 50 itens por galeria');
+  w.close();
+});

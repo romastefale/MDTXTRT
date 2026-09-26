@@ -372,8 +372,10 @@ function mediaUrl(){
 function figure(kind){
   const url = mediaUrl();
   if(!url) return;
-  const caption = prompt('Legenda', '') || '';
-  const credit = caption ? prompt('Crédito', '') || '' : '';
+  const caption = prompt('Legenda', '');
+  if(caption===null)return;
+  const credit = caption ? prompt('Crédito', '') : '';
+  if(credit===null)return;
   const cap = caption ? '<figcaption>'+escapeHTML(caption)+(credit?'<cite>'+escapeHTML(credit)+'</cite>':'')+'</figcaption>' : '';
   const tag = kind === 'image' ? '<img src="'+escapeHTML(url)+'"/>' :
     kind === 'video' ? '<video src="'+escapeHTML(url)+'"></video>' :
@@ -386,7 +388,8 @@ function insertFeature(kind){
   if(kind === 'ordered') return toggleList('ol');
   if(kind === 'divider') return insertHTML('<hr/>',true);
   if(kind === 'table'){
-    const caption = prompt('Legenda da tabela', '') || '';
+    const caption = prompt('Legenda da tabela', '');
+    if(caption===null)return;
     return insertHTML('<table bordered striped compact>'+(caption?'<caption>'+escapeHTML(caption)+'</caption>':'')+'<tr><th>A</th><th>B</th></tr><tr><td>—</td><td>—</td></tr></table>',true);
   }
   if(kind === 'expandquote') return insertHTML('<blockquote data-expandable="true"><p>Citação expansível</p></blockquote>',true);
@@ -405,20 +408,24 @@ function insertFeature(kind){
   if(kind === 'reference'){
     const name = (prompt('Nome da referência', 'nota-1') || '').trim().replace(/[^A-Za-z0-9_-]/g,'-');
     if(!name) return;
-    const text = prompt('Texto da referência', 'Referência') || '';
+    const text = prompt('Texto da referência', 'Referência');
+    if(text===null)return;
     return insertHTML('<tg-reference name="'+escapeHTML(name)+'">'+escapeHTML(text)+'</tg-reference>');
   }
   if(kind === 'time'){
     const unix = (prompt('Timestamp Unix', String(Math.floor(Date.now()/1000))) || '').trim();
     if(!/^\d+$/.test(unix)) return showToast('Timestamp inválido');
-    const format = (prompt('Formato Telegram', 'wDT') || 'wDT').trim();
-    const label = prompt('Texto exibido', 'Data e hora') || 'Data e hora';
+    const format = prompt('Formato Telegram', 'wDT');
+    if(format===null)return;
+    const label = prompt('Texto exibido', 'Data e hora');
+    if(label===null)return;
     return insertHTML('<tg-time unix="'+escapeHTML(unix)+'" format="'+escapeHTML(format)+'">'+escapeHTML(label)+'</tg-time>');
   }
   if(kind === 'emoji'){
     const id = (prompt('ID do emoji personalizado', '') || '').trim();
     if(!/^\d+$/.test(id)) return showToast('ID inválido');
-    const alt = prompt('Emoji alternativo', '🙂') || '🙂';
+    const alt = prompt('Emoji alternativo', '🙂');
+    if(alt===null)return;
     return insertHTML('<tg-emoji emoji-id="'+escapeHTML(id)+'">'+escapeHTML(alt)+'</tg-emoji>');
   }
   if(kind === 'image') return figure('image');
@@ -431,18 +438,25 @@ function insertFeature(kind){
     return;
   }
   if(kind === 'map'){
-    const lat = Number(prompt('Latitude', '0'));
-    const lon = Number(prompt('Longitude', '0'));
-    const zoom = Number(prompt('Zoom 0–24', '14'));
+    const values=[];
+    for(const [label,value] of [['Latitude','0'],['Longitude','0'],['Zoom 0–24','14']]){
+      const answer=prompt(label,value);
+      if(answer===null)return;
+      if(!answer.trim())return showToast('Preencha os dados do mapa');
+      values.push(Number(answer));
+    }
+    const [lat,lon,zoom]=values;
     if(!Number.isFinite(lat)||lat < -90||lat > 90||!Number.isFinite(lon)||lon < -180||lon > 180||!Number.isInteger(zoom)||zoom<0||zoom>24) return showToast('Mapa inválido');
-    const caption = prompt('Legenda', '') || '';
+    const caption = prompt('Legenda', '');
+  if(caption===null)return;
     const map = '<tg-map lat="'+lat+'" long="'+lon+'" zoom="'+zoom+'"/>';
     return insertHTML(caption?'<figure>'+map+'<figcaption>'+escapeHTML(caption)+'</figcaption></figure>':map,true);
   }
   if(kind === 'collage' || kind === 'slideshow'){
     const value = prompt('Links de imagens ou vídeos, um por linha', '');
     if(!value) return;
-    const urls = value.split(/\r?\n|,/).map(x=>x.trim()).filter(Boolean).slice(0,50);
+    const urls = value.split(/\r?\n|,/).map(x=>x.trim()).filter(Boolean);
+    if(urls.length>50)return showToast('Use no máximo 50 itens por galeria');
     const tags=[];
     for(const raw of urls){
       let url;
@@ -451,12 +465,15 @@ function insertFeature(kind){
       tags.push(tag==='video'?'<video src="'+escapeHTML(url.href)+'"></video>':'<img src="'+escapeHTML(url.href)+'"/>');
     }
     if(!tags.length) return;
-    const caption=prompt('Legenda','')||'';
+    const caption=prompt('Legenda','');
+    if(caption===null)return;
     const tag=kind==='collage'?'tg-collage':'tg-slideshow';
     return insertHTML('<'+tag+'>'+tags.join('')+(caption?'<figcaption>'+escapeHTML(caption)+'</figcaption>':'')+'</'+tag+'>',true);
   }
   if(kind === 'button') {
-    const type=(prompt('Tipo: url, callback_data, web_app, copy_text, disabled','url')||'url').trim();
+    const answer=prompt('Tipo: url, callback_data, web_app, copy_text, disabled','url');
+    if(answer===null)return;
+    const type=answer.trim();
     const types=new Set(['url','callback_data','web_app','copy_text','disabled']);
     if(!types.has(type)) return showToast('Tipo de botão inválido');
     const label=(prompt('Texto do botão','Abrir')||'').trim();
@@ -494,7 +511,10 @@ function markDirty(){
   clearTimeout(saveTimer);
   saveTimer = setTimeout(saveLocal, 400);
 }
+window.addEventListener('pagehide',saveLocal);
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')saveLocal();});
 function saveLocal(){
+  clearTimeout(saveTimer);
   try{ localStorage.setItem('rmdtxtml', JSON.stringify({name: docName.value, html: editor.innerHTML, dest, telegraphPath, docId, importedMd, importedTxt, importedHtml})); }
   catch{ showToast('Não foi possível salvar neste dispositivo'); }
 }
@@ -697,12 +717,13 @@ $('#exportMdBtn')?.addEventListener('click', ()=>exportFile('md'));
 $('#mediaBtn').addEventListener('click',()=>{$('#mediaInput').click();closePanels();});
 $('#mediaInput').addEventListener('change',()=>{
   const file=$('#mediaInput').files?.[0];if(!file)return;
+  $('#mediaInput').value='';
   if(file.size>20_000_000){showToast('Arquivo acima de 20 MB');return;}
+  if(editor.querySelector('[data-media-id]')){showToast('Há um anexo no documento. Remova-o antes de anexar outro.');return;}
   const kind=file.type.startsWith('image/')?'image':file.type.startsWith('video/')?'video':file.type.startsWith('audio/')?'audio':'document';
   const id=crypto.randomUUID().replace(/-/g,'');
   if(mediaFile)URL.revokeObjectURL(mediaFile.url);
   mediaFile={file,id,kind,url:URL.createObjectURL(file)};
-  editor.querySelectorAll('[data-media-id]').forEach(el=>el.closest('figure')?.remove());
   const tag={image:'img',video:'video',audio:'audio',document:'tg-document'}[kind];
   insertHTML('<figure><'+tag+' data-media-id="'+id+'" src="'+mediaFile.url+'"></'+tag+'><figcaption>'+escapeHTML(file.name)+'</figcaption></figure>',true);
   $('#mediaInput').value='';
