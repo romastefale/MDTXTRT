@@ -246,7 +246,7 @@ function saveHandoff(draft, file) {
   const local = draft.html.match(/data-media-id="([A-Za-z0-9_-]{1,64})"/);
   if (local && !file) throw new Error("O anexo local precisa acompanhar o rascunho");
   if(file){
-    if(!local||!draft.media||draft.media.id!==local[1]||!["image","video","audio","document"].includes(draft.media.kind))throw new Error("Anexo do rascunho inválido");
+    if(!local||!draft.media||draft.media.id!==local[1]||!["image","video","audio","voice","document"].includes(draft.media.kind))throw new Error("Anexo do rascunho inválido");
     if(!file.bytes?.length||file.bytes.length>20_000_000)throw new Error("Mídia grande demais");
     if(typeof file.mime!=="string"||!file.mime.trim())throw new Error("Tipo de mídia inválido");
     cleanFileName(file.name);
@@ -308,10 +308,11 @@ async function sendRich(initData,html,file=null){
       } else if (src.startsWith("tg://")) {
         const url = new URL(src);
         id = url.searchParams.get("id") || "";
-        if (file && id === file.id && url.hostname === kind && file.kind === ({photo:"image",video:"video",audio:"audio",document:"document"})[kind]) {
-          source = "attach://upload";
-          attached = true;
-        } else {
+        const fileKind=kind==="audio"&&file?.kind==="voice"?"voice":({photo:"image",video:"video",audio:"audio",document:"document"})[kind];
+        if(file&&id===file.id&&url.hostname===kind&&file.kind===fileKind){
+          source="attach://upload";
+          attached=true;
+        }else{
           throw new Error("Anexe a mídia novamente antes de publicar");
         }
       } else {
@@ -319,7 +320,8 @@ async function sendRich(initData,html,file=null){
       }
       if (!/^[A-Za-z0-9_-]{1,64}$/.test(id)) throw new Error("Identificador de mídia inválido");
       node.attribs.src = `tg://${kind}?id=${id}`;
-      media.push({id,media:{type:kind,media:source}});
+      const mediaType=kind==="audio"&&file?.kind==="voice"&&source==="attach://upload"?"voice_note":kind;
+      media.push({id,media:{type:mediaType,media:source}});
     }
     node.children?.forEach(visit);
   };
@@ -329,7 +331,7 @@ async function sendRich(initData,html,file=null){
   if (media.length) rich.media = media;
   let body = { chat_id: chatId, rich_message: rich };
   if (file) {
-    const kind = {image:"photo",video:"video",audio:"audio",document:"document"}[file.kind];
+    const kind={image:"photo",video:"video",audio:"audio",voice:"voice_note",document:"document"}[file.kind];
     if (!kind || !/^[A-Za-z0-9_-]{1,64}$/.test(file.id) || !["image/", "video/", "audio/", "application/", "text/"].some(prefix=>file.mime.startsWith(prefix))) throw new Error("Mídia inválida");
     const form = new FormData();
     form.set("chat_id", chatId);
