@@ -1133,9 +1133,12 @@ function syncBrowserViewport(){
   if(getTg()?.initData)return;
   const viewport=window.visualViewport;
   if(!viewport)return;
-  const shell=one('.app');
-  shell.style.height=viewport.height+'px';
-  shell.style.transform='translate3d(0,'+viewport.offsetTop+'px,0)';
+  const layout=one('.app').getBoundingClientRect().height;
+  const shift=viewport.height-layout+viewport.offsetTop;
+  const root=document.documentElement;
+  root.style.setProperty('--vv-top',viewport.offsetTop+'px');
+  root.style.setProperty('--vv-bottom-shift',shift+'px');
+  root.style.setProperty('--vv-occlusion',Math.max(0,-shift)+'px');
 }
 function scheduleBrowserViewport(){
   cancelAnimationFrame(viewportFrame);
@@ -1143,6 +1146,7 @@ function scheduleBrowserViewport(){
 }
 window.visualViewport?.addEventListener('resize',scheduleBrowserViewport);
 window.visualViewport?.addEventListener('scroll',scheduleBrowserViewport);
+window.visualViewport?.addEventListener('scrollend',scheduleBrowserViewport);
 syncBrowserViewport();
 
 function boot(){
