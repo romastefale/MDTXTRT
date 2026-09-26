@@ -76,3 +76,15 @@ test('Mini App mode waits for backend initData validation',async()=>{
   assert.equal(w.document.body.classList.contains('tg'),true);
   w.close();
 });
+test('Markdown preserves embeds and expandable quotes, rejects styles',()=>{
+  const w=page();
+  const html=w.eval('mdToBasicHTML("<figure><iframe src=\\\"https://example.com/\\\"></iframe></figure>\\n\\n<blockquote expandable>Mais</blockquote>")');
+  assert.match(html,/<iframe/);
+  assert.match(html,/data-expandable="true"/);
+  w.document.querySelector('#editor').innerHTML=html;
+  const md=w.eval('htmlToMarkdown(document.querySelector("#editor").innerHTML)');
+  assert.match(md,/<iframe/);
+  assert.match(md,/data-expandable/);
+  assert.throws(()=>w.eval('mdToBasicHTML("<p style=\\\"color:red\\\">x</p>")'),/Atributo/);
+  w.close();
+});

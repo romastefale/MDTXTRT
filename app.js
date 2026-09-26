@@ -453,7 +453,7 @@ function htmlToMarkdown(html){
   if(importedMd && editor.innerHTML === importedHtml) return importedMd;
   if(!window.TurndownService) throw new Error('Conversão Markdown indisponível');
   const svc = new TurndownService({headingStyle:'atx', codeBlockStyle:'fenced', bulletListMarker:'-', emDelimiter:'*'});
-  svc.addRule('special', {filter: node => ['TG-SPOILER','TG-REFERENCE','TG-EMOJI','TG-TIME','TG-MATH','TG-MATH-BLOCK','TG-MAP','TG-COLLAGE','TG-SLIDESHOW','TG-DOCUMENT','TG-BUTTON','TG-BUTTON-ROW','DETAILS','TABLE','FIGURE','ASIDE','FOOTER','SUB','SUP','MARK','U','INPUT'].includes(node.nodeName) || node.classList?.contains('tg-footer') || node.nodeName === 'A' && node.hasAttribute('name'), replacement: (_,node)=>'\n'+node.outerHTML+'\n'});
+  svc.addRule('special', {filter: node => ['TG-SPOILER','TG-REFERENCE','TG-EMOJI','TG-TIME','TG-MATH','TG-MATH-BLOCK','TG-MAP','TG-COLLAGE','TG-SLIDESHOW','TG-DOCUMENT','TG-BUTTON','TG-BUTTON-ROW','DETAILS','TABLE','FIGURE','ASIDE','FOOTER','SUB','SUP','MARK','U','INPUT','IFRAME'].includes(node.nodeName) || node.nodeName==='BLOCKQUOTE' && node.dataset.expandable==='true' || node.classList?.contains('tg-footer') || node.nodeName === 'A' && node.hasAttribute('name'), replacement: (_,node)=>'\n'+node.outerHTML+'\n'});
   return svc.turndown(html);
 
 }
@@ -461,11 +461,16 @@ function mdToBasicHTML(md){
   if(!window.marked) throw new Error('Importação Markdown indisponível');
   const box = document.createElement('div');
   box.innerHTML = window.marked.parse(md, {gfm:true, breaks:false});
-  const allowed = new Set('a b strong i em u ins s strike del code mark sub sup tg-spoiler tg-reference tg-emoji tg-time tg-math h1 h2 h3 h4 h5 h6 p pre footer hr ul ol li input blockquote aside cite img video audio tg-document figure figcaption tg-map tg-collage tg-slideshow table caption thead tbody tfoot tr th td details summary tg-math-block tg-button tg-button-row br div'.split(' '));
+  const allowed = new Set('a b strong i em u ins s strike del code mark sub sup tg-spoiler tg-reference tg-emoji tg-time tg-math h1 h2 h3 h4 h5 h6 p pre footer hr ul ol li input blockquote aside cite img video audio tg-document figure figcaption iframe tg-map tg-collage tg-slideshow table caption thead tbody tfoot tr th td details summary tg-math-block tg-button tg-button-row br div'.split(' '));
+  const attrs = new Set('href name class src alt tg-spoiler start type reversed value checked disabled expandable data-expandable unix format emoji-id lat long zoom width height bordered striped compact colspan rowspan align valign open url data query text forward-text request-write-access allow-user-chats allow-bot-chats allow-group-chats allow-channel-chats'.split(' '));
   for(const el of box.querySelectorAll('*')){
     const tag = el.localName;
     if(!allowed.has(tag)) throw new Error('Elemento Markdown não suportado: '+tag);
-    for(const a of [...el.attributes]) if(a.name.startsWith('on') || ['src','href','url'].includes(a.name) && !/^(https?:|mailto:|tel:|tg:|#)/i.test(a.value)) throw new Error('Link Markdown inválido');
+    for(const a of [...el.attributes]) {
+      if(!attrs.has(a.name) || a.name==='class' && !(tag==='code'&&/^language-[a-z0-9+-]+$/i.test(a.value))) throw new Error('Atributo Markdown não suportado: '+a.name);
+      if(['src','href','url'].includes(a.name) && !/^(https?:|mailto:|tel:|tg:|#)/i.test(a.value)) throw new Error('Link Markdown inválido');
+    }
+    if(tag==='blockquote'&&el.hasAttribute('expandable')){el.dataset.expandable='true';el.removeAttribute('expandable');}
   }
   return box.innerHTML;
 
@@ -487,7 +492,7 @@ function telegraphNodes(root){
     if(['div','article','section','span','thead','tbody','tfoot'].includes(tag)) return Array.from(el.childNodes).map(child=>conv(child,standalone)).flat().filter(Boolean);
     if(!allow.has(tag)) throw new Error('O conteúdo contém um elemento que o Telegraph não aceita: ' + tag);
     const node = {tag};
-    if(tag === 'a'){const href=el.getAttribute('href');if(href)node.attrs={href};}
+    if(tag === 'a'){const href=el.getAttribute('href');if(!href)throw new Error('Âncoras do Telegram não podem ser publicadas no Telegraph');node.attrs={href};}
     if(['img','video','iframe'].includes(tag)){const src=el.getAttribute('src');if(!src)throw new Error('A mídia precisa de um endereço');node.attrs={src};}
     const children = Array.from(el.childNodes).map(child=>conv(child,false)).flat().filter(v => v !== null && v !== '');
     if(children.length) node.children = children;
