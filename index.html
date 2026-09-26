@@ -62,19 +62,14 @@
     html.light{color-scheme:light}
     html.dark{color-scheme:dark}
     *{box-sizing:border-box}
-    html,body{margin:0;width:100%;height:100dvh;min-height:0;touch-action:pan-x pan-y;-ms-touch-action:pan-x pan-y;accent-color:var(--accent);caret-color:var(--accent);background-color:var(--bg)}
+    html,body{margin:0;width:100%;min-height:100%;touch-action:pan-x pan-y;-ms-touch-action:pan-x pan-y;accent-color:var(--accent);caret-color:var(--accent);background-color:var(--bg)}
     body{
-      padding:0!important;color:var(--text);background-color:var(--bg);
+      padding:0;color:var(--text);background:transparent;
       font:16px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;
       overflow:hidden;
     }
-    .wash{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
-    .wash iframe{position:absolute;inset:0;width:100%;height:100%;border:0;pointer-events:none}
-    .wash-light{opacity:0}
-    .wash-dark{opacity:1}
-    @media (prefers-color-scheme: light){html:not(.dark) .wash-light{opacity:1} html:not(.dark) .wash-dark{opacity:0}}
-    html.light .wash-light{opacity:1} html.light .wash-dark{opacity:0}
-    html.dark .wash-light{opacity:0} html.dark .wash-dark{opacity:1}
+    html{background-image:radial-gradient(95% 32% at -12% 0%, rgba(76, 76, 76, .34) 0%, rgba(42, 42, 42, .18) 38%, transparent 76%), radial-gradient(86% 34% at 112% 17%, rgba(68, 68, 68, .31) 0%, rgba(39, 39, 39, .18) 42%, transparent 78%), radial-gradient(104% 42% at -23% 39%, rgba(58, 58, 58, .34) 0%, rgba(34, 34, 34, .23) 36%, rgba(20, 20, 20, .1) 62%, transparent 83%), radial-gradient(90% 33% at 114% 45%, rgba(54, 54, 54, .22) 0%, rgba(32, 32, 32, .14) 48%, transparent 80%), radial-gradient(94% 38% at -20% 78%, rgba(72, 72, 72, .3) 0%, rgba(42, 42, 42, .2) 42%, rgba(22, 22, 22, .1) 66%, transparent 86%), radial-gradient(84% 30% at 111% 91%, rgba(56, 56, 56, .21) 0%, rgba(34, 34, 34, .13) 49%, transparent 82%);background-repeat:no-repeat;background-size:100% 100lvh;background-attachment:fixed}
+    html.light{background-image:#f8fbff}
     ::selection{background:color-mix(in srgb,var(--accent) 38%, transparent);color:inherit}
     button,input{font:inherit;color:inherit}
     button{cursor:pointer;-webkit-tap-highlight-color:transparent}
@@ -109,7 +104,7 @@
     .frost::before{content:"";position:absolute;inset:0;pointer-events:none;border-radius:inherit;background:transparent;box-shadow:inset 0 1px 0 var(--glass-highlight),inset 0 0 0 1px var(--glass-edge)}
     html.dark .frost{box-shadow:var(--glass-shadow)}
     .app{
-      position:relative;z-index:1;
+      position:fixed;inset:0;z-index:1;
       width:100%;height:100%;min-height:0;max-width:none;margin:0;padding:0;
       display:flex;flex-direction:column;
       overflow:hidden;background:transparent;
@@ -223,6 +218,7 @@
     }
     .toast.on{display:block}
     .tools{display:flex;gap:8px;align-items:center;padding:10px;max-width:100%}
+    .hint{max-width:280px;white-space:normal;margin:8px 12px 12px;font-size:14px}
     .tools input{min-width:0;width:100%;border:0;border-radius:12px;background:color-mix(in srgb,var(--text) 10%,transparent);padding:10px;outline:0}
     .tools button{border:0;border-radius:12px;background:color-mix(in srgb,var(--accent) 22%,transparent);padding:10px;color:var(--text)}
     #findMenu{width:min(350px,calc(100vw - 28px))}
@@ -239,10 +235,6 @@
   </style>
 </head>
 <body>
-  <div class="wash" aria-hidden="true">
-    <iframe class="wash-light" src="backgrounds/light.html" title="" tabindex="-1" loading="eager"></iframe>
-    <iframe class="wash-dark" src="backgrounds/dark.html" title="" tabindex="-1" loading="eager"></iframe>
-  </div>
   <div class="app">
     <div class="chrome-top">
       <header class="topbar">
@@ -272,7 +264,7 @@
       <button type="button" id="quoteBtn" aria-label="Citação"><span class="ui-icon" data-icon="quote"></span></button>
       <button type="button" id="linkBtn" aria-label="Link"><span class="ui-icon" data-icon="link"></span></button>
       <button type="button" id="headingBtn" aria-label="Título"><span class="ui-icon" data-icon="heading"></span></button>
-      <button type="button" data-cmd="insertUnorderedList" aria-label="Lista"><span class="ui-icon" data-icon="list"></span></button>
+      <button type="button" id="listBtn" aria-label="Lista"><span class="ui-icon" data-icon="list"></span></button>
     </div>
   </div>
   <div class="backdrop" id="backdrop"></div>
@@ -288,9 +280,17 @@
       <button class="h-opt footer" data-block="footer"><span class="sheet-ico"><span class="ui-icon" data-icon="footer"></span></span>Rodapé</button>
     </div>
   </div>
+  <div class="sheet frost material-target" id="listMenu">
+    <div class="menu-list">
+      <button data-cmd="insertUnorderedList"><span class="sheet-ico"><span class="ui-icon" data-icon="list"></span></span>Lista com marcadores</button>
+      <button data-insert="ordered"><span class="sheet-ico"><span class="ui-icon" data-icon="format_list_numbered"></span></span>Lista ordenada</button>
+      <button data-insert="task" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="task"></span></span>Checklist</button>
+    </div>
+  </div>
   <div class="sheet frost material-target" id="quoteMenu">
     <div class="menu-list">
       <button data-block="blockquote"><span class="sheet-ico"><span class="ui-icon" data-icon="quote"></span></span>Citação</button>
+      <button data-insert="pullquote" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="quote"></span></span>Citação em destaque</button>
       <button data-insert="expandquote"><span class="sheet-ico"><span class="ui-icon" data-icon="more"></span></span>Citação expansível</button>
     </div>
   </div>
@@ -303,15 +303,15 @@
     </div>
   </div>
   <div class="sheet frost material-target" id="exportMenu">
+    <p class="hint">Para publicar no Telegram ou Telegraph, abra o Mini App. Para levar este documento, exporte Markdown e importe lá.</p>
     <div class="menu-list">
+      <button id="openAppBtn"><span class="sheet-ico"><span class="ui-icon" data-icon="telegram"></span></span>Abrir Mini App para publicar</button>
       <button id="exportMdBtn"><span class="sheet-ico"><span class="ui-icon" data-icon="markdown"></span></span>Exportar Markdown</button>
       <button id="exportTxtBtn"><span class="sheet-ico"><span class="ui-icon" data-icon="text_fields"></span></span>Exportar TXT</button>
     </div>
   </div>
   <div class="sheet frost material-target" id="plusMenu">
     <div class="menu-list">
-      <button data-insert="task" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="task"></span></span>Checklist</button>
-      <button data-insert="ordered" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="format_list_numbered"></span></span>Lista ordenada</button>
       <button data-cmd="strike"><span class="sheet-ico"><span class="ui-icon" data-icon="strikethrough_s"></span></span>Riscado</button>
       <button data-cmd="mark" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="ink_highlighter"></span></span>Marca-texto</button>
       <button data-cmd="spoiler" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="visibility_off"></span></span>Spoiler</button>
@@ -321,7 +321,6 @@
       <button data-cmd="math" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="functions"></span></span>Fórmula inline</button>
       <button data-insert="mathblock" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="calculate"></span></span>Fórmula em bloco</button>
       <button data-insert="divider"><span class="sheet-ico"><span class="ui-icon" data-icon="horizontal_rule"></span></span>Divisor</button>
-      <button data-insert="pullquote" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="quote"></span></span>Citação em destaque</button>
       <button data-insert="table" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="table"></span></span>Tabela</button>
       <button data-insert="details" data-tg="no"><span class="sheet-ico"><span class="ui-icon" data-icon="details"></span></span>Conteúdo expansível</button>
       <button data-insert="image"><span class="sheet-ico"><span class="ui-icon" data-icon="image"></span></span>Imagem</button>

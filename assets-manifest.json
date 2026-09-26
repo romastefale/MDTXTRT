@@ -155,17 +155,5 @@
       "ext": "svg",
       "v": 1789854270467
     }
-  },
-  "backgrounds": {
-    "light": {
-      "file": "light.html",
-      "ext": "html",
-      "v": 1789853098445
-    },
-    "dark": {
-      "file": "dark.html",
-      "ext": "html",
-      "v": 1789853098445
-    }
   }
 }

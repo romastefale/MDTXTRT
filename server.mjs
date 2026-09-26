@@ -17,6 +17,7 @@ const TELEGRAPH_FILE = ((process.env.RAILWAY_VOLUME_MOUNT_PATH || "/data").repla
 const PAGES_FILE = TELEGRAPH_FILE + "-pages.json";
 let telegraphToken = (process.env.TELEGRAPH_ACCESS_TOKEN || "").trim();
 let telegraphQueue = Promise.resolve();
+let botLink;
 if (!telegraphToken && existsSync(TELEGRAPH_FILE)) {
   try { telegraphToken = readFileSync(TELEGRAPH_FILE, "utf8").trim(); } catch {}
 }
@@ -48,8 +49,6 @@ const PUBLIC = new Set([
   "og.jpg",
   "x-banner.jpg",
   "glass-map.png",
-  "backgrounds/light.html",
-  "backgrounds/dark.html",
   ...["bold","buttons","details","document","export","file","footer","h1","h2","h3","h4","h5","h6","heading","import","italic","link","list","more","open","paragraph","plus","quote","redo","send","table","task","telegram","underline","undo"].map(name=>`icons/${name}.svg`),
   ...["anchor","attach_file","calculate","code","format_list_numbered","functions","horizontal_rule","image","ink_highlighter","location_on","markdown","mood","movie","music_note","schedule","search","slideshow","sticky_note_2","strikethrough_s","subscript","superscript","text_fields","view_comfy","visibility_off","web"].map(name=>`icons/${name}.svg`),
 ]);
@@ -555,6 +554,21 @@ function safeFile(urlPath) {
 const server = createServer(async (req, res) => {
   try {
     const url = new URL(req.url || "/", "http://localhost");
+    if (url.pathname === "/telegram/open" && req.method === "GET") {
+      try {
+        if (!botLink) {
+          const bot = await telegramCall(botToken(), "getMe", {});
+          if (!/^[A-Za-z0-9_]{5,32}$/.test(bot.username || "")) throw new Error("Mini App indisponível");
+          botLink = "https://t.me/" + bot.username + "?startapp";
+        }
+        res.writeHead(302, { location: botLink, "cache-control": "public, max-age=300" });
+        res.end();
+      } catch {
+        res.writeHead(503, { "content-type": "text/plain; charset=utf-8" });
+        res.end("Não foi possível abrir o Mini App. Tente novamente.");
+      }
+      return;
+    }
     if (req.method === "OPTIONS") {
       if (!setCors(req, res)) {
         res.writeHead(403, { "content-type": "application/json; charset=utf-8" });

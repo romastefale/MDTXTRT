@@ -69,16 +69,16 @@ test('toolbar and insertion menu buttons produce the selected semantic blocks',(
   assert.equal(d.body.contains(e),true);
   assert.ok(d.querySelector('#typebar'));
   assert.equal(e.firstElementChild?.tagName,'H3');
-  d.querySelector('#plusBtn').click();d.querySelector('#plusMenu [data-insert="task"]').click();
+  d.querySelector('#listBtn').click();d.querySelector('#listMenu [data-insert="task"]').click();
   assert.equal(e.querySelector('input[type="checkbox"]')?.type,'checkbox');
-  d.querySelector('#plusBtn').click();d.querySelector('#plusMenu [data-insert="ordered"]').click();
+  d.querySelector('#listBtn').click();d.querySelector('#listMenu [data-insert="ordered"]').click();
   assert.ok(e.querySelector('ol > li'));
   d.querySelector('#quoteBtn').click();d.querySelector('#quoteMenu [data-block="blockquote"]').click();
   assert.ok(e.querySelector('blockquote'));
   d.querySelector('#plusBtn').click();
   d.querySelector('#destBtn').click();
   assert.equal(d.body.dataset.destination,'telegraph');
-  assert.equal(d.querySelector('#plusMenu [data-insert="task"]').hidden,true);
+  assert.equal(d.querySelector('#listMenu [data-insert="task"]').hidden,true);
   assert.equal(d.querySelector('#plusMenu [data-insert="image"]').hidden,false);
   w.close();
 });
@@ -227,7 +227,7 @@ test('dark glass has a single restrained edge and paints the full page while app
   const value=name=>w.getComputedStyle(root).getPropertyValue(name).trim();
   assert.equal(w.getComputedStyle(d.querySelector('#brandBtn')).boxShadow,'0 2px 8px rgba(0,0,0,.08)');
   assert.equal(w.getComputedStyle(d.querySelector('#plusMenu')).boxShadow,'0 4px 14px rgba(0,0,0,.14),0 22px 48px rgba(0,0,0,.2)');
-  assert.equal(w.getComputedStyle(d.body).backgroundColor,'var(--bg)');
+  assert.equal(w.getComputedStyle(d.body).backgroundColor,'rgba(0, 0, 0, 0)');
   assert.equal(d.querySelector('meta[name="theme-color"]').content,'#f8fbff');
   assert.equal(value('--glass-frost'),'0.08');
   assert.equal(value('--glass-blur'),'6px');
@@ -316,7 +316,7 @@ test('ordered list converts the current paragraph without splitting or losing te
   editor.innerHTML='<p>antes depois</p>';
   const text=editor.querySelector('p').firstChild,range=d.createRange();
   range.setStart(text,6);range.collapse(true);w.getSelection().removeAllRanges();w.getSelection().addRange(range);d.dispatchEvent(new w.Event('selectionchange'));
-  d.querySelector('#plusBtn').click();d.querySelector('#plusMenu [data-insert="ordered"]').click();
+  d.querySelector('#listBtn').click();d.querySelector('#listMenu [data-insert="ordered"]').click();
   assert.deepEqual([...editor.children].map(node=>node.tagName),['OL']);
   assert.equal(editor.querySelector('ol > li').textContent,'antes depois');
   assert.equal(editor.querySelector('p ol'),null);
@@ -427,5 +427,24 @@ test('empty saved document restores its name and destination',()=>{
   assert.equal(w.document.querySelector('#docName').value,'Vazio');
   w.eval('saveLocal()');
   assert.equal(JSON.parse(w.localStorage.getItem('rmdtxtml')).dest,'telegraph');
+  w.close();
+});
+
+test('list and quote families open from their toolbar and honor destination',()=>{
+  const w=page(),d=w.document;
+  d.querySelector('#listBtn').click();
+  assert.equal(d.querySelector('#listMenu').classList.contains('on'),true);
+  d.querySelector('#listMenu [data-insert="task"]').click();
+  assert.ok(d.querySelector('#editor input[type="checkbox"]'));
+  d.querySelector('#quoteBtn').click();
+  d.querySelector('#quoteMenu [data-insert="pullquote"]').click();
+  assert.equal(d.querySelector('#editor aside').textContent,'Citação em destaque');
+  d.querySelector('#destBtn').click();
+  assert.equal(d.querySelector('#listMenu [data-insert="task"]').hidden,true);
+  assert.equal(d.querySelector('#listMenu [data-insert="ordered"]').hidden,false);
+  assert.equal(d.querySelector('#quoteMenu [data-insert="pullquote"]').hidden,true);
+  d.querySelector('#exportBtn').click();
+  assert.equal(d.querySelector('#exportMenu').classList.contains('on'),true);
+  assert.equal(d.querySelector('#openAppBtn').hidden,false);
   w.close();
 });

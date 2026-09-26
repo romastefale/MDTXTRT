@@ -12,6 +12,7 @@ globalThis.fetch = async (url,options) => {
       }else if(typeof body==='string')body=JSON.parse(body);
       appendFileSync(process.env.TEST_CALLS,JSON.stringify({method,body})+'\n');
     }
+    if(method==='getMe')return Response.json({ok:true,result:{username:'mdtxtrt_test_bot'}});
     return Response.json({ok:true,result:{message_id:42}});
   }
   if(host === 'api.telegra.ph') {

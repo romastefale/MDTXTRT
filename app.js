@@ -7,7 +7,7 @@ const backdrop = $('#backdrop');
 const fileInput = $('#fileInput');
 let dest = 'telegram';
 let inTg = false, session = 'browser', busy = false;
-const sheets = ['#plusMenu','#headingMenu','#quoteMenu','#importMenu','#exportMenu','#findMenu'];
+const sheets = ['#plusMenu','#headingMenu','#quoteMenu','#listMenu','#importMenu','#exportMenu','#findMenu'];
 let savedRange = null, hist = [], histI = -1, histLock = false, composing = false, saveTimer = null, telegraphPath = '', docId = crypto.randomUUID(), importedMd = '', importedTxt = '', importedHtml = '', mediaFile = null;
 function applyAssets(){
   $$('[data-icon]').forEach(el => {
@@ -24,8 +24,10 @@ function applyScheme(){
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', light ? '#f8fbff' : '#000000');
   window.dispatchEvent(new CustomEvent('mdtxtrt:themechange', {detail:{scheme:light?'light':'dark'}}));
   if(tg){
-    const header = light ? '#f8fbff' : '#000';
+    const header = light ? '#f8fbff' : '#000000';
     tg.setHeaderColor?.(header);
+    tg.setBackgroundColor?.(header);
+    tg.setBottomBarColor?.(header);
   }
 }
 applyScheme();
@@ -84,8 +86,8 @@ function setDestination(value, notify=true){
     item.hidden = dest === 'telegraph' && !['p','h3','h4','footer'].includes(item.dataset.block);
   });
   $('#quoteMenu [data-insert="expandquote"]').hidden = dest === 'telegraph';
-  $$('#plusMenu [data-tg="no"]').forEach(item => item.hidden = dest === 'telegraph');
-  $$('#plusMenu [data-telegraph="only"]').forEach(item => item.hidden = dest !== 'telegraph');
+  $$('[data-tg="no"]').forEach(item => item.hidden = dest === 'telegraph');
+  $$('[data-telegraph="only"]').forEach(item => item.hidden = dest !== 'telegraph');
   document.body.dataset.destination = dest;
   closePanels();
   saveLocal();
@@ -644,16 +646,17 @@ document.addEventListener('selectionchange', ()=>{
     const marks={bold:'strong,b',italic:'em,i',underline:'u',insertUnorderedList:'ul'};
     btn.classList.toggle('on', Boolean(el && el.closest(marks[btn.dataset.cmd] || '')));
   });
-  $('#quoteBtn')?.classList.toggle('on', !!(el && el.closest('blockquote')) || $('#quoteMenu')?.classList.contains('on'));
+  $('#listBtn').classList.toggle('on', !!(el && el.closest('ul,ol')) || $('#listMenu').classList.contains('on'));
+  $('#quoteBtn')?.classList.toggle('on', !!(el && el.closest('blockquote,aside')) || $('#quoteMenu')?.classList.contains('on'));
   $('#headingBtn')?.classList.toggle('on', !!(headingEl || $('#headingMenu')?.classList.contains('on')));
   $('#linkBtn')?.classList.toggle('on', !!(el && el.closest('a')));
   $('#plusBtn')?.classList.toggle('on', $('#plusMenu')?.classList.contains('on'));
   $$('#headingMenu [data-block]').forEach(btn => btn.classList.toggle('is-current', btn.dataset.block === kind));
 });
 $('#typebar').addEventListener('mousedown', e => e.preventDefault());
-$$('#typebar [data-cmd], #plusMenu [data-cmd]').forEach(btn => btn.addEventListener('click', ()=>{try{exec(btn.dataset.cmd);closePanels();}catch(err){showToast(err.message);}}));
+$$('#typebar [data-cmd], #plusMenu [data-cmd], #listMenu [data-cmd]').forEach(btn => btn.addEventListener('click', ()=>{try{exec(btn.dataset.cmd);closePanels();}catch(err){showToast(err.message);}}));
 $$('#typebar [data-block], #headingMenu [data-block], #quoteMenu [data-block]').forEach(btn => btn.addEventListener('click', ()=>{try{formatBlock(btn.dataset.block);}catch(err){showToast(err.message);}}));
-$$('#plusMenu [data-insert], #quoteMenu [data-insert]').forEach(btn => btn.addEventListener('click', ()=>{try{insertFeature(btn.dataset.insert);}catch(err){showToast(err.message);}}));
+$$('#plusMenu [data-insert], #quoteMenu [data-insert], #listMenu [data-insert]').forEach(btn => btn.addEventListener('click', ()=>{try{insertFeature(btn.dataset.insert);}catch(err){showToast(err.message);}}));
 $('#linkBtn').addEventListener('click', ()=>{
   restoreSel(); expandWord();
   const value=prompt('Link','https://');if(!value)return;
@@ -676,6 +679,8 @@ $('#undoBtn').addEventListener('mousedown', e => e.preventDefault());
 $('#redoBtn').addEventListener('mousedown', e => e.preventDefault());
 $('#plusBtn').addEventListener('click', e=>openPanel('#plusMenu', e.currentTarget));
 $('#headingBtn')?.addEventListener('click', e=>openPanel('#headingMenu', e.currentTarget));
+$('#listBtn').addEventListener('click',e=>openPanel('#listMenu',e.currentTarget));
+$('#openAppBtn').addEventListener('click',()=>{saveLocal();window.location.assign(API+'/telegram/open');});
 $('#quoteBtn')?.addEventListener('click', e=>openPanel('#quoteMenu', e.currentTarget));
 $('#destBtn').addEventListener('click', ()=>setDestination(dest === 'telegram' ? 'telegraph' : 'telegram'));
 $('#exportBtn').addEventListener('click', e=>{

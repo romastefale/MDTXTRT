@@ -175,3 +175,9 @@ test('HTTP media URLs become Bot API 10.3 rich media references for each media t
   const stale=await post('/api/telegram/send',{initData:init(),html:'<img src="tg://photo?id=missing">'});
   assert.equal(stale.status,400);
 });
+
+test('browser publication entry opens the official Mini App without accepting a redirect target',async()=>{
+  const res=await fetch(`http://127.0.0.1:${port}/telegram/open?url=https://example.com`,{redirect:'manual'});
+  assert.equal(res.status,302);
+  assert.equal(res.headers.get('location'),'https://t.me/mdtxtrt_test_bot?startapp');
+});
