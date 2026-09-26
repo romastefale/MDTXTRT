@@ -80,7 +80,8 @@ function draftState(){
   return {version:STATE_VERSION,name:docName.value,html:draftHTML(),dest,telegraphPath,docId,importedMd,importedTxt,importedHtml,media:mediaFile?{id:mediaFile.id,kind:mediaFile.kind}:null};
 }
 function cleanDraftHTML(html){
-  const box=document.createElement('div');box.innerHTML=String(html||'');
+  if(typeof html!=='string')throw new Error('Rascunho inválido');
+  const box=document.createElement('div');box.innerHTML=html;
   const allowed=new Set('a b strong i em u ins s strike del code mark sub sup tg-spoiler tg-reference tg-emoji tg-time tg-math h1 h2 h3 h4 h5 h6 p pre footer hr ul ol li input blockquote aside cite img video audio tg-document figure figcaption iframe tg-map tg-collage tg-slideshow table caption thead tbody tfoot tr th td details summary tg-math-block tg-button tg-button-row br div'.split(' '));
   const attrs=new Set('href name class style src alt tg-spoiler start type reversed value checked disabled controls expandable data-expandable unix format emoji-id lat long zoom width height bordered striped compact colspan rowspan align valign open url data query text forward-text request-write-access allow-user-chats allow-bot-chats allow-group-chats allow-channel-chats data-media-id data-media-missing'.split(' '));
   for(const el of [...box.querySelectorAll('*')]){
@@ -123,7 +124,7 @@ async function installMedia(file,id,kind,persist=true){
   if(mediaFile?.url)URL.revokeObjectURL(mediaFile.url);
   const url=URL.createObjectURL(file);
   mediaFile={file,id,kind,url};
-  if(persist){await mediaClear();await mediaStore({id,file,kind,name:file.name,type:file.type,lastModified:file.lastModified||Date.now()});}
+  if(persist){await mediaClear();await mediaStore({id,file,kind,name:file.name,type:file.type,lastModified:file.lastModified});}
   const node=mediaNode(id);
   if(node){node.setAttribute('src',url);node.removeAttribute('data-media-missing');}
   decorateSpecials();
