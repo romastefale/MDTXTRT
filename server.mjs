@@ -864,6 +864,9 @@ function writePages(pages) {
 
 async function ensureTelegraphToken() {
   if (telegraphToken) return telegraphToken;
+  if(existsSync(PAGES_FILE)&&Object.keys(readPages()).length){
+    throw new Error("Credencial Telegraph ausente para páginas persistidas");
+  }
   const account = await telegraphCall("createAccount", { short_name: "MDTXTRT", author_name: "MDTXTRT" });
   const token=String(account?.access_token||"").trim();
   if(!token)throw new Error("O Telegraph não retornou uma credencial válida");
