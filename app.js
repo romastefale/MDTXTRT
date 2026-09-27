@@ -1012,6 +1012,12 @@ one('#mediaInput').addEventListener('change',async()=>{
   }
 });
 one('#findBtn').addEventListener('click', ()=>openPanel('#findMenu'));
+function searchRegex(term,exact=false){
+  const meta=new Set(['\\','^','$','.','*','+','?','(',')','[',']','{','}','|']);
+  let escaped='';
+  for(const ch of term)escaped+=(meta.has(ch)?'\\\\':'')+ch;
+  return new RegExp(exact?'^(?:'+escaped+')$':escaped,exact?'iu':'giu');
+}
 function matches(){
   const term=one('#findText').value;if(!term)return [];
   const walk=document.createTreeWalker(editor,NodeFilter.SHOW_TEXT),groups=[];let node,group;
@@ -1021,11 +1027,13 @@ function matches(){
     group.nodes.push({node,start:group.text.length,end:group.text.length+node.length});group.text+=node.textContent;
   }
   const found=[];
-  for(const group of groups){let at=0;while((at=group.text.toLocaleLowerCase().indexOf(term.toLocaleLowerCase(),at))>=0){
-    const start=group.nodes.find(x=>x.end>at),end=group.nodes.find(x=>x.end>=at+term.length);
-    if(start&&end){const r=document.createRange();r.setStart(start.node,at-start.start);r.setEnd(end.node,at+term.length-end.start);found.push(r);}
-    at+=term.length;
-  }}
+  for(const group of groups){
+    for(const match of group.text.matchAll(searchRegex(term))){
+      const at=match.index,length=match[0].length;
+      const start=group.nodes.find(x=>x.end>at),end=group.nodes.find(x=>x.end>=at+length);
+      if(start&&end){const r=document.createRange();r.setStart(start.node,at-start.start);r.setEnd(end.node,at+length-end.start);found.push(r);}
+    }
+  }
   return found;
 }
 one('#findNext').addEventListener('click',()=>{
@@ -1037,8 +1045,9 @@ one('#findNext').addEventListener('click',()=>{
 one('#replaceOne').addEventListener('click',()=>{
   const sel=window.getSelection();
   if(savedRange&&editor.contains(savedRange.startContainer)){sel.removeAllRanges();sel.addRange(savedRange);}
-  if(!sel.rangeCount||sel.toString().toLocaleLowerCase()!==one('#findText').value.toLocaleLowerCase())one('#findNext').click();
-  if(sel.toString().toLocaleLowerCase()!==one('#findText').value.toLocaleLowerCase()||!one('#findText').value)return;
+  const term=one('#findText').value;
+  if(!sel.rangeCount||!term||!searchRegex(term,true).test(sel.toString()))one('#findNext').click();
+  if(!term||!searchRegex(term,true).test(sel.toString()))return;
   const r=sel.getRangeAt(0),text=document.createTextNode(one('#replaceText').value);r.deleteContents();r.insertNode(text);r.setStartAfter(text);r.collapse(true);savedRange=r.cloneRange();pushHist();markDirty();one('#findNext').click();
 });
 one('#replaceAll').addEventListener('click',()=>{
