@@ -1066,26 +1066,49 @@ function markdownCaret(target,offset=null){
 function markdownBlockContext(){
   const sel=window.getSelection();
   if(!sel||!sel.rangeCount||!sel.isCollapsed)return null;
-  let node=sel.anchorNode;
+  let range=sel.getRangeAt(0),node=range.startContainer;
   if(!node||!editor.contains(node))return null;
-  if(node.nodeType===3&&node.parentNode===editor){normalizeBlocks();node=window.getSelection()?.anchorNode;}
-  const el=node&&(node.nodeType===1?node:node.parentElement);
+  if(node.nodeType===3&&node.parentNode===editor){
+    normalizeBlocks();
+    const current=window.getSelection();
+    if(!current||!current.rangeCount)return null;
+    range=current.getRangeAt(0);node=range.startContainer;
+  }
+  let el=node.nodeType===1?node:node.parentElement;
+  if(el===editor){
+    const index=Math.max(0,range.startOffset-1);
+    const candidate=editor.childNodes[index];
+    el=candidate&&(candidate.nodeType===1?candidate:candidate.parentElement);
+  }
   const block=el&&el!==editor?el.closest('p,div'):null;
   if(!block||block.parentElement!==editor)return null;
-  const first=block.firstChild,range=window.getSelection()?.getRangeAt(0);
-  if(!first||first.nodeType!==3||!range||range.startContainer!==first)return null;
-  return {block,first,prefix:first.data.slice(0,range.startOffset)};
+  const prefixRange=document.createRange();
+  prefixRange.selectNodeContents(block);
+  try{prefixRange.setEnd(range.startContainer,range.startOffset);}catch{return null;}
+  const prefix=prefixRange.toString().replace(/\u00a0/g,' ');
+  return {block,prefix};
 }
 function markdownBlockRule(){
   const ctx=markdownBlockContext();
   if(!ctx)return false;
-  const {block,first,prefix}=ctx;
+  const {block,prefix}=ctx;
+  const deletePrefix=count=>{
+    let left=count,node=document.createTreeWalker(block,NodeFilter.SHOW_TEXT).nextNode();
+    while(node&&left>0){
+      const take=Math.min(left,node.length);
+      node.deleteData(0,take);left-=take;
+      node=document.createTreeWalker(block,NodeFilter.SHOW_TEXT).nextNode();
+    }
+  };
   const escaped=prefix.match(/^\\(#{1,6}|>|[-*+]|\d+\.) $/);
   if(escaped){
-    first.deleteData(0,1);markdownCaret(first,Math.max(0,prefix.length-1));return true;
+    deletePrefix(1);
+    const text=document.createTreeWalker(block,NodeFilter.SHOW_TEXT).nextNode();
+    if(text)markdownCaret(text,Math.min(text.length,prefix.length-1));
+    return true;
   }
   const replaceBlock=(tag,markerLength,{start=null,task=null}={})=>{
-    first.deleteData(0,markerLength);
+    deletePrefix(markerLength);
     if(tag==='ul'||tag==='ol'){
       const list=document.createElement(tag);
       if(tag==='ol'&&start!==null&&start!==1)list.setAttribute('start',String(start));

@@ -249,6 +249,19 @@ test('Markdown block markers convert at the caret and preserve rich-text semanti
   w.close();
 });
 
+test('Markdown block markers accept element-anchored carets and non-breaking spaces',()=>{
+  const w=page(),d=w.document,e=d.querySelector('#editor');
+  e.innerHTML='<div>#&nbsp;</div>';
+  const block=e.firstElementChild,range=d.createRange();
+  range.setStart(block,block.childNodes.length);range.collapse(true);
+  w.getSelection().removeAllRanges();w.getSelection().addRange(range);
+  d.dispatchEvent(new w.Event('selectionchange'));
+  e.dispatchEvent(new w.Event('input',{bubbles:true}));
+  assert.ok(e.querySelector('h1'));
+  assert.equal(e.querySelector('h1')?.textContent,'');
+  w.close();
+});
+
 test('Markdown inline markers become semantic rich-text marks and support escaping',()=>{
   const w=page(),d=w.document,e=d.querySelector('#editor');
   const apply=text=>{
