@@ -51,7 +51,8 @@ test('liquid-glass engine retains binding material optics on every chrome surfac
 
 test('theme neutrals are chromatic derivatives of the active accent',()=>{
   const html=read('index.html');
-  assert.equal((html.match(/--accent:#2B88D8;/g)||[]).length,2);
+  assert.match(html,/--accent:#2B88D8;/);
+  assert.match(html,/html\.light\{[\s\S]*?--accent:#FF4BA0;/);
   assert.match(html,/--muted:color-mix\(in oklab,var\(--text\) 82%,var\(--accent\)\);/);
   for(const [name,amount] of [['neutral-1','6'],['neutral-2','10'],['neutral-3','16'],['neutral-4','24']]){
     assert.match(html,new RegExp('--'+name+':color-mix\\(in oklab,var\\(--accent\\) '+amount+'%,var\\(--bg\\)\\);'));
