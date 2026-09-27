@@ -201,7 +201,7 @@ test('Rich HTML RichText-only containers reject nested block markup locally',asy
   const nestedAnchor=await formPost('/api/telegram/send',{initData:init(),html:'<p><a name="section"></a></p>'});
   assert.equal(nestedAnchor.status,400);
   const valid=await formPost('/api/telegram/send',{initData:init(),html:'<a name="section"></a><blockquote expandable>Quote<br><cite>Author</cite></blockquote><aside>Pull <cite>Author</cite></aside><tg-math>x^2</tg-math>'});
-  assert.equal(valid.status,200);
+  assert.equal(valid.status,200,valid.data.error);
 });
 
 test('Rich Message buttons enforce one action contract and official button URL schemes',async()=>{
