@@ -271,3 +271,60 @@ test('draft sanitizer rejects multiple local attachment identifiers',()=>{
   assert.throws(()=>w.eval("cleanDraftHTML('<figure><img data-media-id=\"one\"></figure><figure><img data-media-id=\"two\"></figure>')"),/mais de um anexo local/);
   w.close();
 });
+
+
+test('Rich Message serializer rejects unsupported editor markup',()=>{
+  const w=page(),e=w.document.querySelector('#editor');
+  e.innerHTML='<p>ok</p><svg></svg>';
+  assert.throws(()=>w.eval('buildRich()'),/não aceita/);
+  w.close();
+});
+
+test('Markdown conversion retains supported semantic structures',()=>{
+  const w=page(),d=w.document,e=d.querySelector('#editor');
+  const source='# Nome\n\n- [x] tarefa\n- [ ] próxima\n\n| A | B |\n| --- | --- |\n| 1 | 2 |\n\n**forte** e [site](https://example.com)';
+  const html=w.eval('mdToBasicHTML('+JSON.stringify(source)+')');
+  const box=d.createElement('div');box.innerHTML=html;
+  assert.equal(box.querySelector('h1')?.textContent,'Nome');
+  assert.equal(box.querySelectorAll('input[type="checkbox"]').length,2);
+  assert.equal(box.querySelectorAll('table tr').length,2);
+  assert.equal(box.querySelector('strong')?.textContent,'forte');
+  assert.equal(box.querySelector('a')?.getAttribute('href'),'https://example.com');
+  e.innerHTML=html;
+  const out=w.eval('htmlToMarkdown(document.querySelector("#editor").innerHTML)');
+  assert.match(out,/Nome/);
+  assert.match(out,/forte/);
+  assert.match(out,/https:\/\/example\.com/);
+  w.close();
+});
+
+test('TXT conversion remains literal and detects lossy semantic structure',()=>{
+  const w=page(),e=w.document.querySelector('#editor');
+  e.innerHTML='<p>literal &lt;texto&gt;<br>linha dois</p>';
+  assert.equal(w.eval('htmlToText(document.querySelector("#editor").innerHTML)'),'literal <texto>\nlinha dois');
+  assert.equal(w.eval('txtLosesStructure()'),false);
+  e.innerHTML='<p><strong>formato</strong></p>';
+  assert.equal(w.eval('txtLosesStructure()'),true);
+  assert.equal(w.eval('htmlToText(document.querySelector("#editor").innerHTML)'),'formato');
+  w.close();
+});
+
+test('pagehide persists the last edit immediately and empty drafts restore identity',()=>{
+  const w=page(),d=w.document,e=d.querySelector('#editor');
+  d.querySelector('#docName').value='Última';
+  e.innerHTML='<p>edição final</p>';
+  e.dispatchEvent(new w.Event('input',{bubbles:true}));
+  w.dispatchEvent(new w.Event('pagehide'));
+  const saved=JSON.parse(w.localStorage.getItem('rmdtxtml'));
+  assert.equal(saved.name,'Última');
+  assert.match(saved.html,/edição final/);
+  w.close();
+
+  const doc='99999999-9999-4999-8999-999999999999';
+  const restored=page({local:{rmdtxtml:JSON.stringify({version:2,name:'Vazio',html:'',dest:'telegraph',telegraphPath:'',docId:doc,importedMd:'',importedTxt:'',importedHtml:'',media:null})}});
+  assert.equal(restored.document.querySelector('#docName').value,'Vazio');
+  assert.equal(restored.document.querySelector('#editor').innerHTML,'');
+  assert.equal(restored.document.querySelector('#destBtn').title,'Destino: Telegraph');
+  assert.equal(restored.eval('draftState().docId'),doc);
+  restored.close();
+});
