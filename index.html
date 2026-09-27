@@ -40,7 +40,8 @@
       --control-size:clamp(36px,10vw,40px);
       --pill-pad:4px;
       --pill-h:calc(var(--control-size) + 8px);
-      --top-side-offset:6px;
+      --top-side-offset:12px;
+      --editor-top-gap:8px;
       --topbar-h:calc(var(--pill-h) + var(--top-side-offset));
       --bar-h:var(--pill-h);
       --menu-w:210px;
@@ -50,7 +51,7 @@
       --vv-bottom:0px;
       --vv-height:100dvh;
       --bottom:var(--safe-bottom);
-      --head-inset:calc(var(--safe-top) + var(--gap) + var(--topbar-h) + var(--gap));
+      --head-inset:calc(var(--safe-top) + var(--gap) + var(--topbar-h) + var(--editor-top-gap) + var(--gap));
       --foot-inset:calc(var(--bottom) + var(--gap) + var(--bar-h) + var(--gap));
     }
     html.tg-shell{

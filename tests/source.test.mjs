@@ -137,10 +137,20 @@ test('server exposes every React-referenced local SVG icon and vector app icon',
   assert.doesNotMatch(server,/"logo\.png"/);
 });
 
+test('editor content starts below the lowered side pills without bypassing Telegram safe-area tokens',()=>{
+  const html=read('index.html');
+  assert.match(html,/html\.tg-shell\{[\s\S]*?--safe-top:max\(var\(--tg-safe-area-inset-top\),var\(--tg-content-safe-area-inset-top\)\)/);
+  assert.match(html,/\.topbar\{[\s\S]*?top:calc\(var\(--vv-top\) \+ var\(--safe-top\) \+ var\(--gap\)\)/);
+  assert.match(html,/\.top-slot\{[\s\S]*?margin-top:var\(--top-side-offset\)/);
+  assert.match(html,/\.scroll\{[\s\S]*?padding-top:var\(--head-inset\)/);
+});
+
 test('top chrome keeps lateral pills below the centered title and inside Telegram safe areas',()=>{
   const html=read('index.html');
-  assert.match(html,/--top-side-offset:6px/);
+  assert.match(html,/--top-side-offset:12px/);
+  assert.match(html,/--editor-top-gap:8px/);
   assert.match(html,/--topbar-h:calc\(var\(--pill-h\) \+ var\(--top-side-offset\)\)/);
+  assert.match(html,/--head-inset:calc\(var\(--safe-top\) \+ var\(--gap\) \+ var\(--topbar-h\) \+ var\(--editor-top-gap\) \+ var\(--gap\)\)/);
   assert.match(html,/html\.tg-shell\{[\s\S]*?--safe-top:max\(var\(--tg-safe-area-inset-top\),var\(--tg-content-safe-area-inset-top\)\)/);
   assert.match(html,/\.topbar\{[\s\S]*?top:calc\(var\(--vv-top\) \+ var\(--safe-top\) \+ var\(--gap\)\)/);
   assert.match(html,/\.top-left\{grid-column:1;justify-self:start\}/);
