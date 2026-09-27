@@ -59,6 +59,18 @@ async function jsonPost(path,body){
   const res=await fetch(`http://127.0.0.1:${port}${path}`,{method:'POST',headers:{origin,'content-type':'application/json'},body:JSON.stringify(body)});
   return {status:res.status,data:await res.json()};
 }
+async function webhook(update,secret=true){
+  const headers={'content-type':'application/json'};
+  if(secret)headers['x-telegram-bot-api-secret-token']=createHmac('sha256',token).update('MDTXTRT_WEBHOOK').digest('hex');
+  return fetch(`http://127.0.0.1:${port}/telegram/webhook`,{method:'POST',headers,body:JSON.stringify(update)});
+}
+async function restart(){
+  if(child){
+    child.kill();
+    await new Promise(resolve=>child.once('exit',resolve));
+  }
+  await start();
+}
 
 before(async()=>{
   dir=mkdtempSync(join(process.cwd(),'.test-data-'));
