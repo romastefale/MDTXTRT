@@ -3,6 +3,8 @@ const all=s=>Array.from(document.querySelectorAll(s));
 const editor = one('#editor');
 const docName = one('#docName');
 const toast = one('#toast');
+const toastText = document.createTextNode('');
+toast.append(toastText);
 const fileInput = one('#fileInput');
 const STATE_VERSION=2;
 let dest = 'telegram';
@@ -245,7 +247,7 @@ function setupTelegram(){
   tg.MainButton.hide();
 }
 function showToast(msg){
-  toast.textContent = msg; toast.classList.add('on');
+  toastText.data = String(msg); toast.classList.add('on');
   clearTimeout(showToast.t); showToast.t = setTimeout(()=>toast.classList.remove('on'), 1600);
 }
 function setDestination(value, notify=true){
@@ -1161,8 +1163,9 @@ function keyboardTarget(){
 }
 function syncBrowserViewport(){
   const root=document.documentElement,viewport=window.visualViewport;
-  const top=Math.max(0,viewport.offsetTop);
-  const bottom=Math.max(0,root.clientHeight-top-viewport.height);
+  const top=viewport?Math.max(0,viewport.offsetTop):0;
+  const height=viewport?viewport.height:root.clientHeight;
+  const bottom=Math.max(0,root.clientHeight-top-height);
   inset=keyboardTarget()||inset>0?bottom:0;
   root.toggleAttribute('data-keyboard',inset>0);
   root.style.setProperty('--vv-top',top+'px');
@@ -1173,8 +1176,10 @@ function scheduleBrowserViewport(){
   cancelAnimationFrame(viewportFrame);
   viewportFrame=requestAnimationFrame(syncBrowserViewport);
 }
-window.visualViewport.addEventListener('resize',scheduleBrowserViewport);
-window.visualViewport.addEventListener('scroll',scheduleBrowserViewport);
+if(window.visualViewport){
+  window.visualViewport.addEventListener('resize',scheduleBrowserViewport);
+  window.visualViewport.addEventListener('scroll',scheduleBrowserViewport);
+}
 window.addEventListener('resize',scheduleBrowserViewport);
 document.addEventListener('focusin',scheduleBrowserViewport);
 document.addEventListener('focusout',scheduleBrowserViewport);
