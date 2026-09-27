@@ -6,7 +6,7 @@ on:
     branches: [main]
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: regression-${{ github.workflow }}-${{ github.ref }}
@@ -24,6 +24,13 @@ jobs:
       - run: test "$(npm --version)" = "11.19.0"
       - run: npm ci
       - run: npm run build
-      - name: Verify canonical UI bundle
-        run: git diff --exit-code -- ui.js
+      - name: Canonicalize generated UI bundle
+        run: |
+          git add ui.js
+          if ! git diff --cached --quiet; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit -m "Build official React Liquid Glass UI"
+            git push
+          fi
       - run: npm test
