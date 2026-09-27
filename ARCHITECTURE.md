@@ -13,6 +13,7 @@ This document records the implementation boundaries that are authoritative for M
 - The protocol baseline is Telegram Bot API 10.3, released on 2026-08-24.
 - Rich content is sent through `sendRichMessage` and `InputRichMessage`.
 - Rich-message HTML is validated against the documented tag, nesting, media, table, and `RichMessageButton` contracts before Telegram is called.
+- The 32,768-character preflight counts Unicode text and custom-emoji alternative text, and RichText-only containers reject nested block markup locally rather than relying on Telegram to reject it.
 - There is no `sendMessage` downgrade path for rich content. Unsupported rich input fails explicitly instead of being silently translated to a legacy message.
 - Uploaded rich-message media is referenced through the official `InputRichMessage.media` mechanism and `tg://<media-type>?id=...` references, including `tg://document?id=...`.
 - Telegram Mini App session identity comes from verified `initData`; client-supplied user identifiers are not trusted as identity.
@@ -25,12 +26,13 @@ This document records the implementation boundaries that are authoritative for M
 - The server enforces the documented 64 KB content limit before publication.
 - A Telegraph page path is bound to the authenticated Telegram user and MDTXTRT document identifier so an edit cannot be redirected to an unrelated page.
 - The Telegraph access token and page ownership mapping are durable state and must not be moved to an ephemeral filesystem.
+- If persisted page ownership exists but the corresponding access token is missing, startup fails closed. MDTXTRT never creates a replacement Telegraph account behind existing ownership mappings.
 - Telegra.ph request validation and ownership failures are typed locally as `400` (or explicit `404` for an absent owned page). Telegra.ph transport/API failures are surfaced as `502`; status classification does not depend on matching error strings.
 
 ## Liquid Glass design contract
 
 - The normative implementation reference is `romastefale/liquid-glass` at commit `4e7b769e1df7e5a7d3669fef22417fe3d2f79ade` (v0.1.1 lineage, MIT, © Sam Asante).
-- `glass.js` is an attributed plain-JavaScript adaptation of the reference material-mode optics and displacement-map technique.
+- `glass.js` is an attributed plain-JavaScript adaptation of the reference material-mode optics and displacement-map technique; the adapted source itself carries the reference URL, pinned revision, author attribution, and MIT status.
 - Material chrome uses the reference optics vocabulary and values: refraction strength, depth, curvature, bend, dispersion, frost, saturation, sheen, glow, and specular gain.
 - Content remains crisp above the material surface. The glass treatment belongs to chrome; it is not decorative blur applied to document content.
 - The reference explicitly warns against stretching one displacement lens across a very wide dock-style panel. Such surfaces use an explicit frost-only material mode. This is a chosen material variant, not a runtime fallback.
