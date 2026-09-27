@@ -473,8 +473,13 @@ function richValid(html){
         if(child.type!=="tag"||!allowedNames.has(child.name))throw new Error(label+" inválido");
       }
     };
+    const textOnly=label=>{
+      for(const child of node.children){
+        if(child.type!=="text")throw new Error(label+" inválido");
+      }
+    };
     if(["ul","ol"].includes(node.name))structuralChildren(new Set(["li"]),"Conteúdo de lista");
-    if(["tg-emoji","tg-math","tg-math-block"].includes(node.name))structuralChildren(new Set(),"Conteúdo textual");
+    if(["tg-emoji","tg-math","tg-math-block"].includes(node.name))textOnly("Conteúdo textual");
     if(node.name==="tr")structuralChildren(new Set(["th","td"]),"Conteúdo de linha de tabela");
     if(node.name==="table"){
       structuralChildren(new Set(["caption","tr"]),"Conteúdo de tabela");
