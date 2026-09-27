@@ -23,7 +23,7 @@ test('all frost chrome surfaces are liquid-glass material targets without CSS fa
   assert.match(html,/class="toast frost"\s+data-lg/);
 });
 
-test('liquid-glass engine retains binding material optics and wide-bar rule',()=>{
+test('liquid-glass engine retains binding material optics on every chrome surface',()=>{
   const glass=read('glass.js');
   for(const fragment of [
     'strength:.05','depth:.5','curvature:.3','dispersion:.32',
@@ -33,12 +33,7 @@ test('liquid-glass engine retains binding material optics and wide-bar rule',()=
   ])assert.ok(glass.includes(fragment),fragment);
   assert.match(glass,/feDisplacementMap/);
   assert.match(glass,/inset 0 1px 0 rgba\(255,255,255,\.55\).*inset 0 0 0 1px rgba\(255,255,255,\.12\)/s);
-  const wide=glass.indexOf("if(el.hasAttribute('data-lg-wide'))");
-  const generate=glass.indexOf('gen.generate',wide);
-  assert.ok(wide>=0&&generate>wide);
-  const wideBlock=glass.slice(wide,generate);
-  assert.match(wideBlock,/backdropFilter=frost/);
-  assert.match(wideBlock,/return;/);
+  assert.doesNotMatch(glass,/data-lg-wide/);
   assert.match(glass,/f\.id="lg-mat-"\+materialId\+"-v"\+\(\+\+v\)/);
   assert.match(glass,/el\.style\.filter='none'/);
 });
@@ -65,6 +60,9 @@ test('editor keeps target-specific publishing validation and code metadata',()=>
   assert.match(app,/Formato de data inválido/);
   assert.match(app,/function activeMedia\(\)/);
   assert.match(app,/redoUsesMedia=hist\.slice\(histI\+1\)/);
+  assert.doesNotMatch(app,/toast\.textContent\s*=/);
+  assert.match(app,/const toastText = document\.createTextNode\(''\)/);
+  assert.match(app,/if\(window\.visualViewport\)\{/);
   assert.match(app,/function searchRegex\(term,exact=false\)/);
   const searchBlock=app.slice(app.indexOf('function matches(){'),app.indexOf("one('#findNext')"));
   assert.doesNotMatch(searchBlock,/toLocaleLowerCase/);
