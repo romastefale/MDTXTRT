@@ -16,6 +16,7 @@ This document records the implementation boundaries that are authoritative for M
 - There is no `sendMessage` downgrade path for rich content. Unsupported rich input fails explicitly instead of being silently translated to a legacy message.
 - Uploaded rich-message media is referenced through the official `InputRichMessage.media` mechanism and `tg://<media-type>?id=...` references, including `tg://document?id=...`.
 - Telegram Mini App session identity comes from verified `initData`; client-supplied user identifiers are not trusted as identity.
+- Local Rich Message contract failures are typed HTTP `400` errors. Telegram transport/API failures remain outside that preflight boundary and are surfaced as `502`; response status is never inferred from error-message text.
 
 ## Telegra.ph
 
@@ -24,6 +25,7 @@ This document records the implementation boundaries that are authoritative for M
 - The server enforces the documented 64 KB content limit before publication.
 - A Telegraph page path is bound to the authenticated Telegram user and MDTXTRT document identifier so an edit cannot be redirected to an unrelated page.
 - The Telegraph access token and page ownership mapping are durable state and must not be moved to an ephemeral filesystem.
+- Telegra.ph request validation and ownership failures are typed locally as `400` (or explicit `404` for an absent owned page). Telegra.ph transport/API failures are surfaced as `502`; status classification does not depend on matching error strings.
 
 ## Liquid Glass design contract
 
@@ -36,9 +38,13 @@ This document records the implementation boundaries that are authoritative for M
 - The WebKit/Gecko `material-frost` profile is not presented as equivalent refraction. If cross-browser bending becomes a product requirement, the implementation must move to one of the reference's copy/in-place refraction architectures instead of silently substituting blur.
 - Unsupported material refraction returns before displacement-map allocation, so no hidden ternary or late rendering fallback generates unused SVG lens work.
 
-## Persistence and hosting boundary
+## Execution and hosting boundary
 
-The current server requires a durable absolute path through `RAILWAY_VOLUME_MOUNT_PATH` for handoffs, Telegraph credentials, and Telegraph page ownership state. Any move to a serverless or ephemeral-filesystem platform must first replace that storage contract with a durable store and preserve the same ownership and restart guarantees. Deployment portability must not be simulated with an in-memory or temporary-filesystem fallback.
+- Node is pinned to `24.21.0`, an actively supported LTS runtime. CI reads that same version from `package.json`.
+- GitHub Actions dependencies are pinned by immutable commit SHA, with the corresponding release tag recorded as a comment.
+- npm dependency installation uses the committed lockfile through `npm ci`. CI and Railpack both verify the npm bundled with Node 24.21.0 is `11.19.0` before installation; the project does not provision a second npm through Corepack.
+- Railway's Railpack configuration makes the deterministic install command explicit. A build must fail rather than silently fall back to `npm install` or a different npm version.
+- The current server requires a durable absolute path through `RAILWAY_VOLUME_MOUNT_PATH` for handoffs, Telegraph credentials, and Telegraph page ownership state. Any move to a serverless or ephemeral-filesystem platform must first replace that storage contract with a durable store and preserve the same ownership and restart guarantees. Deployment portability must not be simulated with an in-memory or temporary-filesystem fallback.
 
 ## Provenance rule
 
