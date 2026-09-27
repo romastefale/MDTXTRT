@@ -81,17 +81,19 @@ test('theme neutrals are chromatic derivatives of the active accent',()=>{
 
 test('editor uses incremental Markdown input rules without replacing the rich-text model',()=>{
   const app=read('app.js');
-  assert.match(app,/function markdownBlockRule\(\)/);
-  assert.match(app,/const heading=prefix\.match\(\/\^\(#{1,6}\) \$\//);
-  assert.match(app,/if\(prefix==='> '\)return replaceBlock\('blockquote',2\)/);
-  assert.match(app,/if\(\/\^\[-\*\+\] \$\/\.test\(prefix\)\)return replaceBlock\('ul',2\)/);
-  assert.match(app,/const ordered=prefix\.match\(\/\^\(\\d\+\)\\\. \$\//);
-  assert.match(app,/dest==='telegram'&&prefix\.match\(\/\^- \\\[\(\[ xX\]\)\\\] \$\//);
-  assert.match(app,/markdownInlineWrap\(text,offset,'\*\*','strong'\)/);
-  assert.match(app,/markdownInlineWrap\(text,offset,'~~','s'\)/);
-  assert.match(app,/markdownInlineWrap\(text,offset,'`','code'\)/);
-  assert.match(app,/markdownInlineWrap\(text,offset,'\*','em',\{single:true\}\)/);
-  assert.match(app,/editor\.addEventListener\('input', \(\)=>\{ if\(!composing\)commitEditorInput\(\); \}\)/);
+  for(const fragment of [
+    'function markdownBlockRule()',
+    'const heading=prefix.match(/^(#{1,6}) $/);',
+    "if(prefix==='> ')return replaceBlock('blockquote',2);",
+    "if(/^[-*+] $/.test(prefix))return replaceBlock('ul',2);",
+    'const ordered=prefix.match(/^(\\d+)\\. $/);',
+    "dest==='telegram'&&prefix.match(/^- \\[([ xX])\\] $/)",
+    "markdownInlineWrap(text,offset,'**','strong')",
+    "markdownInlineWrap(text,offset,'~~','s')",
+    "markdownInlineWrap(text,offset,'`','code')",
+    "markdownInlineWrap(text,offset,'*','em',{single:true})",
+    "editor.addEventListener('input', ()=>{ if(!composing)commitEditorInput(); });"
+  ])assert.ok(app.includes(fragment),fragment);
 });
 
 test('editorial document typography uses the Telegraph serif family without changing app chrome',()=>{
