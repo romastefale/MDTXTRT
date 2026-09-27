@@ -32,7 +32,9 @@ This document records the implementation boundaries that are authoritative for M
 - Material chrome uses the reference optics vocabulary and values: refraction strength, depth, curvature, bend, dispersion, frost, saturation, sheen, glow, and specular gain.
 - Content remains crisp above the material surface. The glass treatment belongs to chrome; it is not decorative blur applied to document content.
 - The reference explicitly warns against stretching one displacement lens across a very wide dock-style panel. Such surfaces use an explicit frost-only material mode. This is a chosen material variant, not a runtime fallback.
-- Browser capability handling must stay explicit. Unsupported rendering paths may reduce optical fidelity only where the reference architecture itself documents that limitation; code must not silently substitute a different visual system.
+- Material-mode browser capability is an explicit rendering profile on each surface through `data-lg-rendering`: `material-refraction` when the reference's `backdrop-filter: url(#…)` path is available, `material-frost` where the reference documents material mode as frost + tint + edge only, and `frost` for intentionally frost-only wide surfaces.
+- The WebKit/Gecko `material-frost` profile is not presented as equivalent refraction. If cross-browser bending becomes a product requirement, the implementation must move to one of the reference's copy/in-place refraction architectures instead of silently substituting blur.
+- Unsupported material refraction returns before displacement-map allocation, so no hidden ternary or late rendering fallback generates unused SVG lens work.
 
 ## Persistence and hosting boundary
 
