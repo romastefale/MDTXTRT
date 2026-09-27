@@ -1,3 +1,11 @@
+/*
+ * Liquid Glass material adaptation.
+ * Reference: https://github.com/romastefale/liquid-glass
+ * Pinned reference revision: 4e7b769e1df7e5a7d3669fef22417fe3d2f79ade
+ * Upstream: @samasante/liquid-glass, © Sam Asante, MIT License.
+ * This plain-JavaScript adaptation preserves attribution; see PROVENANCE.md and LICENSE.
+ */
+
 
 const ERF_K=Math.sqrt(Math.PI);
 const erf=x=>Math.tanh(ERF_K*x);
