@@ -319,6 +319,14 @@ test('enviar, exportar, callbacks and group commands produce explicit Telegram a
   assert.match(lastCall('sendRichMessage').body.rich_message.html,/chat privado/);
 });
 
+test('Telegraph request errors are typed independently from upstream failures',async()=>{
+  const doc='55555555-5555-4555-8555-555555555555';
+  const invalid=await jsonPost('/api/telegraph/publish',{title:'',doc,content:[{tag:'p',children:['x']}],initData:init()});
+  assert.equal(invalid.status,400);
+  const upstream=await jsonPost('/api/telegraph/publish',{title:'UPSTREAM_REJECT',doc,content:[{tag:'p',children:['x']}],initData:init()});
+  assert.equal(upstream.status,502);
+});
+
 test('Telegraph path ownership is scoped to the authenticated user and document',async()=>{
   const doc='66666666-6666-4666-8666-666666666666';
   const base={title:'Owned',doc,content:[{tag:'p',children:['texto']}],initData:init()};
