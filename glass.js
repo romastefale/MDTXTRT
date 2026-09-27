@@ -319,6 +319,7 @@ const SUPPORTS_URL=(()=>{
   return hasUAData||(blink&&!ios&&!iosBrand);
 })();
 
+let materialId=0;
 const material=el=>{
   if(el.dataset.liquidGlass)return;
   el.dataset.liquidGlass="material";
@@ -348,6 +349,7 @@ const material=el=>{
   Object.assign(edge.style,{position:'absolute',inset:'0',pointerEvents:'none',borderRadius:'inherit',boxShadow:'inset 0 1px 0 rgba(255,255,255,.55), inset 0 0 0 1px rgba(255,255,255,.12)'});
   el.append(edge);
   const gen=createLensMapGenerator(O.mapSize);
+  const id=++materialId;
   let v=0;
   const draw=()=>{
     const x=el.getBoundingClientRect();
@@ -362,7 +364,7 @@ const material=el=>{
     g.setAttribute("scale",scale*(1+D*.5*O.dispersion));
     b.setAttribute("scale",scale);
     f.setAttribute("x",-margin);f.setAttribute("y",-margin);f.setAttribute("width",x.width+2*margin);f.setAttribute("height",x.height+2*margin);
-    f.id="lg-mat-"+(++v);
+    f.id="lg-mat-"+id+"-v"+(++v);
     const frost="blur("+O.frost+"px) saturate("+O.saturate+")";
     const useUrl=SUPPORTS_URL&&el.dataset.lgMode!=='frost';
     const value=useUrl?frost+' url(#'+f.id+')':frost;
