@@ -158,9 +158,8 @@ test('Telegram serializer preserves language class on code',()=>{
 
 test('Telegraph serializer rejects non-http links locally',()=>{
   const w=page(),e=w.document.querySelector('#editor');
-  w.document.querySelector('#docName').value='Doc';
   e.innerHTML='<p><a href="mailto:test@example.com">mail</a></p>';
-  assert.throws(()=>w.eval('buildTelegraph()'),/HTTP ou HTTPS/);
+  assert.throws(()=>w.eval('telegraphNodes(document.querySelector("#editor"))'),/HTTP ou HTTPS/);
   w.close();
 });
 
@@ -168,13 +167,13 @@ test('invalid import leaves current document identity and content intact',async(
   const w=page(),d=w.document,e=d.querySelector('#editor'),input=d.querySelector('#fileInput');
   d.querySelector('#docName').value='Atual';
   e.innerHTML='<p>preservar</p>';
-  const before=w.eval('docId');
+  const before=w.eval('draftState().docId');
   Object.defineProperty(input,'files',{configurable:true,value:[{name:'bad.pdf',text:async()=> 'novo'}]});
   input.dispatchEvent(new w.Event('change'));
   await wait(5);
   assert.equal(d.querySelector('#docName').value,'Atual');
   assert.equal(e.innerHTML,'<p>preservar</p>');
-  assert.equal(w.eval('docId'),before);
+  assert.equal(w.eval('draftState().docId'),before);
   w.close();
 });
 
