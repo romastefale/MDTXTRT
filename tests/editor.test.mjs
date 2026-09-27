@@ -43,7 +43,7 @@ function mountReactContract(document){
       <header class="topbar"><button id="brandBtn" popovertarget="importMenu">MDTXTRT</button></header>
       <div class="meta">
         <div class="seg"><button id="undoBtn"></button><button id="redoBtn"></button></div>
-        <div class="seg"><button id="destBtn" title="Destino: Telegram"></button><button id="exportBtn"></button></div>
+        <div class="seg"><button id="destBtn" title="Destino: Telegram"><span data-icon="telegram"></span></button><button id="exportBtn"></button></div>
       </div>
     </div>
     <div id="headingMenu" popover="auto"><div class="menu-list">
@@ -61,7 +61,7 @@ function mountReactContract(document){
       <input id="docName" value="Ideia"><button id="importMdBtn"></button><button id="importTxtBtn"></button><button id="findBtn"></button>
     </div>
     <div id="exportMenu" popover="auto">
-      <button id="openAppBtn"><span id="openAppLabel">Publicar no Telegram</span></button>
+      <button id="openAppBtn"><span data-icon="telegram"></span><span id="openAppLabel">Publicar no Telegram</span></button>
       <button id="exportMdBtn"></button><button id="exportTxtBtn"></button>
     </div>
     <div id="plusMenu" popover="auto"><div class="menu-list">
