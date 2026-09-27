@@ -118,7 +118,7 @@
     .editor:focus-visible{outline-offset:4px}
     .ui-icon{display:block;width:18px;height:18px;flex:none;background-color:currentColor;-webkit-mask:var(--ui-icon) center/contain no-repeat;mask:var(--ui-icon) center/contain no-repeat}
     .seg button .ui-icon,.action-dot .ui-icon,.sheet-ico .ui-icon{width:16px;height:16px}
-    .editor h1,.editor h2,.editor h3,.editor h4,.editor h5,.editor h6{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;letter-spacing:-.03em;line-height:1.2;font-weight:650}
+    .editor h1,.editor h2,.editor h3,.editor h4,.editor h5,.editor h6{font-family:inherit;letter-spacing:-.03em;line-height:1.2;font-weight:650}
     .editor h1{font-size:28px;font-weight:750;margin:0 0 .45em}
     .editor h2{font-size:24px;margin:.95em 0 .4em}
     .editor h3{font-size:20px;margin:.9em 0 .35em}
@@ -229,6 +229,7 @@
     .editor:empty::before{content:attr(data-placeholder);color:var(--muted);pointer-events:none}
     .editor{
       outline:none;min-height:100%;caret-color:var(--accent);font-size:16px;
+      font-family:Georgia,"Times New Roman",serif;
       -webkit-user-select:text;user-select:text
     }
     .editor p{margin:.7em 0}

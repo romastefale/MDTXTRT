@@ -79,6 +79,14 @@ test('theme neutrals are chromatic derivatives of the active accent',()=>{
   assert.equal((html.match(/--muted:#dcf1db;/g)||[]).length,1);
 });
 
+test('editorial document typography uses the Telegraph serif family without changing app chrome',()=>{
+  const html=read('index.html');
+  assert.match(html,/\.editor\{[\s\S]*?font-family:Georgia,"Times New Roman",serif;/);
+  assert.match(html,/\.editor h1,\.editor h2,\.editor h3,\.editor h4,\.editor h5,\.editor h6\{font-family:inherit;/);
+  assert.match(html,/body\{[\s\S]*?font:16px\/1\.45 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif/);
+  assert.match(html,/\.telegraph-title \.document-tools input\{[\s\S]*?Georgia,"Times New Roman",serif/);
+});
+
 test('theme switch owns browser and Telegram chrome without mixed system bars',()=>{
   const html=read('index.html'),src=uiSource(),app=read('app.js');
   assert.match(html,/id="statusBarStyle"/);
