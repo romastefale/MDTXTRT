@@ -201,7 +201,7 @@ test('UI preserves compact portrait contract, unified chrome scale and anchored 
   assert.match(src,/id="themeBtn"/);
   assert.match(src,/id="plusBtn"[\s\S]*popoverTarget="plusMenu"/);
   const typebar=src.slice(src.indexOf('<GlassControl className="bar"'),src.indexOf('</GlassControl>',src.indexOf('<GlassControl className="bar"')));
-  assert.ok(typebar.lastIndexOf('id="plusBtn"')>typebar.lastIndexOf('id="quoteBtn"'));
+  assert.ok(typebar.indexOf('id="plusBtn"')<typebar.indexOf('data-cmd="bold"'));
   for(const pair of [['headingMenu','headingBtn'],['listMenu','listBtn'],['quoteMenu','quoteBtn'],['plusMenu','plusBtn'],['exportMenu','exportBtn']]){
     assert.match(src,new RegExp('id="'+pair[0]+'"[^>]*anchorId="'+pair[1]+'"'));
   }
@@ -209,6 +209,27 @@ test('UI preserves compact portrait contract, unified chrome scale and anchored 
   assert.match(app,/panel\.style\.setProperty\('--menu-left'/);
   assert.match(src,/id="toast" role="status" aria-live="polite" aria-atomic="true"/);
   assert.match(src,/id="dialogMenu"[\s\S]*?popover="manual"[\s\S]*?role="dialog"[\s\S]*?aria-modal="true"/);
+});
+
+test('plus menu keeps normative compact geometry and opens categorized submenus over the leftmost trigger',()=>{
+  const html=read('index.html'),src=uiSource(),app=read('app.js');
+  assert.match(src,/const plusSections = \[/);
+  for(const id of ['file','format','structure','media','interaction']) assert.match(src,new RegExp('id: "'+id+'"'));
+  assert.ok(src.includes('id={`plus-${section.id}-menu`}'));
+  assert.match(src,/data-plus-category=\{section\.id\}/);
+  assert.match(src,/data-plus-submenu=\{section\.id\}/);
+  assert.match(src,/Icon name="chevron_right"/);
+  assert.match(src,/icon="arrow_back"/);
+  assert.match(src,/anchorId="plusBtn" placement="top"/);
+  assert.match(app,/const plusSubmenus=\['#plus-file-menu','#plus-format-menu','#plus-structure-menu','#plus-media-menu','#plus-interaction-menu'\]/);
+  assert.match(app,/function openPlusSubmenu\(key\)/);
+  assert.match(app,/function openPlusRoot\(\)/);
+  assert.match(app,/plusSubmenus\.some\(sel=>one\(sel\)\.matches\(':popover-open'\)\)/);
+  assert.match(html,/--menu-w:210px/);
+  assert.match(html,/--menu-row-h:24px/);
+  assert.match(html,/--menu-radius:9px/);
+  assert.match(html,/\.menu-label\{flex:1/);
+  assert.match(html,/\.plus-submenu \.submenu-back\{font-weight:650\}/);
 });
 
 test('Glass wrappers keep chrome controls horizontal instead of package inline-block stacking',()=>{
