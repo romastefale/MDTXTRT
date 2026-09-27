@@ -401,6 +401,9 @@ function richTextLength(nodes){
   let length=0;
   const walk=node=>{
     if(node.type==="text"){length+=Array.from(node.data||"").length;return;}
+    if(node.type==="tag"&&node.name==="img"&&richEmojiImage(node.attribs?.src)){
+      length+=Array.from(node.attribs.alt||"").length;
+    }
     node.children?.forEach(walk);
   };
   nodes.forEach(walk);
