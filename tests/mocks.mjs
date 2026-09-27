@@ -14,6 +14,10 @@ globalThis.fetch = async (url,options={}) => {
       appendFileSync(process.env.TEST_CALLS,JSON.stringify({method,body})+'\n');
     }
     if(method==='getMe')return Response.json({ok:true,result:{username:'mdtxtrt_test_bot'}});
+    if(method==='sendRichMessage'&&typeof options.body==='string'){
+      const probe=JSON.parse(options.body);
+      if(probe.rich_message?.html?.includes('UPSTREAM_REJECT'))return Response.json({ok:false,description:'test rejection'},{status:400});
+    }
     return Response.json({ok:true,result:{message_id:42}});
   }
   if(parsed.host==='api.telegra.ph'){
