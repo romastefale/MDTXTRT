@@ -11,27 +11,27 @@ test('application scripts parse',()=>{
   assert.doesNotThrow(()=>new vm.Script(read('glass.js'),{filename:'glass.js'}));
 });
 
-test('script cache keys are versioned and stale app key is gone',()=>{
+test('script cache keys track the current UX engine and controller blobs',()=>{
   const html=read('index.html');
-  assert.match(html,/app\.js\?v=[a-f0-9]{12}/);
-  assert.match(html,/glass\.js\?v=a974cc0d4b74/);
+  assert.match(html,/app\.js\?v=d6c30dd32be8/);
+  assert.match(html,/glass\.js\?v=aa91846a9205/);
   assert.doesNotMatch(html,/app\.js\?v=46df031c221a/);
 });
 
-test('all frost chrome surfaces use an explicit liquid-glass material mode',()=>{
+test('compact UX surfaces use the GlassContextMenu profile and no legacy sheet surface remains',()=>{
   const html=read('index.html');
   const tags=[...html.matchAll(/<[^>]+\bclass="[^"]*\bfrost\b[^"]*"[^>]*>/g)].map(match=>match[0]);
   assert.equal(tags.length,13);
   for(const tag of tags)assert.match(tag,/\bdata-lg(?:\s|=|>)/,tag);
   assert.doesNotMatch(html,/(?:-webkit-)?backdrop-filter\s*:/);
   assert.match(html,/class="bar frost"\s+data-lg\s+data-lg-mode="frost"\s+id="typebar"/);
+  assert.equal((html.match(/class="glass-menu frost"\s+data-lg\s+data-lg-profile="context-menu"/g)||[]).length,8);
+  assert.equal((html.match(/data-lg-profile="context-menu"/g)||[]).length,12);
+  assert.doesNotMatch(html,/class="sheet frost"/);
   assert.doesNotMatch(html,/data-lg-wide/);
-  assert.match(html,/class="brand frost"\s+data-lg/);
-  assert.equal((html.match(/class="sheet frost"\s+data-lg/g)||[]).length,8);
-  assert.match(html,/class="toast frost"\s+data-lg/);
 });
 
-test('liquid-glass engine retains binding material optics on every chrome surface',()=>{
+test('liquid-glass engine preserves base optics and the normative GlassContextMenu profile',()=>{
   const glass=read('glass.js');
   for(const fragment of [
     'strength:.05','depth:.5','curvature:.3','dispersion:.32',
@@ -39,20 +39,26 @@ test('liquid-glass engine retains binding material optics on every chrome surfac
     'specular:1','sheenAngle:45','sheen:.32','sheenWidth:3',
     'glow:.1','glowSpread:1','glowFalloff:.5'
   ])assert.ok(glass.includes(fragment),fragment);
+  for(const fragment of [
+    'mapSize:256','depth:.65','curvature:.26','dispersion:.16','strength:.22',
+    'bend:.65','bendWidth:.07','frost:3.5','brightness:.55','specular:.8',
+    'glow:.06','glowFalloff:.8','sheen:.4','sheenWidth:1'
+  ])assert.ok(glass.includes(fragment),fragment);
+  assert.match(glass,/UX profile source: examples\/GlassContextMenu\.tsx/);
+  assert.match(glass,/profile=el\.dataset\.lgProfile==="context-menu"\?"context-menu":"material"/);
+  assert.match(glass,/context-menu-refraction/);
+  assert.match(glass,/context-menu-frost/);
+  assert.match(glass,/r\.setAttribute\("scale",scale\*\(1\+D\*\.5\*optics\.dispersion\)\)/);
+  assert.match(glass,/g\.setAttribute\("scale",scale\)/);
+  assert.match(glass,/b\.setAttribute\("scale",scale\*\(1-D\*\.5\*optics\.dispersion\)\)/);
   assert.match(glass,/feDisplacementMap/);
-  assert.match(glass,/inset 0 1px 0 rgba\(255,255,255,\.55\).*inset 0 0 0 1px rgba\(255,255,255,\.12\)/s);
   assert.doesNotMatch(glass,/data-lg-wide/);
-  assert.match(glass,/el\.dataset\.lgMode==="frost"\?"frost":"material"/);
-  assert.match(glass,/supportsRefraction=mode==="material"&&supportsBackdropUrl\(\)/);
-  assert.match(glass,/el\.dataset\.lgRendering=mode==="frost"\?"frost":supportsRefraction\?"material-refraction":"material-frost"/);
-  assert.match(glass,/if\(mode==="frost"\|\|!supportsRefraction\)\{/);
-  assert.doesNotMatch(glass,/const value=supportsBackdropUrl\(\)\?/);
   assert.doesNotMatch(glass,/willChange/);
   assert.match(glass,/f\.id="lg-mat-"\+materialId\+"-v"\+\(\+\+v\)/);
   assert.doesNotMatch(glass,/el\.style\.filter\s*=/);
 });
 
-test('theme neutrals are chromatic derivatives of the active accent',()=>{
+test('theme accents remain semantic while compact glass menu states use the active accent',()=>{
   const html=read('index.html');
   assert.match(html,/--accent:#2B88D8;/);
   assert.match(html,/html\.light\{[\s\S]*?--accent:#FF4BA0;/);
@@ -61,10 +67,10 @@ test('theme neutrals are chromatic derivatives of the active accent',()=>{
     assert.match(html,new RegExp('--'+name+':color-mix\\(in oklab,var\\(--accent\\) '+amount+'%,var\\(--bg\\)\\);'));
   }
   assert.match(html,/--line:color-mix\(in oklab,var\(--accent\) 22%,var\(--bg\)\);/);
-  assert.match(html,/\.menu-list > button:hover\{background:var\(--neutral-2\)\}/);
-  assert.match(html,/\.dialog-actions button\{[^}]*background:var\(--neutral-2\)/);
+  assert.match(html,/\.menu-list > button:hover,\.menu-list > button:focus-visible\{background:var\(--accent\);color:#fff\}/);
+  assert.match(html,/\.dialog-actions #dialogOk\{background:var\(--accent\);color:#fff\}/);
+  assert.match(html,/\[data-lg-profile="context-menu"\]\{[\s\S]*?background:transparent;color:#151515;/);
   assert.doesNotMatch(html,/--muted:#[0-9a-f]{3,8}/i);
-  assert.doesNotMatch(html,/html\.light \.sheet-ico\{background:rgba\(0,0,0/);
 });
 
 test('interface icon assets are vector SVG only',()=>{
@@ -112,18 +118,35 @@ test('server exposes every referenced local SVG icon and vector app icon',()=>{
   assert.doesNotMatch(server,/"logo\.png"/);
 });
 
-test('UI preserves portrait phone contract, no zoom, focus semantics and 44px targets',()=>{
+test('UI preserves portrait phone contract, disables zoom and pinch zoom, hides scrollbars and keeps 44px shell targets',()=>{
   const html=read('index.html');
   assert.match(html,/minimum-scale=1, maximum-scale=1, user-scalable=no/);
+  assert.match(html,/touch-action:pan-x pan-y/);
+  assert.match(html,/\*\{box-sizing:border-box;scrollbar-width:none\}/);
+  assert.match(html,/\*::-webkit-scrollbar\{width:0;height:0;display:none\}/);
   assert.match(html,/:where\(button,input,textarea,\[contenteditable="true"\]\):focus-visible/);
   assert.match(html,/id="toast" role="status" aria-live="polite" aria-atomic="true"/);
-  assert.match(html,/id="dialogMenu" popover="manual" role="dialog" aria-modal="true" aria-labelledby="dialogLabel"/);
+  assert.match(html,/id="dialogMenu"[^>]*popover="manual"[^>]*role="dialog" aria-modal="true" aria-labelledby="dialogLabel"/);
   assert.match(html,/id="deviceGate" role="dialog" aria-modal="true"/);
   assert.match(html,/@media \(orientation:landscape\),\(min-width:760px\)/);
-  assert.doesNotMatch(html,/@media \(min-width:760px\)\{\s*\.meta/);
   assert.match(html,/--meta-h:52px/);
   assert.match(html,/--bar-h:52px/);
   assert.match(html,/min-width:44px;height:44px/);
+});
+
+test('menus use compact context-menu geometry and anchor to their invoking controls',()=>{
+  const html=read('index.html'),app=read('app.js');
+  assert.match(html,/\.glass-menu\{[\s\S]*?min-width:210px;max-width:min\(280px,calc\(100vw - 16px\)\);[\s\S]*?max-height:min\(55vh,420px\)/);
+  assert.match(html,/height:32px;min-height:32px/);
+  assert.match(html,/border-radius:9px/);
+  assert.match(html,/data-anchor="plusBtn" data-placement="top"/);
+  assert.match(html,/data-anchor="brandBtn" data-placement="bottom"/);
+  assert.match(html,/data-anchor="findBtn" data-placement="right"/);
+  assert.doesNotMatch(html,/\.sheet\{/);
+  assert.match(app,/function positionFloatingPanel\(panel,anchorRect=null\)/);
+  assert.match(app,/panel\.dataset\.placement\|\|'bottom'/);
+  assert.match(app,/getBoundingClientRect\(\)/);
+  assert.match(app,/requestAnimationFrame\(\(\)=>positionFloatingPanel/);
 });
 
 test('Telegram Mini App requires phone platform and locks portrait through the official API',()=>{
