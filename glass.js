@@ -310,7 +310,8 @@ const createLensMapGenerator=size=> {
   };
 }
 
-const O={mapSize:512,clipToShape:true,softEdge:true,strength:.05,depth:.5,curvature:.3,splay:0,dispersion:.32,bend:.45,bendWidth:.16,frost:6,saturate:1.15,specular:1,sheenAngle:45,sheen:.32,sheenWidth:3,sheenFalloff:1.5,glow:.1,glowSpread:1,glowFalloff:.5};
+const O={mapSize:512,clipToShape:true,softEdge:true,strength:.05,depth:.5,curvature:.3,splay:0,dispersion:.32,bend:.45,bendWidth:.16,frost:6,saturate:1.15,brightness:0,specular:1,sheenAngle:45,sheen:.32,sheenWidth:3,sheenFalloff:1.5,glow:.1,glowSpread:1,glowFalloff:.5};
+const CONTEXT_MENU_OPTICS={mapSize:256,clipToShape:true,softEdge:true,depth:.65,curvature:.26,dispersion:.16,strength:.22,bend:.65,bendWidth:.07,frost:3.5,brightness:.55,specular:.8,sheenAngle:45,glow:.06,glowSpread:1,glowFalloff:.8,sheen:.4,sheenWidth:1};
 const D=.22;
 const N="http://www.w3.org/2000/svg";
 const node=(n,a={})=>{
@@ -328,18 +329,22 @@ let materialSeq=0;
 const material=el=>{
   if(el.dataset.liquidGlass)return;
   const mode=el.dataset.lgMode==="frost"?"frost":"material";
+  const profile=el.dataset.lgProfile==="context-menu"?"context-menu":"material";
+  const optics=profile==="context-menu"?{...O,...CONTEXT_MENU_OPTICS}:O;
   const supportsRefraction=mode==="material"&&supportsBackdropUrl();
   el.dataset.liquidGlass=mode;
+  el.dataset.lgProfileResolved=profile;
   el.dataset.lgRendering=mode==="frost"?"frost":supportsRefraction?"material-refraction":"material-frost";
-  const frost="blur("+O.frost+"px) saturate("+O.saturate+")";
+  const frost="blur("+optics.frost+"px) saturate("+optics.saturate+")";
   const edge=document.createElement('span');
   edge.setAttribute('aria-hidden','true');
   edge.dataset.lgLayer='';
-  Object.assign(edge.style,{position:'absolute',inset:'0',pointerEvents:'none',borderRadius:'inherit',boxShadow:'inset 0 1px 0 rgba(255,255,255,.55), inset 0 0 0 1px rgba(255,255,255,.12)'});
+  Object.assign(edge.style,{position:'absolute',inset:'0',pointerEvents:'none',borderRadius:'inherit',boxShadow:profile==="context-menu"?"none":'inset 0 1px 0 rgba(255,255,255,.55), inset 0 0 0 1px rgba(255,255,255,.12)'});
   el.append(edge);
   if(mode==="frost"||!supportsRefraction){
     el.style.backdropFilter=frost;
     el.style.webkitBackdropFilter=frost;
+    if(profile==="context-menu"&&optics.brightness>0)el.style.background="rgba(255,255,255,"+optics.brightness+")";
     return;
   }
   const svg=node("svg",{width:0,height:0,"aria-hidden":"true"});
@@ -358,10 +363,13 @@ const material=el=>{
   const rg=node("feComposite",{in:"refractR",in2:"refractG",operator:"arithmetic",k1:"0",k2:"1",k3:"1",k4:"0",result:"refractRG"});
   const rgb=node("feComposite",{in:"refractRG",in2:"refractB",operator:"arithmetic",k1:"0",k2:"1",k3:"1",k4:"0",result:"lensOut"});
   const sm=node("feColorMatrix",{in:"map",type:"matrix",values:"0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 1 0 -0.5019607843",result:"sheenMask"});
-  const sc=node("feComposite",{in:"sheenMask",in2:"lensOut",operator:"arithmetic",k1:"0",k2:String(O.specular),k3:"1",k4:"0"});
+  const sc=node("feComposite",{in:"sheenMask",in2:"lensOut",operator:"arithmetic",k1:"0",k2:String(optics.specular),k3:"1",k4:"0",result:"specOut"});
+  const brightness=optics.brightness>0?node("feFlood",{floodColor:"white",floodOpacity:String(optics.brightness),result:"brightnessVeil"}):null;
+  const bright=brightness?node("feComposite",{in:"brightnessVeil",in2:"specOut",operator:"over"}):null;
   f.append(flood,img,comp,r,rc,g,gc,b,bc,rg,rgb,sm,sc);
+  if(bright)f.append(brightness,bright);
   defs.append(f);svg.append(defs);el.append(svg);
-  const gen=createLensMapGenerator(O.mapSize);
+  const gen=createLensMapGenerator(optics.mapSize);
   const materialId=++materialSeq;
   let v=0;
   const draw=()=>{
@@ -369,12 +377,12 @@ const material=el=>{
     if(!x.width||!x.height)return;
     const cs=getComputedStyle(el);
     const rad=Math.min(parseFloat(cs.borderTopLeftRadius)||0,Math.min(x.width,x.height)/2);
-    const map=gen.generate({lensHalfWidth:x.width/2,lensHalfHeight:x.height/2,borderRadius:rad,depth:O.depth,clipToShape:O.clipToShape,softEdge:O.softEdge,sheenAngle:O.sheenAngle,glow:O.glow,glowSpread:O.glowSpread,glowFalloff:O.glowFalloff,sheen:O.sheen,sheenWidth:O.sheenWidth,sheenFalloff:O.sheenFalloff,curvature:O.curvature,splay:O.splay,bend:O.bend,bendWidth:O.bendWidth});
-    const scale=O.strength*Math.sqrt((x.width*x.width+x.height*x.height)/2);
+    const map=gen.generate({lensHalfWidth:x.width/2,lensHalfHeight:x.height/2,borderRadius:rad,depth:optics.depth,clipToShape:optics.clipToShape,softEdge:optics.softEdge,sheenAngle:optics.sheenAngle,glow:optics.glow,glowSpread:optics.glowSpread,glowFalloff:optics.glowFalloff,sheen:optics.sheen,sheenWidth:optics.sheenWidth,sheenFalloff:optics.sheenFalloff,curvature:optics.curvature,splay:optics.splay,bend:optics.bend,bendWidth:optics.bendWidth});
+    const scale=optics.strength*Math.sqrt((x.width*x.width+x.height*x.height)/2);
     const margin=Math.ceil(scale*1.2*.5+28);
     img.setAttribute("href",map);img.setAttribute("width",x.width);img.setAttribute("height",x.height);
-    r.setAttribute("scale",scale*(1+D*O.dispersion));
-    g.setAttribute("scale",scale*(1+D*.5*O.dispersion));
+    r.setAttribute("scale",scale*(1+D*optics.dispersion));
+    g.setAttribute("scale",scale*(1+D*.5*optics.dispersion));
     b.setAttribute("scale",scale);
     f.setAttribute("x",-margin);f.setAttribute("y",-margin);f.setAttribute("width",x.width+2*margin);f.setAttribute("height",x.height+2*margin);
     f.id="lg-mat-"+materialId+"-v"+(++v);
