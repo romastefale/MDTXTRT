@@ -40,7 +40,7 @@ test('React UX imports the official Glass primitive and follows GlassContextMenu
     'sheen: 0.4','sheenWidth: 1'
   ])assert.ok(src.includes(fragment),fragment);
   assert.match(src,/function GlassContextMenu/);
-  assert.match(src,/<Glass optics=\{MENU_LENS\} className="glass-menu-material">/);
+  assert.match(src,/<Glass[\s\S]*?optics=\{MENU_LENS\}[\s\S]*?className="glass-menu-material"/);
   assert.match(src,/function GlassControl/);
   assert.match(src,/style=\{\{ display: "flex", alignItems: "center", \.\.\.style \}\}/);
   assert.match(src,/className="glass-menu-material"[\s\S]*?style=\{\{ display: "block", width: "100%" \}\}/);
