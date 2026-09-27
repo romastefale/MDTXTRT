@@ -1,4 +1,4 @@
-import React, { useLayoutEffect, useRef, useState } from "react";
+import React from "react";
 import { createRoot } from "react-dom/client";
 import { flushSync } from "react-dom";
 import { Glass } from "@samasante/liquid-glass";
@@ -33,24 +33,6 @@ export const MENU_LENS = {
 
 const MENU_RADIUS = 9;
 
-function useSize() {
-  const ref = useRef(null);
-  const [size, setSize] = useState({ w: 0, h: 0 });
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el) return undefined;
-    const measure = () => {
-      const rect = el.getBoundingClientRect();
-      setSize({ w: Math.round(rect.width), h: Math.round(rect.height) });
-    };
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
-  return [ref, size];
-}
-
 function Icon({ name }) {
   return <span className="ui-icon" data-icon={name} aria-hidden="true" />;
 }
@@ -65,27 +47,16 @@ function MenuItem({ icon, className = "", children, ...props }) {
 }
 
 export function GlassContextMenu({ id, children, className = "", popover = "auto", ...props }) {
-  const [ref, { w, h }] = useSize();
   return (
     <div
-      ref={ref}
       id={id}
       popover={popover}
       className={`glass-menu ${className}`.trim()}
       {...props}
     >
-      {w > 0 && h > 0 && (
-        <Glass
-          aria-hidden="true"
-          optics={MENU_LENS}
-          brightnessInFilter
-          width={w}
-          height={h}
-          radius={MENU_RADIUS}
-          className="glass-menu-lens"
-        />
-      )}
-      <div className="glass-menu-content">{children}</div>
+      <Glass optics={MENU_LENS} className="glass-menu-material">
+        <div className="glass-menu-content">{children}</div>
+      </Glass>
     </div>
   );
 }
@@ -247,21 +218,11 @@ function FindMenu() {
 }
 
 function Toast() {
-  const [ref, { w, h }] = useSize();
   return (
-    <div ref={ref} className="toast" id="toast" role="status" aria-live="polite" aria-atomic="true">
-      {w > 0 && h > 0 && (
-        <Glass
-          aria-hidden="true"
-          optics={MENU_LENS}
-          brightnessInFilter
-          width={w}
-          height={h}
-          radius={MENU_RADIUS}
-          className="glass-menu-lens"
-        />
-      )}
-      <span className="toast-content" id="toastTextHost" />
+    <div className="toast" id="toast" role="status" aria-live="polite" aria-atomic="true">
+      <Glass optics={MENU_LENS} className="toast-material">
+        <span className="toast-content" id="toastTextHost" />
+      </Glass>
     </div>
   );
 }
