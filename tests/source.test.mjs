@@ -84,3 +84,34 @@ test('server exposes every referenced local SVG icon and vector app icon',()=>{
   assert.match(server,/"logo\.svg"/);
   assert.doesNotMatch(server,/"logo\.png"/);
 });
+
+test('UI keeps zoom, visible focus, live status semantics and 44px primary targets',()=>{
+  const html=read('index.html');
+  assert.doesNotMatch(html,/user-scalable\s*=\s*no/i);
+  assert.doesNotMatch(html,/maximum-scale\s*=\s*1/i);
+  assert.match(html,/:where\(button,input,textarea,\[contenteditable="true"\]\):focus-visible/);
+  assert.match(html,/id="toast" role="status" aria-live="polite" aria-atomic="true"/);
+  assert.match(html,/id="dialogMenu" popover="manual" role="dialog" aria-modal="true" aria-labelledby="dialogLabel"/);
+  assert.match(html,/--meta-h:52px/);
+  assert.match(html,/--bar-h:52px/);
+  assert.match(html,/min-width:44px;height:44px/);
+});
+
+test('server follows Bot API 10.3 Rich Message contracts without message downgrade paths',()=>{
+  const server=read('server.mjs');
+  assert.match(server,/function richTextLength\(nodes\)/);
+  assert.doesNotMatch(server,/Buffer\.byteLength\(html\)>32768/);
+  assert.match(server,/A mensagem excede 32768 caracteres/);
+  assert.match(server,/insideButton&&!\['tg-emoji','tg-time'\]\.includes\(node\.name\)/);
+  assert.match(server,/"mailto:","tel:"/);
+  assert.doesNotMatch(server,/telegramCall\("sendMessage"/);
+});
+
+test('architecture provenance is shipped with the repository',()=>{
+  assert.ok(existsSync(new URL('../PROVENANCE.md',import.meta.url)));
+  const provenance=read('PROVENANCE.md');
+  assert.match(provenance,/romastefale\/liquid-glass/);
+  assert.match(provenance,/Sam Asante/);
+  assert.match(provenance,/sendRichMessage/);
+  assert.match(provenance,/telegra\.ph\/api/);
+});
