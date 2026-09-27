@@ -198,9 +198,15 @@ test('Rich Message buttons enforce one action contract and official button URL s
   assert.equal(calls().filter(call=>call.method==='sendRichMessage').length,before+1);
 });
 
-test('Rich Message text limits use Unicode characters and button text stays within the Bot API contract',async()=>{
+test('Rich Message text limits include Unicode text and custom emoji alternatives',async()=>{
   const valid=await formPost('/api/telegram/send',{initData:init(),html:'<p>'+ 'á'.repeat(20000)+'</p>'});
   assert.equal(valid.status,200);
+  const emoji='<img src="tg://emoji?id=5368324170671202286" alt="👍">';
+  const emojiBoundary=await formPost('/api/telegram/send',{initData:init(),html:'<p>'+ 'a'.repeat(32767)+'</p>'+emoji});
+  assert.equal(emojiBoundary.status,200);
+  const emojiOverflow=await formPost('/api/telegram/send',{initData:init(),html:'<p>'+ 'a'.repeat(32768)+'</p>'+emoji});
+  assert.equal(emojiOverflow.status,400);
+  assert.match(emojiOverflow.data.error,/32768 caracteres/);
   const tooLong=await formPost('/api/telegram/send',{initData:init(),html:'<p>'+ 'a'.repeat(32769)+'</p>'});
   assert.equal(tooLong.status,400);
   assert.match(tooLong.data.error,/32768 caracteres/);
