@@ -286,6 +286,11 @@
     .menu-divider::after{content:"";position:absolute;left:8px;right:8px;top:5px;height:1px;background:rgba(0,0,0,.14)}
     .sheet-ico{width:16px;height:16px;border-radius:4px;flex:none;display:grid;place-items:center;background:transparent;box-shadow:none}
     .sheet-ico .ui-icon,.sheet-ico svg{width:13px;height:13px}
+    .menu-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+    .menu-chevron{width:13px;height:13px;flex:none;display:grid;place-items:center;margin-left:auto;opacity:.55}
+    .menu-chevron .ui-icon{width:12px;height:12px}
+    .menu-list > button:hover .menu-chevron,.menu-list > button:focus-visible .menu-chevron{opacity:1}
+    .plus-submenu .submenu-back{font-weight:650}
     .glass-menu .heading-list .h-opt{font-size:13px;font-weight:500;letter-spacing:0;text-transform:none}
     .toast{
       position:fixed;left:50%;bottom:calc(var(--vv-bottom) + var(--foot-inset) + 8px);
@@ -344,6 +349,6 @@
   </div>
   <script src="marked.js"></script>
   <script src="turndown.js"></script>
-  <script type="module" src="ui.js?v=3c065681dfcb"></script>
+  <script type="module" src="ui.js?v=cf772819424e"></script>
 </body>
 </html>
