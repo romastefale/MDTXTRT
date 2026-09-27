@@ -256,6 +256,51 @@ test('handoff persists valid document metadata and attachment',async()=>{
   assert.equal(claimed.data.file.id,id);
 });
 
+test('startup fails closed when Telegraph page ownership survives credential loss',async()=>{
+  const isolated=mkdtempSync(join(process.cwd(),'.test-orphan-'));
+  const isolatedPort=18138;
+  mkdirSync(join(isolated,'handoffs'),{recursive:true});
+  writeFileSync(join(isolated,'telegraph-token-pages.json'),JSON.stringify({
+    '7:44444444-4444-4444-8444-444444444444':'owned-page'
+  }),{mode:0o600});
+  const callsPath=join(isolated,'calls');
+  let proc,stderr='';
+  try{
+    proc=spawn(process.execPath,['--import','./tests/mocks.mjs','server.mjs'],{
+      cwd:new URL('../',import.meta.url),
+      env:{
+        ...process.env,
+        PORT:String(isolatedPort),
+        TOKEN:token,
+        RAILWAY_VOLUME_MOUNT_PATH:isolated,
+        MINI_APP_URL:origin+'/',
+        PUBLIC_BASE_URL:origin+'/',
+        TEST_CALLS:callsPath
+      },
+      stdio:['ignore','pipe','pipe']
+    });
+    proc.stderr.on('data',chunk=>stderr+=chunk);
+    const exitCode=await new Promise((resolve,reject)=>{
+      const timer=setTimeout(()=>{
+        proc.kill();
+        reject(new Error('orphaned Telegraph state did not stop startup'));
+      },8000);
+      proc.once('exit',code=>{clearTimeout(timer);resolve(code);});
+    });
+    assert.notEqual(exitCode,0);
+    assert.match(stderr,/Credencial Telegraph ausente para páginas persistidas/);
+    let logged='';
+    try{logged=readFileSync(callsPath,'utf8');}catch{}
+    assert.doesNotMatch(logged,/"method":"createAccount"/);
+  }finally{
+    if(proc&&proc.exitCode===null){
+      proc.kill();
+      await new Promise(resolve=>proc.once('exit',resolve)).catch(()=>{});
+    }
+    rmSync(isolated,{recursive:true,force:true});
+  }
+});
+
 test('Telegraph ownership mapping survives create and edit on same document',async()=>{
   const page={title:'Página',doc:'33333333-3333-4333-8333-333333333333',content:[{tag:'h3',children:['Título']},{tag:'p',children:['texto']}],initData:init()};
   const created=await jsonPost('/api/telegraph/publish',page);
