@@ -38,7 +38,7 @@
       --gap:8px;
       --topbar-h:36px;
       --meta-h:52px;
-      --bar-h:46px;
+      --bar-h:52px;
       --vv-top:0px;
       --vv-bottom:0px;
       --vv-height:100dvh;
@@ -59,13 +59,12 @@
     html{color-scheme:light dark;-webkit-text-size-adjust:100%;text-size-adjust:100%}
     html.light{color-scheme:light}
     html.dark{color-scheme:dark}
-    *{box-sizing:border-box;scrollbar-width:none}
-    *::-webkit-scrollbar{width:0;height:0;display:none}
+    *{box-sizing:border-box}
     html,body{margin:0;width:100%;min-height:100svh;overflow:clip}
     html[data-keyboard]{--bottom:0px}
     html{background:var(--bg)}
     body{
-      padding:0;color:var(--text);background:transparent;overscroll-behavior:none;touch-action:pan-x pan-y;
+      padding:0;color:var(--text);background:transparent;overscroll-behavior:none;touch-action:manipulation;
       accent-color:var(--accent);caret-color:var(--accent);
       font:16px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif
     }
@@ -113,10 +112,6 @@
     html.light .frost{
       background:rgba(255,255,255,.36);
       box-shadow:0 10px 28px rgba(0,0,0,.10)
-    }
-    [data-lg-profile="context-menu"]{
-      background:transparent;color:#151515;
-      box-shadow:none
     }
     .fade-top,.fade-bot{
       position:fixed;left:0;right:0;z-index:20;pointer-events:none;
@@ -208,21 +203,21 @@
     .editor tg-collage,.editor tg-slideshow{display:flex;flex-wrap:wrap;gap:8px;margin:1em 0}
     .editor tg-spoiler{background:var(--neutral-4);border-radius:4px}
     .bar-wrap{
-      position:fixed;left:50%;right:auto;width:max-content;max-width:calc(100vw - 24px);
+      position:fixed;left:max(12px,var(--safe-left));right:max(12px,var(--safe-right));
       top:auto;bottom:calc(var(--vv-bottom) + var(--bottom) + var(--gap));z-index:30;
-      transform:translate3d(-50%,0,0);backface-visibility:hidden;
+      transform:translateZ(0);backface-visibility:hidden;
       padding:0;background:transparent;pointer-events:none;
     }
     .bar{
-      position:relative;z-index:1;width:max-content;max-width:calc(100vw - 24px);margin:0 auto;
+      position:relative;z-index:1;max-width:none;margin:0;
       display:flex;align-items:center;overflow-x:auto;overscroll-behavior-inline:contain;
       height:var(--bar-h);padding:4px;border-radius:999px;pointer-events:auto
     }
     .bar > button{
-      flex:0 0 38px;min-width:38px;height:38px;border:0;background:transparent;color:inherit;
+      flex:1 0 44px;min-width:44px;height:44px;border:0;background:transparent;color:inherit;
       display:grid;place-items:center;border-radius:999px;padding:0
     }
-    .bar .plus{flex:0 0 38px}
+    .bar .plus{flex:0 0 44px}
     .action-dot{
       width:36px;height:36px;border-radius:50%;display:grid;place-items:center;
       background:var(--accent);color:#fff;
@@ -230,85 +225,52 @@
     }
     .seg .export{width:44px;height:44px;border:0;background:transparent;display:grid;place-items:center;padding:0;border-radius:50%}
     .seg .action-dot{width:44px;height:44px}
-    .glass-menu{
-      position:fixed;inset:auto;z-index:40;margin:0;
-      width:max-content;min-width:210px;max-width:min(280px,calc(100vw - 16px));
-      max-height:min(55vh,420px);overflow:hidden;
-      padding:5px 6px;border:0;border-radius:9px;color:#151515;
-      box-shadow:inset 0 0 0 1px rgba(255,255,255,.5),0 0 0 .5px rgba(0,0,0,.18),0 16px 40px rgba(0,0,0,.26),0 2px 6px rgba(0,0,0,.18);
-      transform-origin:50% 50%
+    .sheet{
+      position:fixed;left:12px;right:12px;top:auto;bottom:calc(var(--vv-bottom) + var(--foot-inset) + 4px);z-index:40;
+      width:auto;max-width:420px;margin:0 auto;
+      max-height:calc(var(--vv-height) - var(--safe-top) - var(--foot-inset) - 16px);
+      overflow:hidden;padding:8px;border:0;border-radius:30px;
+      color:var(--text);
+      transform-origin:50% 100%
     }
-    .glass-menu:not(:popover-open){display:none}
-    .glass-menu[data-centered="true"]{left:50%;top:50%;transform:translate(-50%,-50%)}
-    .glass-menu:popover-open{display:flex;flex-direction:column;animation:glass-menu-in .14s cubic-bezier(.2,.75,.25,1)}
-    @keyframes glass-menu-in{from{opacity:0}to{opacity:1}}
-    .menu-list{
-      display:flex;flex-direction:column;gap:0;min-height:0;max-height:min(55vh,420px);
-      overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y
+    .sheet:not(:popover-open){display:none}
+    .sheet:popover-open{display:flex;flex-direction:column;animation:sheet-in .16s cubic-bezier(.2,.75,.25,1)}
+    #importMenu,#exportMenu,#findMenu{
+      top:calc(var(--vv-top) + var(--head-inset));bottom:auto;
+      max-height:calc(var(--vv-height) - var(--head-inset) - 12px);
+      transform-origin:50% 0
     }
-    .menu-list > button{
-      display:flex;align-items:center;justify-content:flex-start;text-align:left;
-      width:100%;min-width:0;white-space:nowrap;height:32px;min-height:32px;
-      border-radius:6px;border:0;background:transparent;box-shadow:none;
-      padding:0 10px;font-size:13px;line-height:1;gap:8px;color:inherit
-    }
+    @keyframes sheet-in{from{opacity:0;transform:translateY(8px) scale(.98)}to{opacity:1;transform:none}}
+    .menu-list{display:flex;flex-direction:column;gap:2px;min-height:0;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y}
+    .menu-list > button{display:flex;align-items:center;justify-content:flex-start;text-align:left;width:auto;min-width:100%;white-space:nowrap;min-height:50px;border-radius:20px;border:0;background:transparent;box-shadow:none;padding:4px 18px 4px 6px;font-size:17px;gap:12px}
     .menu-list > button[hidden]{display:none}
-    .menu-list > button:hover,.menu-list > button:focus-visible{background:var(--accent);color:#fff}
-    .menu-list > button:active{background:color-mix(in srgb,var(--accent) 86%,#000)}
-    .menu-list button.is-current{background:color-mix(in srgb,var(--accent) 18%,transparent);color:var(--accent)}
-    .sheet-ico{
-      width:22px;height:22px;border-radius:6px;flex:none;display:grid;place-items:center;
-      background:transparent;box-shadow:none
-    }
-    .sheet-ico .ui-icon,.sheet-ico svg{width:14px;height:14px}
-    .glass-menu .heading-list .h-opt.h1,
-    .glass-menu .heading-list .h-opt.h2,
-    .glass-menu .heading-list .h-opt.h3,
-    .glass-menu .heading-list .h-opt.h4,
-    .glass-menu .heading-list .h-opt.h5,
-    .glass-menu .heading-list .h-opt.h6,
-    .glass-menu .heading-list .h-opt.footer{
-      font-size:13px;font-weight:500;letter-spacing:0;text-transform:none
-    }
+    .menu-list > button:hover{background:var(--neutral-2)}
+    .menu-list > button:active{background:var(--neutral-3)}
+    .sheet-ico{width:42px;height:42px;border-radius:50%;flex:none;display:grid;place-items:center;background:var(--neutral-2);box-shadow:inset 0 1px 0 rgba(255,255,255,.12)}
+    .sheet-ico .ui-icon,.sheet-ico svg{width:20px;height:20px}
     .toast{
       position:fixed;left:50%;bottom:calc(var(--vv-bottom) + var(--foot-inset) + 8px);
       transform:translateX(-50%);z-index:50;display:none;
-      padding:7px 10px;border-radius:9px;font-size:12px;
-      box-shadow:inset 0 0 0 1px rgba(255,255,255,.5),0 0 0 .5px rgba(0,0,0,.18),0 10px 26px rgba(0,0,0,.22)
+      padding:8px 12px;border-radius:999px;font-size:12px
     }
     .toast.on{display:block}
-    .tools{display:flex;gap:6px;align-items:center;padding:5px;max-width:100%}
-    .hint{max-width:248px;white-space:normal;margin:5px 8px 7px;font-size:12px;line-height:1.35}
-    .tools input{
-      min-width:0;width:100%;height:32px;border:0;border-radius:7px;
-      background:rgba(255,255,255,.5);color:#151515;padding:0 9px;outline:0;font-size:13px
-    }
-    .tools button{
-      min-height:30px;border:0;border-radius:6px;
-      background:color-mix(in srgb,var(--accent) 18%,transparent);
-      padding:0 9px;color:#151515;font-size:12px
-    }
-    #importMenu,#exportMenu,#plusMenu{width:min(260px,calc(100vw - 16px))}
-    #headingMenu{width:min(232px,calc(100vw - 16px))}
-    #listMenu,#quoteMenu{width:min(230px,calc(100vw - 16px))}
-    #findMenu,#dialogMenu{width:min(300px,calc(100vw - 16px));max-width:300px}
-    .dialog{display:flex;flex-direction:column;gap:7px;width:100%;padding:3px}
-    .dialog-label{font-size:12px;line-height:1.35;color:rgba(0,0,0,.62);padding:2px 4px}
-    #dialogInput{
-      width:100%;min-height:34px;max-height:112px;resize:none;border:0;border-radius:7px;
-      background:rgba(255,255,255,.5);color:#151515;padding:8px 9px;outline:0;font:inherit;font-size:13px
-    }
+    .tools{display:flex;gap:8px;align-items:center;padding:10px;max-width:100%}
+    .hint{max-width:280px;white-space:normal;margin:8px 12px 12px;font-size:14px}
+    .tools input{min-width:0;width:100%;border:0;border-radius:12px;background:var(--neutral-2);padding:10px;outline:0;font-size:16px}
+    .tools button{border:0;border-radius:12px;background:color-mix(in srgb,var(--accent) 22%,transparent);padding:10px;color:var(--text)}
+    #findMenu,#dialogMenu{max-width:350px}
+    .dialog{display:flex;flex-direction:column;gap:10px;width:100%;padding:8px}
+    .dialog-label{font-size:14px;line-height:1.35;color:var(--muted);padding:2px 4px}
+    #dialogInput{width:100%;min-height:42px;max-height:132px;resize:none;border:0;border-radius:16px;background:var(--neutral-2);color:var(--text);padding:11px 12px;outline:0;font:inherit;font-size:16px}
     #dialogInput[hidden]{display:none}
-    .dialog-actions{display:flex;justify-content:flex-end;gap:5px}
-    .dialog-actions button{
-      min-height:30px;border:0;border-radius:6px;padding:0 10px;
-      background:rgba(255,255,255,.35);color:#151515;font-size:12px
-    }
-    .dialog-actions #dialogOk{background:var(--accent);color:#fff}
+    .dialog-actions{display:flex;justify-content:flex-end;gap:8px}
+    .dialog-actions button{border:0;border-radius:14px;padding:10px 14px;background:var(--neutral-2);color:var(--text)}
+    .dialog-actions #dialogOk{background:color-mix(in srgb,var(--accent) 22%,transparent);color:var(--accent)}
+    #findMenu{width:min(350px,calc(100% - 28px))}
     #findMenu .menu-list{gap:0;width:100%}
     #findMenu .tools:last-child{flex-wrap:wrap}
     #findMenu .tools button{flex:1 1 auto;white-space:nowrap}
-    @media (prefers-reduced-motion:reduce){.glass-menu{animation:none}}
+    @media (prefers-reduced-motion:reduce){.sheet{animation:none}}
     @media (orientation:landscape),(min-width:760px){
       .device-gate{display:grid}
     }
@@ -327,14 +289,14 @@
   <div class="app">
     <div class="chrome-top">
       <header class="topbar">
-        <button type="button" class="brand frost" data-lg data-lg-profile="context-menu" id="brandBtn" popovertarget="importMenu">MDTXTRT</button>
+        <button type="button" class="brand frost" data-lg id="brandBtn" popovertarget="importMenu">MDTXTRT</button>
       </header>
       <div class="meta">
-      <div class="seg frost" data-lg data-lg-profile="context-menu">
+      <div class="seg frost" data-lg>
         <button type="button" id="undoBtn" aria-label="Desfazer"><span class="ui-icon" data-icon="undo"></span></button>
         <button type="button" id="redoBtn" aria-label="Refazer"><span class="ui-icon" data-icon="redo"></span></button>
       </div>
-      <div class="seg frost" data-lg data-lg-profile="context-menu">
+      <div class="seg frost" data-lg>
         <button type="button" id="destBtn" aria-label="Destino: Telegram" title="Destino: Telegram"><span class="ui-icon" data-icon="telegram"></span></button>
         <button type="button" class="export" id="exportBtn" aria-label="Exportar" title="Exportar"><span class="action-dot"><span class="ui-icon" data-icon="export"></span></span></button>
       </div>
@@ -345,7 +307,7 @@
         <article id="editor" class="editor" contenteditable="true" spellcheck="true" inputmode="text" enterkeyhint="enter" aria-label="Editor" data-placeholder="Escreva aqui…"></article>
       </div>
     </div>
-  <div class="glass-menu frost" data-lg data-lg-profile="context-menu" id="headingMenu" data-anchor="headingBtn" data-placement="top" popover="auto">
+  <div class="sheet frost" data-lg id="headingMenu" popover="auto">
     <div class="menu-list heading-list">
       <button class="h-opt h1" data-block="h1"><span class="sheet-ico"><span class="ui-icon" data-icon="h1"></span></span>Título H1</button>
       <button class="h-opt h2" data-block="h2"><span class="sheet-ico"><span class="ui-icon" data-icon="h2"></span></span>Título H2</button>
@@ -357,21 +319,21 @@
       <button class="h-opt footer" data-block="footer"><span class="sheet-ico"><span class="ui-icon" data-icon="footer"></span></span>Rodapé</button>
     </div>
   </div>
-  <div class="glass-menu frost" data-lg data-lg-profile="context-menu" id="listMenu" data-anchor="listBtn" data-placement="top" popover="auto">
+  <div class="sheet frost" data-lg id="listMenu" popover="auto">
     <div class="menu-list">
       <button data-cmd="insertUnorderedList"><span class="sheet-ico"><span class="ui-icon" data-icon="list"></span></span>Lista com marcadores</button>
       <button data-insert="ordered"><span class="sheet-ico"><span class="ui-icon" data-icon="format_list_numbered"></span></span>Lista ordenada</button>
       <button data-insert="task" data-telegram-only><span class="sheet-ico"><span class="ui-icon" data-icon="task"></span></span>Checklist</button>
     </div>
   </div>
-  <div class="glass-menu frost" data-lg data-lg-profile="context-menu" id="quoteMenu" data-anchor="quoteBtn" data-placement="top" popover="auto">
+  <div class="sheet frost" data-lg id="quoteMenu" popover="auto">
     <div class="menu-list">
       <button data-block="blockquote"><span class="sheet-ico"><span class="ui-icon" data-icon="quote"></span></span>Citação</button>
       <button data-insert="pullquote"><span class="sheet-ico"><span class="ui-icon" data-icon="pullquote"></span></span>Citação em destaque</button>
       <button data-insert="expandquote"><span class="sheet-ico"><span class="ui-icon" data-icon="expandquote"></span></span>Citação expansível</button>
     </div>
   </div>
-  <div class="glass-menu frost" data-lg data-lg-profile="context-menu" id="importMenu" data-anchor="brandBtn" data-placement="bottom" popover="auto">
+  <div class="sheet frost" data-lg id="importMenu" popover="auto">
     <div class="tools"><input id="docName" value="Ideia" aria-label="Nome do documento" maxlength="120"></div>
     <div class="menu-list">
       <button id="importMdBtn"><span class="sheet-ico"><span class="ui-icon" data-icon="markdown"></span></span>Importar Markdown</button>
@@ -379,7 +341,7 @@
       <button id="findBtn"><span class="sheet-ico"><span class="ui-icon" data-icon="search"></span></span>Localizar e substituir</button>
     </div>
   </div>
-  <div class="glass-menu frost" data-lg data-lg-profile="context-menu" id="exportMenu" data-anchor="exportBtn" data-placement="bottom" popover="auto">
+  <div class="sheet frost" data-lg id="exportMenu" popover="auto">
     <p class="hint">Exporte um arquivo ou publique no destino selecionado.</p>
     <div class="menu-list">
       <button id="openAppBtn"><span class="sheet-ico"><span class="ui-icon" data-icon="telegram"></span></span><span id="openAppLabel">Publicar no Telegram</span></button>
@@ -387,7 +349,7 @@
       <button id="exportTxtBtn"><span class="sheet-ico"><span class="ui-icon" data-icon="text_fields"></span></span>Baixar TXT</button>
     </div>
   </div>
-  <div class="glass-menu frost" data-lg data-lg-profile="context-menu" id="plusMenu" data-anchor="plusBtn" data-placement="top" popover="auto">
+  <div class="sheet frost" data-lg id="plusMenu" popover="auto">
     <div class="menu-list">
       <button data-cmd="strike"><span class="sheet-ico"><span class="ui-icon" data-icon="strikethrough_s"></span></span>Riscado</button>
       <button data-cmd="mark" data-telegram-only><span class="sheet-ico"><span class="ui-icon" data-icon="ink_highlighter"></span></span>Marca-texto</button>
@@ -419,18 +381,18 @@
   </div>
   <input id="fileInput" type="file" accept=".txt,.md,text/plain,text/markdown" hidden>
   <input id="mediaInput" type="file" accept="image/*,video/*,audio/*,.pdf,.zip" hidden>
-  <div class="toast frost" data-lg data-lg-profile="context-menu" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
-  <div class="glass-menu frost" data-lg data-lg-profile="context-menu" id="dialogMenu" data-centered="true" popover="manual" role="dialog" aria-modal="true" aria-labelledby="dialogLabel">
+  <div class="toast frost" data-lg id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+  <div class="sheet frost" data-lg id="dialogMenu" popover="manual" role="dialog" aria-modal="true" aria-labelledby="dialogLabel">
     <div class="dialog">
       <div class="dialog-label" id="dialogLabel"></div>
       <textarea id="dialogInput" rows="1" spellcheck="false" aria-labelledby="dialogLabel"></textarea>
       <div class="dialog-actions"><button type="button" id="dialogCancel">Cancelar</button><button type="button" id="dialogOk">OK</button></div>
     </div>
   </div>
-  <div class="glass-menu frost" data-lg data-lg-profile="context-menu" id="findMenu" data-anchor="findBtn" data-placement="right" popover="auto"><div class="menu-list"><div class="tools"><input id="findText" placeholder="Localizar" aria-label="Localizar"></div><div class="tools"><input id="replaceText" placeholder="Substituir" aria-label="Substituir por"></div><div class="tools"><button id="findNext">Próximo</button><button id="replaceOne">Substituir</button><button id="replaceAll">Substituir tudo</button></div></div></div>
+  <div class="sheet frost" data-lg id="findMenu" popover="auto"><div class="menu-list"><div class="tools"><input id="findText" placeholder="Localizar" aria-label="Localizar"></div><div class="tools"><input id="replaceText" placeholder="Substituir" aria-label="Substituir por"></div><div class="tools"><button id="findNext">Próximo</button><button id="replaceOne">Substituir</button><button id="replaceAll">Substituir tudo</button></div></div></div>
   </div>
   <div class="bar-wrap">
-    <div class="bar frost" data-lg data-lg-profile="context-menu" id="typebar">
+    <div class="bar frost" data-lg data-lg-mode="frost" id="typebar">
       <button class="plus" id="plusBtn" aria-label="Mais" popovertarget="plusMenu"><span class="ui-icon" data-icon="plus"></span></button>
       <button type="button" data-cmd="bold" aria-label="Negrito"><span class="ui-icon" data-icon="bold"></span></button>
       <button type="button" data-cmd="italic" aria-label="Itálico"><span class="ui-icon" data-icon="italic"></span></button>
@@ -443,7 +405,7 @@
   </div>
   <script src="marked.js"></script>
   <script src="turndown.js"></script>
-  <script src="glass.js?v=aa91846a9205"></script>
-  <script src="app.js?v=d6c30dd32be8"></script>
+  <script src="glass.js?v=a974cc0d4b74"></script>
+  <script src="app.js?v=5c865842be50"></script>
 </body>
 </html>

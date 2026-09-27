@@ -321,61 +321,10 @@ function closeTopLayer(){
   const sel=sheets.find(name=>one(name).matches(':popover-open'));
   if(sel)one(sel).hidePopover();
 }
-function positionFloatingPanel(panel,anchorRect=null){
-  if(!panel)return;
-  if(panel.hasAttribute('data-centered')){
-    panel.style.left='50%';
-    panel.style.top='50%';
-    panel.style.transform='translate(-50%,-50%)';
-    return;
-  }
-  const vv=window.visualViewport;
-  const viewport={
-    left:vv?.offsetLeft||0,
-    top:vv?.offsetTop||0,
-    width:vv?.width||document.documentElement.clientWidth,
-    height:vv?.height||document.documentElement.clientHeight
-  };
-  const anchor=panel.dataset.anchor?document.getElementById(panel.dataset.anchor):null;
-  const a=anchorRect||(anchor&&anchor.getClientRects().length?anchor.getBoundingClientRect():null);
-  const p=panel.getBoundingClientRect();
-  const margin=8,gap=6;
-  const minX=viewport.left+margin,maxX=Math.max(minX,viewport.left+viewport.width-p.width-margin);
-  const minY=viewport.top+margin,maxY=Math.max(minY,viewport.top+viewport.height-p.height-margin);
-  if(!a||(!a.width&&!a.height)){
-    panel.style.left=Math.round(Math.max(minX,viewport.left+(viewport.width-p.width)/2))+'px';
-    panel.style.top=Math.round(Math.max(minY,viewport.top+(viewport.height-p.height)/2))+'px';
-    panel.style.transform='none';
-    return;
-  }
-  const clamp=(value,min,max)=>Math.min(Math.max(value,min),max);
-  const placement=panel.dataset.placement||'bottom';
-  let x=a.left+(a.width-p.width)/2;
-  let y=a.bottom+gap;
-  if(placement==='top'){
-    y=a.top-p.height-gap;
-    if(y<minY)y=a.bottom+gap;
-  }else if(placement==='right'){
-    x=a.right+gap;
-    y=a.top+(a.height-p.height)/2;
-    if(x>maxX)x=a.left-p.width-gap;
-  }else if(placement==='left'){
-    x=a.left-p.width-gap;
-    y=a.top+(a.height-p.height)/2;
-    if(x<minX)x=a.right+gap;
-  }else if(y>maxY){
-    y=a.top-p.height-gap;
-  }
-  panel.style.left=Math.round(clamp(x,minX,maxX))+'px';
-  panel.style.top=Math.round(clamp(y,minY,maxY))+'px';
-  panel.style.transform='none';
-}
-function openPanel(sel,anchor=null){
+function openPanel(sel){
   const panel=one(sel);
   if(!panel)throw new Error('Painel indisponível: '+sel);
-  const rect=anchor&&anchor.getClientRects().length?anchor.getBoundingClientRect():null;
   panel.showPopover();
-  requestAnimationFrame(()=>positionFloatingPanel(panel,rect));
 }
 function closePanels(){
   for(const sel of sheets){
@@ -423,7 +372,6 @@ for(const sel of sheets){
     if(event.newState==='open'){
       const list=event.currentTarget.querySelector('.menu-list');
       if(list)list.scrollTop=0;
-      requestAnimationFrame(()=>positionFloatingPanel(event.currentTarget));
     }
     syncBackButton();
     document.dispatchEvent(new Event('selectionchange'));
@@ -1101,7 +1049,7 @@ one('#mediaInput').addEventListener('change',async()=>{
     showToast(err.message||'Não foi possível salvar o anexo');
   }
 });
-one('#findBtn').addEventListener('click', event=>openPanel('#findMenu',event.currentTarget));
+one('#findBtn').addEventListener('click', ()=>openPanel('#findMenu'));
 function searchRegex(term,exact=false){
   const meta=new Set(['\\','^','$','.','*','+','?','(',')','[',']','{','}','|']);
   let escaped='';
@@ -1259,12 +1207,6 @@ function syncBrowserViewport(){
   root.style.setProperty('--vv-top',top+'px');
   root.style.setProperty('--vv-bottom',inset+'px');
   root.style.setProperty('--vv-height',Math.max(0,root.clientHeight-top-inset)+'px');
-  for(const sel of sheets){
-    const panel=one(sel);
-    if(panel?.matches(':popover-open'))positionFloatingPanel(panel);
-  }
-  const dialog=one('#dialogMenu');
-  if(dialog?.matches(':popover-open'))positionFloatingPanel(dialog);
 }
 function scheduleBrowserViewport(){
   cancelAnimationFrame(viewportFrame);

@@ -36,14 +36,10 @@ This document records the implementation boundaries that are authoritative for M
 - `glass.js` is an attributed plain-JavaScript adaptation of the reference material-mode optics and displacement-map technique; the adapted source itself carries the reference URL, pinned revision, author attribution, and MIT status.
 - Material chrome uses the reference optics vocabulary and values: refraction strength, depth, curvature, bend, dispersion, frost, saturation, sheen, glow, and specular gain.
 - Content remains crisp above the material surface. The glass treatment belongs to chrome; it is not decorative blur applied to document content.
-- The reference explicitly warns against stretching one displacement lens across a very wide dock-style panel. MDTXTRT now avoids that geometry instead of maintaining a wide-surface exception: every interactive glass component, including the formatting toolbar, is compact and bounded.
-- Browser capability is explicit on every surface through `data-lg-rendering`. The current UX reports `context-menu-refraction` where backdrop SVG displacement is available and `context-menu-frost` where it is not; the latter is a named reduced renderer and is never represented as equivalent refraction.
-- If cross-browser bending becomes mandatory, the implementation must move to the reference's copy/in-place `<Glass>` refraction architecture rather than silently substituting another visual system.
-- Unsupported refraction returns before displacement-map allocation, so no hidden ternary or late renderer generates unused SVG lens work.
-- Compact interaction surfaces now derive from `examples/GlassContextMenu.tsx` in the pinned reference. Menus, dialogs, toasts, brand chrome, and compact control groups use the dedicated `context-menu` optics profile instead of the legacy full-width sheet paradigm.
-- The `context-menu` profile preserves the reference menu coefficients and symmetric RGB dispersion model. Runtime state is explicit as `context-menu-refraction` or `context-menu-frost`; no reduced renderer is presented as equivalent refraction.
-- Floating menus are anchored to their invoking controls, clamped to the visual viewport, and capped to compact dimensions. Long menus remain scrollable with scrollbar chrome hidden rather than expanding to fill the screen.
-- Browser zoom and pinch zoom remain disabled by the viewport contract and touch-action policy. This is an intentional product invariant, not a browser fallback.
+- The reference explicitly warns against stretching one displacement lens across a very wide dock-style panel. Such surfaces use an explicit frost-only material mode. This is a chosen material variant, not a runtime fallback.
+- Material-mode browser capability is an explicit rendering profile on each surface through `data-lg-rendering`: `material-refraction` when the reference's `backdrop-filter: url(#…)` path is available, `material-frost` where the reference documents material mode as frost + tint + edge only, and `frost` for intentionally frost-only wide surfaces.
+- The WebKit/Gecko `material-frost` profile is not presented as equivalent refraction. If cross-browser bending becomes a product requirement, the implementation must move to one of the reference's copy/in-place refraction architectures instead of silently substituting blur.
+- Unsupported material refraction returns before displacement-map allocation, so no hidden ternary or late rendering fallback generates unused SVG lens work.
 
 ## Execution and hosting boundary
 
