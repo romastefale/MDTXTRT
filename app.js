@@ -613,7 +613,7 @@ async function insertFeature(kind){
   }
   if(kind==='reference'){
     const answer=await ask('Nome da referência','nota-1');
-    const name=(answer||'').trim().replace(/[^A-Za-z0-9_-]/g,'-');
+    const name=(answer||'').trim().replace(/[^A-Za-z0-9_-]/g,'-').slice(0,64);
     if(!name)return;
     const text=await ask('Texto da referência','Referência');
     if(text===null)return;
@@ -759,6 +759,7 @@ function saveLocal(){
   if(!editor.querySelector('[data-media-id]')&&mediaFile){
     if(mediaFile.url)URL.revokeObjectURL(mediaFile.url);
     mediaFile=null;
+    void mediaClear().catch(error=>console.error('Media cleanup',error));
   }
   try{ localStorage.setItem('rmdtxtml', JSON.stringify(draftState())); }
   catch{ showToast('Não foi possível salvar neste dispositivo'); }
