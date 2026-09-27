@@ -463,7 +463,7 @@ function richValid(html){
     }
     if(node.name==="tg-button-row"){
       const count=node.children.filter(child=>child.type==="tag"&&child.name==="tg-button").length;
-      if(count<1||count>8)throw new Error("Uma linha deve conter de 1 a 8 botões");
+      if(count<1||count>8)throw new Error("Linha de botões inválida: use de 1 a 8 botões");
       for(const child of node.children){
         if(child.type==="text"&&!(child.data||"").trim())continue;
         if(child.type!=="tag"||child.name!=="tg-button")throw new Error("Conteúdo de linha de botões inválido");
