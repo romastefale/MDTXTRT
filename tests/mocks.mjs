@@ -31,6 +31,7 @@ globalThis.fetch = async (url,options={}) => {
     }
     if(data.get('access_token')!=='persistent-test-token')return Response.json({ok:false,error:'invalid token'},{status:401});
     if(method==='getAccountInfo')return Response.json({ok:true,result:{short_name:'MDTXTRT',page_count:1}});
+    if(['createPage','editPage'].includes(method)&&data.get('title')==='UPSTREAM_REJECT')return Response.json({ok:false,error:'test rejection'},{status:400});
     const path=method==='createPage'?'test-page-regression':data.get('path');
     return Response.json({ok:true,result:{url:'https://telegra.ph/'+path,path}});
   }
