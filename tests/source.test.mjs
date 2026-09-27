@@ -49,6 +49,21 @@ test('liquid-glass engine retains binding material optics on every chrome surfac
   assert.doesNotMatch(glass,/el\.style\.filter\s*=/);
 });
 
+test('theme neutrals are chromatic derivatives of the active accent',()=>{
+  const html=read('index.html');
+  assert.match(html,/--accent:#8C6DFF;/);
+  assert.match(html,/--accent:#FF4BA0;/);
+  assert.match(html,/--muted:color-mix\(in oklab,var\(--text\) 82%,var\(--accent\)\);/);
+  for(const [name,amount] of [['neutral-1','6'],['neutral-2','10'],['neutral-3','16'],['neutral-4','24']]){
+    assert.match(html,new RegExp('--'+name+':color-mix\\(in oklab,var\\(--accent\\) '+amount+'%,var\\(--bg\\)\\);'));
+  }
+  assert.match(html,/--line:color-mix\(in oklab,var\(--accent\) 22%,var\(--bg\)\);/);
+  assert.match(html,/\.menu-list > button:hover\{background:var\(--neutral-2\)\}/);
+  assert.match(html,/\.dialog-actions button\{[^}]*background:var\(--neutral-2\)/);
+  assert.doesNotMatch(html,/--muted:#[0-9a-f]{3,8}/i);
+  assert.doesNotMatch(html,/html\.light \.sheet-ico\{background:rgba\(0,0,0/);
+});
+
 test('interface icon assets are vector SVG only',()=>{
   const html=read('index.html');
   assert.match(html,/rel="icon" type="image\/svg\+xml" href="favicon\.svg"/);
