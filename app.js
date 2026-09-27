@@ -1093,11 +1093,12 @@ function markdownBlockRule(){
   if(!ctx)return false;
   const {block,prefix}=ctx;
   const deletePrefix=count=>{
-    let left=count,node=document.createTreeWalker(block,NodeFilter.SHOW_TEXT).nextNode();
+    const walker=document.createTreeWalker(block,NodeFilter.SHOW_TEXT);
+    let left=count,node=walker.nextNode();
     while(node&&left>0){
       const take=Math.min(left,node.length);
       node.deleteData(0,take);left-=take;
-      node=document.createTreeWalker(block,NodeFilter.SHOW_TEXT).nextNode();
+      node=walker.nextNode();
     }
   };
   const escaped=prefix.match(/^\\(#{1,6}|>|[-*+]|\d+\.) $/);
