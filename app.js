@@ -95,6 +95,7 @@ function cleanDraftHTML(html){
       if(!attrs.has(a.name))throw new Error('O rascunho contém um atributo não suportado');
       if(a.name==='class'&&!(/^language-[a-z0-9+-]+$/i.test(a.value)||a.value==='tg-footer'))throw new Error('O rascunho contém uma classe não suportada');
       if(a.name==='style'&&!(el.localName==='tg-button'&&['link','primary','success','danger'].includes(a.value)))throw new Error('O rascunho contém um estilo não suportado');
+      if(a.name==='data-media-id'&&!/^[A-Za-z0-9_-]{1,64}$/.test(a.value))throw new Error('O rascunho contém um identificador de mídia inválido');
       if(['href','src','url'].includes(a.name)&&a.value){
         if(a.name==='href'&&a.value.startsWith('#'))continue;
         let u;try{u=new URL(a.value,location.href);}catch{throw new Error('O rascunho contém um link inválido');}
@@ -119,7 +120,7 @@ async function restoreMedia(){
     node.setAttribute('src',url);node.removeAttribute('data-media-missing');
     decorateSpecials();
   }catch(err){
-    await mediaClear();
+    try{await mediaClear();}catch(cleanupError){console.error('Media cleanup',cleanupError);}
     node.removeAttribute('src');
     node.setAttribute('data-media-missing','true');
     showToast(err.message||'Não foi possível recuperar o anexo');
