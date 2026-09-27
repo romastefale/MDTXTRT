@@ -937,11 +937,13 @@ one('#linkBtn').addEventListener('click',async()=>{
   let url;
   try{url=new URL(value.trim(),location.href);if(!['http:','https:','mailto:','tel:','tg:'].includes(url.protocol))throw new Error('Use um link válido');}
   catch(err){showToast(err.message||'Link inválido');return;}
-  restoreSel();
-  const sel=window.getSelection();
-  if(!sel||!sel.rangeCount)return showToast('Selecione ou posicione o cursor no texto');
-  if(sel.isCollapsed)insertHTML('<a href="'+escapeHTML(url.href)+'">'+escapeHTML(value.trim())+'</a>');
-  else exec('createLink',url.href);
+  try{
+    restoreSel();
+    const sel=window.getSelection();
+    if(!sel||!sel.rangeCount)return showToast('Selecione ou posicione o cursor no texto');
+    if(sel.isCollapsed)insertHTML('<a href="'+escapeHTML(url.href)+'">'+escapeHTML(value.trim())+'</a>');
+    else exec('createLink',url.href);
+  }catch(err){showToast(err.message||'Não foi possível criar o link');}
 });
 function flashBtn(btn){
   if(!btn) return;
@@ -981,9 +983,13 @@ one('#mediaInput').addEventListener('change',async()=>{
   if(!kind)kind=file.type.startsWith('image/')?'image':file.type.startsWith('video/')?'video':file.type.startsWith('audio/')?'audio':'document';
   const id=crypto.randomUUID().replace(/-/g,'');
   const tag={image:'img',video:'video',audio:'audio',voice:'audio',document:'tg-document'}[kind];
-  insertHTML('<figure><'+tag+' data-media-id="'+id+'"></'+tag+'><figcaption>'+escapeHTML(file.name)+'</figcaption></figure>',true);
-  try{await installMedia(file,id,kind);saveLocal();}
-  catch(err){mediaNode(id)?.closest('figure')?.remove();showToast(err.message||'Não foi possível salvar o anexo');}
+  try{
+    insertHTML('<figure><'+tag+' data-media-id="'+id+'"></'+tag+'><figcaption>'+escapeHTML(file.name)+'</figcaption></figure>',true);
+    await installMedia(file,id,kind);saveLocal();
+  }catch(err){
+    mediaNode(id)?.closest('figure')?.remove();
+    showToast(err.message||'Não foi possível salvar o anexo');
+  }
 });
 one('#findBtn').addEventListener('click', ()=>openPanel('#findMenu'));
 function matches(){
