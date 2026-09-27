@@ -64,16 +64,25 @@ export function GlassContextMenu({
       className={`glass-menu ${className}`.trim()}
       {...props}
     >
-      <Glass optics={MENU_LENS} className="glass-menu-material">
+      <Glass
+        optics={MENU_LENS}
+        className="glass-menu-material"
+        style={{ display: "block", width: "100%" }}
+      >
         <div className="glass-menu-content">{children}</div>
       </Glass>
     </div>
   );
 }
 
-function GlassControl({ className = "", children, ...props }) {
+function GlassControl({ className = "", children, style, ...props }) {
   return (
-    <Glass optics={MENU_LENS} className={className} {...props}>
+    <Glass
+      optics={MENU_LENS}
+      className={className}
+      style={{ display: "flex", alignItems: "center", ...style }}
+      {...props}
+    >
       {children}
     </Glass>
   );

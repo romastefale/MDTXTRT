@@ -42,7 +42,8 @@ test('React UX imports the official Glass primitive and follows GlassContextMenu
   assert.match(src,/function GlassContextMenu/);
   assert.match(src,/<Glass optics=\{MENU_LENS\} className="glass-menu-material">/);
   assert.match(src,/function GlassControl/);
-  assert.match(src,/<Glass optics=\{MENU_LENS\}/);
+  assert.match(src,/style=\{\{ display: "flex", alignItems: "center", \.\.\.style \}\}/);
+  assert.match(src,/className="glass-menu-material"[\s\S]*?style=\{\{ display: "block", width: "100%" \}\}/);
 });
 
 test('MDTXTRT contains no bespoke Liquid Glass renderer or implicit browser fallback',()=>{
@@ -60,7 +61,7 @@ test('MDTXTRT contains no bespoke Liquid Glass renderer or implicit browser fall
 test('theme neutrals are chromatic derivatives of the active accent',()=>{
   const html=read('index.html');
   assert.match(html,/--accent:#2B88D8;/);
-  assert.match(html,/html\.light\{[\s\S]*?--accent:#FF4BA0;/);
+  assert.equal((html.match(/--accent:#2B88D8;/g)||[]).length,2);
   assert.match(html,/--muted:color-mix\(in oklab,var\(--text\) 82%,var\(--accent\)\);/);
   for(const [name,amount] of [['neutral-1','6'],['neutral-2','10'],['neutral-3','16'],['neutral-4','24']]){
     assert.match(html,new RegExp('--'+name+':color-mix\\(in oklab,var\\(--accent\\) '+amount+'%,var\\(--bg\\)\\);'));
@@ -159,6 +160,15 @@ test('UI preserves compact portrait contract, unified chrome scale and anchored 
   assert.match(app,/panel\.style\.setProperty\('--menu-left'/);
   assert.match(src,/id="toast" role="status" aria-live="polite" aria-atomic="true"/);
   assert.match(src,/id="dialogMenu"[\s\S]*?popover="manual"[\s\S]*?role="dialog"[\s\S]*?aria-modal="true"/);
+});
+
+test('Glass wrappers keep chrome controls horizontal instead of package inline-block stacking',()=>{
+  const src=uiSource(),html=read('index.html');
+  assert.match(src,/function GlassControl\(\{ className = "", children, style, \.\.\.props \}\)/);
+  assert.match(src,/style=\{\{ display: "flex", alignItems: "center", \.\.\.style \}\}/);
+  assert.match(html,/\.seg\{display:flex;align-items:center/);
+  assert.match(html,/\.bar\{[\s\S]*?display:flex;align-items:center/);
+  assert.equal((html.match(/--accent:#2B88D8;/g)||[]).length,2);
 });
 
 test('Telegram Mini App requires phone platform and locks portrait through the official API',()=>{
