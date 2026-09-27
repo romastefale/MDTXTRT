@@ -352,12 +352,6 @@ const material=el=>{
     const x=el.getBoundingClientRect();
     if(!x.width||!x.height)return;
     const frost="blur("+O.frost+"px) saturate("+O.saturate+")";
-    if(el.hasAttribute('data-lg-wide')){
-      el.style.filter='none';
-      el.style.backdropFilter=frost;
-      el.style.webkitBackdropFilter=frost;
-      return;
-    }
     const cs=getComputedStyle(el);
     const rad=Math.min(parseFloat(cs.borderTopLeftRadius)||0,Math.min(x.width,x.height)/2);
     const map=gen.generate({lensHalfWidth:x.width/2,lensHalfHeight:x.height/2,borderRadius:rad,depth:O.depth,clipToShape:O.clipToShape,softEdge:O.softEdge,sheenAngle:O.sheenAngle,glow:O.glow,glowSpread:O.glowSpread,glowFalloff:O.glowFalloff,sheen:O.sheen,sheenWidth:O.sheenWidth,sheenFalloff:O.sheenFalloff,curvature:O.curvature,splay:O.splay,bend:O.bend,bendWidth:O.bendWidth});
@@ -370,7 +364,6 @@ const material=el=>{
     f.setAttribute("x",-margin);f.setAttribute("y",-margin);f.setAttribute("width",x.width+2*margin);f.setAttribute("height",x.height+2*margin);
     f.id="lg-mat-"+materialId+"-v"+(++v);
     const value=supportsBackdropUrl()?frost+" url(#"+f.id+")":frost;
-    el.style.filter='none';
     el.style.backdropFilter=value;
     el.style.webkitBackdropFilter=value;
   };
