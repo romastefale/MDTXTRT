@@ -74,8 +74,13 @@ function draftHTML(){
   clone.querySelectorAll('[data-media-id]').forEach(node=>{if(/^blob:/i.test(node.getAttribute('src')||''))node.removeAttribute('src');});
   return clone.innerHTML;
 }
+function activeMedia(){
+  const node=editor.querySelector('[data-media-id]');
+  return node&&mediaFile&&node.getAttribute('data-media-id')===mediaFile.id?mediaFile:null;
+}
 function draftState(action=''){
-  const state={version:STATE_VERSION,name:docName.value,html:draftHTML(),dest,telegraphPath,docId,importedMd,importedTxt,importedHtml,media:mediaFile?{id:mediaFile.id,kind:mediaFile.kind}:null};
+  const active=activeMedia();
+  const state={version:STATE_VERSION,name:docName.value,html:draftHTML(),dest,telegraphPath,docId,importedMd,importedTxt,importedHtml,media:active?{id:active.id,kind:active.kind}:null};
   if(action)state.action=action;
   return state;
 }
@@ -184,9 +189,10 @@ async function openMiniApp(){
   try{
     saveLocal();
     const local=editor.querySelector('[data-media-id]');
-    if(local&&(!mediaFile||local.getAttribute('data-media-id')!==mediaFile.id))throw new Error('O anexo local não pôde ser recuperado');
+    const active=activeMedia();
+    if(local&&!active)throw new Error('O anexo local não pôde ser recuperado');
     const form=new FormData();form.set('draft',JSON.stringify(draftState('publish')));
-    if(mediaFile)form.set('upload',mediaFile.file,mediaFile.file.name);
+    if(active)form.set('upload',active.file,active.file.name);
     const res=await fetch(API+'/api/handoff',{method:'POST',signal:AbortSignal.timeout(60000),body:form});
     const data=await readResponse(res);
     if(!res.ok)throw new Error(data.error||'Não foi possível abrir o Mini App');
@@ -364,7 +370,12 @@ function pushHist(){
   hist.push(html); if(hist.length > 80) hist.shift();
   histI = hist.length - 1;
 }
-function applyHist(html){ histLock = true; editor.innerHTML = html; savedRange=null; restoreSel(); saveSel(); histLock = false; markDirty(); }
+function applyHist(html){
+  histLock=true;editor.innerHTML=html;savedRange=null;
+  const cached=mediaFile&&mediaNode(mediaFile.id);
+  if(cached&&mediaFile.url){cached.setAttribute('src',mediaFile.url);cached.removeAttribute('data-media-missing');}
+  restoreSel();saveSel();histLock=false;markDirty();
+}
 function histUndo(){ if(histI > 0){ histI--; applyHist(hist[histI]); } }
 function histRedo(){ if(histI < hist.length - 1){ histI++; applyHist(hist[histI]); } }
 function expandWord(){
@@ -757,9 +768,13 @@ window.addEventListener('pagehide',saveLocal);
 function saveLocal(){
   clearTimeout(saveTimer);
   if(!editor.querySelector('[data-media-id]')&&mediaFile){
-    if(mediaFile.url)URL.revokeObjectURL(mediaFile.url);
-    mediaFile=null;
-    void mediaClear().catch(error=>console.error('Media cleanup',error));
+    const id=mediaFile.id;
+    const redoUsesMedia=hist.slice(histI+1).some(html=>html.includes('data-media-id="'+id+'"'));
+    if(!redoUsesMedia){
+      if(mediaFile.url)URL.revokeObjectURL(mediaFile.url);
+      mediaFile=null;
+      void mediaClear().catch(error=>console.error('Media cleanup',error));
+    }
   }
   try{ localStorage.setItem('rmdtxtml', JSON.stringify(draftState())); }
   catch{ showToast('Não foi possível salvar neste dispositivo'); }
@@ -1072,8 +1087,8 @@ async function publishTelegram(){
   const initData=getTg().initData;
   try{
     const p = buildRich();
-    const data=mediaFile;
-    if(editor.querySelector('[data-media-id]') && (!data || !editor.querySelector('[data-media-id="'+data.id+'"]'))) throw new Error('Anexe a mídia novamente antes de publicar');
+    const data=activeMedia();
+    if(editor.querySelector('[data-media-id]')&&!data)throw new Error('Anexe a mídia novamente antes de publicar');
     const form=new FormData();
     form.set('initData',initData);
     form.set('html',p.rich_message.html);
