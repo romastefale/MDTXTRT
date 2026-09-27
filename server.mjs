@@ -416,12 +416,13 @@ function richValid(html){
     }
     if(!["https:","http:","tg:","mailto:","tel:"].includes(url.protocol))throw new Error("Link inválido");
   };
-  const walk=(node,depth=0,parent="",insideButton=false)=>{
+  const walk=(node,depth=0,parent="",insideButton=false,insideCell=false)=>{
     if(depth>16)throw new Error("A mensagem excede 16 níveis de aninhamento");
     if(node.type==="text")return;
     if(node.type!=="tag"||!tags.has(node.name))throw new Error("O conteúdo contém elemento inválido: "+(node.name||node.type));
     if(insideButton&&!['tg-emoji','tg-time'].includes(node.name))throw new Error("Texto de botão aceita apenas texto, emoji personalizado e data/hora");
     if(blocks.has(node.name)&&++blockCount>500)throw new Error("A mensagem excede 500 blocos");
+    if(insideCell&&blocks.has(node.name))throw new Error("Conteúdo de célula de tabela inválido");
     const allowed=attrs[node.name]||new Set();
     for(const [key,value] of Object.entries(node.attribs)){
       if(!allowed.has(key))throw new Error("Atributo inválido em "+node.name+": "+key);
@@ -439,10 +440,54 @@ function richValid(html){
     if(node.name==="tr"&&parent!=="table")throw new Error("Linha de tabela inválida");
     if(["th","td"].includes(node.name)&&parent!=="tr")throw new Error("Célula de tabela inválida");
     if(node.name==="summary"&&parent!=="details")throw new Error("Resumo expansível inválido");
+    if(node.name==="li"&&!["ul","ol"].includes(parent))throw new Error("Item de lista inválido");
     if(node.name==="input"&&parent!=="li")throw new Error("Checkbox precisa estar em item de lista");
+    const structuralChildren=(allowedNames,label)=>{
+      for(const child of node.children){
+        if(child.type==="text"){
+          if((child.data||"").trim())throw new Error(label+" inválido");
+          continue;
+        }
+        if(child.type!=="tag"||!allowedNames.has(child.name))throw new Error(label+" inválido");
+      }
+    };
+    if(["ul","ol"].includes(node.name))structuralChildren(new Set(["li"]),"Conteúdo de lista");
+    if(node.name==="tr")structuralChildren(new Set(["th","td"]),"Conteúdo de linha de tabela");
+    if(node.name==="table"){
+      structuralChildren(new Set(["caption","tr"]),"Conteúdo de tabela");
+      if(node.children.filter(child=>child.type==="tag"&&child.name==="caption").length>1)throw new Error("Legenda de tabela inválida");
+    }
+    if(node.name==="details"){
+      const tags=node.children.filter(child=>child.type==="tag");
+      if(tags.filter(child=>child.name==="summary").length!==1||tags[0]?.name!=="summary")throw new Error("Resumo expansível inválido");
+    }
     if(node.name==="tg-button-row"){
       const count=node.children.filter(child=>child.type==="tag"&&child.name==="tg-button").length;
       if(count<1||count>8)throw new Error("Uma linha deve conter de 1 a 8 botões");
+      for(const child of node.children){
+        if(child.type==="text"&&!(child.data||"").trim())continue;
+        if(child.type!=="tag"||child.name!=="tg-button")throw new Error("Conteúdo de linha de botões inválido");
+      }
+    }
+    const listType=value=>["a","A","i","I","1"].includes(value);
+    if(node.name==="ol"){
+      if(node.attribs.start!==undefined&&!/^-?\d+$/.test(node.attribs.start))throw new Error("Início de lista inválido");
+      if(node.attribs.type!==undefined&&!listType(node.attribs.type))throw new Error("Tipo de lista inválido");
+    }
+    if(node.name==="li"){
+      if(node.attribs.value!==undefined&&!/^-?\d+$/.test(node.attribs.value))throw new Error("Valor de item de lista inválido");
+      if(node.attribs.type!==undefined&&!listType(node.attribs.type))throw new Error("Tipo de item de lista inválido");
+      if(parent==="ul"&&(node.attribs.value!==undefined||node.attribs.type!==undefined))throw new Error("Atributo de lista ordenada inválido em lista não ordenada");
+    }
+    if(["th","td"].includes(node.name)){
+      for(const name of ["colspan","rowspan"]){
+        if(node.attribs[name]!==undefined){
+          const span=Number(node.attribs[name]);
+          if(!Number.isInteger(span)||span<1)throw new Error("Extensão de célula de tabela inválida");
+        }
+      }
+      if(node.attribs.align!==undefined&&!["left","center","right"].includes(node.attribs.align))throw new Error("Alinhamento de célula de tabela inválido");
+      if(node.attribs.valign!==undefined&&!["top","middle","bottom"].includes(node.attribs.valign))throw new Error("Alinhamento vertical de célula de tabela inválido");
     }
     if(node.name==="table"){
       const rows=node.children.filter(child=>child.type==="tag"&&child.name==="tr");
@@ -450,7 +495,7 @@ function richValid(html){
         let cols=0;
         for(const cell of row.children.filter(child=>child.type==="tag"&&["th","td"].includes(child.name))){
           const span=Number(cell.attribs.colspan||1);
-          if(!Number.isInteger(span)||span<1||span>20)throw new Error("Colspan de tabela inválido");
+          if(span>20)throw new Error("Colspan de tabela inválido");
           cols+=span;
         }
         if(cols>20)throw new Error("A tabela excede 20 colunas");
@@ -527,7 +572,8 @@ function richValid(html){
       urlValid(node.attribs.src,true);
     }
     const childInsideButton=insideButton||node.name==="tg-button";
-    node.children.forEach(child=>walk(child,depth+1,node.name,childInsideButton));
+    const childInsideCell=insideCell||["th","td"].includes(node.name);
+    node.children.forEach(child=>walk(child,depth+1,node.name,childInsideButton,childInsideCell));
   };
   doc.children.forEach(node=>walk(node));
 }
