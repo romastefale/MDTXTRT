@@ -228,10 +228,23 @@ function readHandoff(token) {
   if (!/^[a-f0-9]{32}$/.test(token)) return null;
   const paths = handoffFiles(token);
   if (!existsSync(paths.meta)) return null;
-  let meta;
-  try{meta=JSON.parse(readFileSync(paths.meta,"utf8"));}catch(error){throw new Error("Transferência persistida inválida",{cause:error});}
-  if (!meta?.expires || meta.expires < Date.now()) { dropHandoff(token); return null; }
-  return meta;
+  try{
+    const meta=JSON.parse(readFileSync(paths.meta,"utf8"));
+    if(!meta||typeof meta!=="object"||!Number.isFinite(meta.expires)||!meta.draft)throw new Error("Transferência persistida inválida");
+    if(meta.expires<Date.now()){dropHandoff(token);return null;}
+    draftValid(meta.draft);
+    if(meta.claimedBy!==undefined&&typeof meta.claimedBy!=="string")throw new Error("Transferência persistida inválida");
+    if(meta.file!==null&&meta.file!==undefined){
+      const file=meta.file;
+      if(!file||typeof file!=="object"||!/^[A-Za-z0-9_-]{1,64}$/.test(String(file.id||""))||!["image","video","audio","voice","document"].includes(file.kind)||typeof file.name!=="string"||!file.name||typeof file.mime!=="string"||!file.mime||!Number.isInteger(file.size)||file.size<1||file.size>20_000_000)throw new Error("Transferência persistida inválida");
+      if(!existsSync(paths.file)||statSync(paths.file).size!==file.size)throw new Error("Arquivo da transferência inválido");
+    }
+    return meta;
+  }catch(error){
+    console.error("Discarding invalid handoff",token,error);
+    dropHandoff(token);
+    return null;
+  }
 }
 
 function sweepHandoffs(){
