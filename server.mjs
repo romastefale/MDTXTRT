@@ -939,7 +939,7 @@ const server = createServer(async (req, res) => {
         res.end(JSON.stringify(result));
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Não foi possível publicar no Telegram";
-        const code = /inválid[ao]s?|expirada|ausente|Abra pelo|solicitação|dados do envio|Escreva algo|Anexe a mídia|identificador de mídia|endereço de mídia|mídia anexada/i.test(msg) ? 400 : 500;
+        const code = /inválid[ao]s?|expirada|ausente|Abra pelo|solicitação|dados do envio|Escreva algo|Anexe a mídia|identificador de mídia|endereço de mídia|mídia anexada|deve usar HTTPS|Texto para copiar|Escopo de chat|Opção de login|Referência/i.test(msg) ? 400 : 500;
         res.writeHead(code, { "content-type": "application/json; charset=utf-8" });
         res.end(JSON.stringify({ error: msg }));
       }
