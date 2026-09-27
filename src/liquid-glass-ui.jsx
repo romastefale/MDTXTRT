@@ -46,11 +46,21 @@ function MenuItem({ icon, className = "", children, ...props }) {
   );
 }
 
-export function GlassContextMenu({ id, children, className = "", popover = "auto", ...props }) {
+export function GlassContextMenu({
+  id,
+  children,
+  className = "",
+  popover = "auto",
+  anchorId,
+  placement = "auto",
+  ...props
+}) {
   return (
     <div
       id={id}
       popover={popover}
+      data-anchor={anchorId}
+      data-placement={placement}
       className={`glass-menu ${className}`.trim()}
       {...props}
     >
@@ -71,7 +81,7 @@ function GlassControl({ className = "", children, ...props }) {
 
 function HeadingMenu() {
   return (
-    <GlassContextMenu id="headingMenu" className="heading-menu">
+    <GlassContextMenu id="headingMenu" className="heading-menu" anchorId="headingBtn" placement="top">
       <div className="menu-list heading-list">
         <MenuItem icon="h1" className="h-opt h1" data-block="h1">Título H1</MenuItem>
         <MenuItem icon="h2" className="h-opt h2" data-block="h2">Título H2</MenuItem>
@@ -88,7 +98,7 @@ function HeadingMenu() {
 
 function ListMenu() {
   return (
-    <GlassContextMenu id="listMenu">
+    <GlassContextMenu id="listMenu" anchorId="listBtn" placement="top">
       <div className="menu-list">
         <MenuItem icon="list" data-cmd="insertUnorderedList">Lista com marcadores</MenuItem>
         <MenuItem icon="format_list_numbered" data-insert="ordered">Lista ordenada</MenuItem>
@@ -100,7 +110,7 @@ function ListMenu() {
 
 function QuoteMenu() {
   return (
-    <GlassContextMenu id="quoteMenu">
+    <GlassContextMenu id="quoteMenu" anchorId="quoteBtn" placement="top">
       <div className="menu-list">
         <MenuItem icon="quote" data-block="blockquote">Citação</MenuItem>
         <MenuItem icon="pullquote" data-insert="pullquote">Citação em destaque</MenuItem>
@@ -110,24 +120,9 @@ function QuoteMenu() {
   );
 }
 
-function ImportMenu() {
-  return (
-    <GlassContextMenu id="importMenu" className="wide-menu">
-      <div className="tools">
-        <input id="docName" defaultValue="Ideia" aria-label="Nome do documento" maxLength={120} />
-      </div>
-      <div className="menu-list">
-        <MenuItem icon="markdown" id="importMdBtn">Importar Markdown</MenuItem>
-        <MenuItem icon="text_fields" id="importTxtBtn">Importar TXT</MenuItem>
-        <MenuItem icon="search" id="findBtn">Localizar e substituir</MenuItem>
-      </div>
-    </GlassContextMenu>
-  );
-}
-
 function ExportMenu() {
   return (
-    <GlassContextMenu id="exportMenu" className="wide-menu">
+    <GlassContextMenu id="exportMenu" className="wide-menu" anchorId="exportBtn" placement="auto">
       <p className="hint">Exporte um arquivo ou publique no destino selecionado.</p>
       <div className="menu-list">
         <MenuItem icon="telegram" id="openAppBtn"><span id="openAppLabel">Publicar no Telegram</span></MenuItem>
@@ -169,8 +164,15 @@ const extraItems = [
 
 function PlusMenu() {
   return (
-    <GlassContextMenu id="plusMenu" className="wide-menu">
+    <GlassContextMenu id="plusMenu" className="wide-menu" anchorId="plusBtn" placement="top">
+      <div className="tools document-tools">
+        <input id="docName" defaultValue="Ideia" aria-label="Nome do documento" maxLength={120} />
+      </div>
       <div className="menu-list">
+        <MenuItem icon="markdown" id="importMdBtn">Importar Markdown</MenuItem>
+        <MenuItem icon="text_fields" id="importTxtBtn">Importar TXT</MenuItem>
+        <MenuItem icon="search" id="findBtn">Localizar e substituir</MenuItem>
+        <div className="menu-divider" role="separator" />
         {extraItems.map(([icon, label, props]) => (
           <MenuItem key={label} icon={icon} {...props}>{label}</MenuItem>
         ))}
@@ -203,7 +205,7 @@ function DialogMenu() {
 
 function FindMenu() {
   return (
-    <GlassContextMenu id="findMenu" className="find-menu wide-menu">
+    <GlassContextMenu id="findMenu" className="find-menu wide-menu" anchorId="findBtn" placement="auto">
       <div className="menu-list">
         <div className="tools"><input id="findText" placeholder="Localizar" aria-label="Localizar" /></div>
         <div className="tools"><input id="replaceText" placeholder="Substituir" aria-label="Substituir por" /></div>
@@ -230,30 +232,36 @@ function Toast() {
 function Chrome() {
   return (
     <>
-      <div className="chrome-top">
-        <header className="topbar">
-          <GlassControl className="brand-glass">
-            <button type="button" className="brand" id="brandBtn" popoverTarget="importMenu">MDTXTRT</button>
+      <header className="topbar">
+        <div className="top-slot top-left">
+          <GlassControl className="seg top-pill">
+            <button type="button" id="undoBtn" aria-label="Desfazer" title="Desfazer"><Icon name="undo" /></button>
+            <button type="button" id="redoBtn" aria-label="Refazer" title="Refazer"><Icon name="redo" /></button>
           </GlassControl>
-        </header>
-        <div className="meta">
-          <GlassControl className="seg">
-            <button type="button" id="undoBtn" aria-label="Desfazer"><Icon name="undo" /></button>
-            <button type="button" id="redoBtn" aria-label="Refazer"><Icon name="redo" /></button>
+        </div>
+
+        <div className="top-center">
+          <span className="app-title" aria-label="MDTXTRT">MDTXTRT</span>
+          <GlassControl className="theme-control">
+            <button type="button" id="themeBtn" aria-label="Ativar modo claro" title="Ativar modo claro">
+              <Icon name="light_mode" />
+            </button>
           </GlassControl>
-          <GlassControl className="seg">
+        </div>
+
+        <div className="top-slot top-right">
+          <GlassControl className="seg top-pill">
             <button type="button" id="destBtn" aria-label="Destino: Telegram" title="Destino: Telegram"><Icon name="telegram" /></button>
-            <button type="button" className="export" id="exportBtn" aria-label="Exportar" title="Exportar">
+            <button type="button" className="export" id="exportBtn" aria-label="Publicar ou exportar" title="Publicar ou exportar">
               <span className="action-dot"><Icon name="export" /></span>
             </button>
           </GlassControl>
         </div>
-      </div>
+      </header>
 
       <HeadingMenu />
       <ListMenu />
       <QuoteMenu />
-      <ImportMenu />
       <ExportMenu />
       <PlusMenu />
       <input id="fileInput" type="file" accept=".txt,.md,text/plain,text/markdown" hidden />
@@ -264,14 +272,14 @@ function Chrome() {
 
       <div className="bar-wrap">
         <GlassControl className="bar" id="typebar">
-          <button type="button" className="plus" id="plusBtn" aria-label="Mais" popoverTarget="plusMenu"><Icon name="plus" /></button>
           <button type="button" data-cmd="bold" aria-label="Negrito"><Icon name="bold" /></button>
           <button type="button" data-cmd="italic" aria-label="Itálico"><Icon name="italic" /></button>
           <button type="button" data-cmd="underline" aria-label="Sublinhado"><Icon name="underline" /></button>
-          <button type="button" id="quoteBtn" aria-label="Citação" popoverTarget="quoteMenu"><Icon name="quote" /></button>
           <button type="button" id="linkBtn" aria-label="Link"><Icon name="link" /></button>
           <button type="button" id="headingBtn" aria-label="Título" popoverTarget="headingMenu"><Icon name="heading" /></button>
           <button type="button" id="listBtn" aria-label="Lista" popoverTarget="listMenu"><Icon name="list" /></button>
+          <button type="button" id="quoteBtn" aria-label="Citação" popoverTarget="quoteMenu"><Icon name="quote" /></button>
+          <button type="button" className="more" id="plusBtn" aria-label="Mais opções" title="Mais opções" popoverTarget="plusMenu"><Icon name="plus" /></button>
         </GlassControl>
       </div>
     </>
