@@ -24,9 +24,13 @@
     :root{
       --bg:#000;
       --text:#f5f5f7;
-      --muted:#c5c8d8;
       --accent:#8C6DFF;
-      --line:rgba(255,255,255,.18);
+      --muted:color-mix(in oklab,var(--text) 82%,var(--accent));
+      --neutral-1:color-mix(in oklab,var(--accent) 6%,var(--bg));
+      --neutral-2:color-mix(in oklab,var(--accent) 10%,var(--bg));
+      --neutral-3:color-mix(in oklab,var(--accent) 16%,var(--bg));
+      --neutral-4:color-mix(in oklab,var(--accent) 24%,var(--bg));
+      --line:color-mix(in oklab,var(--accent) 22%,var(--bg));
       --safe-top:env(safe-area-inset-top,0px);
       --safe-bottom:env(safe-area-inset-bottom,0px);
       --safe-left:env(safe-area-inset-left,0px);
@@ -50,8 +54,7 @@
       --head-inset:calc(var(--safe-top) + var(--gap) + var(--meta-h) + var(--gap));
     }
     html.light{
-      --bg:#f8fbff; --text:#151515; --muted:#5c6478; --accent:#FF4BA0;
-      --line:rgba(255,255,255,.7);
+      --bg:#f8fbff; --text:#151515; --accent:#FF4BA0;
     }
     html{color-scheme:light dark;-webkit-text-size-adjust:100%;text-size-adjust:100%}
     html.light{color-scheme:light}
@@ -91,7 +94,7 @@
     .editor h4{font-size:18px;margin:.85em 0 .3em}
     .editor h5{font-size:14px;letter-spacing:.02em;margin:.85em 0 .3em}
     .editor h6{font-size:12px;letter-spacing:.03em;color:var(--muted);margin:.85em 0 .3em}
-    .editor .tg-footer,.editor footer{display:block;font-size:12px;color:var(--muted);margin:1.6em 0 .4em;padding-top:.7em;border-top:1px solid color-mix(in srgb,var(--text) 14%, transparent);font-weight:400}
+    .editor .tg-footer,.editor footer{display:block;font-size:12px;color:var(--muted);margin:1.6em 0 .4em;padding-top:.7em;border-top:1px solid var(--line);font-weight:400}
     .menu-list button.is-current{background:color-mix(in srgb,var(--accent) 16%, transparent);color:var(--accent)}
     .heading-list .h-opt.h1{font-size:20px;font-weight:750;letter-spacing:-.03em}
     .heading-list .h-opt.h2{font-size:17px;font-weight:650}
@@ -146,24 +149,17 @@
     .seg button{
       width:calc(var(--meta-h) - 8px);height:calc(var(--meta-h) - 8px);border:0;border-radius:50%;background:transparent;display:grid;place-items:center
     }
-    .seg button.active{background:color-mix(in srgb,var(--text) 12%, transparent)}
-    .seg #destBtn{position:relative;background:color-mix(in srgb,var(--text) 7%,transparent)}
+    .seg button.active{background:var(--neutral-3);color:var(--accent)}
+    .seg #destBtn{position:relative;background:var(--neutral-2);color:var(--accent)}
     .seg #destBtn .ui-icon{position:absolute;inset:0;width:32px;height:32px;margin:auto;transform:none}
-    .seg #destBtn.active{background:color-mix(in srgb,var(--text) 14%,transparent)}
-    html.dark .seg button.active{background:color-mix(in srgb,var(--accent) 22%,transparent);color:var(--accent)}
-    html.dark .seg #destBtn{background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--accent)}
-    html.dark .seg #destBtn.active{background:color-mix(in srgb,var(--accent) 24%,transparent)}
+    .seg #destBtn.active{background:var(--neutral-4)}
     .seg button.is-flash{position:relative}
-    .seg button.is-flash::before{content:"";position:absolute;inset:0;width:36px;height:36px;margin:auto;border-radius:50%;background:color-mix(in srgb,var(--text) 14%, transparent);z-index:0;animation:flash-out 1.4s ease forwards}
-    html.light .seg button.is-flash::before{background:color-mix(in srgb,var(--text) 12%, #fff)}
+    .seg button.is-flash::before{content:"";position:absolute;inset:0;width:36px;height:36px;margin:auto;border-radius:50%;background:var(--neutral-3);z-index:0;animation:flash-out 1.4s ease forwards}
     .seg button.is-flash > *{position:relative;z-index:1}
     @keyframes flash-out{0%,35%{opacity:1}100%{opacity:0}}
     .bar > button{position:relative}
-    .bar > button.on{background:transparent;color:inherit}
-    .bar > button.on::before{content:"";position:absolute;inset:0;width:36px;height:36px;margin:auto;border-radius:50%;background:color-mix(in srgb,var(--text) 14%, transparent);z-index:0}
-    html.light .bar > button.on::before{background:color-mix(in srgb,var(--text) 12%, #fff)}
-    html.dark .bar > button.on{color:var(--accent)}
-    html.dark .bar > button.on::before{background:color-mix(in srgb,var(--accent) 22%,transparent)}
+    .bar > button.on{background:transparent;color:var(--accent)}
+    .bar > button.on::before{content:"";position:absolute;inset:0;width:36px;height:36px;margin:auto;border-radius:50%;background:var(--neutral-3);z-index:0}
     .bar > button > *{position:relative;z-index:1}
     .canvas{
       position:fixed;z-index:10;left:0;right:0;top:var(--vv-top);height:var(--vv-height);
@@ -190,22 +186,22 @@
     .editor th,.editor td{border:1px solid var(--line);padding:6px}
     .editor a{color:var(--accent)}
     .editor img,.editor video,.editor iframe{max-width:100%;height:auto}
-    .editor figure{margin:1em 0;padding:8px;border:1px solid color-mix(in srgb,var(--text) 12%,transparent);border-radius:18px;background:color-mix(in srgb,var(--text) 5%,transparent);overflow:hidden}
-    .editor figure>img,.editor figure>video,.editor figure>iframe{display:block;width:100%;border-radius:12px;background:color-mix(in srgb,var(--text) 7%,transparent)}
+    .editor figure{margin:1em 0;padding:8px;border:1px solid var(--line);border-radius:18px;background:var(--neutral-1);overflow:hidden}
+    .editor figure>img,.editor figure>video,.editor figure>iframe{display:block;width:100%;border-radius:12px;background:var(--neutral-2)}
     .editor figure>audio{display:block;width:100%;min-height:40px}
     .editor figcaption{font-size:13px;line-height:1.35;color:var(--muted);padding:8px 4px 2px}
     .editor tg-math{display:inline-block;max-width:100%;margin:0 .08em;padding:.12em .38em;border-radius:7px;background:color-mix(in srgb,var(--accent) 12%,transparent);font:500 .94em/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere}
     .editor tg-math-block{display:block;margin:1em 0;padding:12px 14px;border:1px solid color-mix(in srgb,var(--accent) 25%,transparent);border-radius:14px;background:color-mix(in srgb,var(--accent) 8%,transparent);font:500 14px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere;overflow-x:auto}
     .editor tg-button-row{display:flex;justify-content:center;gap:8px;margin:1em 0}
     .editor tg-button{display:inline-block;border-radius:12px;padding:8px 14px;background:var(--accent);color:#fff}
-    .editor tg-document,.editor tg-map{display:block;margin:1em 0;padding:12px;border-radius:12px;background:color-mix(in srgb,var(--text) 8%,transparent)}
-    .editor tg-document{min-height:48px;border:1px solid color-mix(in srgb,var(--text) 12%,transparent)}
+    .editor tg-document,.editor tg-map{display:block;margin:1em 0;padding:12px;border-radius:12px;background:var(--neutral-2)}
+    .editor tg-document{min-height:48px;border:1px solid var(--line)}
     .editor tg-document::before{content:"Documento";font-weight:600}
     .editor tg-map::before{content:"Mapa"}
     .editor [data-media-missing]{display:block;min-height:96px;border:1px dashed color-mix(in srgb,var(--accent) 45%,transparent);border-radius:12px;background:color-mix(in srgb,var(--accent) 7%,transparent)}
     .editor [data-media-missing]::after{content:"Anexo salvo indisponível";display:grid;place-items:center;min-height:96px;color:var(--muted);font-size:13px}
     .editor tg-collage,.editor tg-slideshow{display:flex;flex-wrap:wrap;gap:8px;margin:1em 0}
-    .editor tg-spoiler{background:color-mix(in srgb,var(--text) 18%,transparent);border-radius:4px}
+    .editor tg-spoiler{background:var(--neutral-4);border-radius:4px}
     .bar-wrap{
       position:fixed;left:max(12px,var(--safe-left));right:max(12px,var(--safe-right));
       top:auto;bottom:calc(var(--vv-bottom) + var(--bottom) + var(--gap));z-index:30;
@@ -227,7 +223,6 @@
       background:var(--accent);color:#fff;
       box-shadow:inset 0 1px 0 rgba(255,255,255,.42),0 4px 14px color-mix(in oklab,var(--accent) 45%,transparent)
     }
-    html.dark .action-dot{box-shadow:0 4px 14px rgba(167,139,250,.32)}
     .seg .export{width:44px;height:44px;border:0;background:transparent;display:grid;place-items:center;padding:0;border-radius:50%}
     .seg .action-dot{width:44px;height:44px}
     .sheet{
@@ -249,11 +244,9 @@
     .menu-list{display:flex;flex-direction:column;gap:2px;min-height:0;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y}
     .menu-list > button{display:flex;align-items:center;justify-content:flex-start;text-align:left;width:auto;min-width:100%;white-space:nowrap;min-height:50px;border-radius:20px;border:0;background:transparent;box-shadow:none;padding:4px 18px 4px 6px;font-size:17px;gap:12px}
     .menu-list > button[hidden]{display:none}
-    .menu-list > button:hover{background:color-mix(in srgb,var(--text) 7%,transparent)}
-    .menu-list > button:active{background:color-mix(in srgb,var(--text) 12%,transparent)}
-    .sheet-ico{width:42px;height:42px;border-radius:50%;flex:none;display:grid;place-items:center;background:rgba(255,255,255,.08);box-shadow:inset 0 1px 0 rgba(255,255,255,.12)}
-    html.dark .sheet-ico{background:rgba(255,255,255,.055)}
-    html.light .sheet-ico{background:rgba(0,0,0,.055)}
+    .menu-list > button:hover{background:var(--neutral-2)}
+    .menu-list > button:active{background:var(--neutral-3)}
+    .sheet-ico{width:42px;height:42px;border-radius:50%;flex:none;display:grid;place-items:center;background:var(--neutral-2);box-shadow:inset 0 1px 0 rgba(255,255,255,.12)}
     .sheet-ico .ui-icon,.sheet-ico svg{width:20px;height:20px}
     .toast{
       position:fixed;left:50%;bottom:calc(var(--vv-bottom) + var(--foot-inset) + 8px);
@@ -263,15 +256,15 @@
     .toast.on{display:block}
     .tools{display:flex;gap:8px;align-items:center;padding:10px;max-width:100%}
     .hint{max-width:280px;white-space:normal;margin:8px 12px 12px;font-size:14px}
-    .tools input{min-width:0;width:100%;border:0;border-radius:12px;background:color-mix(in srgb,var(--text) 10%,transparent);padding:10px;outline:0;font-size:16px}
+    .tools input{min-width:0;width:100%;border:0;border-radius:12px;background:var(--neutral-2);padding:10px;outline:0;font-size:16px}
     .tools button{border:0;border-radius:12px;background:color-mix(in srgb,var(--accent) 22%,transparent);padding:10px;color:var(--text)}
     #findMenu,#dialogMenu{max-width:350px}
     .dialog{display:flex;flex-direction:column;gap:10px;width:100%;padding:8px}
     .dialog-label{font-size:14px;line-height:1.35;color:var(--muted);padding:2px 4px}
-    #dialogInput{width:100%;min-height:42px;max-height:132px;resize:none;border:0;border-radius:16px;background:color-mix(in srgb,var(--text) 10%,transparent);color:var(--text);padding:11px 12px;outline:0;font:inherit;font-size:16px}
+    #dialogInput{width:100%;min-height:42px;max-height:132px;resize:none;border:0;border-radius:16px;background:var(--neutral-2);color:var(--text);padding:11px 12px;outline:0;font:inherit;font-size:16px}
     #dialogInput[hidden]{display:none}
     .dialog-actions{display:flex;justify-content:flex-end;gap:8px}
-    .dialog-actions button{border:0;border-radius:14px;padding:10px 14px;background:color-mix(in srgb,var(--text) 9%,transparent);color:var(--text)}
+    .dialog-actions button{border:0;border-radius:14px;padding:10px 14px;background:var(--neutral-2);color:var(--text)}
     .dialog-actions #dialogOk{background:color-mix(in srgb,var(--accent) 22%,transparent);color:var(--accent)}
     #findMenu{width:min(350px,calc(100% - 28px))}
     #findMenu .menu-list{gap:0;width:100%}
