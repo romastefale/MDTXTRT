@@ -202,7 +202,7 @@ test('UI preserves compact portrait contract, unified chrome scale and anchored 
   assert.match(html,/--theme-icon-size:clamp\(10\.8px,3vw,12px\)/);
   assert.match(html,/--menu-w:210px/);
   assert.match(html,/--menu-row-h:24px/);
-  assert.match(html,/\.bar > button\.more\{color:var\(--accent\);background:var\(--neutral-3\)\}/);
+  assert.match(html,/\.bar > button\.more\{color:var\(--accent\);background:var\(--glass-tint-strong\)\}/);
   assert.match(src,/className="app-title"[^>]*>MDTXTRT<\/span>/);
   assert.match(src,/id="themeBtn"/);
   assert.match(src,/id="plusBtn"[\s\S]*popoverTarget="plusMenu"/);
