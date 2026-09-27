@@ -39,55 +39,53 @@ function memoryIndexedDB(){
 function mountReactContract(document){
   const root=document.querySelector('#ux-root');
   root.innerHTML=`
-    <div class="chrome-top">
-      <header class="topbar"><button id="brandBtn" popovertarget="importMenu">MDTXTRT</button></header>
-      <div class="meta">
-        <div class="seg"><button id="undoBtn"></button><button id="redoBtn"></button></div>
-        <div class="seg"><button id="destBtn" title="Destino: Telegram"><span data-icon="telegram"></span></button><button id="exportBtn"></button></div>
-      </div>
-    </div>
-    <div id="headingMenu" popover="auto"><div class="menu-list">
+    <header class="topbar">
+      <div class="top-left"><div class="seg"><button id="undoBtn"></button><button id="redoBtn"></button></div></div>
+      <div class="top-center"><span class="app-title">MDTXTRT</span><div class="theme-control"><button id="themeBtn"><span data-icon="light_mode"></span></button></div></div>
+      <div class="top-right"><div class="seg"><button id="destBtn" title="Destino: Telegram"><span data-icon="telegram"></span></button><button id="exportBtn"></button></div></div>
+    </header>
+    <div id="headingMenu" popover="auto" data-anchor="headingBtn" data-placement="top"><div class="menu-list">
       <button data-block="h1"></button><button data-block="h2"></button><button data-block="h3"></button>
       <button data-block="h4"></button><button data-block="h5"></button><button data-block="h6"></button>
       <button data-block="p"></button><button data-block="footer"></button>
     </div></div>
-    <div id="listMenu" popover="auto"><div class="menu-list">
+    <div id="listMenu" popover="auto" data-anchor="listBtn" data-placement="top"><div class="menu-list">
       <button data-cmd="insertUnorderedList"></button><button data-insert="ordered"></button><button data-insert="task" data-telegram-only></button>
     </div></div>
-    <div id="quoteMenu" popover="auto"><div class="menu-list">
+    <div id="quoteMenu" popover="auto" data-anchor="quoteBtn" data-placement="top"><div class="menu-list">
       <button data-block="blockquote"></button><button data-insert="pullquote"></button><button data-insert="expandquote"></button>
     </div></div>
-    <div id="importMenu" popover="auto">
-      <input id="docName" value="Ideia"><button id="importMdBtn"></button><button id="importTxtBtn"></button><button id="findBtn"></button>
-    </div>
-    <div id="exportMenu" popover="auto">
+    <div id="exportMenu" popover="auto" data-anchor="exportBtn" data-placement="auto">
       <button id="openAppBtn"><span data-icon="telegram"></span><span id="openAppLabel">Publicar no Telegram</span></button>
       <button id="exportMdBtn"></button><button id="exportTxtBtn"></button>
     </div>
-    <div id="plusMenu" popover="auto"><div class="menu-list">
-      <button data-cmd="strike"></button><button data-cmd="mark" data-telegram-only></button>
-      <button data-cmd="spoiler" data-telegram-only></button><button data-cmd="code"></button>
-      <button data-cmd="sub" data-telegram-only></button><button data-cmd="sup" data-telegram-only></button>
-      <button data-cmd="math" data-telegram-only></button><button data-insert="mathblock" data-telegram-only></button>
-      <button data-insert="divider"></button><button data-insert="table" data-telegram-only></button>
-      <button data-insert="details" data-telegram-only></button><button data-insert="image"></button>
-      <button id="mediaBtn" data-telegram-only></button><button id="voiceBtn" data-telegram-only></button>
-      <button data-insert="video"></button><button data-insert="embed" data-telegraph-only></button>
-      <button data-insert="audio" data-telegram-only></button><button data-insert="document" data-telegram-only></button>
-      <button data-insert="map" data-telegram-only></button><button data-insert="collage" data-telegram-only></button>
-      <button data-insert="slideshow" data-telegram-only></button><button data-insert="anchor" data-telegram-only></button>
-      <button data-insert="reference" data-telegram-only></button><button data-insert="time" data-telegram-only></button>
-      <button data-insert="emoji" data-telegram-only></button><button data-insert="button" data-telegram-only></button>
-    </div></div>
+    <div id="plusMenu" popover="auto" data-anchor="plusBtn" data-placement="top">
+      <input id="docName" value="Ideia"><button id="importMdBtn"></button><button id="importTxtBtn"></button><button id="findBtn"></button>
+      <div class="menu-list">
+        <button data-cmd="strike"></button><button data-cmd="mark" data-telegram-only></button>
+        <button data-cmd="spoiler" data-telegram-only></button><button data-cmd="code"></button>
+        <button data-cmd="sub" data-telegram-only></button><button data-cmd="sup" data-telegram-only></button>
+        <button data-cmd="math" data-telegram-only></button><button data-insert="mathblock" data-telegram-only></button>
+        <button data-insert="divider"></button><button data-insert="table" data-telegram-only></button>
+        <button data-insert="details" data-telegram-only></button><button data-insert="image"></button>
+        <button id="mediaBtn" data-telegram-only></button><button id="voiceBtn" data-telegram-only></button>
+        <button data-insert="video"></button><button data-insert="embed" data-telegraph-only></button>
+        <button data-insert="audio" data-telegram-only></button><button data-insert="document" data-telegram-only></button>
+        <button data-insert="map" data-telegram-only></button><button data-insert="collage" data-telegram-only></button>
+        <button data-insert="slideshow" data-telegram-only></button><button data-insert="anchor" data-telegram-only></button>
+        <button data-insert="reference" data-telegram-only></button><button data-insert="time" data-telegram-only></button>
+        <button data-insert="emoji" data-telegram-only></button><button data-insert="button" data-telegram-only></button>
+      </div>
+    </div>
     <input id="fileInput" type="file" hidden><input id="mediaInput" type="file" hidden>
     <div id="toast" role="status"><span id="toastTextHost"></span></div>
     <div id="dialogMenu" popover="manual"><div id="dialogLabel"></div><textarea id="dialogInput"></textarea><button id="dialogCancel"></button><button id="dialogOk"></button></div>
-    <div id="findMenu" popover="auto"><input id="findText"><input id="replaceText"><button id="findNext"></button><button id="replaceOne"></button><button id="replaceAll"></button></div>
+    <div id="findMenu" popover="auto" data-anchor="findBtn" data-placement="auto"><input id="findText"><input id="replaceText"><button id="findNext"></button><button id="replaceOne"></button><button id="replaceAll"></button></div>
     <div class="bar-wrap"><div id="typebar">
-      <button id="plusBtn" popovertarget="plusMenu"></button>
       <button data-cmd="bold"></button><button data-cmd="italic"></button><button data-cmd="underline"></button>
-      <button id="quoteBtn" popovertarget="quoteMenu"></button><button id="linkBtn"></button>
-      <button id="headingBtn" popovertarget="headingMenu"></button><button id="listBtn" popovertarget="listMenu"></button>
+      <button id="linkBtn"></button><button id="headingBtn" popovertarget="headingMenu"></button>
+      <button id="listBtn" popovertarget="listMenu"></button><button id="quoteBtn" popovertarget="quoteMenu"></button>
+      <button id="plusBtn" class="more" popovertarget="plusMenu"></button>
     </div></div>
   `;
 }

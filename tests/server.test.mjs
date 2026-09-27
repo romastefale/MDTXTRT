@@ -352,6 +352,31 @@ test('Telegraph ownership mapping survives create and edit on same document',asy
 });
 
 
+test('Telegraph browser capability can create, recover and edit without Telegram initData',async()=>{
+  const browserKey='ab'.repeat(32);
+  const otherKey='cd'.repeat(32);
+  const doc='99999999-9999-4999-8999-999999999999';
+  const base={title:'Browser page',doc,content:[{tag:'p',children:['texto']}],browserKey};
+  const created=await jsonPost('/api/telegraph/publish',base);
+  assert.equal(created.status,200,created.data.error);
+  assert.equal(created.data.path,'test-page-regression');
+
+  const recovered=await jsonPost('/api/telegraph/recover',{doc,browserKey});
+  assert.equal(recovered.status,200,recovered.data.error);
+  assert.equal(recovered.data.path,created.data.path);
+
+  const edited=await jsonPost('/api/telegraph/publish',{...base,title:'Browser page edited',path:created.data.path});
+  assert.equal(edited.status,200,edited.data.error);
+
+  const wrongOwner=await jsonPost('/api/telegraph/publish',{...base,browserKey:otherKey,path:created.data.path});
+  assert.equal(wrongOwner.status,400);
+  assert.match(wrongOwner.data.error,/não pertence/);
+
+  const ambiguous=await jsonPost('/api/telegraph/publish',{...base,initData:init()});
+  assert.equal(ambiguous.status,400);
+  assert.match(ambiguous.data.error,/ambígua/);
+});
+
 test('handoff rejects draft media metadata that cannot be restored by the client',async()=>{
   const doc='55555555-5555-4555-8555-555555555555';
   const base={version:2,name:'Draft',dest:'telegram',telegraphPath:'',docId:doc,importedMd:'',importedTxt:'',importedHtml:''};

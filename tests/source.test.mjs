@@ -71,6 +71,23 @@ test('theme neutrals are chromatic derivatives of the active accent',()=>{
   assert.doesNotMatch(html,/--muted:#[0-9a-f]{3,8}/i);
 });
 
+test('theme switch owns browser and Telegram chrome without mixed system bars',()=>{
+  const html=read('index.html'),src=uiSource(),app=read('app.js');
+  assert.match(html,/id="statusBarStyle"/);
+  assert.match(html,/mdtxtrt-theme/);
+  assert.match(html,/root\.classList|r\.classList/);
+  assert.match(src,/Icon name="light_mode"/);
+  assert.ok(existsSync(new URL('../icons/light_mode.svg',import.meta.url)));
+  assert.ok(existsSync(new URL('../icons/dark_mode.svg',import.meta.url)));
+  assert.match(app,/const THEME_KEY='mdtxtrt-theme'/);
+  assert.match(app,/localStorage\.setItem\(THEME_KEY,mode\)/);
+  assert.match(app,/tg\.setHeaderColor\(color\)/);
+  assert.match(app,/tg\.setBackgroundColor\(color\)/);
+  assert.match(app,/tg\.setBottomBarColor\(color\)/);
+  assert.match(app,/light\?'dark_mode':'light_mode'/);
+  assert.match(app,/statusMeta\.content=light\?'default':'black-translucent'/);
+});
+
 test('interface icon assets are vector SVG only and referenced from React source',()=>{
   const html=read('index.html'),src=uiSource();
   assert.match(html,/rel="icon" type="image\/svg\+xml" href="favicon\.svg"/);
@@ -119,17 +136,27 @@ test('server exposes every React-referenced local SVG icon and vector app icon',
   assert.doesNotMatch(server,/"logo\.png"/);
 });
 
-test('UI preserves compact portrait contract, disabled zoom and hidden scrollbar chrome',()=>{
-  const html=read('index.html'),src=uiSource();
+test('UI preserves compact portrait contract, unified chrome scale and anchored context menus',()=>{
+  const html=read('index.html'),src=uiSource(),app=read('app.js');
   assert.match(html,/minimum-scale=1, maximum-scale=1, user-scalable=no/);
   assert.match(html,/\*\{box-sizing:border-box;scrollbar-width:none\}/);
   assert.match(html,/\*::-webkit-scrollbar\{width:0;height:0;display:none\}/);
   assert.match(html,/:where\(button,input,textarea,\[contenteditable="true"\]\):focus-visible/);
   assert.match(html,/@media \(orientation:landscape\),\(min-width:760px\)/);
-  assert.match(html,/--bar-h:46px/);
-  assert.match(html,/\.glass-menu\{[\s\S]*?width:min\(210px,calc\(100vw - 16px\)\)/);
-  assert.match(html,/height:24px;min-height:24px/);
-  assert.match(html,/\.bar-wrap\{[\s\S]*?width:210px;max-width:calc\(100vw - 24px\)/);
+  assert.match(html,/--control-size:clamp\(36px,10vw,40px\)/);
+  assert.match(html,/--menu-w:210px/);
+  assert.match(html,/--menu-row-h:24px/);
+  assert.match(html,/\.bar > button\.more\{color:var\(--accent\);background:var\(--neutral-3\)\}/);
+  assert.match(src,/className="app-title"[^>]*>MDTXTRT<\/span>/);
+  assert.match(src,/id="themeBtn"/);
+  assert.match(src,/id="plusBtn"[\s\S]*popoverTarget="plusMenu"/);
+  const typebar=src.slice(src.indexOf('<GlassControl className="bar"'),src.indexOf('</GlassControl>',src.indexOf('<GlassControl className="bar"')));
+  assert.ok(typebar.lastIndexOf('id="plusBtn"')>typebar.lastIndexOf('id="quoteBtn"'));
+  for(const pair of [['headingMenu','headingBtn'],['listMenu','listBtn'],['quoteMenu','quoteBtn'],['plusMenu','plusBtn'],['exportMenu','exportBtn']]){
+    assert.match(src,new RegExp('id="'+pair[0]+'"[^>]*anchorId="'+pair[1]+'"'));
+  }
+  assert.match(app,/function placePanel\(panel,anchorRect=null\)/);
+  assert.match(app,/panel\.style\.setProperty\('--menu-left'/);
   assert.match(src,/id="toast" role="status" aria-live="polite" aria-atomic="true"/);
   assert.match(src,/id="dialogMenu"[\s\S]*?popover="manual"[\s\S]*?role="dialog"[\s\S]*?aria-modal="true"/);
 });
@@ -141,6 +168,17 @@ test('Telegram Mini App requires phone platform and locks portrait through the o
   assert.match(app,/typeof tg\.lockOrientation!=='function'/);
   assert.match(app,/if\(!tg\.isOrientationLocked\)tg\.lockOrientation\(\)/);
   assert.match(app,/portraitQuery\.addEventListener\('change',syncDeviceContract\)/);
+});
+
+test('Telegraph supports explicit Telegram or browser capability ownership without identity fallback',()=>{
+  const app=read('app.js'),server=read('server.mjs');
+  assert.match(app,/const BROWSER_OWNER_KEY='mdtxtrt-browser-owner'/);
+  assert.match(app,/crypto\.getRandomValues\(new Uint8Array\(32\)\)/);
+  assert.match(app,/session==='ready'\?\{initData:getTg\(\)\.initData\}:\{browserKey:browserOwnerKey\(\)\}/);
+  assert.match(server,/function telegraphOwner\(body\)/);
+  assert.match(server,/Identidade de publicação ambígua/);
+  assert.match(server,/browser:\"?\+?createHash\("sha256"\)/);
+  assert.doesNotMatch(server,/Abra pelo bot no Telegram para publicar no Telegraph/);
 });
 
 test('server follows Bot API 10.3 Rich Message contracts without message downgrade paths',()=>{
@@ -169,6 +207,8 @@ test('execution toolchain is pinned and CI verifies generated UI without mutatin
   assert.match(workflow,/actions\/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7\.0\.0/);
   assert.match(workflow,/test "\$\(npm --version\)" = "11\.19\.0"/);
   assert.match(workflow,/npm run build/);
+  assert.match(workflow,/actions\/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4/);
+  assert.match(workflow,/name: react-ui-bundle/);
   assert.match(workflow,/git diff --exit-code -- ui\.js/);
   assert.doesNotMatch(workflow,/git push|contents: write/);
   assert.deepEqual(railpack.steps.install.deployOutputs,[]);
