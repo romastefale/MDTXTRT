@@ -239,6 +239,7 @@
       transform-origin:50% 50%
     }
     .glass-menu:not(:popover-open){display:none}
+    .glass-menu[data-centered="true"]{left:50%;top:50%;transform:translate(-50%,-50%)}
     .glass-menu:popover-open{display:flex;flex-direction:column;animation:glass-menu-in .14s cubic-bezier(.2,.75,.25,1)}
     @keyframes glass-menu-in{from{opacity:0}to{opacity:1}}
     .menu-list{
@@ -260,6 +261,15 @@
       background:transparent;box-shadow:none
     }
     .sheet-ico .ui-icon,.sheet-ico svg{width:14px;height:14px}
+    .glass-menu .heading-list .h-opt.h1,
+    .glass-menu .heading-list .h-opt.h2,
+    .glass-menu .heading-list .h-opt.h3,
+    .glass-menu .heading-list .h-opt.h4,
+    .glass-menu .heading-list .h-opt.h5,
+    .glass-menu .heading-list .h-opt.h6,
+    .glass-menu .heading-list .h-opt.footer{
+      font-size:13px;font-weight:500;letter-spacing:0;text-transform:none
+    }
     .toast{
       position:fixed;left:50%;bottom:calc(var(--vv-bottom) + var(--foot-inset) + 8px);
       transform:translateX(-50%);z-index:50;display:none;
@@ -434,6 +444,6 @@
   <script src="marked.js"></script>
   <script src="turndown.js"></script>
   <script src="glass.js?v=676375c2bb47"></script>
-  <script src="app.js?v=5c865842be50"></script>
+  <script src="app.js?v=d6c30dd32be8"></script>
 </body>
 </html>
