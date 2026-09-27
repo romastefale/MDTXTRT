@@ -264,3 +264,10 @@ test('draft sanitizer rejects malformed media identifiers before persistence',()
   assert.throws(()=>w.eval("cleanDraftHTML('<img data-media-id=\"bad id\">')"),/identificador de mídia/);
   w.close();
 });
+
+
+test('draft sanitizer rejects multiple local attachment identifiers',()=>{
+  const w=page();
+  assert.throws(()=>w.eval("cleanDraftHTML('<figure><img data-media-id=\"one\"></figure><figure><img data-media-id=\"two\"></figure>')"),/mais de um anexo local/);
+  w.close();
+});
