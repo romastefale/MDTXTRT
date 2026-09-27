@@ -642,7 +642,7 @@ async function insertFeature(kind){
     if(caption===null)return;
     return insertHTML('<table bordered striped compact>'+(caption?'<caption>'+escapeHTML(caption)+'</caption>':'')+'<tr><th>A</th><th>B</th></tr><tr><td>—</td><td>—</td></tr></table>',true);
   }
-  if(kind==='expandquote')return insertHTML('<blockquote expandable><p>Citação expansível</p></blockquote>',true);
+  if(kind==='expandquote')return insertHTML('<blockquote expandable>Citação expansível</blockquote>',true);
   if(kind==='pullquote')return insertHTML('<aside>Citação em destaque</aside>',true);
   if(kind==='details')return insertHTML('<details open><summary>Conteúdo</summary><p>Texto expansível</p></details>',true);
   if(kind==='mathblock'){
