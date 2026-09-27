@@ -10,6 +10,7 @@ MDTXTRT keeps implementation provenance explicit so architectural references are
 - License: MIT.
 - MDTXTRT file: `glass.js`.
 - Relationship: `glass.js` is an adapted plain-JavaScript implementation of the reference project's displacement-map / SVG backdrop-filter material architecture and its published material optics. MDTXTRT does not present that technique as independently originated.
+- Browser behavior follows the reference's documented material-mode split: Blink may use SVG backdrop displacement; WebKit/Gecko use the material frost + tint + edge profile unless the product is explicitly migrated to the reference's copy/in-place refraction architecture. MDTXTRT exposes the active profile through `data-lg-rendering` instead of claiming cross-engine optical equivalence.
 - The repository `LICENSE` retains the Sam Asante copyright notice alongside the MDTXTRT copyright notice.
 
 ## Telegram Bot API
