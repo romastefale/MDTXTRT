@@ -82,7 +82,7 @@ test('theme neutrals are chromatic derivatives of the active accent',()=>{
 test('editor uses incremental Markdown input rules without replacing the rich-text model',()=>{
   const app=read('app.js');
   assert.match(app,/function markdownBlockRule\(\)/);
-  assert.match(app,/prefix\.match\(\/\^\(#{1,6}\) \$\//);
+  assert.match(app,/const heading=prefix\.match\(\/\^\(#{1,6}\) \$\//);
   assert.match(app,/if\(prefix==='> '\)return replaceBlock\('blockquote',2\)/);
   assert.match(app,/if\(\/\^\[-\*\+\] \$\/\.test\(prefix\)\)return replaceBlock\('ul',2\)/);
   assert.match(app,/const ordered=prefix\.match\(\/\^\(\\d\+\)\\\. \$\//);
