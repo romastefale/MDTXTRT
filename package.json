@@ -10,9 +10,12 @@
     "node": "24.21.0"
   },
   "dependencies": {
+    "@samasante/liquid-glass": "0.1.1",
     "busboy": "^1.6.0",
     "htmlparser2": "^10.0.0",
     "marked": "^18.0.14",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
     "turndown": "^7.2.2"
   },
   "devDependencies": {
