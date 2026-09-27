@@ -259,6 +259,35 @@ test('Markdown block markers wait for content, convert in either typing order an
   w.close();
 });
 
+test('Markdown block conversion preserves the logical caret while typing',()=>{
+  const w=page(),d=w.document,e=d.querySelector('#editor');
+  e.innerHTML='<p># </p>';
+  const first=e.querySelector('p').firstChild,initial=d.createRange();
+  initial.setStart(first,first.length);initial.collapse(true);
+  w.getSelection().removeAllRanges();w.getSelection().addRange(initial);
+
+  const type=char=>{
+    const sel=w.getSelection(),range=sel.getRangeAt(0);
+    let text=range.startContainer,offset=range.startOffset;
+    if(text.nodeType!==3){
+      text=d.createTextNode('');
+      range.insertNode(text);offset=0;
+    }
+    text.insertData(offset,char);
+    range.setStart(text,offset+char.length);range.collapse(true);
+    sel.removeAllRanges();sel.addRange(range);
+    e.dispatchEvent(new w.InputEvent('input',{bubbles:true,inputType:'insertText',data:char}));
+  };
+
+  for(const char of 'teste')type(char);
+  assert.equal(e.firstElementChild.tagName,'H1');
+  assert.equal(e.firstElementChild.textContent,'teste');
+  const sel=w.getSelection();
+  assert.equal(sel.anchorNode,e.firstElementChild.firstChild);
+  assert.equal(sel.anchorOffset,5);
+  w.close();
+});
+
 test('Markdown block markers accept element-anchored carets and non-breaking spaces once content exists',()=>{
   const w=page(),d=w.document,e=d.querySelector('#editor');
   e.innerHTML='<div>#&nbsp;Palavra</div>';

@@ -1063,6 +1063,19 @@ function markdownCaret(target,offset=null){
   else range.setStart(target,offset),range.collapse(true);
   sel.removeAllRanges();sel.addRange(range);savedRange=range.cloneRange();
 }
+function markdownCaretAtTextOffset(target,offset){
+  const walker=document.createTreeWalker(target,NodeFilter.SHOW_TEXT);
+  let left=Math.max(0,offset),node;
+  while((node=walker.nextNode())){
+    if(left<=node.length){markdownCaret(node,left);return;}
+    left-=node.length;
+  }
+  const sel=window.getSelection();
+  if(!sel)return;
+  const range=document.createRange();
+  range.selectNodeContents(target);range.collapse(false);
+  sel.removeAllRanges();sel.addRange(range);savedRange=range.cloneRange();
+}
 function editorSelectionElement(){
   const node=window.getSelection()?.anchorNode;
   return node&&(node.nodeType===1?node:node.parentElement);
@@ -1128,6 +1141,7 @@ function markdownBlockRule(){
   }
   const replaceBlock=(tag,markerLength,{start=null,task=null}={})=>{
     if(prefix.length<markerLength)return false;
+    const caretOffset=Math.max(0,prefix.length-markerLength);
     deletePrefix(markerLength);
     if(tag==='ul'||tag==='ol'){
       const list=document.createElement(tag);
@@ -1141,13 +1155,13 @@ function markdownBlockRule(){
       while(block.firstChild)li.append(block.firstChild);
       if(!li.childNodes.length)li.append(document.createElement('br'));
       list.append(li);block.replaceWith(list);
-      if(task!==null)markdownCaret(li,1);else markdownCaret(li);
+      markdownCaretAtTextOffset(li,caretOffset);
       return true;
     }
     const next=document.createElement(tag);
     while(block.firstChild)next.append(block.firstChild);
     if(!next.childNodes.length)next.append(document.createElement('br'));
-    block.replaceWith(next);markdownCaret(next);return true;
+    block.replaceWith(next);markdownCaretAtTextOffset(next,caretOffset);return true;
   };
   const task=dest==='telegram'&&text.match(/^- \[([ xX])\] (?=\S)/);
   if(task)return replaceBlock('ul',task[0].length,{task:task[1].toLowerCase()==='x'});
