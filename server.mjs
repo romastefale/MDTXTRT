@@ -875,14 +875,14 @@ async function verifyTelegraphPage(path) {
 
 async function publishTelegraphOne(title, content, path = "", user = "", doc = "") {
   const pageTitle = String(title || "").trim();
-  if (!pageTitle) throw new Error("Dê um nome à página antes de publicar");
-  if (pageTitle.length > 256) throw new Error("O nome da página deve ter até 256 caracteres");
-  telegraphValid(content);
-  if (!/^[a-f0-9-]{36}$/i.test(doc)) throw new Error("Documento inválido");
+  if (!pageTitle) throw new HttpError(400,"Dê um nome à página antes de publicar");
+  if (pageTitle.length > 256) throw new HttpError(400,"O nome da página deve ter até 256 caracteres");
+  try{telegraphValid(content);}catch(error){throw asHttpError(error,400,"Conteúdo do Telegraph inválido");}
+  if (!/^[a-f0-9-]{36}$/i.test(doc)) throw new HttpError(400,"Documento inválido");
   const pages = readPages();
   const key = user + ":" + doc;
   const known = pages[key] || "";
-  if (path && known !== path) throw new Error("Esta página não pertence a este documento");
+  if (path && known !== path) throw new HttpError(400,"Esta página não pertence a este documento");
   const target = String(path || known).trim();
   const token = await ensureTelegraphToken();
   const body = {
@@ -1016,9 +1016,11 @@ const server = createServer(async (req, res) => {
         return;
       }
       try {
-        const body = await readJson(req, 20000);
-        if (!/^[a-f0-9-]{36}$/i.test(String(body?.doc || ""))) throw new Error("Documento inválido");
-        const { chatId } = userFromInitData(String(body?.initData || ""));
+        let body;
+        try{body=await readJson(req,20000);}catch(error){throw asHttpError(error,400,"Dados de recuperação inválidos");}
+        if (!/^[a-f0-9-]{36}$/i.test(String(body?.doc || ""))) throw new HttpError(400,"Documento inválido");
+        let chatId;
+        try{({chatId}=userFromInitData(String(body?.initData||"")));}catch(error){throw asHttpError(error,400,"Sessão Telegram inválida");}
         const path = readPages()[chatId + ":" + body.doc] || "";
         if (!path) {
           res.writeHead(404, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
@@ -1029,9 +1031,9 @@ const server = createServer(async (req, res) => {
         res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
         res.end(JSON.stringify({ path: page.path, url: page.url }));
       } catch (err) {
-        const code = /não encontrada/i.test(err.message || "") ? 404 : 400;
+        const code = err instanceof HttpError ? err.status : 502;
         res.writeHead(code, { "content-type": "application/json; charset=utf-8" });
-        res.end(JSON.stringify({ error: err.message || "Não foi possível recuperar a página" }));
+        res.end(JSON.stringify({ error: err instanceof Error ? err.message : "Não foi possível recuperar a página" }));
       }
       return;
     }
@@ -1110,16 +1112,18 @@ const server = createServer(async (req, res) => {
         return;
       }
       try {
-        const body = await readJson(req, 150_000);
-        if (!body || typeof body !== "object" || typeof body.title !== "string" || !Array.isArray(body.content) || (body.path !== undefined && typeof body.path !== "string")) throw new Error("Os dados da página estão incompletos");
-        if(typeof body.initData!=="string")throw new Error("Abra pelo bot no Telegram para publicar no Telegraph");
-        const {chatId}=userFromInitData(body.initData);
+        let body;
+        try{body=await readJson(req,150_000);}catch(error){throw asHttpError(error,400,"Dados da página inválidos");}
+        if (!body || typeof body !== "object" || typeof body.title !== "string" || !Array.isArray(body.content) || (body.path !== undefined && typeof body.path !== "string")) throw new HttpError(400,"Os dados da página estão incompletos");
+        if(typeof body.initData!=="string")throw new HttpError(400,"Abra pelo bot no Telegram para publicar no Telegraph");
+        let chatId;
+        try{({chatId}=userFromInitData(body.initData));}catch(error){throw asHttpError(error,400,"Sessão Telegram inválida");}
         const page = await publishTelegraph(body.title, body.content, body.path || "", chatId, body.doc);
         res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
         res.end(JSON.stringify({ url: page.url, path: page.path }));
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Não foi possível publicar no Telegraph";
-        const code = /nome (?:da|à) página|escreva algo|excede o limite|solicitação|dados da página|não foi possível ler|Documento inválido|pertence|já possui|Abra pelo|inválida|expirada|Telegraph inválido/i.test(msg) ? 400 : 502;
+        const code = err instanceof HttpError ? err.status : 502;
         res.writeHead(code, { "content-type": "application/json; charset=utf-8" });
         res.end(JSON.stringify({ error: msg }));
       }
