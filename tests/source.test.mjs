@@ -69,7 +69,8 @@ test('theme neutrals are chromatic derivatives of the active accent',()=>{
   assert.match(html,/--line:color-mix\(in oklab,var\(--accent\) 22%,var\(--bg\)\);/);
   assert.match(html,/\.menu-list > button:hover,\.menu-list > button:focus-visible\{background:var\(--accent\);color:#fff\}/);
   assert.match(html,/\.dialog-actions #dialogOk\{background:var\(--accent\);color:#fff\}/);
-  assert.doesNotMatch(html,/--muted:#[0-9a-f]{3,8}/i);
+  assert.match(html,/html\.dark\{--accent:#269c65;--muted:#dcf1db;color-scheme:dark\}/);
+  assert.equal((html.match(/--muted:#dcf1db;/g)||[]).length,1);
 });
 
 test('theme switch owns browser and Telegram chrome without mixed system bars',()=>{
