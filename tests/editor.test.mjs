@@ -60,32 +60,54 @@ function mountReactContract(document){
       <button id="exportMdBtn"></button><button id="exportTxtBtn"></button>
     </div>
     <div id="plusMenu" popover="auto" data-anchor="plusBtn" data-placement="top">
-      <input id="docName" value="Ideia"><button id="importMdBtn"></button><button id="importTxtBtn"></button><button id="findBtn"></button>
+      <input id="docName" value="Ideia">
       <div class="menu-list">
-        <button data-cmd="strike"></button><button data-cmd="mark" data-telegram-only></button>
-        <button data-cmd="spoiler" data-telegram-only></button><button data-cmd="code"></button>
-        <button data-cmd="sub" data-telegram-only></button><button data-cmd="sup" data-telegram-only></button>
-        <button data-cmd="math" data-telegram-only></button><button data-insert="mathblock" data-telegram-only></button>
-        <button data-insert="divider"></button><button data-insert="table" data-telegram-only></button>
-        <button data-insert="details" data-telegram-only></button><button data-insert="image"></button>
-        <button id="mediaBtn" data-telegram-only></button><button id="voiceBtn" data-telegram-only></button>
-        <button data-insert="video"></button><button data-insert="embed" data-telegraph-only></button>
-        <button data-insert="audio" data-telegram-only></button><button data-insert="document" data-telegram-only></button>
-        <button data-insert="map" data-telegram-only></button><button data-insert="collage" data-telegram-only></button>
-        <button data-insert="slideshow" data-telegram-only></button><button data-insert="anchor" data-telegram-only></button>
-        <button data-insert="reference" data-telegram-only></button><button data-insert="time" data-telegram-only></button>
-        <button data-insert="emoji" data-telegram-only></button><button data-insert="button" data-telegram-only></button>
+        <button data-plus-category="file"></button>
+        <button data-plus-category="format"></button>
+        <button data-plus-category="structure"></button>
+        <button data-plus-category="media"></button>
+        <button data-plus-category="interaction" data-telegram-only></button>
       </div>
     </div>
+    <div id="plus-file-menu" popover="auto" data-anchor="plusBtn" data-placement="top" data-plus-submenu="file"><div class="menu-list">
+      <button data-plus-back></button>
+      <button id="importMdBtn"></button><button id="importTxtBtn"></button><button id="findBtn"></button>
+    </div></div>
+    <div id="plus-format-menu" popover="auto" data-anchor="plusBtn" data-placement="top" data-plus-submenu="format"><div class="menu-list">
+      <button data-plus-back></button>
+      <button data-cmd="strike"></button><button data-cmd="mark" data-telegram-only></button>
+      <button data-cmd="spoiler" data-telegram-only></button><button data-cmd="code"></button>
+      <button data-cmd="sub" data-telegram-only></button><button data-cmd="sup" data-telegram-only></button>
+    </div></div>
+    <div id="plus-structure-menu" popover="auto" data-anchor="plusBtn" data-placement="top" data-plus-submenu="structure"><div class="menu-list">
+      <button data-plus-back></button>
+      <button data-cmd="math" data-telegram-only></button><button data-insert="mathblock" data-telegram-only></button>
+      <button data-insert="divider"></button><button data-insert="table" data-telegram-only></button>
+      <button data-insert="details" data-telegram-only></button>
+    </div></div>
+    <div id="plus-media-menu" popover="auto" data-anchor="plusBtn" data-placement="top" data-plus-submenu="media"><div class="menu-list">
+      <button data-plus-back></button>
+      <button data-insert="image"></button><button id="mediaBtn" data-telegram-only></button>
+      <button id="voiceBtn" data-telegram-only></button><button data-insert="video"></button>
+      <button data-insert="embed" data-telegraph-only></button><button data-insert="audio" data-telegram-only></button>
+      <button data-insert="document" data-telegram-only></button><button data-insert="map" data-telegram-only></button>
+      <button data-insert="collage" data-telegram-only></button><button data-insert="slideshow" data-telegram-only></button>
+    </div></div>
+    <div id="plus-interaction-menu" popover="auto" data-anchor="plusBtn" data-placement="top" data-plus-submenu="interaction"><div class="menu-list">
+      <button data-plus-back></button>
+      <button data-insert="anchor" data-telegram-only></button><button data-insert="reference" data-telegram-only></button>
+      <button data-insert="time" data-telegram-only></button><button data-insert="emoji" data-telegram-only></button>
+      <button data-insert="button" data-telegram-only></button>
+    </div></div>
     <input id="fileInput" type="file" hidden><input id="mediaInput" type="file" hidden>
     <div id="toast" role="status"><span id="toastTextHost"></span></div>
     <div id="dialogMenu" popover="manual"><div id="dialogLabel"></div><textarea id="dialogInput"></textarea><button id="dialogCancel"></button><button id="dialogOk"></button></div>
     <div id="findMenu" popover="auto" data-anchor="findBtn" data-placement="auto"><input id="findText"><input id="replaceText"><button id="findNext"></button><button id="replaceOne"></button><button id="replaceAll"></button></div>
     <div class="bar-wrap"><div id="typebar">
+      <button id="plusBtn" class="more" popovertarget="plusMenu"></button>
       <button data-cmd="bold"></button><button data-cmd="italic"></button><button data-cmd="underline"></button>
       <button id="linkBtn"></button><button id="headingBtn" popovertarget="headingMenu"></button>
       <button id="listBtn" popovertarget="listMenu"></button><button id="quoteBtn" popovertarget="quoteMenu"></button>
-      <button id="plusBtn" class="more" popovertarget="plusMenu"></button>
     </div></div>
   `;
 }
