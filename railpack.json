@@ -16,6 +16,7 @@
           "src": "package.json",
           "dest": "package.json"
         },
+        "test \"$(npm --version)\" = \"11.19.0\"",
         "npm ci"
       ]
     }
