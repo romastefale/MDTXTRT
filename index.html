@@ -95,8 +95,6 @@
     .frost{
       position:relative;border:0;isolation:isolate;
       background:rgba(255,255,255,.08);
-      backdrop-filter:blur(16px) saturate(1.35);
-      -webkit-backdrop-filter:blur(16px) saturate(1.35);
       box-shadow:0 10px 30px rgba(0,0,0,.28)
     }
     html.light .frost{
@@ -305,7 +303,7 @@
         <article id="editor" class="editor" contenteditable="true" spellcheck="true" inputmode="text" enterkeyhint="enter" aria-label="Editor" data-placeholder="Escreva aqui…"></article>
       </div>
     </div>
-  <div class="sheet frost" id="headingMenu" popover="auto">
+  <div class="sheet frost" data-lg id="headingMenu" popover="auto">
     <div class="menu-list heading-list">
       <button class="h-opt h1" data-block="h1"><span class="sheet-ico"><span class="ui-icon" data-icon="h1"></span></span>Título H1</button>
       <button class="h-opt h2" data-block="h2"><span class="sheet-ico"><span class="ui-icon" data-icon="h2"></span></span>Título H2</button>
@@ -317,21 +315,21 @@
       <button class="h-opt footer" data-block="footer"><span class="sheet-ico"><span class="ui-icon" data-icon="footer"></span></span>Rodapé</button>
     </div>
   </div>
-  <div class="sheet frost" id="listMenu" popover="auto">
+  <div class="sheet frost" data-lg id="listMenu" popover="auto">
     <div class="menu-list">
       <button data-cmd="insertUnorderedList"><span class="sheet-ico"><span class="ui-icon" data-icon="list"></span></span>Lista com marcadores</button>
       <button data-insert="ordered"><span class="sheet-ico"><span class="ui-icon" data-icon="format_list_numbered"></span></span>Lista ordenada</button>
       <button data-insert="task" data-telegram-only><span class="sheet-ico"><span class="ui-icon" data-icon="task"></span></span>Checklist</button>
     </div>
   </div>
-  <div class="sheet frost" id="quoteMenu" popover="auto">
+  <div class="sheet frost" data-lg id="quoteMenu" popover="auto">
     <div class="menu-list">
       <button data-block="blockquote"><span class="sheet-ico"><span class="ui-icon" data-icon="quote"></span></span>Citação</button>
       <button data-insert="pullquote"><span class="sheet-ico"><span class="ui-icon" data-icon="pullquote"></span></span>Citação em destaque</button>
       <button data-insert="expandquote"><span class="sheet-ico"><span class="ui-icon" data-icon="expandquote"></span></span>Citação expansível</button>
     </div>
   </div>
-  <div class="sheet frost" id="importMenu" popover="auto">
+  <div class="sheet frost" data-lg id="importMenu" popover="auto">
     <div class="tools"><input id="docName" value="Ideia" aria-label="Nome do documento" maxlength="120"></div>
     <div class="menu-list">
       <button id="importMdBtn"><span class="sheet-ico"><span class="ui-icon" data-icon="markdown"></span></span>Importar Markdown</button>
@@ -339,7 +337,7 @@
       <button id="findBtn"><span class="sheet-ico"><span class="ui-icon" data-icon="search"></span></span>Localizar e substituir</button>
     </div>
   </div>
-  <div class="sheet frost" id="exportMenu" popover="auto">
+  <div class="sheet frost" data-lg id="exportMenu" popover="auto">
     <p class="hint">Exporte um arquivo ou publique no destino selecionado.</p>
     <div class="menu-list">
       <button id="openAppBtn"><span class="sheet-ico"><span class="ui-icon" data-icon="telegram"></span></span><span id="openAppLabel">Publicar no Telegram</span></button>
@@ -347,7 +345,7 @@
       <button id="exportTxtBtn"><span class="sheet-ico"><span class="ui-icon" data-icon="text_fields"></span></span>Baixar TXT</button>
     </div>
   </div>
-  <div class="sheet frost" id="plusMenu" popover="auto">
+  <div class="sheet frost" data-lg id="plusMenu" popover="auto">
     <div class="menu-list">
       <button data-cmd="strike"><span class="sheet-ico"><span class="ui-icon" data-icon="strikethrough_s"></span></span>Riscado</button>
       <button data-cmd="mark" data-telegram-only><span class="sheet-ico"><span class="ui-icon" data-icon="ink_highlighter"></span></span>Marca-texto</button>
@@ -379,18 +377,18 @@
   </div>
   <input id="fileInput" type="file" accept=".txt,.md,text/plain,text/markdown" hidden>
   <input id="mediaInput" type="file" accept="image/*,video/*,audio/*,.pdf,.zip" hidden>
-  <div class="toast frost" id="toast"></div>
-  <div class="sheet frost" id="dialogMenu" popover="manual">
+  <div class="toast frost" data-lg id="toast"></div>
+  <div class="sheet frost" data-lg id="dialogMenu" popover="manual">
     <div class="dialog">
       <div class="dialog-label" id="dialogLabel"></div>
       <textarea id="dialogInput" rows="1" spellcheck="false"></textarea>
       <div class="dialog-actions"><button type="button" id="dialogCancel">Cancelar</button><button type="button" id="dialogOk">OK</button></div>
     </div>
   </div>
-  <div class="sheet frost" id="findMenu" popover="auto"><div class="menu-list"><div class="tools"><input id="findText" placeholder="Localizar"></div><div class="tools"><input id="replaceText" placeholder="Substituir"></div><div class="tools"><button id="findNext">Próximo</button><button id="replaceOne">Substituir</button><button id="replaceAll">Substituir tudo</button></div></div></div>
+  <div class="sheet frost" data-lg id="findMenu" popover="auto"><div class="menu-list"><div class="tools"><input id="findText" placeholder="Localizar"></div><div class="tools"><input id="replaceText" placeholder="Substituir"></div><div class="tools"><button id="findNext">Próximo</button><button id="replaceOne">Substituir</button><button id="replaceAll">Substituir tudo</button></div></div></div>
   </div>
   <div class="bar-wrap">
-    <div class="bar frost" data-lg id="typebar">
+    <div class="bar frost" data-lg data-lg-wide id="typebar">
       <button class="plus" id="plusBtn" aria-label="Mais" popovertarget="plusMenu"><span class="ui-icon" data-icon="plus"></span></button>
       <button type="button" data-cmd="bold" aria-label="Negrito"><span class="ui-icon" data-icon="bold"></span></button>
       <button type="button" data-cmd="italic" aria-label="Itálico"><span class="ui-icon" data-icon="italic"></span></button>
@@ -403,7 +401,7 @@
   </div>
   <script src="marked.js"></script>
   <script src="turndown.js"></script>
-  <script src="glass.js?v=e02dfec08711"></script>
+  <script src="glass.js?v=lg-material-20260927-1"></script>
   <script src="app.js?v=46df031c221a"></script>
 </body>
 </html>
