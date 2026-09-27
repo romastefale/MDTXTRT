@@ -142,51 +142,119 @@ function ExportMenu() {
   );
 }
 
-const extraItems = [
-  ["strikethrough_s", "Riscado", { "data-cmd": "strike" }],
-  ["ink_highlighter", "Marca-texto", { "data-cmd": "mark", "data-telegram-only": "" }],
-  ["visibility_off", "Spoiler", { "data-cmd": "spoiler", "data-telegram-only": "" }],
-  ["code", "Código", { "data-cmd": "code" }],
-  ["subscript", "Subscrito", { "data-cmd": "sub", "data-telegram-only": "" }],
-  ["superscript", "Sobrescrito", { "data-cmd": "sup", "data-telegram-only": "" }],
-  ["functions", "Fórmula inline", { "data-cmd": "math", "data-telegram-only": "" }],
-  ["calculate", "Fórmula em bloco", { "data-insert": "mathblock", "data-telegram-only": "" }],
-  ["horizontal_rule", "Divisor", { "data-insert": "divider" }],
-  ["table", "Tabela", { "data-insert": "table", "data-telegram-only": "" }],
-  ["details", "Conteúdo expansível", { "data-insert": "details", "data-telegram-only": "" }],
-  ["image", "Imagem", { "data-insert": "image" }],
-  ["attach_file", "Anexar mídia", { id: "mediaBtn", "data-telegram-only": "" }],
-  ["music_note", "Anexar voz", { id: "voiceBtn", "data-telegram-only": "" }],
-  ["movie", "Vídeo", { "data-insert": "video" }],
-  ["web", "Incorporar", { "data-insert": "embed", "data-telegraph-only": "" }],
-  ["music_note", "Áudio", { "data-insert": "audio", "data-telegram-only": "" }],
-  ["file", "Documento", { "data-insert": "document", "data-telegram-only": "" }],
-  ["location_on", "Mapa", { "data-insert": "map", "data-telegram-only": "" }],
-  ["view_comfy", "Colagem", { "data-insert": "collage", "data-telegram-only": "" }],
-  ["slideshow", "Slideshow", { "data-insert": "slideshow", "data-telegram-only": "" }],
-  ["anchor", "Âncora", { "data-insert": "anchor", "data-telegram-only": "" }],
-  ["sticky_note_2", "Referência", { "data-insert": "reference", "data-telegram-only": "" }],
-  ["schedule", "Data e hora", { "data-insert": "time", "data-telegram-only": "" }],
-  ["mood", "Emoji personalizado", { "data-insert": "emoji", "data-telegram-only": "" }],
-  ["buttons", "Botão", { "data-insert": "button", "data-telegram-only": "" }],
+const plusSections = [
+  {
+    id: "file",
+    icon: "markdown",
+    label: "Arquivo",
+    items: [
+      ["markdown", "Importar Markdown", { id: "importMdBtn" }],
+      ["text_fields", "Importar TXT", { id: "importTxtBtn" }],
+      ["search", "Localizar e substituir", { id: "findBtn" }],
+    ],
+  },
+  {
+    id: "format",
+    icon: "text_fields",
+    label: "Formatação",
+    items: [
+      ["strikethrough_s", "Riscado", { "data-cmd": "strike" }],
+      ["ink_highlighter", "Marca-texto", { "data-cmd": "mark", "data-telegram-only": "" }],
+      ["visibility_off", "Spoiler", { "data-cmd": "spoiler", "data-telegram-only": "" }],
+      ["code", "Código", { "data-cmd": "code" }],
+      ["subscript", "Subscrito", { "data-cmd": "sub", "data-telegram-only": "" }],
+      ["superscript", "Sobrescrito", { "data-cmd": "sup", "data-telegram-only": "" }],
+    ],
+  },
+  {
+    id: "structure",
+    icon: "table",
+    label: "Estrutura",
+    items: [
+      ["functions", "Fórmula inline", { "data-cmd": "math", "data-telegram-only": "" }],
+      ["calculate", "Fórmula em bloco", { "data-insert": "mathblock", "data-telegram-only": "" }],
+      ["horizontal_rule", "Divisor", { "data-insert": "divider" }],
+      ["table", "Tabela", { "data-insert": "table", "data-telegram-only": "" }],
+      ["details", "Conteúdo expansível", { "data-insert": "details", "data-telegram-only": "" }],
+    ],
+  },
+  {
+    id: "media",
+    icon: "image",
+    label: "Mídia",
+    items: [
+      ["image", "Imagem", { "data-insert": "image" }],
+      ["attach_file", "Anexar mídia", { id: "mediaBtn", "data-telegram-only": "" }],
+      ["music_note", "Anexar voz", { id: "voiceBtn", "data-telegram-only": "" }],
+      ["movie", "Vídeo", { "data-insert": "video" }],
+      ["web", "Incorporar", { "data-insert": "embed", "data-telegraph-only": "" }],
+      ["music_note", "Áudio", { "data-insert": "audio", "data-telegram-only": "" }],
+      ["file", "Documento", { "data-insert": "document", "data-telegram-only": "" }],
+      ["location_on", "Mapa", { "data-insert": "map", "data-telegram-only": "" }],
+      ["view_comfy", "Colagem", { "data-insert": "collage", "data-telegram-only": "" }],
+      ["slideshow", "Slideshow", { "data-insert": "slideshow", "data-telegram-only": "" }],
+    ],
+  },
+  {
+    id: "interaction",
+    icon: "buttons",
+    label: "Interações",
+    telegramOnly: true,
+    items: [
+      ["anchor", "Âncora", { "data-insert": "anchor", "data-telegram-only": "" }],
+      ["sticky_note_2", "Referência", { "data-insert": "reference", "data-telegram-only": "" }],
+      ["schedule", "Data e hora", { "data-insert": "time", "data-telegram-only": "" }],
+      ["mood", "Emoji personalizado", { "data-insert": "emoji", "data-telegram-only": "" }],
+      ["buttons", "Botão", { "data-insert": "button", "data-telegram-only": "" }],
+    ],
+  },
 ];
 
-function PlusMenu() {
+function PlusCategory({ section }) {
+  const categoryProps = section.telegramOnly ? { "data-telegram-only": "" } : {};
   return (
-    <GlassContextMenu id="plusMenu" className="wide-menu" anchorId="plusBtn" placement="top">
-      <div className="tools document-tools">
-        <input id="docName" defaultValue="Ideia" aria-label="Nome do documento" maxLength={120} />
-      </div>
+    <MenuItem icon={section.icon} data-plus-category={section.id} {...categoryProps}>
+      <span className="menu-label">{section.label}</span>
+      <span className="menu-chevron"><Icon name="chevron_right" /></span>
+    </MenuItem>
+  );
+}
+
+function PlusSubmenu({ section }) {
+  return (
+    <GlassContextMenu
+      id={`plus-${section.id}-menu`}
+      className="wide-menu plus-submenu"
+      anchorId="plusBtn"
+      placement="top"
+      data-plus-submenu={section.id}
+    >
       <div className="menu-list">
-        <MenuItem icon="markdown" id="importMdBtn">Importar Markdown</MenuItem>
-        <MenuItem icon="text_fields" id="importTxtBtn">Importar TXT</MenuItem>
-        <MenuItem icon="search" id="findBtn">Localizar e substituir</MenuItem>
+        <MenuItem icon="arrow_back" className="submenu-back" data-plus-back="">
+          <span className="menu-label">{section.label}</span>
+        </MenuItem>
         <div className="menu-divider" role="separator" />
-        {extraItems.map(([icon, label, props]) => (
+        {section.items.map(([icon, label, props]) => (
           <MenuItem key={label} icon={icon} {...props}>{label}</MenuItem>
         ))}
       </div>
     </GlassContextMenu>
+  );
+}
+
+function PlusMenu() {
+  return (
+    <>
+      <GlassContextMenu id="plusMenu" className="wide-menu" anchorId="plusBtn" placement="top">
+        <div className="tools document-tools">
+          <input id="docName" defaultValue="Ideia" aria-label="Nome do documento" maxLength={120} />
+        </div>
+        <div className="menu-list">
+          {plusSections.map(section => <PlusCategory key={section.id} section={section} />)}
+        </div>
+      </GlassContextMenu>
+      {plusSections.map(section => <PlusSubmenu key={section.id} section={section} />)}
+    </>
   );
 }
 
@@ -281,6 +349,7 @@ function Chrome() {
 
       <div className="bar-wrap">
         <GlassControl className="bar" id="typebar">
+          <button type="button" className="more" id="plusBtn" aria-label="Mais opções" title="Mais opções" popoverTarget="plusMenu"><Icon name="plus" /></button>
           <button type="button" data-cmd="bold" aria-label="Negrito"><Icon name="bold" /></button>
           <button type="button" data-cmd="italic" aria-label="Itálico"><Icon name="italic" /></button>
           <button type="button" data-cmd="underline" aria-label="Sublinhado"><Icon name="underline" /></button>
@@ -288,7 +357,6 @@ function Chrome() {
           <button type="button" id="headingBtn" aria-label="Título" popoverTarget="headingMenu"><Icon name="heading" /></button>
           <button type="button" id="listBtn" aria-label="Lista" popoverTarget="listMenu"><Icon name="list" /></button>
           <button type="button" id="quoteBtn" aria-label="Citação" popoverTarget="quoteMenu"><Icon name="quote" /></button>
-          <button type="button" className="more" id="plusBtn" aria-label="Mais opções" title="Mais opções" popoverTarget="plusMenu"><Icon name="plus" /></button>
         </GlassControl>
       </div>
     </>
