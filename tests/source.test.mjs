@@ -198,6 +198,8 @@ test('architecture provenance is shipped with the repository and adapted source'
   const provenance=read('PROVENANCE.md');
   const glass=read('glass.js');
   assert.match(provenance,/romastefale\/liquid-glass/);
+  assert.match(provenance,/examples\/GlassContextMenu\.tsx/);
+  assert.match(provenance,/context-menu/);
   assert.match(provenance,/Sam Asante/);
   assert.match(provenance,/sendRichMessage/);
   assert.match(provenance,/telegra\.ph\/api/);
