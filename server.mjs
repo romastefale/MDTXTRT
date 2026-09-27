@@ -473,10 +473,30 @@ function richValid(html){
       if(!buttons.has(type))throw new Error("Tipo de botão inválido");
       if(node.attribs.style&&!["danger","success","primary","link"].includes(node.attribs.style))throw new Error("Estilo de botão inválido");
       if(node.attribs.style==="link"&&type!=="callback_data")throw new Error("Estilo link exige callback");
-      const action={url:"url",callback_data:"data",web_app:"url",login_url:"url",switch_inline_query:"query",switch_inline_query_current_chat:"query",switch_inline_query_chosen_chat:"query",copy_text:"text"}[type];
-      if(action&&node.attribs[action]===undefined)throw new Error("Ação de botão ausente");
+      const chatAttrs=["allow-user-chats","allow-bot-chats","allow-group-chats","allow-channel-chats"];
+      const actionAttrs=new Set(["url","data","query","text","forward-text","request-write-access",...chatAttrs]);
+      const allowedByType={
+        url:new Set(["url"]),
+        callback_data:new Set(["data"]),
+        web_app:new Set(["url"]),
+        login_url:new Set(["url","forward-text","request-write-access"]),
+        switch_inline_query:new Set(["query"]),
+        switch_inline_query_current_chat:new Set(["query"]),
+        switch_inline_query_chosen_chat:new Set(["query",...chatAttrs]),
+        copy_text:new Set(["text"]),
+        disabled:new Set()
+      }[type];
+      for(const name of actionAttrs){
+        if(node.attribs[name]!==undefined&&!allowedByType.has(name))throw new Error("Atributo de ação inválido para este botão");
+      }
+      if(["url","web_app","login_url"].includes(type)&&node.attribs.url===undefined)throw new Error("Ação de botão ausente");
+      if(type==="callback_data"&&node.attribs.data===undefined)throw new Error("Ação de botão ausente");
+      if(type==="copy_text"&&node.attribs.text===undefined)throw new Error("Ação de botão ausente");
       if(type==="callback_data"&&(Buffer.byteLength(node.attribs.data||"")<1||Buffer.byteLength(node.attribs.data)>64))throw new Error("Callback inválido");
-      if(type==="url")urlValid(node.attribs.url);
+      if(type==="url"){
+        let url;try{url=new URL(node.attribs.url);}catch{throw new Error("URL de botão inválida");}
+        if(!["http:","https:","tg:"].includes(url.protocol))throw new Error("URL de botão deve usar HTTP, HTTPS ou tg://");
+      }
       if(type==="web_app"||type==="login_url"){
         let url;try{url=new URL(node.attribs.url);}catch{throw new Error(type==="web_app"?"Web App URL inválida":"Login URL inválida");}
         if(url.protocol!=="https:")throw new Error(type==="web_app"?"Web App URL deve usar HTTPS":"Login URL deve usar HTTPS");
@@ -485,9 +505,7 @@ function richValid(html){
         const text=node.attribs.text||"";
         if(Array.from(text).length<1||Array.from(text).length>256)throw new Error("Texto para copiar inválido");
       }
-      const chatAttrs=["allow-user-chats","allow-bot-chats","allow-group-chats","allow-channel-chats"];
-      if(chatAttrs.some(name=>node.attribs[name]!==undefined)&&type!=="switch_inline_query_chosen_chat")throw new Error("Escopo de chat inválido para este botão");
-      if((node.attribs["forward-text"]!==undefined||node.attribs["request-write-access"]!==undefined)&&type!=="login_url")throw new Error("Opção de login inválida para este botão");
+
     }
     if(media.has(node.name)){
       if(!node.attribs.src)throw new Error("Mídia sem endereço");
@@ -983,7 +1001,7 @@ const server = createServer(async (req, res) => {
         res.end(JSON.stringify(result));
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Não foi possível publicar no Telegram";
-        const code = /inválid[ao]s?|expirada|ausente|excede|Conteúdo vazio|Abra pelo|solicitação|dados do envio|Escreva algo|Anexe a mídia|identificador de mídia|endereço de mídia|mídia anexada|deve usar HTTPS|Texto para copiar|Escopo de chat|Opção de login|Referência|Texto de botão/i.test(msg) ? 400 : 500;
+        const code = /inválid[ao]s?|expirada|ausente|excede|Conteúdo vazio|Abra pelo|solicitação|dados do envio|Escreva algo|Anexe a mídia|identificador de mídia|endereço de mídia|mídia anexada|deve usar HTTPS|Texto para copiar|Escopo de chat|Opção de login|Atributo de ação|URL de botão|Referência|Texto de botão/i.test(msg) ? 400 : 500;
         res.writeHead(code, { "content-type": "application/json; charset=utf-8" });
         res.end(JSON.stringify({ error: msg }));
       }
