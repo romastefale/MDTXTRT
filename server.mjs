@@ -405,6 +405,7 @@ function richValid(html){
       if(!/^\d+$/.test(node.attribs.unix||""))throw new Error("Timestamp inválido");
       if(node.attribs.format!==undefined&&!/^(?:r|w?[dD]?[tT]?)$/.test(node.attribs.format))throw new Error("Formato de data inválido");
     }
+    if(node.name==="tg-reference"&&!/^[A-Za-z0-9_-]{1,64}$/.test(node.attribs.name||""))throw new Error("Referência inválida");
     if(node.name==="tg-emoji"&&!/^\d+$/.test(node.attribs["emoji-id"]||""))throw new Error("Emoji personalizado inválido");
     if(node.name==="tg-map"){
       const lat=Number(node.attribs.lat),lon=Number(node.attribs.long),zoom=node.attribs.zoom===undefined?undefined:Number(node.attribs.zoom),width=node.attribs.width===undefined?undefined:Number(node.attribs.width),height=node.attribs.height===undefined?undefined:Number(node.attribs.height);
@@ -424,11 +425,18 @@ function richValid(html){
       const action={url:"url",callback_data:"data",web_app:"url",login_url:"url",switch_inline_query:"query",switch_inline_query_current_chat:"query",switch_inline_query_chosen_chat:"query",copy_text:"text"}[type];
       if(action&&node.attribs[action]===undefined)throw new Error("Ação de botão ausente");
       if(type==="callback_data"&&(Buffer.byteLength(node.attribs.data||"")<1||Buffer.byteLength(node.attribs.data)>64))throw new Error("Callback inválido");
-      if(["url","web_app"].includes(type))urlValid(node.attribs.url);
-      if(type==="login_url"){
-        let url;try{url=new URL(node.attribs.url);}catch{throw new Error("Login URL inválida");}
-        if(url.protocol!=="https:")throw new Error("Login URL deve usar HTTPS");
+      if(type==="url")urlValid(node.attribs.url);
+      if(type==="web_app"||type==="login_url"){
+        let url;try{url=new URL(node.attribs.url);}catch{throw new Error(type==="web_app"?"Web App URL inválida":"Login URL inválida");}
+        if(url.protocol!=="https:")throw new Error(type==="web_app"?"Web App URL deve usar HTTPS":"Login URL deve usar HTTPS");
       }
+      if(type==="copy_text"){
+        const text=node.attribs.text||"";
+        if(Array.from(text).length<1||Array.from(text).length>256)throw new Error("Texto para copiar inválido");
+      }
+      const chatAttrs=["allow-user-chats","allow-bot-chats","allow-group-chats","allow-channel-chats"];
+      if(chatAttrs.some(name=>node.attribs[name]!==undefined)&&type!=="switch_inline_query_chosen_chat")throw new Error("Escopo de chat inválido para este botão");
+      if((node.attribs["forward-text"]!==undefined||node.attribs["request-write-access"]!==undefined)&&type!=="login_url")throw new Error("Opção de login inválida para este botão");
     }
     if(media.has(node.name)){
       if(!node.attribs.src)throw new Error("Mídia sem endereço");
