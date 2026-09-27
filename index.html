@@ -1,0 +1,408 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="MDTXTRT" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=overlays-content" />
+  <meta name="color-scheme" content="light dark" />
+  <meta name="theme-color" id="themeColor" content="#f8fbff" />
+  <title>MDTXTRT</title>
+  <meta name="description" content="Editor de texto para Telegram e Telegraph." />
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="apple-touch-icon" href="logo.png" />
+  <meta property="og:title" content="MDTXTRT" />
+  <meta property="og:description" content="Editor de texto para Telegram e Telegraph" />
+  <meta property="og:image" content="https://romastefale.github.io/MDTXTRT/og.jpg" />
+  <meta property="og:url" content="https://romastefale.github.io/MDTXTRT/" />
+  <meta property="og:type" content="website" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:image" content="https://romastefale.github.io/MDTXTRT/x-banner.jpg" />
+  <script>const q=matchMedia("(prefers-color-scheme: light)"),h=document.documentElement,m=document.querySelector("#themeColor"),l=q.matches;h.classList.add(l?"light":"dark");m.content=l?"#f8fbff":"#000000";</script>
+  <script src="https://telegram.org/js/telegram-web-app.js?63"></script>
+  <style>
+    :root{
+      --bg:#000;
+      --text:#f5f5f7;
+      --muted:#c5c8d8;
+      --accent:#a78bfa;
+      --line:rgba(255,255,255,.18);
+      --safe-top:env(safe-area-inset-top,0px);
+      --safe-bottom:env(safe-area-inset-bottom,0px);
+      --safe-left:env(safe-area-inset-left,0px);
+      --safe-right:env(safe-area-inset-right,0px);
+      --gap:8px;
+      --topbar-h:36px;
+      --meta-h:44px;
+      --bar-h:48px;
+      --vv-top:0px;
+      --vv-bottom:0px;
+      --vv-height:100dvh;
+      --head-inset:calc(var(--safe-top) + var(--gap) + var(--topbar-h) + var(--gap) + var(--meta-h) + var(--gap));
+      --foot-inset:calc(var(--safe-bottom) + var(--gap) + var(--bar-h) + var(--gap));
+    }
+    html.tg-shell{
+      --safe-top:max(var(--tg-safe-area-inset-top),var(--tg-content-safe-area-inset-top));
+      --safe-bottom:max(var(--tg-safe-area-inset-bottom),var(--tg-content-safe-area-inset-bottom));
+      --safe-left:max(var(--tg-safe-area-inset-left),var(--tg-content-safe-area-inset-left));
+      --safe-right:max(var(--tg-safe-area-inset-right),var(--tg-content-safe-area-inset-right));
+      --vv-top:0px;
+      --vv-bottom:0px;
+      --vv-height:var(--tg-viewport-stable-height);
+      --head-inset:calc(var(--safe-top) + var(--gap) + var(--meta-h) + var(--gap));
+    }
+    html.light{
+      --bg:#f8fbff; --text:#151515; --muted:#5c6478; --accent:#ff6a00;
+      --line:rgba(255,255,255,.7);
+    }
+    html{color-scheme:light dark;-webkit-text-size-adjust:100%;text-size-adjust:100%}
+    html.light{color-scheme:light}
+    html.dark{color-scheme:dark}
+    *{box-sizing:border-box}
+    html,body,.app{margin:0;width:100%;min-height:100lvh;overflow:visible}
+    html{background:var(--bg)}
+    body{
+      padding:0;color:var(--text);background:transparent;overscroll-behavior:none;touch-action:manipulation;
+      accent-color:var(--accent);caret-color:var(--accent);
+      font:16px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif
+    }
+    .bg{
+      position:fixed;top:-50lvh;left:0;width:100%;height:200lvh;z-index:0;pointer-events:none;
+      background:var(--bg)
+    }
+
+    ::selection{background:color-mix(in srgb,var(--accent) 38%, transparent);color:inherit}
+    button,input{font:inherit;color:inherit}
+    button{cursor:pointer;-webkit-tap-highlight-color:transparent}
+    .ui-icon{display:block;width:18px;height:18px;flex:none;background-color:currentColor;-webkit-mask:var(--ui-icon) center/contain no-repeat;mask:var(--ui-icon) center/contain no-repeat}
+    .seg button .ui-icon,.action-dot .ui-icon,.sheet-ico .ui-icon{width:16px;height:16px}
+    .editor h1,.editor h2,.editor h3,.editor h4,.editor h5,.editor h6{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;letter-spacing:-.03em;line-height:1.2;font-weight:650}
+    .editor h1{font-size:28px;font-weight:750;margin:0 0 .45em}
+    .editor h2{font-size:24px;margin:.95em 0 .4em}
+    .editor h3{font-size:20px;margin:.9em 0 .35em}
+    .editor h4{font-size:18px;margin:.85em 0 .3em}
+    .editor h5{font-size:14px;letter-spacing:.02em;margin:.85em 0 .3em}
+    .editor h6{font-size:12px;letter-spacing:.03em;color:var(--muted);margin:.85em 0 .3em}
+    .editor .tg-footer,.editor footer{display:block;font-size:12px;color:var(--muted);margin:1.6em 0 .4em;padding-top:.7em;border-top:1px solid color-mix(in srgb,var(--text) 14%, transparent);font-weight:400}
+    .menu-list button.is-current{background:color-mix(in srgb,var(--accent) 16%, transparent);color:var(--accent)}
+    .heading-list .h-opt.h1{font-size:20px;font-weight:750;letter-spacing:-.03em}
+    .heading-list .h-opt.h2{font-size:17px;font-weight:650}
+    .heading-list .h-opt.h3{font-size:15px;font-weight:650}
+    .heading-list .h-opt.h4{font-size:14px;font-weight:650}
+    .heading-list .h-opt.h5{font-size:12px;font-weight:650;letter-spacing:.06em;text-transform:uppercase}
+    .heading-list .h-opt.h6{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+    .heading-list .h-opt.footer{font-size:12px;color:var(--muted)}
+    .heading-list button.is-current{color:var(--accent)}
+    .frost{
+      position:relative;border:0;isolation:isolate;
+      background:rgba(255,255,255,.08);
+      backdrop-filter:blur(16px) saturate(1.35);
+      -webkit-backdrop-filter:blur(16px) saturate(1.35);
+      box-shadow:0 10px 30px rgba(0,0,0,.28)
+    }
+    html.light .frost{
+      background:rgba(255,255,255,.36);
+      box-shadow:0 10px 28px rgba(0,0,0,.10)
+    }
+    .fade-top,.fade-bot{
+      position:fixed;left:0;right:0;z-index:20;pointer-events:none;
+      transform:translateZ(0);backface-visibility:hidden;contain:paint;
+      background-repeat:no-repeat
+    }
+    .fade-top{
+      top:var(--vv-top);height:calc(var(--head-inset) + 4px);
+      background:linear-gradient(180deg,var(--bg) 0%,var(--bg) 24%,color-mix(in srgb,var(--bg) 78%,transparent) 52%,color-mix(in srgb,var(--bg) 42%,transparent) 76%,transparent 100%)
+    }
+    .fade-bot{
+      top:auto;bottom:var(--vv-bottom);
+      height:calc(var(--safe-bottom) + var(--bar-h) + var(--gap) + 40px);
+      background:linear-gradient(180deg,transparent 0,color-mix(in srgb,var(--bg) 42%,transparent) 12px,color-mix(in srgb,var(--bg) 78%,transparent) 24px,var(--bg) 40px,var(--bg) 100%)
+    }
+    [data-lg]{position:relative;isolation:isolate}
+    .app{position:relative;z-index:1;background:transparent}
+    .chrome-top{display:contents}
+    .chrome-top .topbar,.chrome-top .meta{pointer-events:auto}
+    body.tg .topbar{display:none}
+    .topbar{
+      position:fixed;z-index:30;top:calc(var(--vv-top) + var(--safe-top) + var(--gap));left:50%;transform:translate3d(-50%,0,0);backface-visibility:hidden;
+      display:flex;align-items:center;justify-content:center;height:var(--topbar-h);width:max-content;margin:0;padding:0
+    }
+    .brand{font-weight:700;font-size:15px;letter-spacing:.08em;text-align:center;border:0;color:inherit;padding:8px 12px;margin:0;border-radius:999px;font-family:inherit;appearance:none;-webkit-appearance:none}
+    .meta{
+      position:fixed;z-index:30;top:calc(var(--vv-top) + var(--safe-top) + var(--gap) + var(--topbar-h) + var(--gap));
+      left:max(16px,var(--safe-left));right:max(16px,var(--safe-right));
+      transform:translateZ(0);backface-visibility:hidden;
+      display:flex;align-items:center;justify-content:space-between;gap:var(--gap);height:var(--meta-h);margin:0
+    }
+    html.tg-shell .meta{top:calc(var(--vv-top) + var(--safe-top) + var(--gap))}
+    .meta .seg:last-child{margin-left:auto}
+    .seg{display:flex;align-items:center;gap:4px;padding:4px;height:var(--meta-h);border-radius:999px}
+    .seg button{
+      width:calc(var(--meta-h) - 8px);height:calc(var(--meta-h) - 8px);border:0;border-radius:50%;background:transparent;display:grid;place-items:center
+    }
+    .seg button.active{background:color-mix(in srgb,var(--text) 12%, transparent)}
+    .seg #destBtn{position:relative;background:color-mix(in srgb,var(--text) 7%,transparent)}
+    .seg #destBtn .ui-icon{position:absolute;inset:0;width:32px;height:32px;margin:auto;transform:none}
+    .seg #destBtn.active{background:color-mix(in srgb,var(--text) 14%,transparent)}
+    html.dark .seg button.active{background:color-mix(in srgb,var(--accent) 22%,transparent);color:var(--accent)}
+    html.dark .seg #destBtn{background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--accent)}
+    html.dark .seg #destBtn.active{background:color-mix(in srgb,var(--accent) 24%,transparent)}
+    .seg button.is-flash{position:relative}
+    .seg button.is-flash::before{content:"";position:absolute;inset:0;width:36px;height:36px;margin:auto;border-radius:50%;background:color-mix(in srgb,var(--text) 14%, transparent);z-index:0;animation:flash-out 1.4s ease forwards}
+    html.light .seg button.is-flash::before{background:color-mix(in srgb,var(--text) 12%, #fff)}
+    .seg button.is-flash > *{position:relative;z-index:1}
+    @keyframes flash-out{0%,35%{opacity:1}100%{opacity:0}}
+    .bar > button{position:relative}
+    .bar > button.on{background:transparent;color:inherit}
+    .bar > button.on::before{content:"";position:absolute;inset:0;width:36px;height:36px;margin:auto;border-radius:50%;background:color-mix(in srgb,var(--text) 14%, transparent);z-index:0}
+    html.light .bar > button.on::before{background:color-mix(in srgb,var(--text) 12%, #fff)}
+    html.dark .bar > button.on{color:var(--accent)}
+    html.dark .bar > button.on::before{background:color-mix(in srgb,var(--accent) 22%,transparent)}
+    .bar > button > *{position:relative;z-index:1}
+    .canvas{
+      position:fixed;z-index:10;left:0;right:0;top:var(--vv-top);height:var(--vv-height);
+      overflow:hidden;pointer-events:none
+    }
+    .scroll{
+      position:absolute;
+      top:var(--head-inset);bottom:var(--foot-inset);
+      left:max(16px,var(--safe-left));right:max(16px,var(--safe-right));
+      overflow-x:hidden;overflow-y:auto;overscroll-behavior-y:contain;
+      -webkit-overflow-scrolling:touch;touch-action:pan-y;pointer-events:auto
+    }
+    .editor:empty::before{content:attr(data-placeholder);color:var(--muted);pointer-events:none}
+    .editor{
+      outline:none;min-height:100%;caret-color:var(--accent);font-size:16px;
+      -webkit-user-select:text;user-select:text
+    }
+    .editor p{margin:.7em 0}
+    .editor blockquote{margin:1em 0;padding:0 0 0 12px;border-left:3px solid var(--accent)}
+    .editor ul{padding-left:1.2em}
+    .editor table{width:100%;border-collapse:collapse;font-size:14px}
+    .editor th,.editor td{border:1px solid var(--line);padding:6px}
+    .editor a{color:var(--accent)}
+    .editor img,.editor video,.editor iframe{max-width:100%;height:auto}
+    .editor figure{margin:1em 0;padding:8px;border:1px solid color-mix(in srgb,var(--text) 12%,transparent);border-radius:18px;background:color-mix(in srgb,var(--text) 5%,transparent);overflow:hidden}
+    .editor figure>img,.editor figure>video,.editor figure>iframe{display:block;width:100%;border-radius:12px;background:color-mix(in srgb,var(--text) 7%,transparent)}
+    .editor figure>audio{display:block;width:100%;min-height:40px}
+    .editor figcaption{font-size:13px;line-height:1.35;color:var(--muted);padding:8px 4px 2px}
+    .editor tg-math{display:inline-block;max-width:100%;margin:0 .08em;padding:.12em .38em;border-radius:7px;background:color-mix(in srgb,var(--accent) 12%,transparent);font:500 .94em/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere}
+    .editor tg-math-block{display:block;margin:1em 0;padding:12px 14px;border:1px solid color-mix(in srgb,var(--accent) 25%,transparent);border-radius:14px;background:color-mix(in srgb,var(--accent) 8%,transparent);font:500 14px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere;overflow-x:auto}
+    .editor tg-button-row{display:flex;justify-content:center;gap:8px;margin:1em 0}
+    .editor tg-button{display:inline-block;border-radius:12px;padding:8px 14px;background:var(--accent);color:#fff}
+    .editor tg-document,.editor tg-map{display:block;margin:1em 0;padding:12px;border-radius:12px;background:color-mix(in srgb,var(--text) 8%,transparent)}
+    .editor tg-document{min-height:48px;border:1px solid color-mix(in srgb,var(--text) 12%,transparent)}
+    .editor tg-document::before{content:"Documento";font-weight:600}
+    .editor tg-map::before{content:"Mapa"}
+    .editor [data-media-missing]{display:block;min-height:96px;border:1px dashed color-mix(in srgb,var(--accent) 45%,transparent);border-radius:12px;background:color-mix(in srgb,var(--accent) 7%,transparent)}
+    .editor [data-media-missing]::after{content:"Anexo salvo indisponível";display:grid;place-items:center;min-height:96px;color:var(--muted);font-size:13px}
+    .editor tg-collage,.editor tg-slideshow{display:flex;flex-wrap:wrap;gap:8px;margin:1em 0}
+    .editor tg-spoiler{background:color-mix(in srgb,var(--text) 18%,transparent);border-radius:4px}
+    .bar-wrap{
+      position:fixed;left:max(12px,var(--safe-left));right:max(12px,var(--safe-right));
+      top:auto;bottom:calc(var(--vv-bottom) + var(--safe-bottom) + var(--gap));z-index:30;
+      transform:translateZ(0);backface-visibility:hidden;
+      padding:0;background:transparent;pointer-events:none;
+    }
+    .bar{
+      position:relative;z-index:1;max-width:none;margin:0;
+      display:flex;align-items:center;
+      height:var(--bar-h);padding:4px;border-radius:999px;pointer-events:auto
+    }
+    .bar > button{
+      flex:1;min-width:0;height:40px;border:0;background:transparent;color:inherit;
+      display:grid;place-items:center;border-radius:999px;padding:0
+    }
+    .bar .plus{flex:0 0 40px}
+    .action-dot{
+      width:36px;height:36px;border-radius:50%;display:grid;place-items:center;
+      background:var(--accent);color:#fff;
+      box-shadow:inset 0 1px 0 rgba(255,255,255,.42),0 4px 14px color-mix(in oklab,var(--accent) 45%,transparent)
+    }
+    html.dark .action-dot{box-shadow:0 4px 14px rgba(167,139,250,.32)}
+    .seg .export{width:36px;height:36px;border:0;background:transparent;display:grid;place-items:center;padding:0;border-radius:50%}
+    .seg .action-dot{width:36px;height:36px}
+    .sheet{
+      position:fixed;left:12px;right:12px;top:auto;bottom:calc(var(--vv-bottom) + var(--foot-inset) + 4px);z-index:40;
+      width:auto;max-width:420px;margin:0 auto;
+      max-height:calc(var(--vv-height) - var(--safe-top) - var(--foot-inset) - 16px);
+      overflow:hidden;padding:8px;border:0;border-radius:30px;
+      color:var(--text);
+      transform-origin:50% 100%
+    }
+    .sheet:not(:popover-open){display:none}
+    .sheet:popover-open{display:flex;flex-direction:column;animation:sheet-in .16s cubic-bezier(.2,.75,.25,1)}
+    #importMenu,#exportMenu,#findMenu{
+      top:calc(var(--vv-top) + var(--head-inset));bottom:auto;
+      max-height:calc(var(--vv-height) - var(--head-inset) - 12px);
+      transform-origin:50% 0
+    }
+    @keyframes sheet-in{from{opacity:0;transform:translateY(8px) scale(.98)}to{opacity:1;transform:none}}
+    .menu-list{display:flex;flex-direction:column;gap:2px;min-height:0;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y}
+    .menu-list > button{display:flex;align-items:center;justify-content:flex-start;text-align:left;width:auto;min-width:100%;white-space:nowrap;min-height:50px;border-radius:20px;border:0;background:transparent;box-shadow:none;padding:4px 18px 4px 6px;font-size:17px;gap:12px}
+    .menu-list > button[hidden]{display:none}
+    .menu-list > button:hover{background:color-mix(in srgb,var(--text) 7%,transparent)}
+    .menu-list > button:active{background:color-mix(in srgb,var(--text) 12%,transparent)}
+    .sheet-ico{width:42px;height:42px;border-radius:50%;flex:none;display:grid;place-items:center;background:rgba(255,255,255,.08);box-shadow:inset 0 1px 0 rgba(255,255,255,.12)}
+    html.dark .sheet-ico{background:rgba(255,255,255,.055)}
+    html.light .sheet-ico{background:rgba(0,0,0,.055)}
+    .sheet-ico .ui-icon,.sheet-ico svg{width:20px;height:20px}
+    .toast{
+      position:fixed;left:50%;bottom:calc(var(--vv-bottom) + var(--foot-inset) + 8px);
+      transform:translateX(-50%);z-index:50;display:none;
+      padding:8px 12px;border-radius:999px;font-size:12px
+    }
+    .toast.on{display:block}
+    .tools{display:flex;gap:8px;align-items:center;padding:10px;max-width:100%}
+    .hint{max-width:280px;white-space:normal;margin:8px 12px 12px;font-size:14px}
+    .tools input{min-width:0;width:100%;border:0;border-radius:12px;background:color-mix(in srgb,var(--text) 10%,transparent);padding:10px;outline:0;font-size:16px}
+    .tools button{border:0;border-radius:12px;background:color-mix(in srgb,var(--accent) 22%,transparent);padding:10px;color:var(--text)}
+    #findMenu,#dialogMenu{max-width:350px}
+    .dialog{display:flex;flex-direction:column;gap:10px;width:100%;padding:8px}
+    .dialog-label{font-size:14px;line-height:1.35;color:var(--muted);padding:2px 4px}
+    #dialogInput{width:100%;min-height:42px;max-height:132px;resize:none;border:0;border-radius:16px;background:color-mix(in srgb,var(--text) 10%,transparent);color:var(--text);padding:11px 12px;outline:0;font:inherit;font-size:16px}
+    #dialogInput[hidden]{display:none}
+    .dialog-actions{display:flex;justify-content:flex-end;gap:8px}
+    .dialog-actions button{border:0;border-radius:14px;padding:10px 14px;background:color-mix(in srgb,var(--text) 9%,transparent);color:var(--text)}
+    .dialog-actions #dialogOk{background:color-mix(in srgb,var(--accent) 22%,transparent);color:var(--accent)}
+    #findMenu{width:min(350px,calc(100% - 28px))}
+    #findMenu .menu-list{gap:0;width:100%}
+    #findMenu .tools:last-child{flex-wrap:wrap}
+    #findMenu .tools button{flex:1 1 auto;white-space:nowrap}
+    @media (prefers-reduced-motion:reduce){.sheet{animation:none}}
+    @media (min-width:760px){
+      .meta{width:min(calc(100% - 32px),960px);margin:8px auto 0}
+      .canvas{width:100%;max-width:960px;margin-inline:auto}
+      .scroll{left:32px;right:32px}
+      .bar-wrap{padding-inline:24px}
+      .bar{max-width:760px;margin-inline:auto}
+    }
+  </style>
+</head>
+<body>
+  <div class="bg" aria-hidden="true"></div>
+  <div class="fade-top" aria-hidden="true"></div>
+  <div class="fade-bot" aria-hidden="true"></div>
+  <div class="app">
+    <div class="chrome-top">
+      <header class="topbar">
+        <button type="button" class="brand frost" data-lg id="brandBtn" popovertarget="importMenu">MDTXTRT</button>
+      </header>
+      <div class="meta">
+      <div class="seg frost" data-lg>
+        <button type="button" id="undoBtn" aria-label="Desfazer"><span class="ui-icon" data-icon="undo"></span></button>
+        <button type="button" id="redoBtn" aria-label="Refazer"><span class="ui-icon" data-icon="redo"></span></button>
+      </div>
+      <div class="seg frost" data-lg>
+        <button type="button" id="destBtn" aria-label="Destino: Telegram" title="Destino: Telegram"><span class="ui-icon" data-icon="telegram"></span></button>
+        <button type="button" class="export" id="exportBtn" aria-label="Exportar" title="Exportar"><span class="action-dot"><span class="ui-icon" data-icon="export"></span></span></button>
+      </div>
+    </div>
+    </div>
+    <div class="canvas" id="canvas">
+      <div class="scroll" id="scroll">
+        <article id="editor" class="editor" contenteditable="true" spellcheck="true" inputmode="text" enterkeyhint="enter" aria-label="Editor" data-placeholder="Escreva aqui…"></article>
+      </div>
+    </div>
+  <div class="sheet frost" id="headingMenu" popover="auto">
+    <div class="menu-list heading-list">
+      <button class="h-opt h1" data-block="h1"><span class="sheet-ico"><span class="ui-icon" data-icon="h1"></span></span>Título H1</button>
+      <button class="h-opt h2" data-block="h2"><span class="sheet-ico"><span class="ui-icon" data-icon="h2"></span></span>Título H2</button>
+      <button class="h-opt h3" data-block="h3"><span class="sheet-ico"><span class="ui-icon" data-icon="h3"></span></span>Título H3</button>
+      <button class="h-opt h4" data-block="h4"><span class="sheet-ico"><span class="ui-icon" data-icon="h4"></span></span>Título H4</button>
+      <button class="h-opt h5" data-block="h5"><span class="sheet-ico"><span class="ui-icon" data-icon="h5"></span></span>Título H5</button>
+      <button class="h-opt h6" data-block="h6"><span class="sheet-ico"><span class="ui-icon" data-icon="h6"></span></span>Título H6</button>
+      <button data-block="p"><span class="sheet-ico"><span class="ui-icon" data-icon="paragraph"></span></span>Corpo</button>
+      <button class="h-opt footer" data-block="footer"><span class="sheet-ico"><span class="ui-icon" data-icon="footer"></span></span>Rodapé</button>
+    </div>
+  </div>
+  <div class="sheet frost" id="listMenu" popover="auto">
+    <div class="menu-list">
+      <button data-cmd="insertUnorderedList"><span class="sheet-ico"><span class="ui-icon" data-icon="list"></span></span>Lista com marcadores</button>
+      <button data-insert="ordered"><span class="sheet-ico"><span class="ui-icon" data-icon="format_list_numbered"></span></span>Lista ordenada</button>
+      <button data-insert="task" data-telegram-only><span class="sheet-ico"><span class="ui-icon" data-icon="task"></span></span>Checklist</button>
+    </div>
+  </div>
+  <div class="sheet frost" id="quoteMenu" popover="auto">
+    <div class="menu-list">
+      <button data-block="blockquote"><span class="sheet-ico"><span class="ui-icon" data-icon="quote"></span></span>Citação</button>
+      <button data-insert="pullquote"><span class="sheet-ico"><span class="ui-icon" data-icon="pullquote"></span></span>Citação em destaque</button>
+      <button data-insert="expandquote"><span class="sheet-ico"><span class="ui-icon" data-icon="expandquote"></span></span>Citação expansível</button>
+    </div>
+  </div>
+  <div class="sheet frost" id="importMenu" popover="auto">
+    <div class="tools"><input id="docName" value="Ideia" aria-label="Nome do documento" maxlength="120"></div>
+    <div class="menu-list">
+      <button id="importMdBtn"><span class="sheet-ico"><span class="ui-icon" data-icon="markdown"></span></span>Importar Markdown</button>
+      <button id="importTxtBtn"><span class="sheet-ico"><span class="ui-icon" data-icon="text_fields"></span></span>Importar TXT</button>
+      <button id="findBtn"><span class="sheet-ico"><span class="ui-icon" data-icon="search"></span></span>Localizar e substituir</button>
+    </div>
+  </div>
+  <div class="sheet frost" id="exportMenu" popover="auto">
+    <p class="hint">Exporte um arquivo ou publique no destino selecionado.</p>
+    <div class="menu-list">
+      <button id="openAppBtn"><span class="sheet-ico"><span class="ui-icon" data-icon="telegram"></span></span><span id="openAppLabel">Publicar no Telegram</span></button>
+      <button id="exportMdBtn"><span class="sheet-ico"><span class="ui-icon" data-icon="markdown"></span></span>Baixar Markdown</button>
+      <button id="exportTxtBtn"><span class="sheet-ico"><span class="ui-icon" data-icon="text_fields"></span></span>Baixar TXT</button>
+    </div>
+  </div>
+  <div class="sheet frost" id="plusMenu" popover="auto">
+    <div class="menu-list">
+      <button data-cmd="strike"><span class="sheet-ico"><span class="ui-icon" data-icon="strikethrough_s"></span></span>Riscado</button>
+      <button data-cmd="mark" data-telegram-only><span class="sheet-ico"><span class="ui-icon" data-icon="ink_highlighter"></span></span>Marca-texto</button>
+      <button data-cmd="spoiler" data-telegram-only><span class="sheet-ico"><span class="ui-icon" data-icon="visibility_off"></span></span>Spoiler</button>
+      <button data-cmd="code"><span class="sheet-ico"><span class="ui-icon" data-icon="code"></span></span>Código</button>
+      <button data-cmd="sub" data-telegram-only><span class="sheet-ico"><span class="ui-icon" data-icon="subscript"></span></span>Subscrito</button>
+      <button data-cmd="sup" data-telegram-only><span class="sheet-ico"><span class="ui-icon" data-icon="superscript"></span></span>Sobrescrito</button>
+      <button data-cmd="math" data-telegram-only><span class="sheet-ico"><span class="ui-icon" data-icon="functions"></span></span>Fórmula inline</button>
+      <button data-insert="mathblock" data-telegram-only><span class="sheet-ico"><span class="ui-icon" data-icon="calculate"></span></span>Fórmula em bloco</button>
+      <button data-insert="divider"><span class="sheet-ico"><span class="ui-icon" data-icon="horizontal_rule"></span></span>Divisor</button>
+      <button data-insert="table" data-telegram-only><span class="sheet-ico"><span class="ui-icon" data-icon="table"></span></span>Tabela</button>
+      <button data-insert="details" data-telegram-only><span class="sheet-ico"><span class="ui-icon" data-icon="details"></span></span>Conteúdo expansível</button>
+      <button data-insert="image"><span class="sheet-ico"><span class="ui-icon" data-icon="image"></span></span>Imagem</button>
+      <button id="mediaBtn" data-telegram-only><span class="sheet-ico"><span class="ui-icon" data-icon="attach_file"></span></span>Anexar mídia</button>
+      <button id="voiceBtn" data-telegram-only><span class="sheet-ico"><span class="ui-icon" data-icon="music_note"></span></span>Anexar voz</button>
+      <button data-insert="video"><span class="sheet-ico"><span class="ui-icon" data-icon="movie"></span></span>Vídeo</button>
+      <button data-insert="embed" data-telegraph-only><span class="sheet-ico"><span class="ui-icon" data-icon="web"></span></span>Incorporar</button>
+      <button data-insert="audio" data-telegram-only><span class="sheet-ico"><span class="ui-icon" data-icon="music_note"></span></span>Áudio</button>
+      <button data-insert="document" data-telegram-only><span class="sheet-ico"><span class="ui-icon" data-icon="file"></span></span>Documento</button>
+      <button data-insert="map" data-telegram-only><span class="sheet-ico"><span class="ui-icon" data-icon="location_on"></span></span>Mapa</button>
+      <button data-insert="collage" data-telegram-only><span class="sheet-ico"><span class="ui-icon" data-icon="view_comfy"></span></span>Colagem</button>
+      <button data-insert="slideshow" data-telegram-only><span class="sheet-ico"><span class="ui-icon" data-icon="slideshow"></span></span>Slideshow</button>
+      <button data-insert="anchor" data-telegram-only><span class="sheet-ico"><span class="ui-icon" data-icon="anchor"></span></span>Âncora</button>
+      <button data-insert="reference" data-telegram-only><span class="sheet-ico"><span class="ui-icon" data-icon="sticky_note_2"></span></span>Referência</button>
+      <button data-insert="time" data-telegram-only><span class="sheet-ico"><span class="ui-icon" data-icon="schedule"></span></span>Data e hora</button>
+      <button data-insert="emoji" data-telegram-only><span class="sheet-ico"><span class="ui-icon" data-icon="mood"></span></span>Emoji personalizado</button>
+      <button data-insert="button" data-telegram-only><span class="sheet-ico"><span class="ui-icon" data-icon="buttons"></span></span>Botão</button>
+    </div>
+  </div>
+  <input id="fileInput" type="file" accept=".txt,.md,text/plain,text/markdown" hidden>
+  <input id="mediaInput" type="file" accept="image/*,video/*,audio/*,.pdf,.zip" hidden>
+  <div class="toast frost" id="toast"></div>
+  <div class="sheet frost" id="dialogMenu" popover="manual">
+    <div class="dialog">
+      <div class="dialog-label" id="dialogLabel"></div>
+      <textarea id="dialogInput" rows="1" spellcheck="false"></textarea>
+      <div class="dialog-actions"><button type="button" id="dialogCancel">Cancelar</button><button type="button" id="dialogOk">OK</button></div>
+    </div>
+  </div>
+  <div class="sheet frost" id="findMenu" popover="auto"><div class="menu-list"><div class="tools"><input id="findText" placeholder="Localizar"></div><div class="tools"><input id="replaceText" placeholder="Substituir"></div><div class="tools"><button id="findNext">Próximo</button><button id="replaceOne">Substituir</button><button id="replaceAll">Substituir tudo</button></div></div></div>
+  </div>
+  <div class="bar-wrap">
+    <div class="bar frost" id="typebar">
+      <button class="plus" id="plusBtn" aria-label="Mais" popovertarget="plusMenu"><span class="ui-icon" data-icon="plus"></span></button>
+      <button type="button" data-cmd="bold" aria-label="Negrito"><span class="ui-icon" data-icon="bold"></span></button>
+      <button type="button" data-cmd="italic" aria-label="Itálico"><span class="ui-icon" data-icon="italic"></span></button>
+      <button type="button" data-cmd="underline" aria-label="Sublinhado"><span class="ui-icon" data-icon="underline"></span></button>
+      <button type="button" id="quoteBtn" aria-label="Citação" popovertarget="quoteMenu"><span class="ui-icon" data-icon="quote"></span></button>
+      <button type="button" id="linkBtn" aria-label="Link"><span class="ui-icon" data-icon="link"></span></button>
+      <button type="button" id="headingBtn" aria-label="Título" popovertarget="headingMenu"><span class="ui-icon" data-icon="heading"></span></button>
+      <button type="button" id="listBtn" aria-label="Lista" popovertarget="listMenu"><span class="ui-icon" data-icon="list"></span></button>
+    </div>
+  </div>
+  <script src="marked.js"></script>
+  <script src="turndown.js"></script>
+  <script src="glass.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

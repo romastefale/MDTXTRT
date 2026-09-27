@@ -1,0 +1,17 @@
+{
+  "name": "mdtxtrt",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "busboy": "^1.6.0",
+    "htmlparser2": "^10.0.0",
+    "marked": "^18.0.14",
+    "turndown": "^7.2.2"
+  }
+}

@@ -1,0 +1,992 @@
+import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
+import { createReadStream, existsSync, statSync, readFileSync, writeFileSync, renameSync, mkdirSync, unlinkSync, readdirSync } from "node:fs";
+import { DomUtils, parseDocument } from "htmlparser2";
+import Busboy from "busboy";
+import { createServer } from "node:http";
+import { extname, relative, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const ROOT = fileURLToPath(new URL(".", import.meta.url));
+const BOT_TOKEN_RE = /^\d{6,}:[A-Za-z0-9_-]{20,}$/;
+function required(name){
+  const value=String(process.env[name]??"").trim();
+  if(!value)throw new Error("Configuração ausente: "+name);
+  return value;
+}
+function httpsUrl(name){
+  const value=required(name);
+  let url;
+  try{url=new URL(value);}catch{throw new Error("Configuração inválida: "+name);}
+  if(url.protocol!=="https:")throw new Error("Configuração inválida: "+name);
+  return url;
+}
+const PORT=Number(required("PORT"));
+if(!Number.isInteger(PORT)||PORT<1||PORT>65535)throw new Error("Configuração inválida: PORT");
+const DATA=required("RAILWAY_VOLUME_MOUNT_PATH").replace(/\/+$/,"");
+if(!DATA.startsWith("/"))throw new Error("Configuração inválida: RAILWAY_VOLUME_MOUNT_PATH");
+const MINI_APP=new URL(httpsUrl("MINI_APP_URL"));
+const PUBLIC_BASE=new URL(httpsUrl("PUBLIC_BASE_URL"));
+const MINI_APP_URL=MINI_APP.href;
+const WEBHOOK_BASE=PUBLIC_BASE.href.replace(/\/+$/,"");
+const ALLOW_ORIGINS=new Set([MINI_APP.origin,PUBLIC_BASE.origin]);
+const TELEGRAPH_FILE = DATA + "/telegraph-token";
+const PAGES_FILE = TELEGRAPH_FILE + "-pages.json";
+const HANDOFF_DIR = DATA + "/handoffs";
+const HANDOFF_TTL = 15 * 60 * 1000;
+const BOT_TOKEN=required("TOKEN");
+if(!BOT_TOKEN_RE.test(BOT_TOKEN))throw new Error("Configuração inválida: TOKEN");
+let telegraphToken="";
+let telegraphQueue = Promise.resolve();
+let botLink;
+mkdirSync(HANDOFF_DIR, { recursive: true });
+if(existsSync(TELEGRAPH_FILE)){
+  telegraphToken=readFileSync(TELEGRAPH_FILE,"utf8").trim();
+  if(!telegraphToken)throw new Error("Credencial Telegraph persistida está vazia");
+}
+const BOT_COMMANDS = [
+  { command: "start", description: "Abrir o MDTXTRT" },
+  { command: "app", description: "Abrir o Mini App" },
+  { command: "novo", description: "Criar um documento" },
+  { command: "ajuda", description: "Ver os comandos" },
+  { command: "enviar", description: "Enviar texto rico" },
+  { command: "exportar", description: "Exportar texto como arquivo" },
+];
+
+const MIME = {
+  ".html": "text/html; charset=utf-8",
+  ".js": "text/javascript; charset=utf-8",
+  ".svg": "image/svg+xml",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+};
+const PUBLIC = new Set([
+  "index.html",
+  "app.js",
+  "glass.js",
+  "marked.js",
+  "turndown.js",
+  "favicon.svg",
+  "logo.png",
+  "og.jpg",
+  "x-banner.jpg",
+  ...["bold","buttons","details","export","file","footer","h1","h2","h3","h4","h5","h6","heading","italic","link","list","paragraph","plus","quote","redo","table","task","telegram","telegraph","underline","undo"].map(name=>`icons/${name}.svg`),
+  ...["anchor","attach_file","calculate","code","expandquote","format_list_numbered","functions","horizontal_rule","image","ink_highlighter","location_on","markdown","mood","movie","music_note","pullquote","schedule","search","slideshow","sticky_note_2","strikethrough_s","subscript","superscript","text_fields","view_comfy","visibility_off","web"].map(name=>`icons/${name}.svg`),
+]);
+
+function corsOrigin(req) {
+  const origin = req.headers.origin || "";
+  return ALLOW_ORIGINS.has(origin) ? origin : "";
+}
+
+function setCors(req, res) {
+  const allow = corsOrigin(req);
+  if (!allow) return false;
+  res.setHeader("Access-Control-Allow-Origin", allow);
+  res.setHeader("Vary", "Origin");
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "content-type");
+  return true;
+}
+
+function userFromInitData(initData) {
+  if (!initData.trim()) throw new Error("Abra pelo bot no Telegram");
+  const params = new URLSearchParams(initData);
+  if (initData.length > 8192 || [...params.keys()].length !== new Set(params.keys()).size) throw new Error("Sessão Telegram inválida");
+  const hash = params.get("hash") || "";
+  params.delete("hash");
+  const dataCheckString = [...params.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([k, v]) => `${k}=${v}`)
+    .join("\n");
+  const secret = createHmac("sha256", "WebAppData").update(BOT_TOKEN).digest();
+  const check = createHmac("sha256", secret).update(dataCheckString).digest("hex");
+  const actual = Buffer.from(check, "hex");
+  const expected = /^[a-f0-9]{64}$/i.test(hash) ? Buffer.from(hash, "hex") : Buffer.alloc(0);
+  if (expected.length !== actual.length || !timingSafeEqual(actual, expected)) throw new Error("Sessão Telegram inválida");
+  const authDate = Number(params.get("auth_date") || "0");
+  const now = Date.now() / 1000;
+  if (!authDate || authDate > now + 60 || now - authDate > 86400) {
+    throw new Error("Sessão Telegram expirada");
+  }
+  const userRaw = params.get("user");
+  if (!userRaw) throw new Error("Usuário Telegram ausente");
+  let user;
+  try { user = JSON.parse(userRaw); } catch { throw new Error("Dados da sessão inválidos"); }
+  if (!user?.id) throw new Error("Usuário Telegram ausente");
+  return { chatId: String(user.id) };
+}
+
+async function telegramCall(method, body) {
+  let res;
+  try {
+    const options = { method: "POST", signal: AbortSignal.timeout(15000) };
+    if (body instanceof FormData) options.body = body;
+    else {
+      options.headers = { "content-type": "application/json" };
+      options.body = JSON.stringify(body);
+    }
+    res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/${method}`, options);
+  } catch (error) {
+    console.error("Telegram", method, error);
+    throw new Error("Não foi possível conectar ao Telegram");
+  }
+  let json;
+  try { json = await res.json(); } catch { throw new Error("O Telegram retornou uma resposta inválida"); }
+  if (!json.ok) {
+    console.error("Telegram", method, json.description || "Falha no envio");
+    throw new Error("O Telegram não aceitou a publicação");
+  }
+  return json.result;
+}
+
+async function readJson(req, maxBytes = 80_000) {
+  const chunks = [];
+  let size = 0;
+  for await (const chunk of req) {
+    size += chunk.length;
+    if (size > maxBytes) throw new Error("A solicitação é grande demais");
+    chunks.push(chunk);
+  }
+  const raw = Buffer.concat(chunks).toString("utf8");
+  if (!raw.trim()) throw new Error("A solicitação está vazia");
+  try { return JSON.parse(raw); } catch { throw new Error("Não foi possível ler os dados recebidos"); }
+}
+
+async function readMedia(req) {
+  if (!/^multipart\/form-data;\s*boundary=/i.test(req.headers["content-type"] || "")) throw new Error("Formato de mídia inválido");
+  return new Promise((resolve, reject) => {
+    const fields = {}, files = [];
+    const bus = Busboy({headers:req.headers,limits:{files:1,fileSize:20_000_000,fields:6,fieldSize:400000}});
+    bus.on("field",(key,value)=>{fields[key]=value;});
+    bus.on("file",(key,stream,info)=>{
+      if (key !== "upload") {stream.resume();reject(new Error("Mídia inválida"));return;}
+      const chunks=[];
+      stream.on("data",chunk=>chunks.push(chunk));
+      stream.on("limit",()=>reject(new Error("Mídia grande demais")));
+      stream.on("end",()=>files.push({bytes:Buffer.concat(chunks),mime:info.mimeType,name:info.filename.slice(0,100)}));
+    });
+    bus.on("error",reject);
+    bus.on("close",()=>resolve({fields,file:files[0]}));
+    req.pipe(bus);
+  });
+}
+
+function cleanFileName(value){
+  if(typeof value!=="string")throw new Error("Nome de arquivo inválido");
+  const name=value.replace(/[\\/:*?"<>|\u0000-\u001f]/g,"-").replace(/^\.+|\.+$/g,"").trim().slice(0,120);
+  if(!name)throw new Error("Nome de arquivo inválido");
+  return name;
+}
+
+function draftValid(draft) {
+  if (!draft || typeof draft !== "object" || Array.isArray(draft)) throw new Error("Rascunho inválido");
+  if(draft.version!==2)throw new Error("Versão do rascunho incompatível");
+  const json = JSON.stringify(draft);
+  if (Buffer.byteLength(json, "utf8") > 350_000) throw new Error("Rascunho grande demais");
+  if (typeof draft.html !== "string" || Buffer.byteLength(draft.html, "utf8") > 160_000) throw new Error("Conteúdo do rascunho inválido");
+  if (typeof draft.name !== "string" || draft.name.length > 120) throw new Error("Nome do rascunho inválido");
+  if (!["telegram", "telegraph"].includes(draft.dest)) throw new Error("Destino do rascunho inválido");
+  if (draft.action !== undefined && draft.action !== "publish") throw new Error("Ação do rascunho inválida");
+  if (!/^[a-f0-9-]{36}$/i.test(String(draft.docId || ""))) throw new Error("Documento inválido");
+  if (typeof draft.telegraphPath !== "string" || draft.telegraphPath.length > 256) throw new Error("Página do rascunho inválida");
+  const tags = new Set("a b strong i em u ins s strike del code mark sub sup tg-spoiler tg-reference tg-emoji tg-time tg-math h1 h2 h3 h4 h5 h6 p pre footer hr ul ol li input blockquote aside cite img video audio tg-document figure figcaption iframe tg-map tg-collage tg-slideshow table caption thead tbody tfoot tr th td details summary tg-math-block tg-button tg-button-row br div".split(" "));
+  const attrs = new Set("href name class style src alt tg-spoiler start type reversed value checked disabled controls expandable unix format emoji-id lat long zoom width height bordered striped compact colspan rowspan align valign open url data query text forward-text request-write-access allow-user-chats allow-bot-chats allow-group-chats allow-channel-chats data-media-id data-media-missing".split(" "));
+  const doc = parseDocument(draft.html);
+  const walk = node => {
+    if (node.type === "text") return;
+    if (node.type !== "tag" || !tags.has(node.name)) throw new Error("O rascunho contém marcação inválida");
+    for (const [key, value] of Object.entries(node.attribs)) {
+      if (!attrs.has(key)) throw new Error("O rascunho contém atributo inválido");
+      if (key === "class" && !(/^language-[a-z0-9+-]+$/i.test(value) || value === "tg-footer")) throw new Error("O rascunho contém classe inválida");
+      if (key === "style" && !(node.name === "tg-button" && ["link","primary","success","danger"].includes(value))) throw new Error("O rascunho contém estilo inválido");
+      if (key === "data-media-id" && !/^[A-Za-z0-9_-]{1,64}$/.test(value)) throw new Error("Identificador de mídia inválido");
+      if (["href","src","url"].includes(key) && value) {
+        if (key === "href" && value.startsWith("#")) continue;
+        let parsed;
+        try { parsed = new URL(value); } catch { throw new Error("Link do rascunho inválido"); }
+        if (!["https:","http:","tg:","mailto:","tel:"].includes(parsed.protocol)) throw new Error("Link do rascunho inválido");
+      }
+    }
+    node.children?.forEach(walk);
+  };
+  doc.children.forEach(walk);
+  return draft;
+}
+
+function handoffFiles(token) {
+  return { meta: HANDOFF_DIR + "/" + token + ".json", file: HANDOFF_DIR + "/" + token + ".bin" };
+}
+
+function dropHandoff(token){
+  const paths=handoffFiles(token);
+  for(const path of [paths.meta,paths.file])if(existsSync(path))unlinkSync(path);
+}
+
+function readHandoff(token) {
+  if (!/^[a-f0-9]{32}$/.test(token)) return null;
+  const paths = handoffFiles(token);
+  if (!existsSync(paths.meta)) return null;
+  let meta;
+  try{meta=JSON.parse(readFileSync(paths.meta,"utf8"));}catch(error){throw new Error("Transferência persistida inválida",{cause:error});}
+  if (!meta?.expires || meta.expires < Date.now()) { dropHandoff(token); return null; }
+  return meta;
+}
+
+function sweepHandoffs(){
+  for(const name of readdirSync(HANDOFF_DIR)){
+    const match=/^([a-f0-9]{32})\.json$/.exec(name);
+    if(match)readHandoff(match[1]);
+  }
+}
+
+function saveHandoff(draft, file) {
+  sweepHandoffs();
+  draftValid(draft);
+  const local = draft.html.match(/data-media-id="([A-Za-z0-9_-]{1,64})"/);
+  if (local && !file) throw new Error("O anexo local precisa acompanhar o rascunho");
+  if(file){
+    if(!local||!draft.media||draft.media.id!==local[1]||!["image","video","audio","voice","document"].includes(draft.media.kind))throw new Error("Anexo do rascunho inválido");
+    if(!file.bytes?.length||file.bytes.length>20_000_000)throw new Error("Mídia grande demais");
+    if(typeof file.mime!=="string"||!file.mime.trim())throw new Error("Tipo de mídia inválido");
+    cleanFileName(file.name);
+  }
+  const token = randomUUID().replace(/-/g, "");
+  const paths = handoffFiles(token);
+  const meta = {
+    expires: Date.now() + HANDOFF_TTL,
+    draft,
+    file:file?{id:draft.media.id,kind:draft.media.kind,name:cleanFileName(file.name),mime:file.mime,size:file.bytes.length}:null,
+    claimedBy: ""
+  };
+  if (file) writeFileSync(paths.file, file.bytes, { mode: 0o600 });
+  writeFileSync(paths.meta + ".tmp", JSON.stringify(meta), { mode: 0o600 });
+  renameSync(paths.meta + ".tmp", paths.meta);
+  return token;
+}
+
+async function sendRich(initData,html,file=null){
+  richValid(html);
+  const { chatId } = userFromInitData(String(initData || ""));
+  const doc = parseDocument(String(html));
+  const media = [];
+  let attached = false;
+  const kinds = { img:"photo",video:"video",audio:"audio","tg-document":"document" };
+  const visit = node => {
+    if (node.type === "tag" && kinds[node.name]) {
+      const kind = kinds[node.name], src = node.attribs.src;
+      if (src.startsWith("tg://")) {
+        const url = new URL(src);
+        const id = url.searchParams.get("id") || "";
+        const fileKind=kind==="audio"&&file?.kind==="voice"?"voice":({photo:"image",video:"video",audio:"audio",document:"document"})[kind];
+        if(!file||id!==file.id||url.hostname!==kind||file.kind!==fileKind)throw new Error("Anexe a mídia novamente antes de publicar");
+        if(!/^[A-Za-z0-9_-]{1,64}$/.test(id))throw new Error("Identificador de mídia inválido");
+        const mediaType=file.kind==="voice"?"voice_note":kind;
+        media.push({id,media:{type:mediaType,media:"attach://upload"}});
+        attached=true;
+      }
+    }
+    node.children?.forEach(visit);
+  };
+  doc.children.forEach(visit);
+  if (file && !attached) throw new Error("A mídia anexada não está no documento");
+  const rich = { html: DomUtils.getInnerHTML(doc) };
+  if (media.length) rich.media = media;
+  let body = { chat_id: chatId, rich_message: rich };
+  if (file) {
+    const kind={image:"photo",video:"video",audio:"audio",voice:"voice_note",document:"document"}[file.kind];
+    if (!kind || !/^[A-Za-z0-9_-]{1,64}$/.test(file.id) || !["image/", "video/", "audio/", "application/", "text/"].some(prefix=>file.mime.startsWith(prefix))) throw new Error("Mídia inválida");
+    const form = new FormData();
+    form.set("chat_id", chatId);
+    form.set("rich_message", JSON.stringify(body.rich_message));
+    form.set("upload", new Blob([file.bytes], {type:file.mime}), file.name);
+    body = form;
+  }
+  const msg = await telegramCall("sendRichMessage", body);
+  return { via: "sendRichMessage", messageId: msg.message_id };
+}
+
+
+function webhookSecret(){
+  return createHmac("sha256",BOT_TOKEN).update("MDTXTRT_WEBHOOK").digest("hex");
+}
+
+function sameSecret(a, b) {
+  const x = Buffer.from(String(a || ""));
+  const y = Buffer.from(String(b || ""));
+  return x.length === y.length && timingSafeEqual(x, y);
+}
+
+function htmlEscape(value) {
+  return String(value).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function richValid(html){
+  if(typeof html!=="string"||!html.trim()||Buffer.byteLength(html)>32768)throw new Error("Conteúdo vazio ou grande demais");
+  const tags=new Set("a b strong i em u ins s strike del code mark sub sup tg-spoiler tg-reference tg-emoji tg-time tg-math h1 h2 h3 h4 h5 h6 p pre footer hr ul ol li input blockquote aside cite img video audio tg-document figure figcaption tg-map tg-collage tg-slideshow table caption tr th td details summary tg-math-block tg-button tg-button-row br".split(" "));
+  const attrs={
+    a:new Set(["href","name"]),code:new Set(["class"]),ol:new Set(["start","type","reversed"]),li:new Set(["value","type"]),input:new Set(["type","checked"]),
+    blockquote:new Set(["expandable"]),img:new Set(["src","alt","tg-spoiler"]),video:new Set(["src","tg-spoiler"]),audio:new Set(["src"]),"tg-document":new Set(["src"]),
+    "tg-reference":new Set(["name"]),"tg-emoji":new Set(["emoji-id"]),"tg-time":new Set(["unix","format"]),"tg-map":new Set(["lat","long","zoom","width","height"]),
+    table:new Set(["bordered","striped","compact"]),th:new Set(["colspan","rowspan","align","valign"]),td:new Set(["colspan","rowspan","align","valign"]),
+    details:new Set(["open"]),"tg-button-row":new Set(["align"]),"tg-button":new Set(["type","style","url","data","query","text","forward-text","request-write-access","allow-user-chats","allow-bot-chats","allow-group-chats","allow-channel-chats"])
+  };
+  const media=new Set(["img","video","audio","tg-document"]);
+  const blocks=new Set(["h1","h2","h3","h4","h5","h6","p","pre","footer","hr","ul","ol","li","blockquote","aside","figure","tg-map","tg-collage","tg-slideshow","table","tr","details","tg-math-block","tg-button-row"]);
+  const buttons=new Set(["url","callback_data","web_app","login_url","switch_inline_query","switch_inline_query_current_chat","switch_inline_query_chosen_chat","copy_text","disabled"]);
+  const bool=new Set(["reversed","checked","expandable","tg-spoiler","bordered","striped","compact","open","request-write-access","allow-user-chats","allow-bot-chats","allow-group-chats","allow-channel-chats"]);
+  let blockCount=0,mediaCount=0;
+  const urlValid=(value,mediaTag=false)=>{
+    let url;try{url=new URL(value);}catch{throw new Error("Link inválido");}
+    if(mediaTag){
+      if(["http:","https:"].includes(url.protocol))return;
+      if(url.protocol==="tg:"&&/^(photo|video|audio|document)$/.test(url.hostname)&&/^[A-Za-z0-9_-]{1,64}$/.test(url.searchParams.get("id")||""))return;
+      throw new Error("Link de mídia inválido");
+    }
+    if(!["https:","http:","tg:","mailto:","tel:"].includes(url.protocol))throw new Error("Link inválido");
+  };
+  const walk=(node,depth=0,parent="")=>{
+    if(depth>16)throw new Error("A mensagem excede 16 níveis de aninhamento");
+    if(node.type==="text")return;
+    if(node.type!=="tag"||!tags.has(node.name))throw new Error("O conteúdo contém elemento inválido: "+(node.name||node.type));
+    if(blocks.has(node.name)&&++blockCount>500)throw new Error("A mensagem excede 500 blocos");
+    const allowed=attrs[node.name]||new Set();
+    for(const [key,value] of Object.entries(node.attribs)){
+      if(!allowed.has(key))throw new Error("Atributo inválido em "+node.name+": "+key);
+      if(bool.has(key)&&value!=="")throw new Error("Atributo booleano inválido: "+key);
+    }
+    if(media.has(node.name)){
+      if(++mediaCount>50)throw new Error("A mensagem excede 50 mídias");
+      if(!["","figure","tg-collage","tg-slideshow"].includes(parent))throw new Error("Mídia precisa ser um bloco separado");
+    }
+    if(node.name==="figcaption"&&!["figure","tg-collage","tg-slideshow"].includes(parent))throw new Error("Legenda fora de bloco de mídia");
+    if(node.name==="cite"&&!["figcaption","blockquote","aside"].includes(parent))throw new Error("Crédito fora de citação ou legenda");
+    if(node.name==="caption"&&parent!=="table")throw new Error("Legenda de tabela inválida");
+    if(node.name==="tr"&&parent!=="table")throw new Error("Linha de tabela inválida");
+    if(["th","td"].includes(node.name)&&parent!=="tr")throw new Error("Célula de tabela inválida");
+    if(node.name==="summary"&&parent!=="details")throw new Error("Resumo expansível inválido");
+    if(node.name==="input"&&parent!=="li")throw new Error("Checkbox precisa estar em item de lista");
+    if(node.name==="tg-button-row"){
+      const count=node.children.filter(child=>child.type==="tag"&&child.name==="tg-button").length;
+      if(count<1||count>8)throw new Error("Uma linha deve conter de 1 a 8 botões");
+    }
+    if(node.name==="table"){
+      const rows=node.children.filter(child=>child.type==="tag"&&child.name==="tr");
+      for(const row of rows){
+        let cols=0;
+        for(const cell of row.children.filter(child=>child.type==="tag"&&["th","td"].includes(child.name))){
+          const span=Number(cell.attribs.colspan||1);
+          if(!Number.isInteger(span)||span<1||span>20)throw new Error("Colspan de tabela inválido");
+          cols+=span;
+        }
+        if(cols>20)throw new Error("A tabela excede 20 colunas");
+      }
+    }
+    if(node.name==="code"&&node.attribs.class&&!/^language-[a-z0-9+-]+$/i.test(node.attribs.class))throw new Error("Linguagem de código inválida");
+    if(node.name==="a"){
+      const href=node.attribs.href,name=node.attribs.name;
+      if(Boolean(href)===Boolean(name))throw new Error("Âncora ou link inválido");
+      if(href&&!href.startsWith("#"))urlValid(href);
+      if(name&&!/^[A-Za-z0-9_-]{1,64}$/.test(name))throw new Error("Nome de âncora inválido");
+    }
+    if(node.name==="input"&&node.attribs.type!=="checkbox")throw new Error("Input Rich Message inválido");
+    if(node.name==="tg-time"){
+      if(!/^\d+$/.test(node.attribs.unix||""))throw new Error("Timestamp inválido");
+      if(node.attribs.format!==undefined&&!/^(?:r|w?[dD]?[tT]?)$/.test(node.attribs.format))throw new Error("Formato de data inválido");
+    }
+    if(node.name==="tg-emoji"&&!/^\d+$/.test(node.attribs["emoji-id"]||""))throw new Error("Emoji personalizado inválido");
+    if(node.name==="tg-map"){
+      const lat=Number(node.attribs.lat),lon=Number(node.attribs.long),zoom=node.attribs.zoom===undefined?undefined:Number(node.attribs.zoom),width=node.attribs.width===undefined?undefined:Number(node.attribs.width),height=node.attribs.height===undefined?undefined:Number(node.attribs.height);
+      if(!Number.isFinite(lat)||lat<-90||lat>90||!Number.isFinite(lon)||lon<-180||lon>180)throw new Error("Mapa inválido");
+      if(zoom!==undefined&&(!Number.isInteger(zoom)||zoom<0||zoom>24))throw new Error("Zoom inválido");
+      if(width!==undefined&&(!Number.isInteger(width)||width<0||width>10000))throw new Error("Largura do mapa inválida");
+      if(height!==undefined&&(!Number.isInteger(height)||height<0||height>10000))throw new Error("Altura do mapa inválida");
+      if((width||0)+(height||0)>10000)throw new Error("Dimensões do mapa excedem o limite");
+      if(width&&height&&Math.max(width/height,height/width)>20)throw new Error("Proporção do mapa inválida");
+    }
+    if(node.name==="tg-button-row"&&node.attribs.align&&!["left","center","right"].includes(node.attribs.align))throw new Error("Alinhamento de botão inválido");
+    if(node.name==="tg-button"){
+      const type=node.attribs.type;
+      if(!buttons.has(type))throw new Error("Tipo de botão inválido");
+      if(node.attribs.style&&!["danger","success","primary","link"].includes(node.attribs.style))throw new Error("Estilo de botão inválido");
+      if(node.attribs.style==="link"&&type!=="callback_data")throw new Error("Estilo link exige callback");
+      const action={url:"url",callback_data:"data",web_app:"url",login_url:"url",switch_inline_query:"query",switch_inline_query_current_chat:"query",switch_inline_query_chosen_chat:"query",copy_text:"text"}[type];
+      if(action&&node.attribs[action]===undefined)throw new Error("Ação de botão ausente");
+      if(type==="callback_data"&&(Buffer.byteLength(node.attribs.data||"")<1||Buffer.byteLength(node.attribs.data)>64))throw new Error("Callback inválido");
+      if(["url","web_app"].includes(type))urlValid(node.attribs.url);
+      if(type==="login_url"){
+        let url;try{url=new URL(node.attribs.url);}catch{throw new Error("Login URL inválida");}
+        if(url.protocol!=="https:")throw new Error("Login URL deve usar HTTPS");
+      }
+    }
+    if(media.has(node.name)){
+      if(!node.attribs.src)throw new Error("Mídia sem endereço");
+      urlValid(node.attribs.src,true);
+    }
+    node.children.forEach(child=>walk(child,depth+1,node.name));
+  };
+  parseDocument(html).children.forEach(node=>walk(node));
+}
+
+function telegraphValid(content) {
+  const tags = new Set("a aside b blockquote br code em figcaption figure h3 h4 hr i iframe img li ol p pre s strong u ul video".split(" "));
+  let count = 0;
+  const walk = (node, depth = 0) => {
+    if (++count > 10000 || depth > 40) throw new Error("Conteúdo do Telegraph grande demais");
+    if (typeof node === "string") return;
+    if (!node || typeof node !== "object" || Array.isArray(node) || !tags.has(node.tag)) throw new Error("Elemento do Telegraph inválido");
+    if (node.attrs) for (const [key, value] of Object.entries(node.attrs)) {
+      if (!(key === "href" && node.tag === "a" || key === "src" && ["img", "video", "iframe"].includes(node.tag)) || typeof value !== "string") throw new Error("Atributo do Telegraph inválido");
+      let url;
+      try { url = new URL(value); } catch { throw new Error("Link do Telegraph inválido"); }
+      if (!["http:", "https:"].includes(url.protocol)) throw new Error("Link do Telegraph inválido");
+    }
+    if (node.children !== undefined) {
+      if (!Array.isArray(node.children)) throw new Error("Conteúdo do Telegraph inválido");
+      node.children.forEach(child => walk(child, depth + 1));
+    }
+  };
+  if (!Array.isArray(content) || !content.length || Buffer.byteLength(JSON.stringify(content)) > 65536) throw new Error("Conteúdo do Telegraph inválido");
+  content.forEach(node => walk(node));
+}
+
+function safeLink(value){
+  let url;
+  try{url=new URL(value);}catch{throw new Error("Link inválido");}
+  if(!["http:","https:","tg:","mailto:"].includes(url.protocol))throw new Error("Link inválido");
+  return url.href;
+}
+
+function entityWrap(entity, inner, text, mode) {
+  const raw = text.slice(entity.start, entity.end);
+  const link = entity.type === "text_link" ? safeLink(entity.url || "") : entity.type === "url" ? safeLink(raw) : entity.type === "text_mention" && entity.user?.id ? "tg://user?id=" + entity.user.id : "";
+  if (mode === "md") {
+    if (entity.type === "bold") return "**" + inner + "**";
+    if (entity.type === "italic") return "*" + inner + "*";
+    if (entity.type === "underline") return "<u>" + inner + "</u>";
+    if (entity.type === "strikethrough") return "~~" + inner + "~~";
+    if (entity.type === "spoiler") return "||" + inner + "||";
+    if (entity.type === "code" || entity.type === "pre") return "\`" + raw.replace(/\`/g, "\\\`") + "\`";
+    if (link) return "[" + inner + "](<" + link + ">)";
+    return inner;
+  }
+  if (entity.type === "bold") return "<b>" + inner + "</b>";
+  if (entity.type === "italic") return "<i>" + inner + "</i>";
+  if (entity.type === "underline") return "<u>" + inner + "</u>";
+  if (entity.type === "strikethrough") return "<s>" + inner + "</s>";
+  if (entity.type === "spoiler") return "<tg-spoiler>" + inner + "</tg-spoiler>";
+  if (entity.type === "code" || entity.type === "pre") return "<code>" + htmlEscape(raw) + "</code>";
+  if (link) return "<a href=\"" + htmlEscape(link) + "\">" + inner + "</a>";
+  return inner;
+}
+
+function formatText(text, entities, mode) {
+  const root = { start: 0, end: text.length, children: [] };
+  const stack = [root];
+  const types = new Set(["bold", "italic", "underline", "strikethrough", "spoiler", "code", "pre", "text_link", "url", "text_mention"]);
+  const spans = (entities || []).filter(e => types.has(e.type) && Number.isInteger(e.offset) && Number.isInteger(e.length) && e.offset >= 0 && e.length > 0 && e.offset + e.length <= text.length)
+    .map(e => ({ ...e, start: e.offset, end: e.offset + e.length }))
+    .sort((a, b) => a.start - b.start || b.end - a.end);
+  for (const span of spans) {
+    while (stack.length > 1 && span.start >= stack[stack.length - 1].end) stack.pop();
+    const parent = stack[stack.length - 1];
+    if (span.start < parent.start || span.end > parent.end) continue;
+    const node = { ...span, children: [] };
+    parent.children.push(node);
+    stack.push(node);
+  }
+  const render = node => {
+    let out = "";
+    let at = node.start;
+    for (const child of node.children) {
+      if (child.start < at) continue;
+      out += htmlEscape(text.slice(at, child.start)) + render(child);
+      at = child.end;
+    }
+    out += htmlEscape(text.slice(at, node.end));
+    return node === root ? out : entityWrap(node, out, text, mode);
+  };
+  return render(root);
+}
+
+function richHTML(text, entities) {
+  return "<p>" + formatText(text, entities, "html").replace(/\n/g, "<br>") + "</p>";
+}
+
+function commandBody(message) {
+  const text = String(message.text || "");
+  const prefix = /^\/[a-z0-9_]+(?:@[a-z0-9_]+)?(?:\s+|$)/i.exec(text)?.[0].length || text.length;
+  const rest = text.slice(prefix);
+  const lead = rest.length - rest.trimStart().length;
+  const body = rest.trim();
+  const start = prefix + lead;
+  const end = start + body.length;
+  const entities = (message.entities || []).filter(e => e.offset >= start && e.offset + e.length <= end).map(e => ({ ...e, offset: e.offset - start }));
+  return { text: body, entities };
+}
+
+function repliedBody(message) {
+  const reply = message.reply_to_message;
+  if (!reply) return { text: "", entities: [] };
+  const text = String(reply.text || reply.caption || "").trim();
+  return { text, entities: reply.entities || reply.caption_entities || [] };
+}
+
+function cutBody(body, length) {
+  const rest = body.text.slice(length);
+  const lead = rest.length - rest.trimStart().length;
+  const text = rest.slice(lead).trimEnd();
+  const start = length + lead;
+  const end = start + text.length;
+  const entities = body.entities.filter(e => e.offset >= start && e.offset + e.length <= end).map(e => ({ ...e, offset: e.offset - start }));
+  return { text, entities };
+}
+
+async function sendBotRich(chatId,html,replyTo){
+  const body = { chat_id: chatId, rich_message: { html } };
+  if (replyTo) body.reply_parameters = { message_id: replyTo };
+  return telegramCall("sendRichMessage", body);
+}
+
+function appButton() {
+  return "<tg-button-row align=\"center\"><tg-button type=\"web_app\" style=\"success\" url=\"" + htmlEscape(MINI_APP_URL) + "\">Mini App MDTXTRT</tg-button></tg-button-row>" +
+    "<tg-button-row align=\"center\"><tg-button type=\"url\" style=\"danger\" url=\"" + htmlEscape(WEBHOOK_BASE + "/") + "\">Abrir MDTXTRT no browser</tg-button></tg-button-row>";
+}
+
+function appMessage(title) {
+  return "<h1>MDTXTRT</h1><p>" + title + "</p>" + appButton();
+}
+
+async function sendDocument(chatId,name,content,type){
+  if(typeof content!=="string"||!content.trim())throw new Error("Não há texto para exportar");
+  if(Buffer.byteLength(content,"utf8")>1_500_000)throw new Error("O arquivo excede o limite de exportação");
+  const fileName=cleanFileName(name);
+  const mime=type==="text/markdown"?"text/markdown":type==="text/plain"?"text/plain":"";
+  if(!mime)throw new Error("Formato de exportação inválido");
+  const ext=type==="text/markdown"?".md":".txt";
+  if(!fileName.toLowerCase().endsWith(ext))throw new Error("Extensão de arquivo incompatível");
+  const data=content;
+  const form = new FormData();
+  form.set("chat_id", String(chatId));
+  form.set("caption", "Exportado pelo MDTXTRT");
+  form.set("document", new Blob([data], { type: mime }), fileName);
+  const sent = await telegramCall("sendDocument", form);
+  return { messageId: sent.message_id, fileName };
+}
+
+async function handleBotUpdate(update) {
+  if(update.callback_query){
+    const q=update.callback_query;
+    await telegramCall("answerCallbackQuery",{
+      callback_query_id: q.id,
+      text: q.data ? String(q.data).slice(0, 200) : "OK"
+    });
+    return;
+  }
+  const message = update.message;
+  if (!message?.text || !message.chat) return;
+  const match = /^\/([a-z0-9_]+)(?:@[a-z0-9_]+)?(?:\s+[\s\S]*)?$/i.exec(message.text);
+  if (!match) return;
+  const command = match[1].toLowerCase();
+  const chatId = message.chat.id;
+  if (message.chat.type !== "private") {
+    await sendBotRich(chatId, "<p>Abra o chat privado do MDTXTRT para usar o Mini App e exportar arquivos.</p>");
+    return;
+  }
+  const body = commandBody(message);
+  if (command === "start" || command === "app" || command === "novo") {
+    await sendBotRich(chatId, appMessage("Edite, publique e exporte seus textos do Telegram."), message.message_id);
+    return;
+  }
+  if (command === "ajuda") {
+    const html = "<h1>Comandos</h1><p><b>/app</b> abre o Mini App.</p><p><b>/novo</b> começa um documento.</p><p><b>/enviar texto</b> envia o texto como mensagem rica. Também pode responder a uma mensagem com <b>/enviar</b>.</p><p><b>/exportar [txt|md]</b> exporta o texto da mensagem respondida como arquivo.</p>" + appButton();
+    await sendBotRich(chatId, html, message.message_id);
+    return;
+  }
+  if (command === "enviar") {
+    const content = body.text ? body : repliedBody(message);
+    if (!content.text) {
+      await sendBotRich(chatId, "<p>Use <b>/enviar texto</b> ou responda a uma mensagem com <b>/enviar</b>.</p>" + appButton(), message.message_id);
+      return;
+    }
+    await sendBotRich(chatId, richHTML(content.text, content.entities), message.message_id);
+    return;
+  }
+  if (command === "exportar") {
+    let content = body;
+    let type = "txt";
+    const choice = /^(txt|md)(?:\s+|$)/i.exec(body.text);
+    if (choice) {
+      type = choice[1].toLowerCase() === "txt" ? "txt" : "md";
+      content = cutBody(body, choice[0].length);
+    }
+    if (!content.text) content = repliedBody(message);
+    if (!content.text) {
+      await sendBotRich(chatId, "<p>Responda a uma mensagem com <b>/exportar</b> ou envie <b>/exportar txt texto</b> ou <b>/exportar md texto</b>.</p>" + appButton(), message.message_id);
+      return;
+    }
+    const output = type === "md" ? formatText(content.text, content.entities, "md") : content.text;
+    await sendDocument(chatId, "mdtxtrt." + type, output, type === "md" ? "text/markdown" : "text/plain");
+  }
+}
+
+async function configureBot(){
+  const bot=await telegramCall("getMe",{});
+  if(!/^[A-Za-z0-9_]{5,32}$/.test(bot.username||""))throw new Error("Bot sem nome de usuário");
+  botLink="https://t.me/"+bot.username;
+  const secret=webhookSecret();
+  await telegramCall("setMyCommands",{commands:BOT_COMMANDS});
+  await telegramCall("setChatMenuButton",{menu_button:{type:"web_app",text:"Mini App MDTXTRT",web_app:{url:MINI_APP_URL}}});
+  await telegramCall("setWebhook",{url:WEBHOOK_BASE+"/telegram/webhook",secret_token:secret,allowed_updates:["message","callback_query"]});
+  console.log("Telegram ready");
+}
+
+async function telegraphCall(method, body) {
+  let res;
+  try {
+    res = await fetch(`https://api.telegra.ph/${method}`, {
+      method: "POST",
+      signal: AbortSignal.timeout(15000),
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams(body),
+    });
+  } catch (error) {
+    console.error("Telegraph", method, error);
+    throw new Error("Não foi possível conectar ao Telegraph");
+  }
+  let json;
+  try { json = await res.json(); } catch { throw new Error("O Telegraph retornou uma resposta inválida"); }
+  if (!res.ok || !json.ok) {
+    console.error("Telegraph", method, json.error || "Falha na publicação");
+    throw new Error("O Telegraph não aceitou a publicação");
+  }
+  return json.result;
+}
+
+function readPages() {
+  if (!existsSync(PAGES_FILE)) return {};
+  let pages;
+  try { pages = JSON.parse(readFileSync(PAGES_FILE, "utf8")); } catch { throw new Error("Não foi possível recuperar as páginas do Telegraph"); }
+  if(!pages||typeof pages!=="object"||Array.isArray(pages))throw new Error("Mapeamento de páginas do Telegraph inválido");
+  return pages;
+}
+
+function writePages(pages) {
+  writeFileSync(PAGES_FILE + ".tmp", JSON.stringify(pages), { mode: 0o600 });
+  renameSync(PAGES_FILE + ".tmp", PAGES_FILE);
+}
+
+async function ensureTelegraphToken() {
+  if (telegraphToken) return telegraphToken;
+  const account = await telegraphCall("createAccount", { short_name: "MDTXTRT", author_name: "MDTXTRT" });
+  telegraphToken = account.access_token;
+  mkdirSync(DATA, { recursive: true });
+  writeFileSync(TELEGRAPH_FILE, telegraphToken, { mode: 0o600 });
+  return telegraphToken;
+}
+
+async function verifyTelegraphPage(path) {
+  const page = await telegraphCall("getPage", { path, return_content: "true" });
+  if (!page?.path || page.path !== path || !page.url) throw new Error("O Telegraph não confirmou a página");
+  return page;
+}
+
+async function publishTelegraphOne(title, content, path = "", user = "", doc = "") {
+  const pageTitle = String(title || "").trim();
+  if (!pageTitle) throw new Error("Dê um nome à página antes de publicar");
+  if (pageTitle.length > 256) throw new Error("O nome da página deve ter até 256 caracteres");
+  telegraphValid(content);
+  if (!/^[a-f0-9-]{36}$/i.test(doc)) throw new Error("Documento inválido");
+  const pages = readPages();
+  const key = user + ":" + doc;
+  const known = pages[key] || "";
+  if (path && known !== path) throw new Error("Esta página não pertence a este documento");
+  const target = String(path || known).trim();
+  const token = await ensureTelegraphToken();
+  const body = {
+    access_token: token,
+    title: pageTitle,
+    author_name: "MDTXTRT",
+    content: JSON.stringify(content),
+    return_content: "true",
+  };
+  let page;
+  if (target) {
+    body.path = target;
+    page = await telegraphCall("editPage", body);
+  } else {
+    page = await telegraphCall("createPage", body);
+    pages[key] = page.path;
+    writePages(pages);
+  }
+  const verified = await verifyTelegraphPage(page.path);
+  return { ...page, url: verified.url, path: verified.path };
+}
+
+function publishTelegraph(...args) {
+  const next = telegraphQueue.then(() => publishTelegraphOne(...args));
+  telegraphQueue=next.catch(error=>{console.error("Telegraph queue",error);});
+  return next;
+}
+
+function safeFile(urlPath) {
+  let decoded;
+  try { decoded = decodeURIComponent((urlPath || "/").split("?")[0]); } catch { return null; }
+  let rel = decoded === "/" ? "index.html" : decoded.replace(/^\/+/, "");
+  if (rel.endsWith("/")) rel += "index.html";
+  const abs = resolve(ROOT, rel);
+  const inside = relative(ROOT, abs).split("\\").join("/");
+  if (!inside || inside.startsWith("..") || inside.includes("\0") || !PUBLIC.has(inside)) return null;
+  if (!existsSync(abs) || !statSync(abs).isFile()) return null;
+  return abs;
+}
+
+const server = createServer(async (req, res) => {
+  try {
+    const url = new URL(req.url || "/", "http://localhost");
+    if(url.pathname==="/telegram/open"&&req.method==="GET"){
+      const handoff=String(url.searchParams.get("handoff")||"");
+      if(!/^[a-f0-9]{32}$/.test(handoff)||!readHandoff(handoff)){
+        res.writeHead(410,{"content-type":"text/plain; charset=utf-8","cache-control":"no-store"});
+        res.end("A transferência expirou ou é inválida.");
+        return;
+      }
+      res.writeHead(302,{location:botLink+"?startapp=h_"+handoff,"cache-control":"no-store"});
+      res.end();
+      return;
+    }
+
+    if (url.pathname === "/api/handoff" && req.method === "POST") {
+      if (!setCors(req, res)) {
+        res.writeHead(403, { "content-type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ error: "Acesso não autorizado" }));
+        return;
+      }
+      try {
+        const media = await readMedia(req);
+        let draft;
+        try { draft = JSON.parse(media.fields.draft || ""); } catch { throw new Error("Rascunho inválido"); }
+        const token = saveHandoff(draft, media.file || null);
+        res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+        res.end(JSON.stringify({ token, open: WEBHOOK_BASE + "/telegram/open?handoff=" + token }));
+      } catch (err) {
+        res.writeHead(400, { "content-type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ error: err.message || "Não foi possível transferir o rascunho" }));
+      }
+      return;
+    }
+
+    if (url.pathname === "/api/handoff/claim" && req.method === "POST") {
+      if (!setCors(req, res)) {
+        res.writeHead(403, { "content-type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ error: "Acesso não autorizado" }));
+        return;
+      }
+      try {
+        const body = await readJson(req, 20000);
+        const token = String(body?.token || "");
+        const state = readHandoff(token);
+        if (!state) throw new Error("Transferência expirada ou inválida");
+        const { chatId } = userFromInitData(String(body?.initData || ""));
+        if (state.claimedBy && state.claimedBy !== chatId) throw new Error("Transferência não pertence a esta sessão");
+        state.claimedBy = chatId;
+        const paths = handoffFiles(token);
+        writeFileSync(paths.meta + ".tmp", JSON.stringify(state), { mode: 0o600 });
+        renameSync(paths.meta + ".tmp", paths.meta);
+        res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+        res.end(JSON.stringify({ draft: state.draft, file: state.file }));
+      } catch (err) {
+        res.writeHead(400, { "content-type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ error: err.message || "Não foi possível recuperar o rascunho" }));
+      }
+      return;
+    }
+
+    if (url.pathname === "/api/handoff/file" && req.method === "POST") {
+      if (!setCors(req, res)) {
+        res.writeHead(403, { "content-type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ error: "Acesso não autorizado" }));
+        return;
+      }
+      try {
+        const body = await readJson(req, 20000);
+        const token = String(body?.token || "");
+        const state = readHandoff(token);
+        if (!state?.file) throw new Error("Anexo da transferência indisponível");
+        const { chatId } = userFromInitData(String(body?.initData || ""));
+        if (!state.claimedBy || state.claimedBy !== chatId) throw new Error("Transferência não pertence a esta sessão");
+        const path = handoffFiles(token).file;
+        if (!existsSync(path)) throw new Error("Anexo da transferência indisponível");
+        const bytes = readFileSync(path);
+        res.writeHead(200,{"content-type":state.file.mime,"content-length":bytes.length,"cache-control":"no-store"});
+        res.end(bytes);
+      } catch (err) {
+        res.writeHead(400, { "content-type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ error: err.message || "Não foi possível recuperar o anexo" }));
+      }
+      return;
+    }
+
+    if (url.pathname === "/api/telegraph/recover" && req.method === "POST") {
+      if (!setCors(req, res)) {
+        res.writeHead(403, { "content-type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ error: "Acesso não autorizado" }));
+        return;
+      }
+      try {
+        const body = await readJson(req, 20000);
+        if (!/^[a-f0-9-]{36}$/i.test(String(body?.doc || ""))) throw new Error("Documento inválido");
+        const { chatId } = userFromInitData(String(body?.initData || ""));
+        const path = readPages()[chatId + ":" + body.doc] || "";
+        if (!path) {
+          res.writeHead(404, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+          res.end(JSON.stringify({ error: "Página não encontrada" }));
+          return;
+        }
+        const page = await verifyTelegraphPage(path);
+        res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+        res.end(JSON.stringify({ path: page.path, url: page.url }));
+      } catch (err) {
+        const code = /não encontrada/i.test(err.message || "") ? 404 : 400;
+        res.writeHead(code, { "content-type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ error: err.message || "Não foi possível recuperar a página" }));
+      }
+      return;
+    }
+
+    if (req.method === "OPTIONS") {
+      if (!setCors(req, res)) {
+        res.writeHead(403, { "content-type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ error: "Acesso não autorizado" }));
+        return;
+      }
+      res.writeHead(204);
+      res.end();
+      return;
+    }
+    if(url.pathname==="/telegram/webhook"&&req.method==="POST"){
+      if (!sameSecret(req.headers["x-telegram-bot-api-secret-token"], webhookSecret())) {
+        res.writeHead(401, { "content-type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ error: "Acesso não autorizado" }));
+        return;
+      }
+      try {
+        const update = await readJson(req);
+        await handleBotUpdate(update);
+        res.writeHead(200, { "content-type": "text/plain; charset=utf-8" });
+        res.end("ok");
+      } catch (err) {
+        console.error("Telegram webhook", err);
+        res.writeHead(500, { "content-type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ error: "Não foi possível processar a mensagem" }));
+      }
+      return;
+    }
+    if (url.pathname === "/api/telegram/send" && req.method === "POST") {
+      if (!setCors(req, res)) {
+        res.writeHead(403, { "content-type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ error: "Acesso não autorizado" }));
+        return;
+      }
+      try {
+        const media=await readMedia(req);
+        const body=media.fields;
+        if (typeof body.initData !== "string" || typeof body.html !== "string") throw new Error("Os dados do envio estão incompletos");
+        const result=await sendRich(body.initData,body.html,media.file?{...media.file,kind:body.kind,id:body.id}:null);
+        res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify(result));
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Não foi possível publicar no Telegram";
+        const code = /inválid[ao]s?|expirada|ausente|Abra pelo|solicitação|dados do envio|Escreva algo|Anexe a mídia|identificador de mídia|endereço de mídia|mídia anexada/i.test(msg) ? 400 : 500;
+        res.writeHead(code, { "content-type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ error: msg }));
+      }
+      return;
+    }
+    if (url.pathname === "/api/telegram/session" && req.method === "POST") {
+      if (!setCors(req, res)) {
+        res.writeHead(403, { "content-type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ error: "Acesso não autorizado" }));
+        return;
+      }
+      try {
+        const body=await readJson(req,10000);
+        userFromInitData(String(body?.initData||""));
+        res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+        res.end(JSON.stringify({ ok: true }));
+      } catch (err) {
+        res.writeHead(401, { "content-type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ error: err.message || "Sessão Telegram inválida" }));
+      }
+      return;
+    }
+    if (url.pathname === "/api/telegraph/publish" && req.method === "POST") {
+      if (!setCors(req, res)) {
+        res.writeHead(403, { "content-type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ error: "Acesso não autorizado" }));
+        return;
+      }
+      try {
+        const body = await readJson(req, 150_000);
+        if (!body || typeof body !== "object" || typeof body.title !== "string" || !Array.isArray(body.content) || (body.path !== undefined && typeof body.path !== "string")) throw new Error("Os dados da página estão incompletos");
+        if(typeof body.initData!=="string")throw new Error("Abra pelo bot no Telegram para publicar no Telegraph");
+        const {chatId}=userFromInitData(body.initData);
+        const page = await publishTelegraph(body.title, body.content, body.path || "", chatId, body.doc);
+        res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ url: page.url, path: page.path }));
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Não foi possível publicar no Telegraph";
+        const code = /nome (?:da|à) página|escreva algo|excede o limite|solicitação|dados da página|não foi possível ler|Documento inválido|pertence|já possui|Abra pelo|inválida|expirada|Telegraph inválido/i.test(msg) ? 400 : 502;
+        res.writeHead(code, { "content-type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ error: msg }));
+      }
+      return;
+    }
+    if (req.method !== "GET" && req.method !== "HEAD") {
+      res.writeHead(405, { "content-type": "application/json; charset=utf-8" });
+      res.end(JSON.stringify({ error: "Método não permitido" }));
+      return;
+    }
+    const file = safeFile(url.pathname);
+    if (!file) {
+      res.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
+      res.end("Página não encontrada");
+      return;
+    }
+    const ext = extname(file).toLowerCase();
+    const type = MIME[ext];
+    if (!type) throw new Error("Tipo de arquivo não configurado");
+    const live = ext === ".html" || ext === ".js";
+    res.writeHead(200, {
+      "content-type": type,
+      "cache-control": live ? "no-cache" : "public, max-age=600",
+    });
+    if (req.method === "HEAD") {
+      res.end();
+      return;
+    }
+    createReadStream(file).on("error", error => {
+      console.error(error);
+      if (!res.headersSent) res.writeHead(500, { "content-type": "application/json; charset=utf-8" });
+      if (!res.destroyed) res.end(JSON.stringify({ error: "Não foi possível carregar este conteúdo" }));
+    }).pipe(res);
+  } catch (error) {
+    console.error(error);
+    if (!res.headersSent) {
+      res.writeHead(500, { "content-type": "application/json; charset=utf-8" });
+      res.end(JSON.stringify({ error: "Não foi possível concluir a solicitação" }));
+    } else if (!res.destroyed) res.destroy(error);
+  }
+});
+
+async function start(){
+  sweepHandoffs();
+  await configureBot();
+  const token=await ensureTelegraphToken();
+  await telegraphCall("getAccountInfo",{access_token:token,fields:'["short_name","page_count"]'});
+  console.log("Telegraph ready");
+  server.listen(PORT,"0.0.0.0",()=>console.log(`MDTXTRT on ${PORT}`));
+}
+start().catch(error=>{
+  console.error("MDTXTRT startup",error);
+  process.exitCode=1;
+});
