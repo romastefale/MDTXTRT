@@ -219,6 +219,68 @@ test('document name stays in export flow and becomes the Telegraph title',async(
   w.close();
 });
 
+test('Markdown block markers convert at the caret and preserve rich-text semantics',()=>{
+  const w=page(),d=w.document,e=d.querySelector('#editor');
+  const apply=(html,selector='p',offset=null)=>{
+    e.innerHTML=html;
+    const node=e.querySelector(selector)?.firstChild;
+    assert.ok(node);
+    const range=d.createRange();
+    range.setStart(node,offset===null?node.length:offset);range.collapse(true);
+    w.getSelection().removeAllRanges();w.getSelection().addRange(range);
+    d.dispatchEvent(new w.Event('selectionchange'));
+    e.dispatchEvent(new w.Event('input',{bubbles:true}));
+  };
+  apply('<p># </p>');
+  assert.ok(e.querySelector('h1'));
+  apply('<p>## Texto existente</p>','p',3);
+  assert.equal(e.querySelector('h2')?.textContent,'Texto existente');
+  apply('<p>&gt; </p>');
+  assert.ok(e.querySelector('blockquote'));
+  apply('<p>- </p>');
+  assert.ok(e.querySelector('ul > li'));
+  apply('<p>3. </p>');
+  assert.equal(e.querySelector('ol')?.getAttribute('start'),'3');
+  apply('<p>- [x] </p>');
+  assert.equal(e.querySelector('li > input[type="checkbox"]')?.checked,true);
+  apply('<p>\\# </p>');
+  assert.equal(e.querySelector('p')?.textContent,'# ');
+  assert.equal(e.querySelector('h1'),null);
+  w.close();
+});
+
+test('Markdown inline markers become semantic rich-text marks and support escaping',()=>{
+  const w=page(),d=w.document,e=d.querySelector('#editor');
+  const apply=text=>{
+    e.innerHTML='<p></p>';e.querySelector('p').textContent=text;
+    const node=e.querySelector('p').firstChild,range=d.createRange();
+    range.setStart(node,node.length);range.collapse(true);
+    w.getSelection().removeAllRanges();w.getSelection().addRange(range);
+    d.dispatchEvent(new w.Event('selectionchange'));
+    e.dispatchEvent(new w.Event('input',{bubbles:true}));
+  };
+  apply('**forte**');assert.equal(e.querySelector('strong')?.textContent,'forte');
+  apply('*ênfase*');assert.equal(e.querySelector('em')?.textContent,'ênfase');
+  apply('~~riscado~~');assert.equal(e.querySelector('s')?.textContent,'riscado');
+  apply('`código`');assert.equal(e.querySelector('code')?.textContent,'código');
+  apply('\\*literal*');assert.equal(e.querySelector('em'),null);assert.equal(e.textContent,'*literal*');
+  w.close();
+});
+
+test('Markdown input rules stay idle during IME composition',()=>{
+  const w=page(),d=w.document,e=d.querySelector('#editor');
+  e.innerHTML='<p># </p>';
+  const node=e.querySelector('p').firstChild,range=d.createRange();
+  range.setStart(node,node.length);range.collapse(true);
+  w.getSelection().removeAllRanges();w.getSelection().addRange(range);
+  e.dispatchEvent(new w.CompositionEvent('compositionstart',{bubbles:true}));
+  e.dispatchEvent(new w.Event('input',{bubbles:true}));
+  assert.equal(e.querySelector('h1'),null);
+  e.dispatchEvent(new w.CompositionEvent('compositionend',{bubbles:true}));
+  assert.ok(e.querySelector('h1'));
+  w.close();
+});
+
 test('formatting undo and redo restore semantic document states',()=>{
   const w=page(),d=w.document,e=d.querySelector('#editor');
   e.innerHTML='<p>texto selecionado</p>';

@@ -1055,10 +1055,108 @@ function buildTelegraph(){
   const identity=session==='ready'?{initData:getTg().initData}:{browserKey:browserOwnerKey()};
   return {title, content: telegraphNodes(editor), path: telegraphPath, doc: docId, ...identity};
 }
-editor.addEventListener('input', ()=>{ if(!composing){ markDirty(); pushHist(); }});
+function markdownCaret(target,offset=null){
+  const sel=window.getSelection();
+  if(!sel)return;
+  const range=document.createRange();
+  if(offset===null){range.selectNodeContents(target);range.collapse(true);}
+  else range.setStart(target,offset),range.collapse(true);
+  sel.removeAllRanges();sel.addRange(range);savedRange=range.cloneRange();
+}
+function markdownBlockContext(){
+  const sel=window.getSelection();
+  if(!sel||!sel.rangeCount||!sel.isCollapsed)return null;
+  let node=sel.anchorNode;
+  if(!node||!editor.contains(node))return null;
+  if(node.nodeType===3&&node.parentNode===editor){normalizeBlocks();node=window.getSelection()?.anchorNode;}
+  const el=node&&(node.nodeType===1?node:node.parentElement);
+  const block=el&&el!==editor?el.closest('p,div'):null;
+  if(!block||block.parentElement!==editor)return null;
+  const first=block.firstChild,range=window.getSelection()?.getRangeAt(0);
+  if(!first||first.nodeType!==3||!range||range.startContainer!==first)return null;
+  return {block,first,prefix:first.data.slice(0,range.startOffset)};
+}
+function markdownBlockRule(){
+  const ctx=markdownBlockContext();
+  if(!ctx)return false;
+  const {block,first,prefix}=ctx;
+  const escaped=prefix.match(/^\\(#{1,6}|>|[-*+]|\d+\.) $/);
+  if(escaped){
+    first.deleteData(0,1);markdownCaret(first,Math.max(0,prefix.length-1));return true;
+  }
+  const replaceBlock=(tag,markerLength,{start=null,task=null}={})=>{
+    first.deleteData(0,markerLength);
+    if(tag==='ul'||tag==='ol'){
+      const list=document.createElement(tag);
+      if(tag==='ol'&&start!==null&&start!==1)list.setAttribute('start',String(start));
+      const li=document.createElement('li');
+      if(task!==null){
+        const input=document.createElement('input');input.type='checkbox';
+        if(task){input.checked=true;input.setAttribute('checked','');}
+        li.append(input);
+      }
+      while(block.firstChild)li.append(block.firstChild);
+      if(!li.childNodes.length)li.append(document.createElement('br'));
+      list.append(li);block.replaceWith(list);
+      if(task!==null)markdownCaret(li,1);else markdownCaret(li);
+      return true;
+    }
+    const next=document.createElement(tag);
+    while(block.firstChild)next.append(block.firstChild);
+    if(!next.childNodes.length)next.append(document.createElement('br'));
+    block.replaceWith(next);markdownCaret(next);return true;
+  };
+  const task=dest==='telegram'&&prefix.match(/^- \[([ xX])\] $/);
+  if(task)return replaceBlock('ul',prefix.length,{task:task[1].toLowerCase()==='x'});
+  const heading=prefix.match(/^(#{1,6}) $/);
+  if(heading)return replaceBlock('h'+heading[1].length,prefix.length);
+  if(prefix==='> ')return replaceBlock('blockquote',2);
+  if(/^[-*+] $/.test(prefix))return replaceBlock('ul',2);
+  const ordered=prefix.match(/^(\d+)\. $/);
+  if(ordered)return replaceBlock('ol',prefix.length,{start:Number(ordered[1])});
+  return false;
+}
+function markdownInlineWrap(textNode,offset,marker,tag,{single=false}={}){
+  const text=textNode.data,before=text.slice(0,offset);
+  if(!before.endsWith(marker))return false;
+  const bodyEnd=offset-marker.length,beforeClose=text.slice(0,bodyEnd);
+  const open=beforeClose.lastIndexOf(marker);
+  if(open<0)return false;
+  if(single&&(text[open-1]===marker||text[open+1]===marker||text[bodyEnd-1]===marker))return false;
+  const value=text.slice(open+marker.length,bodyEnd);
+  if(!value||value.includes('\n'))return false;
+  if(text[open-1]==='\\'){
+    textNode.deleteData(open-1,1);markdownCaret(textNode,offset-1);return true;
+  }
+  const range=document.createRange();
+  range.setStart(textNode,open);range.setEnd(textNode,offset);range.deleteContents();
+  const mark=document.createElement(tag);mark.textContent=value;range.insertNode(mark);
+  const sel=window.getSelection();range.setStartAfter(mark);range.collapse(true);sel.removeAllRanges();sel.addRange(range);savedRange=range.cloneRange();
+  return true;
+}
+function markdownInlineRule(){
+  const sel=window.getSelection();
+  if(!sel||!sel.rangeCount||!sel.isCollapsed)return false;
+  const text=sel.anchorNode;
+  if(!text||text.nodeType!==3||!editor.contains(text))return false;
+  const parent=text.parentElement;
+  if(parent?.closest('a,strong,b,em,i,s,strike,del,code,pre,tg-math,tg-math-block'))return false;
+  const offset=sel.anchorOffset;
+  return markdownInlineWrap(text,offset,'**','strong')||
+    markdownInlineWrap(text,offset,'~~','s')||
+    markdownInlineWrap(text,offset,'`','code')||
+    markdownInlineWrap(text,offset,'*','em',{single:true});
+}
+function applyMarkdownInputRule(){
+  return markdownBlockRule()||markdownInlineRule();
+}
+function commitEditorInput(){
+  applyMarkdownInputRule();markDirty();pushHist();
+}
+editor.addEventListener('input', ()=>{ if(!composing)commitEditorInput(); });
 editor.addEventListener('change',e=>{if(e.target.matches('input[type=checkbox]')){e.target.toggleAttribute('checked',e.target.checked);pushHist();markDirty();}});
 editor.addEventListener('compositionstart', ()=> composing = true);
-editor.addEventListener('compositionend', ()=>{ composing = false; markDirty(); pushHist(); });
+editor.addEventListener('compositionend', ()=>{ composing = false; commitEditorInput(); });
 editor.addEventListener('keyup', saveSel);
 editor.addEventListener('mouseup', saveSel);
 editor.addEventListener('paste', e => {
