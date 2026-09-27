@@ -38,7 +38,7 @@
       --gap:8px;
       --topbar-h:36px;
       --meta-h:52px;
-      --bar-h:52px;
+      --bar-h:46px;
       --vv-top:0px;
       --vv-bottom:0px;
       --vv-height:100dvh;
@@ -208,21 +208,21 @@
     .editor tg-collage,.editor tg-slideshow{display:flex;flex-wrap:wrap;gap:8px;margin:1em 0}
     .editor tg-spoiler{background:var(--neutral-4);border-radius:4px}
     .bar-wrap{
-      position:fixed;left:max(12px,var(--safe-left));right:max(12px,var(--safe-right));
+      position:fixed;left:50%;right:auto;width:max-content;max-width:calc(100vw - 24px);
       top:auto;bottom:calc(var(--vv-bottom) + var(--bottom) + var(--gap));z-index:30;
-      transform:translateZ(0);backface-visibility:hidden;
+      transform:translate3d(-50%,0,0);backface-visibility:hidden;
       padding:0;background:transparent;pointer-events:none;
     }
     .bar{
-      position:relative;z-index:1;max-width:none;margin:0;
+      position:relative;z-index:1;width:max-content;max-width:calc(100vw - 24px);margin:0 auto;
       display:flex;align-items:center;overflow-x:auto;overscroll-behavior-inline:contain;
       height:var(--bar-h);padding:4px;border-radius:999px;pointer-events:auto
     }
     .bar > button{
-      flex:1 0 44px;min-width:44px;height:44px;border:0;background:transparent;color:inherit;
+      flex:0 0 38px;min-width:38px;height:38px;border:0;background:transparent;color:inherit;
       display:grid;place-items:center;border-radius:999px;padding:0
     }
-    .bar .plus{flex:0 0 44px}
+    .bar .plus{flex:0 0 38px}
     .action-dot{
       width:36px;height:36px;border-radius:50%;display:grid;place-items:center;
       background:var(--accent);color:#fff;
@@ -430,7 +430,7 @@
   <div class="glass-menu frost" data-lg data-lg-profile="context-menu" id="findMenu" data-anchor="findBtn" data-placement="right" popover="auto"><div class="menu-list"><div class="tools"><input id="findText" placeholder="Localizar" aria-label="Localizar"></div><div class="tools"><input id="replaceText" placeholder="Substituir" aria-label="Substituir por"></div><div class="tools"><button id="findNext">Próximo</button><button id="replaceOne">Substituir</button><button id="replaceAll">Substituir tudo</button></div></div></div>
   </div>
   <div class="bar-wrap">
-    <div class="bar frost" data-lg data-lg-mode="frost" id="typebar">
+    <div class="bar frost" data-lg data-lg-profile="context-menu" id="typebar">
       <button class="plus" id="plusBtn" aria-label="Mais" popovertarget="plusMenu"><span class="ui-icon" data-icon="plus"></span></button>
       <button type="button" data-cmd="bold" aria-label="Negrito"><span class="ui-icon" data-icon="bold"></span></button>
       <button type="button" data-cmd="italic" aria-label="Itálico"><span class="ui-icon" data-icon="italic"></span></button>
