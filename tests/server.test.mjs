@@ -140,6 +140,17 @@ test('server rejects invalid web-app, copy-text and reference contracts before T
   assert.equal(badRef.status,400);
 });
 
+test('Rich Message buttons enforce one action contract and official button URL schemes',async()=>{
+  const before=calls().filter(call=>call.method==='sendRichMessage').length;
+  const wrongAction=await formPost('/api/telegram/send',{initData:init(),html:'<tg-button-row><tg-button type="disabled" data="x">Disabled</tg-button></tg-button-row>'});
+  assert.equal(wrongAction.status,400);
+  const wrongScheme=await formPost('/api/telegram/send',{initData:init(),html:'<tg-button-row><tg-button type="url" url="mailto:user@example.com">Email</tg-button></tg-button-row>'});
+  assert.equal(wrongScheme.status,400);
+  const optionalQuery=await formPost('/api/telegram/send',{initData:init(),html:'<tg-button-row><tg-button type="switch_inline_query_chosen_chat" allow-user-chats>Choose chat</tg-button></tg-button-row>'});
+  assert.equal(optionalQuery.status,200);
+  assert.equal(calls().filter(call=>call.method==='sendRichMessage').length,before+1);
+});
+
 test('Rich Message text limits use Unicode characters and button text stays within the Bot API contract',async()=>{
   const valid=await formPost('/api/telegram/send',{initData:init(),html:'<p>'+ 'á'.repeat(20000)+'</p>'});
   assert.equal(valid.status,200);
