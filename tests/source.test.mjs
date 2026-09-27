@@ -85,16 +85,27 @@ test('server exposes every referenced local SVG icon and vector app icon',()=>{
   assert.doesNotMatch(server,/"logo\.png"/);
 });
 
-test('UI keeps zoom, visible focus, live status semantics and 44px primary targets',()=>{
+test('UI preserves portrait phone contract, no zoom, focus semantics and 44px targets',()=>{
   const html=read('index.html');
-  assert.doesNotMatch(html,/user-scalable\s*=\s*no/i);
-  assert.doesNotMatch(html,/maximum-scale\s*=\s*1/i);
+  assert.match(html,/minimum-scale=1, maximum-scale=1, user-scalable=no/);
   assert.match(html,/:where\(button,input,textarea,\[contenteditable="true"\]\):focus-visible/);
   assert.match(html,/id="toast" role="status" aria-live="polite" aria-atomic="true"/);
   assert.match(html,/id="dialogMenu" popover="manual" role="dialog" aria-modal="true" aria-labelledby="dialogLabel"/);
+  assert.match(html,/id="deviceGate" role="dialog" aria-modal="true"/);
+  assert.match(html,/@media \(orientation:landscape\),\(min-width:760px\)/);
+  assert.doesNotMatch(html,/@media \(min-width:760px\)\{\s*\.meta/);
   assert.match(html,/--meta-h:52px/);
   assert.match(html,/--bar-h:52px/);
   assert.match(html,/min-width:44px;height:44px/);
+});
+
+test('Telegram Mini App requires phone platform and locks portrait through the official API',()=>{
+  const app=read('app.js');
+  assert.match(app,/telegramPhonePlatforms=new Set\(\['android','ios'\]\)/);
+  assert.match(app,/tg\.isVersionAtLeast\('8\.0'\)/);
+  assert.match(app,/typeof tg\.lockOrientation!=='function'/);
+  assert.match(app,/if\(!tg\.isOrientationLocked\)tg\.lockOrientation\(\)/);
+  assert.match(app,/portraitQuery\.addEventListener\('change',syncDeviceContract\)/);
 });
 
 test('server follows Bot API 10.3 Rich Message contracts without message downgrade paths',()=>{
