@@ -370,8 +370,20 @@ function htmlEscape(value) {
   return String(value).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
+function richTextLength(nodes){
+  let length=0;
+  const walk=node=>{
+    if(node.type==="text"){length+=Array.from(node.data||"").length;return;}
+    node.children?.forEach(walk);
+  };
+  nodes.forEach(walk);
+  return length;
+}
+
 function richValid(html){
-  if(typeof html!=="string"||!html.trim()||Buffer.byteLength(html)>32768)throw new Error("Conteúdo vazio ou grande demais");
+  if(typeof html!=="string"||!html.trim())throw new Error("Conteúdo vazio");
+  const doc=parseDocument(html);
+  if(richTextLength(doc.children)>32768)throw new Error("A mensagem excede 32768 caracteres");
   const tags=new Set("a b strong i em u ins s strike del code mark sub sup tg-spoiler tg-reference tg-emoji tg-time tg-math h1 h2 h3 h4 h5 h6 p pre footer hr ul ol li input blockquote aside cite img video audio tg-document figure figcaption tg-map tg-collage tg-slideshow table caption tr th td details summary tg-math-block tg-button tg-button-row br".split(" "));
   const attrs={
     a:new Set(["href","name"]),code:new Set(["class"]),ol:new Set(["start","type","reversed"]),li:new Set(["value","type"]),input:new Set(["type","checked"]),
@@ -394,10 +406,11 @@ function richValid(html){
     }
     if(!["https:","http:","tg:","mailto:","tel:"].includes(url.protocol))throw new Error("Link inválido");
   };
-  const walk=(node,depth=0,parent="")=>{
+  const walk=(node,depth=0,parent="",insideButton=false)=>{
     if(depth>16)throw new Error("A mensagem excede 16 níveis de aninhamento");
     if(node.type==="text")return;
     if(node.type!=="tag"||!tags.has(node.name))throw new Error("O conteúdo contém elemento inválido: "+(node.name||node.type));
+    if(insideButton&&!['tg-emoji','tg-time'].includes(node.name))throw new Error("Texto de botão aceita apenas texto, emoji personalizado e data/hora");
     if(blocks.has(node.name)&&++blockCount>500)throw new Error("A mensagem excede 500 blocos");
     const allowed=attrs[node.name]||new Set();
     for(const [key,value] of Object.entries(node.attribs)){
@@ -480,9 +493,10 @@ function richValid(html){
       if(!node.attribs.src)throw new Error("Mídia sem endereço");
       urlValid(node.attribs.src,true);
     }
-    node.children.forEach(child=>walk(child,depth+1,node.name));
+    const childInsideButton=insideButton||node.name==="tg-button";
+    node.children.forEach(child=>walk(child,depth+1,node.name,childInsideButton));
   };
-  parseDocument(html).children.forEach(node=>walk(node));
+  doc.children.forEach(node=>walk(node));
 }
 
 function telegraphValid(content) {
@@ -510,7 +524,7 @@ function telegraphValid(content) {
 function safeLink(value){
   let url;
   try{url=new URL(value);}catch{throw new Error("Link inválido");}
-  if(!["http:","https:","tg:","mailto:"].includes(url.protocol))throw new Error("Link inválido");
+  if(!["http:","https:","tg:","mailto:","tel:"].includes(url.protocol))throw new Error("Link inválido");
   return url.href;
 }
 
