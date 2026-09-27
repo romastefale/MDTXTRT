@@ -231,6 +231,33 @@ async function verifyTelegram(){
   }
   try{await recoverTelegraph();}catch(err){showToast(err.message||'Não foi possível recuperar a página do Telegraph');}
 }
+const portraitQuery=matchMedia('(orientation: portrait)');
+const telegramPhonePlatforms=new Set(['android','ios']);
+function setDeviceGate(reason=''){
+  const root=document.documentElement;
+  const text=one('#deviceGateText');
+  if(!reason){
+    root.removeAttribute('data-device-gate');
+    if(text)text.textContent='Este WebApp funciona apenas em smartphones no modo retrato. Gire o aparelho para continuar.';
+    return;
+  }
+  root.setAttribute('data-device-gate',reason);
+  if(!text)return;
+  if(reason==='platform')text.textContent='Abra este WebApp no Telegram em um smartphone.';
+  else if(reason==='version')text.textContent='Atualize o Telegram para uma versão compatível com bloqueio de orientação.';
+  else text.textContent='Este WebApp funciona apenas em smartphones no modo retrato. Gire o aparelho para continuar.';
+}
+function syncDeviceContract(){
+  if(session!=='ready')return;
+  const tg=getTg();
+  if(!telegramPhonePlatforms.has(tg.platform)){setDeviceGate('platform');return;}
+  if(typeof tg.isVersionAtLeast!=='function'||!tg.isVersionAtLeast('8.0')||typeof tg.lockOrientation!=='function'){
+    setDeviceGate('version');return;
+  }
+  if(!portraitQuery.matches){setDeviceGate('portrait');return;}
+  setDeviceGate();
+  if(!tg.isOrientationLocked)tg.lockOrientation();
+}
 function setupTelegram(){
   const tg=getTg();
   session='ready';
@@ -241,6 +268,8 @@ function setupTelegram(){
   applyScheme();
   tg.onEvent('themeChanged',applyScheme);
   tg.onEvent('viewportChanged',scheduleBrowserViewport);
+  portraitQuery.addEventListener('change',syncDeviceContract);
+  syncDeviceContract();
   scheduleBrowserViewport();
   tg.SettingsButton.show();
   tg.SettingsButton.onClick(()=>openPanel('#importMenu'));
