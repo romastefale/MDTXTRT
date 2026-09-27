@@ -278,6 +278,25 @@ async function verifyTelegram(){
 }
 const portraitQuery=matchMedia('(orientation: portrait)');
 const telegramPhonePlatforms=new Set(['android','ios']);
+const telegramInsetFields=['top','right','bottom','left'];
+function validTelegramInsets(value){
+  return value&&telegramInsetFields.every(field=>Number.isInteger(value[field])&&value[field]>=0);
+}
+function syncTelegramSafeAreas(){
+  const tg=getTg(),root=document.documentElement;
+  if(typeof tg?.isVersionAtLeast!=='function'||!tg.isVersionAtLeast('8.0'))return false;
+  if(!validTelegramInsets(tg.safeAreaInset)||!validTelegramInsets(tg.contentSafeAreaInset))return false;
+  for(const field of telegramInsetFields){
+    root.style.setProperty('--app-tg-safe-'+field,tg.safeAreaInset[field]+'px');
+    root.style.setProperty('--app-tg-content-safe-'+field,tg.contentSafeAreaInset[field]+'px');
+  }
+  root.classList.add('tg-shell');
+  scheduleBrowserViewport();
+  return true;
+}
+function handleTelegramSafeAreaChange(){
+  if(!syncTelegramSafeAreas())setDeviceGate('version');
+}
 function setDeviceGate(reason=''){
   const root=document.documentElement;
   const text=one('#deviceGateText');
@@ -296,7 +315,7 @@ function syncDeviceContract(){
   if(session!=='ready')return;
   const tg=getTg();
   if(!telegramPhonePlatforms.has(tg.platform)){setDeviceGate('platform');return;}
-  if(typeof tg.isVersionAtLeast!=='function'||!tg.isVersionAtLeast('8.0')||typeof tg.lockOrientation!=='function'){
+  if(typeof tg.isVersionAtLeast!=='function'||!tg.isVersionAtLeast('8.0')||typeof tg.lockOrientation!=='function'||!syncTelegramSafeAreas()){
     setDeviceGate('version');return;
   }
   if(!portraitQuery.matches){setDeviceGate('portrait');return;}
@@ -306,13 +325,15 @@ function syncDeviceContract(){
 function setupTelegram(){
   const tg=getTg();
   session='ready';
-  document.documentElement.classList.add('tg-shell');
   document.body.classList.add('tg');
   tg.ready();
   tg.expand();
   applyScheme();
+  if(!syncTelegramSafeAreas()){setDeviceGate('version');return;}
   tg.onEvent('themeChanged',applyScheme);
   tg.onEvent('viewportChanged',scheduleBrowserViewport);
+  tg.onEvent('safeAreaChanged',handleTelegramSafeAreaChange);
+  tg.onEvent('contentSafeAreaChanged',handleTelegramSafeAreaChange);
   portraitQuery.addEventListener('change',syncDeviceContract);
   syncDeviceContract();
   scheduleBrowserViewport();
