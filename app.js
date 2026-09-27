@@ -386,7 +386,14 @@ function closeTopLayer(){
   const dialog=one('#dialogMenu');
   if(dialog.matches(':popover-open')){finishDialog(dialogConfirm?false:null);return;}
   const sel=sheets.find(name=>one(name).matches(':popover-open'));
-  if(sel)one(sel).hidePopover();
+  if(!sel)return;
+  const panel=one(sel);
+  if(panel.dataset.plusSubmenu!==undefined){
+    panel.hidePopover();
+    openPanel('#plusMenu');
+    return;
+  }
+  panel.hidePopover();
 }
 function clamp(value,min,max){return Math.max(min,Math.min(max,value));}
 function placePanel(panel,anchorRect=null){
