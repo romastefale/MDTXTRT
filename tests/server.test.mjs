@@ -162,3 +162,18 @@ test('Telegraph ownership mapping survives create and edit on same document',asy
   assert.equal(edited.status,200);
   assert.equal(edited.data.path,created.data.path);
 });
+
+
+test('handoff rejects draft media metadata that cannot be restored by the client',async()=>{
+  const doc='55555555-5555-4555-8555-555555555555';
+  const base={version:2,name:'Draft',dest:'telegram',telegraphPath:'',docId:doc,importedMd:'',importedTxt:'',importedHtml:''};
+  const stale={...base,html:'<p>texto</p>',media:{id:'ghost',kind:'image'}};
+  const staleForm=new FormData();staleForm.set('draft',JSON.stringify(stale));
+  const staleRes=await fetch(`http://127.0.0.1:${port}/api/handoff`,{method:'POST',headers:{origin},body:staleForm});
+  assert.equal(staleRes.status,400);
+
+  const multiple={...base,html:'<figure><img data-media-id="one"></figure><figure><img data-media-id="two"></figure>',media:{id:'one',kind:'image'}};
+  const multiForm=new FormData();multiForm.set('draft',JSON.stringify(multiple));
+  const multiRes=await fetch(`http://127.0.0.1:${port}/api/handoff`,{method:'POST',headers:{origin},body:multiForm});
+  assert.equal(multiRes.status,400);
+});
