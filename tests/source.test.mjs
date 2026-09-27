@@ -232,12 +232,13 @@ test('plus menu keeps normative compact geometry and opens categorized submenus 
   assert.match(html,/\.plus-submenu \.submenu-back\{font-weight:650\}/);
 });
 
-test('Telegraph title reuses the canonical document-name input inside the editor',()=>{
+test('document name lives in export flow and becomes the Telegraph editorial title',()=>{
   const html=read('index.html'),src=uiSource(),app=read('app.js');
   assert.match(html,/class="telegraph-title" id="telegraphTitleSlot" hidden/);
   assert.match(html,/\.telegraph-title \.document-tools input\{[\s\S]*?Georgia,"Times New Roman",serif/);
   assert.match(html,/slot\.append\(tools\)/);
-  assert.match(html,/menu\.insertBefore\(tools,anchor\)/);
+  assert.match(html,/exportHost\.insertBefore\(tools,exportAnchor\)/);
+  assert.match(html,/#exportMenu \.glass-menu-content/);
   assert.match(html,/new MutationObserver\(sync\)\.observe\(destBtn,\{attributes:true,attributeFilter:\['aria-pressed'\]\}\)/);
   assert.match(src,/className="tools document-tools"/);
   assert.doesNotMatch(html,/id="telegraphTitle"/);

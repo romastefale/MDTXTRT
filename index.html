@@ -372,7 +372,9 @@
       const slot=document.querySelector('#telegraphTitleSlot');
       const input=tools?.querySelector('#docName');
       if(!destBtn||!tools||!slot||!input)return;
-      const menu=tools.parentElement,anchor=tools.nextSibling;
+      const exportHost=document.querySelector('#exportMenu .glass-menu-content')||document.querySelector('#exportMenu');
+      if(!exportHost)return;
+      const exportAnchor=exportHost.firstChild;
       const defaultLabel=input.getAttribute('aria-label')||'Nome do documento';
       const sync=()=>{
         const telegraph=destBtn.getAttribute('aria-pressed')==='true';
@@ -383,7 +385,7 @@
           input.setAttribute('placeholder','Título');
           input.setAttribute('enterkeyhint','next');
         }else{
-          if(tools.parentElement!==menu)menu.insertBefore(tools,anchor);
+          if(tools.parentElement!==exportHost)exportHost.insertBefore(tools,exportAnchor);
           slot.hidden=true;
           input.setAttribute('aria-label',defaultLabel);
           input.removeAttribute('placeholder');

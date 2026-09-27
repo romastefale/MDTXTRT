@@ -196,12 +196,12 @@ test('destination controls remain functional without changing editor shell',()=>
   w.close();
 });
 
-test('Telegraph moves the existing document-name input into the editor title slot',async()=>{
+test('document name stays in export flow and becomes the Telegraph title',async()=>{
   const w=page(),d=w.document,slot=d.querySelector('#telegraphTitleSlot'),input=d.querySelector('#docName');
-  const tools=input.closest('.document-tools'),menu=tools.parentElement;
+  const tools=input.closest('.document-tools'),exportMenu=d.querySelector('#exportMenu');
   await wait(0);
   assert.equal(slot.hidden,true);
-  assert.equal(tools.parentElement,menu);
+  assert.equal(tools.parentElement,exportMenu);
   d.querySelector('#destBtn').click();
   await wait(0);
   assert.equal(slot.hidden,false);
@@ -214,7 +214,7 @@ test('Telegraph moves the existing document-name input into the editor title slo
   d.querySelector('#destBtn').click();
   await wait(0);
   assert.equal(slot.hidden,true);
-  assert.equal(tools.parentElement,menu);
+  assert.equal(tools.parentElement,exportMenu);
   assert.equal(input.hasAttribute('placeholder'),false);
   w.close();
 });
