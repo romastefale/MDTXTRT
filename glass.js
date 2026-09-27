@@ -6,7 +6,7 @@ const computeDomeConstants=(d,w,h)=>{
   const c=Math.max(.01,Math.min(d,Math.min(w,h)-1));
   const x=(w*w+c*c)/(2*c),y=(h*h+c*c)/(2*c);
   const mx=domeGradientMean(x,w),my=domeGradientMean(y,h);
-  return {Rx:x,Ry:y,scaleX:mx>0?.5/mx:1,scaleY:my>0?.5/my:1};
+  return {Rx:x,Ry:y,scaleX:mx>0 ? .5/mx : 1,scaleY:my>0 ? .5/my : 1};
 };
 const domeGradient=(d,r,s)=>{
   const x=Math.min(d,r*(1-1e-3));
@@ -313,7 +313,10 @@ const node=(n,a={})=>{
 const SUPPORTS_URL=(()=>{
   const ua=navigator.userAgent||'';
   const hasUAData=navigator.userAgentData!=null;
-  return hasUAData||(/\\b(?:Chrome|Chromium|Edg)\\//.test(ua)&&!/\\b(?:CriOS|EdgiOS|FxiOS|OPiOS)\\b/.test(ua)&&!/iPhone|iPad|iPod/.test(ua));
+  const blink=ua.includes('Chrome/')||ua.includes('Chromium/')||ua.includes('Edg/');
+  const ios=/iPhone|iPad|iPod/.test(ua);
+  const iosBrand=['CriOS','EdgiOS','FxiOS','OPiOS'].some(name=>ua.includes(name));
+  return hasUAData||(blink&&!ios&&!iosBrand);
 })();
 
 const material=el=>{
