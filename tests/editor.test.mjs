@@ -328,3 +328,74 @@ test('pagehide persists the last edit immediately and empty drafts restore ident
   assert.equal(restored.eval('draftState().docId'),doc);
   restored.close();
 });
+
+
+test('block insertions respect caret position and ordered list preserves paragraph text',()=>{
+  const w=page(),d=w.document,e=d.querySelector('#editor');
+  e.innerHTML='<p>Antes</p><p>Depois</p>';
+  let range=d.createRange();range.setStartAfter(e.firstElementChild);range.collapse(true);
+  w.getSelection().removeAllRanges();w.getSelection().addRange(range);
+  w.eval('saveSel();insertFeature("divider")');
+  assert.deepEqual([...e.children].map(el=>el.tagName),['P','HR','P']);
+
+  e.innerHTML='<p>antes depois</p>';
+  const text=e.querySelector('p').firstChild;
+  range=d.createRange();range.setStart(text,6);range.collapse(true);
+  w.getSelection().removeAllRanges();w.getSelection().addRange(range);
+  d.dispatchEvent(new w.Event('selectionchange'));
+  w.eval('insertFeature("ordered")');
+  assert.deepEqual([...e.children].map(node=>node.tagName),['OL']);
+  assert.equal(e.querySelector('ol > li')?.textContent,'antes depois');
+  assert.equal(e.querySelector('p ol'),null);
+  w.close();
+});
+
+test('find advances, wraps and replace-one survives focus moving to controls',()=>{
+  const w=page(),d=w.document,e=d.querySelector('#editor');
+  e.innerHTML='<p>ação ação ação</p>';
+  d.querySelector('#findText').value='ação';
+  const offsets=[];
+  for(let i=0;i<4;i++){
+    d.querySelector('#findNext').click();
+    offsets.push(w.getSelection().getRangeAt(0).startOffset);
+  }
+  assert.deepEqual(offsets,[0,5,10,0]);
+  d.querySelector('#replaceText').focus();
+  d.querySelector('#replaceText').value='feito';
+  d.querySelector('#replaceOne').click();
+  assert.equal(e.textContent,'feito ação ação');
+  w.close();
+});
+
+test('Markdown round-trip preserves styled rich buttons and footer semantics',()=>{
+  const w=page(),e=w.document.querySelector('#editor');
+  e.innerHTML='<p class="tg-footer">Rodapé</p><tg-button-row><tg-button type="url" style="danger" url="https://example.com">Abrir</tg-button></tg-button-row>';
+  const md=w.eval('htmlToMarkdown(document.querySelector("#editor").innerHTML)');
+  const html=w.eval('mdToBasicHTML('+JSON.stringify(md)+')');
+  const box=w.document.createElement('div');box.innerHTML=html;
+  assert.equal(box.querySelector('tg-button')?.getAttribute('style'),'danger');
+  assert.equal(box.querySelector('.tg-footer')?.textContent,'Rodapé');
+  w.close();
+});
+
+test('local attachments are blocked from lossy file exports',()=>{
+  const w=page(),e=w.document.querySelector('#editor');
+  e.innerHTML='<figure><img data-media-id="media1" src="blob:https://example.com/local"></figure>';
+  assert.throws(()=>w.eval('htmlToMarkdown(document.querySelector("#editor").innerHTML)'),/URL pública/);
+  assert.throws(()=>w.eval('htmlToText(document.querySelector("#editor").innerHTML)'),/TXT não comporta/);
+  w.close();
+});
+
+test('oversized galleries are rejected without changing the document',async()=>{
+  const w=page(),e=w.document.querySelector('#editor');
+  e.innerHTML='<p>Original</p>';
+  const promise=w.eval('insertFeature("collage")');
+  await wait(0);
+  const input=w.document.querySelector('#dialogInput');
+  input.value=Array.from({length:51},(_,i)=>'https://example.com/'+i+'.jpg').join('\n');
+  w.document.querySelector('#dialogOk').click();
+  await promise;
+  assert.equal(e.innerHTML,'<p>Original</p>');
+  assert.match(w.document.querySelector('#toast').textContent,/no máximo 50/);
+  w.close();
+});
