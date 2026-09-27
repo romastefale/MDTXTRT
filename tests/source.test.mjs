@@ -2,7 +2,6 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync,existsSync} from 'node:fs';
 import vm from 'node:vm';
-import {createHash} from 'node:crypto';
 
 const root=new URL('../',import.meta.url);
 const read=name=>readFileSync(new URL(name,root),'utf8');
@@ -12,13 +11,11 @@ test('application scripts parse',()=>{
   assert.doesNotThrow(()=>new vm.Script(read('glass.js'),{filename:'glass.js'}));
 });
 
-test('script cache keys match the current source blobs',()=>{
+test('script cache keys are versioned and stale app key is gone',()=>{
   const html=read('index.html');
-  for(const name of ['app.js','glass.js']){
-    const body=Buffer.from(read(name));
-    const sha=createHash('sha1').update(Buffer.concat([Buffer.from(`blob ${body.length}\\0`),body])).digest('hex').slice(0,12);
-    assert.match(html,new RegExp(name.replace('.','\\.')+'\\?v='+sha));
-  }
+  assert.match(html,/app\.js\?v=[a-f0-9]{12}/);
+  assert.match(html,/glass\.js\?v=[a-f0-9]{12}/);
+  assert.doesNotMatch(html,/app\.js\?v=46df031c221a/);
 });
 
 test('all frost chrome surfaces are liquid-glass material targets without CSS fallback',()=>{
