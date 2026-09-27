@@ -11,7 +11,7 @@ const fileInput = one('#fileInput');
 const STATE_VERSION=2;
 let dest = 'telegram';
 let session='browser',busy=false;
-const sheets=['#plusMenu','#headingMenu','#quoteMenu','#listMenu','#importMenu','#exportMenu','#findMenu'];
+const sheets=['#plusMenu','#headingMenu','#quoteMenu','#listMenu','#exportMenu','#findMenu'];
 let savedRange = null, hist = [], histI = -1, histLock = false, composing = false, saveTimer = null, telegraphPath = '', docId = crypto.randomUUID(), importedMd = '', importedTxt = '', importedHtml = '', mediaFile = null, mediaChoice = null;
 function applyAssets(){
   all('[data-icon]').forEach(el => {
@@ -20,23 +20,62 @@ function applyAssets(){
   });
 }
 applyAssets();
+const THEME_KEY='mdtxtrt-theme';
+const BROWSER_OWNER_KEY='mdtxtrt-browser-owner';
 const scheme=window.matchMedia('(prefers-color-scheme: light)');
-function applyScheme(){
+let themePreference='';
+try{
+  const stored=localStorage.getItem(THEME_KEY);
+  if(stored==='light'||stored==='dark')themePreference=stored;
+}catch{}
+function getTg(){ return window.Telegram?.WebApp; }
+function resolvedTheme(){
+  if(themePreference)return themePreference;
   const tg=getTg();
-  const light=session==='ready'?tg.colorScheme==='light':scheme.matches;
-  const root=document.documentElement,next=light?'light':'dark',prev=light?'dark':'light',color=light?'#f8fbff':'#000000';
-  one('#themeColor').content=color;
-  if(root.classList.contains(prev))root.classList.replace(prev,next);
-  else if(!root.classList.contains(next))root.classList.add(next);
-  if(session==='ready'){
+  if(session==='ready'&&(tg?.colorScheme==='light'||tg?.colorScheme==='dark'))return tg.colorScheme;
+  return scheme.matches?'light':'dark';
+}
+function applyScheme(mode=resolvedTheme()){
+  const next=mode==='light'?'light':'dark',light=next==='light';
+  const root=document.documentElement,color=light?'#f8fbff':'#000000';
+  root.classList.remove(light?'dark':'light');
+  root.classList.add(next);
+  root.dataset.theme=next;
+  const themeMeta=one('#themeColor'),statusMeta=one('#statusBarStyle');
+  if(themeMeta)themeMeta.content=color;
+  if(statusMeta)statusMeta.content=light?'default':'black-translucent';
+  const btn=one('#themeBtn');
+  if(btn){
+    const icon=btn.querySelector('[data-icon]');
+    if(icon)icon.setAttribute('data-icon',light?'dark_mode':'light_mode');
+    const label=light?'Ativar modo escuro':'Ativar modo claro';
+    btn.setAttribute('aria-label',label);btn.title=label;
+  }
+  applyAssets();
+  const tg=getTg();
+  if(session==='ready'&&tg){
     tg.setHeaderColor(color);
     tg.setBackgroundColor(color);
     tg.setBottomBarColor(color);
   }
 }
+function setTheme(mode){
+  if(mode!=='light'&&mode!=='dark')throw new Error('Tema inválido');
+  themePreference=mode;
+  try{localStorage.setItem(THEME_KEY,mode);}catch{}
+  applyScheme(mode);
+}
+function browserOwnerKey(){
+  let key='';
+  try{key=localStorage.getItem(BROWSER_OWNER_KEY)||'';}catch{}
+  if(/^[a-f0-9]{64}$/.test(key))return key;
+  const bytes=crypto.getRandomValues(new Uint8Array(32));
+  key=Array.from(bytes,byte=>byte.toString(16).padStart(2,'0')).join('');
+  try{localStorage.setItem(BROWSER_OWNER_KEY,key);}catch{}
+  return key;
+}
 applyScheme();
-scheme.addEventListener('change',applyScheme);
-function getTg(){ return window.Telegram?.WebApp; }
+scheme.addEventListener('change',()=>{if(!themePreference)applyScheme();});
 const API = 'https://mdtxtrt.up.railway.app';
 const DB_NAME='mdtxtrt',DB_STORE='media';
 function mediaDB(){
@@ -183,7 +222,8 @@ async function claimHandoff(){
 }
 async function recoverTelegraph(){
   if(!/^[a-f0-9-]{36}$/i.test(docId))throw new Error('Documento inválido');
-  const res=await fetch(API+'/api/telegraph/recover',{method:'POST',signal:AbortSignal.timeout(15000),headers:{'content-type':'application/json'},body:JSON.stringify({initData:getTg().initData,doc:docId})});
+  const identity=session==='ready'?{initData:getTg().initData}:{browserKey:browserOwnerKey()};
+  const res=await fetch(API+'/api/telegraph/recover',{method:'POST',signal:AbortSignal.timeout(15000),headers:{'content-type':'application/json'},body:JSON.stringify({...identity,doc:docId})});
   if(res.status===404)return;
   const data=await readResponse(res);
   if(!res.ok)throw new Error(data.error||'Não foi possível recuperar a página do Telegraph');
@@ -214,7 +254,10 @@ async function openMiniApp(){
 
 async function verifyTelegram(){
   const initData=getTg()?.initData;
-  if(!initData)return;
+  if(!initData){
+    try{await recoverTelegraph();}catch(err){if(!/não encontrada/i.test(err.message||''))console.error('Telegraph browser recovery',err);}
+    return;
+  }
   session='pending';
   try{
     const res=await fetch(API+'/api/telegram/session',{signal:AbortSignal.timeout(15000),method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({initData})});
@@ -274,7 +317,7 @@ function setupTelegram(){
   syncDeviceContract();
   scheduleBrowserViewport();
   tg.SettingsButton.show();
-  tg.SettingsButton.onClick(()=>openPanel('#importMenu'));
+  tg.SettingsButton.onClick(()=>openPanel('#plusMenu'));
   tg.BackButton.onClick(closeTopLayer);
   tg.BackButton.hide();
   tg.MainButton.hide();
@@ -323,10 +366,37 @@ function closeTopLayer(){
   const sel=sheets.find(name=>one(name).matches(':popover-open'));
   if(sel)one(sel).hidePopover();
 }
+function clamp(value,min,max){return Math.max(min,Math.min(max,value));}
+function placePanel(panel,anchorRect=null){
+  const anchorId=panel.dataset.anchor;
+  if(!anchorId)return;
+  const anchor=one('#'+anchorId);
+  const rect=anchorRect||anchor?.getBoundingClientRect();
+  if(!rect)return;
+  const box=panel.getBoundingClientRect();
+  const viewport=window.visualViewport;
+  const vx=viewport?.offsetLeft||0,vy=viewport?.offsetTop||0;
+  const vw=viewport?.width||window.innerWidth,vh=viewport?.height||window.innerHeight;
+  const edge=8,gap=8;
+  const left=clamp(rect.left+rect.width/2-box.width/2,vx+edge,vx+vw-box.width-edge);
+  const above=rect.top-box.height-gap,below=rect.bottom+gap;
+  const preference=panel.dataset.placement||'auto';
+  let top=preference==='top'?above:(above>=vy+edge?above:below);
+  if(top<vy+edge||top+box.height>vy+vh-edge){
+    const alternate=top===above?below:above;
+    if(alternate>=vy+edge&&alternate+box.height<=vy+vh-edge)top=alternate;
+    else top=clamp(top,vy+edge,vy+vh-box.height-edge);
+  }
+  panel.style.setProperty('--menu-left',left+'px');
+  panel.style.setProperty('--menu-top',top+'px');
+}
 function openPanel(sel){
   const panel=one(sel);
   if(!panel)throw new Error('Painel indisponível: '+sel);
+  const anchor=panel.dataset.anchor?one('#'+panel.dataset.anchor):null;
+  const anchorRect=anchor?.getBoundingClientRect()||null;
   panel.showPopover();
+  placePanel(panel,anchorRect);
 }
 function closePanels(){
   for(const sel of sheets){
@@ -374,6 +444,7 @@ for(const sel of sheets){
     if(event.newState==='open'){
       const list=event.currentTarget.querySelector('.menu-list');
       if(list)list.scrollTop=0;
+      placePanel(event.currentTarget);
     }
     syncBackButton();
     document.dispatchEvent(new Event('selectionchange'));
@@ -945,8 +1016,8 @@ function buildRich(){
 function buildTelegraph(){
   const title=docName.value.trim();
   if(!title) throw new Error('Dê um nome à página antes de publicar');
-  if(session!=='ready')throw new Error('Abra pelo bot no Telegram');
-  return {title, content: telegraphNodes(editor), path: telegraphPath, doc: docId, initData: getTg().initData};
+  const identity=session==='ready'?{initData:getTg().initData}:{browserKey:browserOwnerKey()};
+  return {title, content: telegraphNodes(editor), path: telegraphPath, doc: docId, ...identity};
 }
 editor.addEventListener('input', ()=>{ if(!composing){ markDirty(); pushHist(); }});
 editor.addEventListener('change',e=>{if(e.target.matches('input[type=checkbox]')){e.target.toggleAttribute('checked',e.target.checked);pushHist();markDirty();}});
@@ -1017,7 +1088,8 @@ one('#undoBtn').addEventListener('click', ()=>{ histUndo(); flashBtn(one('#undoB
 one('#redoBtn').addEventListener('click', ()=>{ histRedo(); flashBtn(one('#redoBtn')); });
 one('#undoBtn').addEventListener('mousedown', e => e.preventDefault());
 one('#redoBtn').addEventListener('mousedown', e => e.preventDefault());
-one('#openAppBtn').addEventListener('click',()=>{void openMiniApp();});
+one('#themeBtn').addEventListener('click',()=>setTheme(document.documentElement.classList.contains('light')?'dark':'light'));
+one('#openAppBtn').addEventListener('click',()=>{if(dest==='telegram')void openMiniApp();else void publishCurrent();});
 one('#destBtn').addEventListener('click', ()=>setDestination(dest === 'telegram' ? 'telegraph' : 'telegram'));
 one('#exportBtn').addEventListener('click', e=>{
   if(session==='pending'){showToast('Aguarde a validação da sessão Telegram');return;}
@@ -1167,7 +1239,8 @@ async function publishTelegraph(){
     telegraphPath=result.path;
     saveLocal();
     showToast('Página salva no Telegraph');
-    getTg().openLink(result.url,{try_instant_view:true});
+    if(session==='ready'&&typeof getTg()?.openLink==='function')getTg().openLink(result.url,{try_instant_view:true});
+    else window.location.assign(result.url);
   }catch(err){ showToast(err.name==='TimeoutError'?'Tempo de publicação esgotado. Confira a página antes de tentar novamente.':err instanceof TypeError?'Não foi possível conectar ao Telegraph':err.message || 'Não foi possível publicar no Telegraph'); }
 }
 fileInput.addEventListener('change', async ()=>{
@@ -1209,6 +1282,7 @@ function syncBrowserViewport(){
   root.style.setProperty('--vv-top',top+'px');
   root.style.setProperty('--vv-bottom',inset+'px');
   root.style.setProperty('--vv-height',Math.max(0,root.clientHeight-top-inset)+'px');
+  for(const sel of sheets){const panel=one(sel);if(panel?.matches(':popover-open'))placePanel(panel);}
 }
 function scheduleBrowserViewport(){
   cancelAnimationFrame(viewportFrame);
