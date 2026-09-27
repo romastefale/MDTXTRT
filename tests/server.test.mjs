@@ -155,6 +155,27 @@ test('local attachment is represented as attach upload and stale tg media is rej
   assert.equal(stale.status,400);
 });
 
+test('Rich Message uploads enforce media-kind MIME and photo size locally',async()=>{
+  const badId='badphoto1';
+  const badHtml=`<figure><img src="tg://photo?id=${badId}"><figcaption>Imagem</figcaption></figure>`;
+  const wrongMime={name:'not-a-photo.txt',blob:new Blob(['text'],{type:'text/plain'})};
+  const wrong=await formPost('/api/telegram/send',{initData:init(),html:badHtml,kind:'image',id:badId},wrongMime);
+  assert.equal(wrong.status,400);
+
+  const largeId='largephoto1';
+  const largeHtml=`<figure><img src="tg://photo?id=${largeId}"><figcaption>Grande</figcaption></figure>`;
+  const large={name:'large.jpg',blob:new Blob([new Uint8Array(10_000_001)],{type:'image/jpeg'})};
+  const oversized=await formPost('/api/telegram/send',{initData:init(),html:largeHtml,kind:'image',id:largeId},large);
+  assert.equal(oversized.status,400);
+  assert.match(oversized.data.error,/10 MB/);
+
+  const docId='textdoc1';
+  const docHtml=`<figure><tg-document src="tg://document?id=${docId}"></tg-document><figcaption>Arquivo</figcaption></figure>`;
+  const documentFile={name:'notes.txt',blob:new Blob(['notes'],{type:'text/plain'})};
+  const document=await formPost('/api/telegram/send',{initData:init(),html:docHtml,kind:'document',id:docId},documentFile);
+  assert.equal(document.status,200,document.data.error);
+});
+
 test('server rejects invalid web-app, copy-text and reference contracts before Telegram',async()=>{
   const badWeb=await formPost('/api/telegram/send',{initData:init(),html:'<tg-button-row><tg-button type="web_app" url="http://example.com">Open</tg-button></tg-button-row>'});
   assert.equal(badWeb.status,400);
