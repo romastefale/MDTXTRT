@@ -137,6 +137,18 @@ test('server exposes every React-referenced local SVG icon and vector app icon',
   assert.doesNotMatch(server,/"logo\.png"/);
 });
 
+test('top chrome keeps lateral pills below the centered title and inside Telegram safe areas',()=>{
+  const html=read('index.html');
+  assert.match(html,/--top-side-offset:6px/);
+  assert.match(html,/--topbar-h:calc\(var\(--pill-h\) \+ var\(--top-side-offset\)\)/);
+  assert.match(html,/html\.tg-shell\{[\s\S]*?--safe-top:max\(var\(--tg-safe-area-inset-top\),var\(--tg-content-safe-area-inset-top\)\)/);
+  assert.match(html,/\.topbar\{[\s\S]*?top:calc\(var\(--vv-top\) \+ var\(--safe-top\) \+ var\(--gap\)\)/);
+  assert.match(html,/\.top-left\{grid-column:1;justify-self:start\}/);
+  assert.match(html,/\.top-right\{grid-column:3;justify-self:end\}/);
+  assert.match(html,/\.top-slot\{[\s\S]*?margin-top:var\(--top-side-offset\)/);
+  assert.match(html,/\.top-center\{[\s\S]*?top:0;[\s\S]*?height:var\(--pill-h\)/);
+});
+
 test('UI preserves compact portrait contract, unified chrome scale and anchored context menus',()=>{
   const html=read('index.html'),src=uiSource(),app=read('app.js');
   assert.match(html,/minimum-scale=1, maximum-scale=1, user-scalable=no/);
