@@ -31,6 +31,8 @@ MDTXTRT keeps implementation provenance explicit so architectural references are
 ## Icon assets
 
 - Vector icon assets live under `icons/`.
-- Their license notice is retained in `icons/LICENSE`.
+- The interface icon source is Google Material Symbols / Material Design Icons: https://fonts.google.com/icons and https://github.com/google/material-design-icons.
+- The light/dark theme switch uses the official rounded `light_mode` and `dark_mode` SVG assets from that source.
+- Google publishes these icons under Apache License 2.0; the license notice is retained in `icons/LICENSE`.
 
 When a future implementation is substantially derived from a third-party reference, record the source, license, affected files, and nature of the adaptation here before release.
