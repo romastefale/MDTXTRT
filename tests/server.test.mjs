@@ -169,6 +169,17 @@ test('Rich HTML list and table attributes are validated before Telegram',async()
   assert.equal(valid.status,200);
 });
 
+test('Rich HTML details and button-row containers reject malformed structure locally',async()=>{
+  const details=await formPost('/api/telegram/send',{initData:init(),html:'<details><p>x</p></details>'});
+  assert.equal(details.status,400);
+  const emptyRow=await formPost('/api/telegram/send',{initData:init(),html:'<tg-button-row></tg-button-row>'});
+  assert.equal(emptyRow.status,400);
+  const mixedRow=await formPost('/api/telegram/send',{initData:init(),html:'<tg-button-row><span>x</span><tg-button type="disabled">x</tg-button></tg-button-row>'});
+  assert.equal(mixedRow.status,400);
+  const valid=await formPost('/api/telegram/send',{initData:init(),html:'<details open><summary>Title</summary>Content</details><tg-button-row align="center"><tg-button type="disabled">x</tg-button></tg-button-row>'});
+  assert.equal(valid.status,200);
+});
+
 test('Rich Message buttons enforce one action contract and official button URL schemes',async()=>{
   const before=calls().filter(call=>call.method==='sendRichMessage').length;
   const wrongAction=await formPost('/api/telegram/send',{initData:init(),html:'<tg-button-row><tg-button type="disabled" data="x">Disabled</tg-button></tg-button-row>'});
