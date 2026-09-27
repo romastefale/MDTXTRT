@@ -219,7 +219,9 @@ function handoffFiles(token) {
 
 function dropHandoff(token){
   const paths=handoffFiles(token);
-  for(const path of [paths.meta,paths.file])if(existsSync(path))unlinkSync(path);
+  for(const path of [paths.meta,paths.file,paths.meta+".tmp"]){
+    try{if(existsSync(path))unlinkSync(path);}catch(error){console.error("Handoff cleanup",path,error);}
+  }
 }
 
 function readHandoff(token) {
@@ -235,7 +237,12 @@ function readHandoff(token) {
 function sweepHandoffs(){
   for(const name of readdirSync(HANDOFF_DIR)){
     const match=/^([a-f0-9]{32})\.json$/.exec(name);
-    if(match)readHandoff(match[1]);
+    if(!match)continue;
+    try{readHandoff(match[1]);}
+    catch(error){
+      console.error("Discarding invalid handoff",match[1],error);
+      dropHandoff(match[1]);
+    }
   }
 }
 
@@ -258,10 +265,15 @@ function saveHandoff(draft, file) {
     file:file?{id:draft.media.id,kind:draft.media.kind,name:cleanFileName(file.name),mime:file.mime,size:file.bytes.length}:null,
     claimedBy: ""
   };
-  if (file) writeFileSync(paths.file, file.bytes, { mode: 0o600 });
-  writeFileSync(paths.meta + ".tmp", JSON.stringify(meta), { mode: 0o600 });
-  renameSync(paths.meta + ".tmp", paths.meta);
-  return token;
+  try{
+    if (file) writeFileSync(paths.file, file.bytes, { mode: 0o600 });
+    writeFileSync(paths.meta + ".tmp", JSON.stringify(meta), { mode: 0o600 });
+    renameSync(paths.meta + ".tmp", paths.meta);
+    return token;
+  }catch(error){
+    dropHandoff(token);
+    throw error;
+  }
 }
 
 async function sendRich(initData,html,file=null){
