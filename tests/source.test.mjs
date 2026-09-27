@@ -81,6 +81,12 @@ test('interface icon assets are vector SVG only',()=>{
   }
 });
 
+test('editor emits Bot API 10.3 RichText-compatible expandable quotes',()=>{
+  const app=read('app.js');
+  assert.match(app,/<blockquote expandable>Citação expansível<\/blockquote>/);
+  assert.doesNotMatch(app,/<blockquote expandable><p>/);
+});
+
 test('editor keeps target-specific publishing validation and code metadata',()=>{
   const app=read('app.js');
   assert.match(app,/a:\['href','name'\],code:\['class'\]/);
