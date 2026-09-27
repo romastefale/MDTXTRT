@@ -5,51 +5,56 @@ import vm from 'node:vm';
 
 const root=new URL('../',import.meta.url);
 const read=name=>readFileSync(new URL(name,root),'utf8');
+const uiSource=()=>read('src/liquid-glass-ui.jsx');
 
-test('application scripts parse',()=>{
+test('application controller parses and canonical React bundle is committed',()=>{
   assert.doesNotThrow(()=>new vm.Script(read('app.js'),{filename:'app.js'}));
-  assert.doesNotThrow(()=>new vm.Script(read('glass.js'),{filename:'glass.js'}));
+  assert.ok(existsSync(new URL('../ui.js',import.meta.url)));
+  assert.equal(existsSync(new URL('../glass.js',import.meta.url)),false);
 });
 
-test('script cache keys are versioned and stale app key is gone',()=>{
-  const html=read('index.html');
-  assert.match(html,/app\.js\?v=[a-f0-9]{12}/);
-  assert.match(html,/glass\.js\?v=a974cc0d4b74/);
-  assert.doesNotMatch(html,/app\.js\?v=46df031c221a/);
+test('official Liquid Glass React dependencies and deterministic build are pinned',()=>{
+  const pkg=JSON.parse(read('package.json'));
+  const lock=JSON.parse(read('package-lock.json'));
+  assert.equal(pkg.dependencies['@samasante/liquid-glass'],'0.1.1');
+  assert.equal(pkg.dependencies.react,'19.3.0');
+  assert.equal(pkg.dependencies['react-dom'],'19.3.0');
+  assert.equal(pkg.devDependencies.esbuild,'0.28.2');
+  assert.match(pkg.scripts.build,/src\/liquid-glass-ui\.jsx/);
+  assert.match(pkg.scripts.build,/--outfile=ui\.js/);
+  assert.equal(lock.packages['node_modules/@samasante/liquid-glass'].version,'0.1.1');
+  assert.equal(lock.packages['node_modules/react'].version,'19.3.0');
+  assert.equal(lock.packages['node_modules/react-dom'].version,'19.3.0');
 });
 
-test('all frost chrome surfaces use an explicit liquid-glass material mode',()=>{
-  const html=read('index.html');
-  const tags=[...html.matchAll(/<[^>]+\bclass="[^"]*\bfrost\b[^"]*"[^>]*>/g)].map(match=>match[0]);
-  assert.equal(tags.length,13);
-  for(const tag of tags)assert.match(tag,/\bdata-lg(?:\s|=|>)/,tag);
-  assert.doesNotMatch(html,/(?:-webkit-)?backdrop-filter\s*:/);
-  assert.match(html,/class="bar frost"\s+data-lg\s+data-lg-mode="frost"\s+id="typebar"/);
-  assert.doesNotMatch(html,/data-lg-wide/);
-  assert.match(html,/class="brand frost"\s+data-lg/);
-  assert.equal((html.match(/class="sheet frost"\s+data-lg/g)||[]).length,8);
-  assert.match(html,/class="toast frost"\s+data-lg/);
-});
-
-test('liquid-glass engine retains binding material optics on every chrome surface',()=>{
-  const glass=read('glass.js');
+test('React UX imports the official Glass primitive and follows GlassContextMenu optics',()=>{
+  const src=uiSource();
+  assert.match(src,/import \{ Glass \} from "@samasante\/liquid-glass"/);
+  assert.match(src,/examples\/GlassContextMenu\.tsx/);
+  assert.match(src,/export const MENU_LENS = \{/);
   for(const fragment of [
-    'strength:.05','depth:.5','curvature:.3','dispersion:.32',
-    'bend:.45','bendWidth:.16','frost:6','saturate:1.15',
-    'specular:1','sheenAngle:45','sheen:.32','sheenWidth:3',
-    'glow:.1','glowSpread:1','glowFalloff:.5'
-  ])assert.ok(glass.includes(fragment),fragment);
-  assert.match(glass,/feDisplacementMap/);
-  assert.match(glass,/inset 0 1px 0 rgba\(255,255,255,\.55\).*inset 0 0 0 1px rgba\(255,255,255,\.12\)/s);
-  assert.doesNotMatch(glass,/data-lg-wide/);
-  assert.match(glass,/el\.dataset\.lgMode==="frost"\?"frost":"material"/);
-  assert.match(glass,/supportsRefraction=mode==="material"&&supportsBackdropUrl\(\)/);
-  assert.match(glass,/el\.dataset\.lgRendering=mode==="frost"\?"frost":supportsRefraction\?"material-refraction":"material-frost"/);
-  assert.match(glass,/if\(mode==="frost"\|\|!supportsRefraction\)\{/);
-  assert.doesNotMatch(glass,/const value=supportsBackdropUrl\(\)\?/);
-  assert.doesNotMatch(glass,/willChange/);
-  assert.match(glass,/f\.id="lg-mat-"\+materialId\+"-v"\+\(\+\+v\)/);
-  assert.doesNotMatch(glass,/el\.style\.filter\s*=/);
+    'mapSize: 256','clipToShape: true','softEdge: true','depth: 0.65',
+    'curvature: 0.26','dispersion: 0.16','strength: 0.22','bend: 0.65',
+    'bendWidth: 0.07','frost: 3.5','brightness: 0.55','specular: 0.8',
+    'sheenAngle: 45','glow: 0.06','glowSpread: 1','glowFalloff: 0.8',
+    'sheen: 0.4','sheenWidth: 1'
+  ])assert.ok(src.includes(fragment),fragment);
+  assert.match(src,/function GlassContextMenu/);
+  assert.match(src,/<Glass optics=\{MENU_LENS\} className="glass-menu-material">/);
+  assert.match(src,/function GlassControl/);
+  assert.match(src,/<Glass optics=\{MENU_LENS\}/);
+});
+
+test('MDTXTRT contains no bespoke Liquid Glass renderer or implicit browser fallback',()=>{
+  const html=read('index.html'),src=uiSource(),server=read('server.mjs');
+  assert.match(html,/id="ux-root"/);
+  assert.match(html,/<script type="module" src="ui\.js\?v=[a-f0-9]{12}"><\/script>/);
+  assert.doesNotMatch(html,/glass\.js/);
+  assert.doesNotMatch(html,/data-lg/);
+  assert.doesNotMatch(html,/class="sheet/);
+  assert.doesNotMatch(src,/feDisplacementMap|backdrop-filter|supportsRefraction|supportsBackdropUrl|navigator\.userAgent|WebKit|Blink|Gecko/);
+  assert.doesNotMatch(server,/"glass\.js"/);
+  assert.match(server,/"ui\.js"/);
 });
 
 test('theme neutrals are chromatic derivatives of the active accent',()=>{
@@ -61,24 +66,23 @@ test('theme neutrals are chromatic derivatives of the active accent',()=>{
     assert.match(html,new RegExp('--'+name+':color-mix\\(in oklab,var\\(--accent\\) '+amount+'%,var\\(--bg\\)\\);'));
   }
   assert.match(html,/--line:color-mix\(in oklab,var\(--accent\) 22%,var\(--bg\)\);/);
-  assert.match(html,/\.menu-list > button:hover\{background:var\(--neutral-2\)\}/);
-  assert.match(html,/\.dialog-actions button\{[^}]*background:var\(--neutral-2\)/);
+  assert.match(html,/\.menu-list > button:hover,\.menu-list > button:focus-visible\{background:var\(--accent\);color:#fff\}/);
+  assert.match(html,/\.dialog-actions #dialogOk\{background:var\(--accent\);color:#fff\}/);
   assert.doesNotMatch(html,/--muted:#[0-9a-f]{3,8}/i);
-  assert.doesNotMatch(html,/html\.light \.sheet-ico\{background:rgba\(0,0,0/);
 });
 
-test('interface icon assets are vector SVG only',()=>{
-  const html=read('index.html');
+test('interface icon assets are vector SVG only and referenced from React source',()=>{
+  const html=read('index.html'),src=uiSource();
   assert.match(html,/rel="icon" type="image\/svg\+xml" href="favicon\.svg"/);
   assert.match(html,/rel="apple-touch-icon" href="logo\.svg"/);
   assert.ok(existsSync(new URL('../logo.svg',import.meta.url)));
   assert.equal(existsSync(new URL('../logo.png',import.meta.url)),false);
-  const icons=[...new Set([...html.matchAll(/data-icon="([^"]+)"/g)].map(m=>m[1]))];
-  assert.ok(icons.length>40);
-  for(const name of icons){
-    assert.match(name,/^[a-z0-9_]+$/);
-    assert.ok(existsSync(new URL('../icons/'+name+'.svg',import.meta.url)),name);
-  }
+  const names=new Set([
+    ...[...src.matchAll(/(?:name|icon)="([a-z0-9_]+)"/g)].map(m=>m[1]),
+    ...[...src.matchAll(/\["([a-z0-9_]+)",\s*"[^"]+"/g)].map(m=>m[1]),
+  ]);
+  assert.ok(names.size>40);
+  for(const name of names)assert.ok(existsSync(new URL('../icons/'+name+'.svg',import.meta.url)),name);
 });
 
 test('editor emits Bot API 10.3 RichText-compatible expandable quotes',()=>{
@@ -96,7 +100,7 @@ test('editor keeps target-specific publishing validation and code metadata',()=>
   assert.match(app,/function activeMedia\(\)/);
   assert.match(app,/redoUsesMedia=hist\.slice\(histI\+1\)/);
   assert.doesNotMatch(app,/toast\.textContent\s*=/);
-  assert.match(app,/const toastText = document\.createTextNode\(''\)/);
+  assert.match(app,/toastTextHost/);
   assert.match(app,/if\(window\.visualViewport\)\{/);
   assert.match(app,/function searchRegex\(term,exact=false\)/);
   const searchBlock=app.slice(app.indexOf('function matches(){'),app.indexOf("one('#findNext')"));
@@ -104,26 +108,30 @@ test('editor keeps target-specific publishing validation and code metadata',()=>
   assert.match(searchBlock,/matchAll\(searchRegex\(term\)\)/);
 });
 
-test('server exposes every referenced local SVG icon and vector app icon',()=>{
-  const html=read('index.html'),server=read('server.mjs');
-  const icons=[...new Set([...html.matchAll(/data-icon="([^"]+)"/g)].map(m=>m[1]))];
-  for(const name of icons)assert.ok(server.includes('"'+name+'"')||server.includes('icons/'+name+'.svg'),name);
+test('server exposes every React-referenced local SVG icon and vector app icon',()=>{
+  const src=uiSource(),server=read('server.mjs');
+  const names=new Set([
+    ...[...src.matchAll(/(?:name|icon)="([a-z0-9_]+)"/g)].map(m=>m[1]),
+    ...[...src.matchAll(/\["([a-z0-9_]+)",\s*"[^"]+"/g)].map(m=>m[1]),
+  ]);
+  for(const name of names)assert.ok(server.includes('"'+name+'"')||server.includes('icons/'+name+'.svg'),name);
   assert.match(server,/"logo\.svg"/);
   assert.doesNotMatch(server,/"logo\.png"/);
 });
 
-test('UI preserves portrait phone contract, no zoom, focus semantics and 44px targets',()=>{
-  const html=read('index.html');
+test('UI preserves compact portrait contract, disabled zoom and hidden scrollbar chrome',()=>{
+  const html=read('index.html'),src=uiSource();
   assert.match(html,/minimum-scale=1, maximum-scale=1, user-scalable=no/);
+  assert.match(html,/\*\{box-sizing:border-box;scrollbar-width:none\}/);
+  assert.match(html,/\*::-webkit-scrollbar\{width:0;height:0;display:none\}/);
   assert.match(html,/:where\(button,input,textarea,\[contenteditable="true"\]\):focus-visible/);
-  assert.match(html,/id="toast" role="status" aria-live="polite" aria-atomic="true"/);
-  assert.match(html,/id="dialogMenu" popover="manual" role="dialog" aria-modal="true" aria-labelledby="dialogLabel"/);
-  assert.match(html,/id="deviceGate" role="dialog" aria-modal="true"/);
   assert.match(html,/@media \(orientation:landscape\),\(min-width:760px\)/);
-  assert.doesNotMatch(html,/@media \(min-width:760px\)\{\s*\.meta/);
-  assert.match(html,/--meta-h:52px/);
-  assert.match(html,/--bar-h:52px/);
-  assert.match(html,/min-width:44px;height:44px/);
+  assert.match(html,/--bar-h:46px/);
+  assert.match(html,/\.glass-menu\{[\s\S]*?width:min\(210px,calc\(100vw - 16px\)\)/);
+  assert.match(html,/height:24px;min-height:24px/);
+  assert.match(html,/\.bar-wrap\{[\s\S]*?width:210px;max-width:calc\(100vw - 24px\)/);
+  assert.match(src,/id="toast" role="status" aria-live="polite" aria-atomic="true"/);
+  assert.match(src,/id="dialogMenu"[\s\S]*?popover="manual"[\s\S]*?role="dialog"[\s\S]*?aria-modal="true"/);
 });
 
 test('Telegram Mini App requires phone platform and locks portrait through the official API',()=>{
@@ -147,35 +155,38 @@ test('server follows Bot API 10.3 Rich Message contracts without message downgra
   assert.doesNotMatch(server,/telegramCall\("sendMessage"/);
 });
 
-test('execution toolchain is pinned across local, CI and Railway builds',()=>{
+test('execution toolchain is pinned and CI verifies generated UI without mutating main',()=>{
   const pkg=JSON.parse(read('package.json'));
   const lock=JSON.parse(read('package-lock.json'));
   const workflow=read('.github/workflows/regression.yml');
   const railpack=JSON.parse(read('railpack.json'));
-  assert.equal(pkg.packageManager,undefined);
   assert.deepEqual(pkg.engines,{node:'24.21.0'});
   assert.equal(pkg.devEngines.runtime.version,'24.21.0');
   assert.equal(pkg.devEngines.runtime.onFail,'error');
-  assert.equal(pkg.devEngines.packageManager,undefined);
   assert.deepEqual(lock.packages[''].engines,pkg.engines);
+  assert.match(workflow,/permissions:\s*\n\s*contents: read/);
   assert.match(workflow,/actions\/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7\.0\.1/);
   assert.match(workflow,/actions\/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7\.0\.0/);
-  assert.match(workflow,/node-version-file: package\.json/);
   assert.match(workflow,/test "\$\(npm --version\)" = "11\.19\.0"/);
+  assert.match(workflow,/npm run build/);
+  assert.match(workflow,/git diff --exit-code -- ui\.js/);
+  assert.doesNotMatch(workflow,/git push|contents: write/);
   assert.deepEqual(railpack.steps.install.deployOutputs,[]);
   assert.equal(railpack.steps.install.commands.at(-2),'npm --version | grep -Fx 11.19.0');
   assert.equal(railpack.steps.install.commands.at(-1),'npm ci');
 });
 
-test('architecture provenance is shipped with the repository and adapted source',()=>{
+test('architecture provenance records official package use and copied example ownership',()=>{
   assert.ok(existsSync(new URL('../PROVENANCE.md',import.meta.url)));
   const provenance=read('PROVENANCE.md');
-  const glass=read('glass.js');
-  assert.match(provenance,/romastefale\/liquid-glass/);
+  const architecture=read('ARCHITECTURE.md');
+  assert.match(provenance,/@samasante\/liquid-glass/);
+  assert.match(provenance,/examples\/GlassContextMenu\.tsx/);
+  assert.match(provenance,/MIT/);
   assert.match(provenance,/Sam Asante/);
   assert.match(provenance,/sendRichMessage/);
   assert.match(provenance,/telegra\.ph\/api/);
-  assert.match(glass,/Reference: https:\/\/github\.com\/romastefale\/liquid-glass/);
-  assert.match(glass,/4e7b769e1df7e5a7d3669fef22417fe3d2f79ade/);
-  assert.match(glass,/© Sam Asante, MIT License/);
+  assert.match(architecture,/React/);
+  assert.match(architecture,/@samasante\/liquid-glass/);
+  assert.match(architecture,/no local displacement-map renderer/i);
 });
