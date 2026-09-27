@@ -17,7 +17,8 @@ test('all frost chrome surfaces are liquid-glass material targets without CSS fa
   assert.equal(tags.length,13);
   for(const tag of tags)assert.match(tag,/\bdata-lg(?:\s|=|>)/,tag);
   assert.doesNotMatch(html,/(?:-webkit-)?backdrop-filter\s*:/);
-  assert.match(html,/class="bar frost"\s+data-lg\s+data-lg-wide\s+id="typebar"/);
+  assert.match(html,/class="bar frost"\s+data-lg\s+id="typebar"/);
+  assert.doesNotMatch(html,/data-lg-wide/);
   assert.match(html,/class="brand frost"\s+data-lg/);
   assert.equal((html.match(/class="sheet frost"\s+data-lg/g)||[]).length,8);
   assert.match(html,/class="toast frost"\s+data-lg/);
@@ -35,7 +36,7 @@ test('liquid-glass engine retains binding material optics on every chrome surfac
   assert.match(glass,/inset 0 1px 0 rgba\(255,255,255,\.55\).*inset 0 0 0 1px rgba\(255,255,255,\.12\)/s);
   assert.doesNotMatch(glass,/data-lg-wide/);
   assert.match(glass,/f\.id="lg-mat-"\+materialId\+"-v"\+\(\+\+v\)/);
-  assert.match(glass,/el\.style\.filter='none'/);
+  assert.doesNotMatch(glass,/el\.style\.filter\s*=/);
 });
 
 test('interface icon assets are vector SVG only',()=>{
