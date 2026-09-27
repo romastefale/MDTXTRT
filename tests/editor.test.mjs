@@ -79,10 +79,10 @@ function page(setup={}){
 
   for(const [key,value] of Object.entries(setup.local||{}))w.localStorage.setItem(key,value);
   w.__requests=[];
-  w.fetch=setup.fetch||async(url,options={})=>{
+  w.fetch=setup.fetch||(async(url,options={})=>{
     w.__requests.push({url:String(url),options});
     return {ok:false,status:404,json:async()=>({error:'not found'})};
-  };
+  });
 
   if(setup.tg){
     const back={show(){},hide(){},onClick(){}};
