@@ -13,6 +13,18 @@ function required(name){
   if(!value)throw new Error("Configuração ausente: "+name);
   return value;
 }
+class HttpError extends Error{
+  constructor(status,message){
+    super(message);
+    this.name="HttpError";
+    this.status=status;
+  }
+}
+function asHttpError(error,status,fallback){
+  if(error instanceof HttpError)return error;
+  return new HttpError(status,error instanceof Error&&error.message?error.message:fallback);
+}
+
 function httpsUrl(name){
   const value=required(name);
   let url;
@@ -311,56 +323,61 @@ function richEmojiImage(value){
 }
 
 async function sendRich(initData,html,file=null){
-  richValid(html);
-  const { chatId } = userFromInitData(String(initData || ""));
-  const doc = parseDocument(String(html));
-  const media = [];
-  let attached = false;
-  const kinds = { img:"photo",video:"video",audio:"audio","tg-document":"document" };
-  const visit = node => {
-    if (node.type === "tag" && kinds[node.name]) {
-      const kind = kinds[node.name], src = node.attribs.src;
-      if(node.name==="img"&&richEmojiImage(src)){
-        node.children?.forEach(visit);
-        return;
-      }
-      let id, source;
-      if (/^https?:\/\//i.test(src)) {
-        id = randomUUID().replace(/-/g, "");
-        source = src;
-      } else if (src.startsWith("tg://")) {
-        const url = new URL(src);
-        id = url.searchParams.get("id") || "";
-        const fileKind=kind==="audio"&&file?.kind==="voice"?"voice":({photo:"image",video:"video",audio:"audio",document:"document"})[kind];
-        if(file&&id===file.id&&url.hostname===kind&&file.kind===fileKind){
-          source="attach://upload";
-          attached=true;
-        }else{
-          throw new Error("Anexe a mídia novamente antes de publicar");
+  let body;
+  try{
+    richValid(html);
+    const { chatId } = userFromInitData(String(initData || ""));
+    const doc = parseDocument(String(html));
+    const media = [];
+    let attached = false;
+    const kinds = { img:"photo",video:"video",audio:"audio","tg-document":"document" };
+    const visit = node => {
+      if (node.type === "tag" && kinds[node.name]) {
+        const kind = kinds[node.name], src = node.attribs.src;
+        if(node.name==="img"&&richEmojiImage(src)){
+          node.children?.forEach(visit);
+          return;
         }
-      } else {
-        throw new Error("Endereço de mídia inválido");
+        let id, source;
+        if (/^https?:\/\//i.test(src)) {
+          id = randomUUID().replace(/-/g, "");
+          source = src;
+        } else if (src.startsWith("tg://")) {
+          const url = new URL(src);
+          id = url.searchParams.get("id") || "";
+          const fileKind=kind==="audio"&&file?.kind==="voice"?"voice":({photo:"image",video:"video",audio:"audio",document:"document"})[kind];
+          if(file&&id===file.id&&url.hostname===kind&&file.kind===fileKind){
+            source="attach://upload";
+            attached=true;
+          }else{
+            throw new Error("Anexe a mídia novamente antes de publicar");
+          }
+        } else {
+          throw new Error("Endereço de mídia inválido");
+        }
+        if (!/^[A-Za-z0-9_-]{1,64}$/.test(id)) throw new Error("Identificador de mídia inválido");
+        node.attribs.src = `tg://${kind}?id=${id}`;
+        const mediaType=kind==="audio"&&file?.kind==="voice"&&source==="attach://upload"?"voice_note":kind;
+        media.push({id,media:{type:mediaType,media:source}});
       }
-      if (!/^[A-Za-z0-9_-]{1,64}$/.test(id)) throw new Error("Identificador de mídia inválido");
-      node.attribs.src = `tg://${kind}?id=${id}`;
-      const mediaType=kind==="audio"&&file?.kind==="voice"&&source==="attach://upload"?"voice_note":kind;
-      media.push({id,media:{type:mediaType,media:source}});
+      node.children?.forEach(visit);
+    };
+    doc.children.forEach(visit);
+    if (file && !attached) throw new Error("A mídia anexada não está no documento");
+    const rich = { html: DomUtils.getInnerHTML(doc) };
+    if (media.length) rich.media = media;
+    body = { chat_id: chatId, rich_message: rich };
+    if (file) {
+      const kind={image:"photo",video:"video",audio:"audio",voice:"voice_note",document:"document"}[file.kind];
+      if (!kind || !/^[A-Za-z0-9_-]{1,64}$/.test(file.id) || !["image/", "video/", "audio/", "application/", "text/"].some(prefix=>file.mime.startsWith(prefix))) throw new Error("Mídia inválida");
+      const form = new FormData();
+      form.set("chat_id", chatId);
+      form.set("rich_message", JSON.stringify(body.rich_message));
+      form.set("upload", new Blob([file.bytes], {type:file.mime}), file.name);
+      body = form;
     }
-    node.children?.forEach(visit);
-  };
-  doc.children.forEach(visit);
-  if (file && !attached) throw new Error("A mídia anexada não está no documento");
-  const rich = { html: DomUtils.getInnerHTML(doc) };
-  if (media.length) rich.media = media;
-  let body = { chat_id: chatId, rich_message: rich };
-  if (file) {
-    const kind={image:"photo",video:"video",audio:"audio",voice:"voice_note",document:"document"}[file.kind];
-    if (!kind || !/^[A-Za-z0-9_-]{1,64}$/.test(file.id) || !["image/", "video/", "audio/", "application/", "text/"].some(prefix=>file.mime.startsWith(prefix))) throw new Error("Mídia inválida");
-    const form = new FormData();
-    form.set("chat_id", chatId);
-    form.set("rich_message", JSON.stringify(body.rich_message));
-    form.set("upload", new Blob([file.bytes], {type:file.mime}), file.name);
-    body = form;
+  }catch(error){
+    throw asHttpError(error,400,"Dados inválidos para publicação");
   }
   const msg = await telegramCall("sendRichMessage", body);
   return { via: "sendRichMessage", messageId: msg.message_id };
@@ -1054,15 +1071,16 @@ const server = createServer(async (req, res) => {
         return;
       }
       try {
-        const media=await readMedia(req);
+        let media;
+        try{media=await readMedia(req);}catch(error){throw asHttpError(error,400,"Mídia inválida");}
         const body=media.fields;
-        if (typeof body.initData !== "string" || typeof body.html !== "string") throw new Error("Os dados do envio estão incompletos");
+        if (typeof body.initData !== "string" || typeof body.html !== "string") throw new HttpError(400,"Os dados do envio estão incompletos");
         const result=await sendRich(body.initData,body.html,media.file?{...media.file,kind:body.kind,id:body.id}:null);
         res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
         res.end(JSON.stringify(result));
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Não foi possível publicar no Telegram";
-        const code = /inválid[ao]s?|expirada|ausente|excede|Conteúdo vazio|Abra pelo|solicitação|dados do envio|Escreva algo|Anexe a mídia|identificador de mídia|endereço de mídia|mídia anexada|deve usar HTTPS|Texto para copiar|Escopo de chat|Opção de login|Atributo de ação|URL de botão|Referência|Texto de botão/i.test(msg) ? 400 : 500;
+        const code = err instanceof HttpError ? err.status : 502;
         res.writeHead(code, { "content-type": "application/json; charset=utf-8" });
         res.end(JSON.stringify({ error: msg }));
       }
