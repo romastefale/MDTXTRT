@@ -140,6 +140,16 @@ test('server rejects invalid web-app, copy-text and reference contracts before T
   assert.equal(badRef.status,400);
 });
 
+test('Rich Message text limits use Unicode characters and button text stays within the Bot API contract',async()=>{
+  const valid=await formPost('/api/telegram/send',{initData:init(),html:'<p>'+ 'á'.repeat(20000)+'</p>'});
+  assert.equal(valid.status,200);
+  const tooLong=await formPost('/api/telegram/send',{initData:init(),html:'<p>'+ 'a'.repeat(32769)+'</p>'});
+  assert.equal(tooLong.status,400);
+  assert.match(tooLong.data.error,/32768 caracteres/);
+  const invalidButton=await formPost('/api/telegram/send',{initData:init(),html:'<tg-button-row><tg-button type="callback_data" data="open"><b>Open</b></tg-button></tg-button-row>'});
+  assert.equal(invalidButton.status,400);
+});
+
 test('corrupt persisted handoff is discarded instead of breaking requests',async()=>{
   const handoff='a'.repeat(32);
   writeFileSync(join(dir,'handoffs',handoff+'.json'),'{bad json');
