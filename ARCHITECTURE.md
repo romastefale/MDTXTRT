@@ -40,6 +40,10 @@ This document records the implementation boundaries that are authoritative for M
 - Material-mode browser capability is an explicit rendering profile on each surface through `data-lg-rendering`: `material-refraction` when the reference's `backdrop-filter: url(#…)` path is available, `material-frost` where the reference documents material mode as frost + tint + edge only, and `frost` for intentionally frost-only wide surfaces.
 - The WebKit/Gecko `material-frost` profile is not presented as equivalent refraction. If cross-browser bending becomes a product requirement, the implementation must move to one of the reference's copy/in-place refraction architectures instead of silently substituting blur.
 - Unsupported material refraction returns before displacement-map allocation, so no hidden ternary or late rendering fallback generates unused SVG lens work.
+- Compact interaction surfaces now derive from `examples/GlassContextMenu.tsx` in the pinned reference. Menus, dialogs, toasts, brand chrome, and compact control groups use the dedicated `context-menu` optics profile instead of the legacy full-width sheet paradigm.
+- The `context-menu` profile preserves the reference menu coefficients and symmetric RGB dispersion model. Runtime state is explicit as `context-menu-refraction` or `context-menu-frost`; no reduced renderer is presented as equivalent refraction.
+- Floating menus are anchored to their invoking controls, clamped to the visual viewport, and capped to compact dimensions. Long menus remain scrollable with scrollbar chrome hidden rather than expanding to fill the screen.
+- Browser zoom and pinch zoom remain disabled by the viewport contract and touch-action policy. This is an intentional product invariant, not a browser fallback.
 
 ## Execution and hosting boundary
 
