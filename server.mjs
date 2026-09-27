@@ -424,6 +424,7 @@ function richValid(html){
   };
   const media=new Set(["img","video","audio","tg-document"]);
   const blocks=new Set(["h1","h2","h3","h4","h5","h6","p","pre","footer","hr","ul","ol","li","blockquote","aside","figure","tg-map","tg-collage","tg-slideshow","table","tr","details","tg-math-block","tg-button-row"]);
+  const richTextContainers=new Set(["a","b","strong","i","em","u","ins","s","strike","del","code","mark","sub","sup","tg-spoiler","tg-reference","tg-emoji","tg-time","tg-math","figcaption","caption","summary","cite","aside"]);
   const buttons=new Set(["url","callback_data","web_app","login_url","switch_inline_query","switch_inline_query_current_chat","switch_inline_query_chosen_chat","copy_text","disabled"]);
   const bool=new Set(["reversed","checked","expandable","tg-spoiler","bordered","striped","compact","open","request-write-access","allow-user-chats","allow-bot-chats","allow-group-chats","allow-channel-chats"]);
   let blockCount=0,mediaCount=0;
@@ -436,13 +437,14 @@ function richValid(html){
     }
     if(!["https:","http:","tg:","mailto:","tel:"].includes(url.protocol))throw new Error("Link inválido");
   };
-  const walk=(node,depth=0,parent="",insideButton=false,insideCell=false)=>{
+  const walk=(node,depth=0,parent="",insideButton=false,insideCell=false,insideRichText=false)=>{
     if(depth>16)throw new Error("A mensagem excede 16 níveis de aninhamento");
     if(node.type==="text")return;
     if(node.type!=="tag"||!tags.has(node.name))throw new Error("O conteúdo contém elemento inválido: "+(node.name||node.type));
     if(insideButton&&!['tg-emoji','tg-time'].includes(node.name))throw new Error("Texto de botão aceita apenas texto, emoji personalizado e data/hora");
     if(blocks.has(node.name)&&++blockCount>500)throw new Error("A mensagem excede 500 blocos");
     if(insideCell&&blocks.has(node.name))throw new Error("Conteúdo de célula de tabela inválido");
+    if(insideRichText&&blocks.has(node.name))throw new Error("Conteúdo RichText inválido");
     const allowed=attrs[node.name]||new Set();
     for(const [key,value] of Object.entries(node.attribs)){
       if(!allowed.has(key))throw new Error("Atributo inválido em "+node.name+": "+key);
@@ -472,6 +474,7 @@ function richValid(html){
       }
     };
     if(["ul","ol"].includes(node.name))structuralChildren(new Set(["li"]),"Conteúdo de lista");
+    if(["tg-emoji","tg-math","tg-math-block"].includes(node.name))structuralChildren(new Set(),"Conteúdo textual");
     if(node.name==="tr")structuralChildren(new Set(["th","td"]),"Conteúdo de linha de tabela");
     if(node.name==="table"){
       structuralChildren(new Set(["caption","tr"]),"Conteúdo de tabela");
@@ -530,6 +533,7 @@ function richValid(html){
       if(Boolean(href)===Boolean(name))throw new Error("Âncora ou link inválido");
       if(href&&!href.startsWith("#"))urlValid(href);
       if(name&&!/^[A-Za-z0-9_-]{1,64}$/.test(name))throw new Error("Nome de âncora inválido");
+      if(name&&(parent!==""||node.children.some(child=>child.type!=="text"||(child.data||"").trim())))throw new Error("Âncora de bloco inválida");
     }
     if(node.name==="input"&&node.attribs.type!=="checkbox")throw new Error("Input Rich Message inválido");
     if(node.name==="tg-time"){
@@ -593,7 +597,8 @@ function richValid(html){
     }
     const childInsideButton=insideButton||node.name==="tg-button";
     const childInsideCell=insideCell||["th","td"].includes(node.name);
-    node.children.forEach(child=>walk(child,depth+1,node.name,childInsideButton,childInsideCell));
+    const childInsideRichText=insideRichText||richTextContainers.has(node.name)||(node.name==="blockquote"&&node.attribs.expandable!==undefined);
+    node.children.forEach(child=>walk(child,depth+1,node.name,childInsideButton,childInsideCell,childInsideRichText));
   };
   doc.children.forEach(node=>walk(node));
 }
