@@ -1,4 +1,4 @@
-import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { createReadStream, existsSync, statSync, readFileSync, writeFileSync, renameSync, mkdirSync, unlinkSync, readdirSync } from "node:fs";
 import { DomUtils, parseDocument } from "htmlparser2";
 import Busboy from "busboy";
@@ -126,6 +126,18 @@ function userFromInitData(initData) {
   try { user = JSON.parse(userRaw); } catch { throw new Error("Dados da sessão inválidos"); }
   if (!user?.id) throw new Error("Usuário Telegram ausente");
   return { chatId: String(user.id) };
+}
+
+function telegraphOwner(body){
+  const initData=typeof body?.initData==="string"?body.initData.trim():"";
+  const browserKey=typeof body?.browserKey==="string"?body.browserKey.trim():"";
+  if(initData&&browserKey)throw new HttpError(400,"Identidade de publicação ambígua");
+  if(initData){
+    try{return userFromInitData(initData).chatId;}
+    catch(error){throw asHttpError(error,400,"Sessão Telegram inválida");}
+  }
+  if(!/^[a-f0-9]{64}$/.test(browserKey))throw new HttpError(400,"Identidade do navegador inválida");
+  return "browser:"+createHash("sha256").update(browserKey).digest("hex");
 }
 
 async function telegramCall(method, body) {
@@ -897,14 +909,14 @@ async function verifyTelegraphPage(path) {
   return page;
 }
 
-async function publishTelegraphOne(title, content, path = "", user = "", doc = "") {
+async function publishTelegraphOne(title, content, path = "", owner = "", doc = "") {
   const pageTitle = String(title || "").trim();
   if (!pageTitle) throw new HttpError(400,"Dê um nome à página antes de publicar");
   if (Array.from(pageTitle).length > 256) throw new HttpError(400,"O nome da página deve ter até 256 caracteres");
   try{telegraphValid(content);}catch(error){throw asHttpError(error,400,"Conteúdo do Telegraph inválido");}
   if (!/^[a-f0-9-]{36}$/i.test(doc)) throw new HttpError(400,"Documento inválido");
   const pages = readPages();
-  const key = user + ":" + doc;
+  const key = owner + ":" + doc;
   const known = pages[key] || "";
   if (path && known !== path) throw new HttpError(400,"Esta página não pertence a este documento");
   const target = String(path || known).trim();
@@ -1043,9 +1055,8 @@ const server = createServer(async (req, res) => {
         let body;
         try{body=await readJson(req,20000);}catch(error){throw asHttpError(error,400,"Dados de recuperação inválidos");}
         if (!/^[a-f0-9-]{36}$/i.test(String(body?.doc || ""))) throw new HttpError(400,"Documento inválido");
-        let chatId;
-        try{({chatId}=userFromInitData(String(body?.initData||"")));}catch(error){throw asHttpError(error,400,"Sessão Telegram inválida");}
-        const path = readPages()[chatId + ":" + body.doc] || "";
+        const owner=telegraphOwner(body);
+        const path = readPages()[owner + ":" + body.doc] || "";
         if (!path) {
           res.writeHead(404, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
           res.end(JSON.stringify({ error: "Página não encontrada" }));
@@ -1139,10 +1150,8 @@ const server = createServer(async (req, res) => {
         let body;
         try{body=await readJson(req,150_000);}catch(error){throw asHttpError(error,400,"Dados da página inválidos");}
         if (!body || typeof body !== "object" || typeof body.title !== "string" || !Array.isArray(body.content) || (body.path !== undefined && typeof body.path !== "string")) throw new HttpError(400,"Os dados da página estão incompletos");
-        if(typeof body.initData!=="string")throw new HttpError(400,"Abra pelo bot no Telegram para publicar no Telegraph");
-        let chatId;
-        try{({chatId}=userFromInitData(body.initData));}catch(error){throw asHttpError(error,400,"Sessão Telegram inválida");}
-        const page = await publishTelegraph(body.title, body.content, body.path || "", chatId, body.doc);
+        const owner=telegraphOwner(body);
+        const page = await publishTelegraph(body.title, body.content, body.path || "", owner, body.doc);
         res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
         res.end(JSON.stringify({ url: page.url, path: page.path }));
       } catch (err) {
