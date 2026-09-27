@@ -936,8 +936,11 @@ one('#linkBtn').addEventListener('click',async()=>{
   const value=await ask('Link',current);
   if(value===null||!value.trim())return;
   let url;
-  try{url=new URL(value.trim(),location.href);if(!['http:','https:','mailto:','tel:','tg:'].includes(url.protocol))throw new Error('Use um link válido');}
-  catch(err){showToast(err.message||'Link inválido');return;}
+  try{
+    url=new URL(value.trim(),location.href);
+    const protocols=dest==='telegraph'?['http:','https:']:['http:','https:','mailto:','tel:','tg:'];
+    if(!protocols.includes(url.protocol))throw new Error(dest==='telegraph'?'O Telegraph exige link HTTP ou HTTPS':'Use um link válido');
+  }catch(err){showToast(err.message||'Link inválido');return;}
   try{
     restoreSel();
     const sel=window.getSelection();
