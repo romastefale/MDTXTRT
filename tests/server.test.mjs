@@ -158,6 +158,17 @@ test('server rejects invalid web-app, copy-text and reference contracts before T
   assert.equal(badRef.status,400);
 });
 
+test('Rich HTML list and table attributes are validated before Telegram',async()=>{
+  const badList=await formPost('/api/telegram/send',{initData:init(),html:'<ol type="z"><li>item</li></ol>'});
+  assert.equal(badList.status,400);
+  const badCell=await formPost('/api/telegram/send',{initData:init(),html:'<table><tr><td align="justify">x</td></tr></table>'});
+  assert.equal(badCell.status,400);
+  const nestedBlock=await formPost('/api/telegram/send',{initData:init(),html:'<table><tr><td><p>x</p></td></tr></table>'});
+  assert.equal(nestedBlock.status,400);
+  const valid=await formPost('/api/telegram/send',{initData:init(),html:'<ol start="3" type="a" reversed><li value="7" type="i">item</li></ol><table compact><tr><td colspan="2" rowspan="2" align="center" valign="middle">x</td></tr></table>'});
+  assert.equal(valid.status,200);
+});
+
 test('Rich Message buttons enforce one action contract and official button URL schemes',async()=>{
   const before=calls().filter(call=>call.method==='sendRichMessage').length;
   const wrongAction=await formPost('/api/telegram/send',{initData:init(),html:'<tg-button-row><tg-button type="disabled" data="x">Disabled</tg-button></tg-button-row>'});
