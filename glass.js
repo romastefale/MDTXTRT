@@ -320,14 +320,16 @@ let materialSeq=0;
 const material=el=>{
   if(el.dataset.liquidGlass)return;
   const mode=el.dataset.lgMode==="frost"?"frost":"material";
+  const supportsRefraction=mode==="material"&&supportsBackdropUrl();
   el.dataset.liquidGlass=mode;
+  el.dataset.lgRendering=mode==="frost"?"frost":supportsRefraction?"material-refraction":"material-frost";
   const frost="blur("+O.frost+"px) saturate("+O.saturate+")";
   const edge=document.createElement('span');
   edge.setAttribute('aria-hidden','true');
   edge.dataset.lgLayer='';
   Object.assign(edge.style,{position:'absolute',inset:'0',pointerEvents:'none',borderRadius:'inherit',boxShadow:'inset 0 1px 0 rgba(255,255,255,.55), inset 0 0 0 1px rgba(255,255,255,.12)'});
   el.append(edge);
-  if(mode==="frost"){
+  if(mode==="frost"||!supportsRefraction){
     el.style.backdropFilter=frost;
     el.style.webkitBackdropFilter=frost;
     return;
@@ -368,7 +370,7 @@ const material=el=>{
     b.setAttribute("scale",scale);
     f.setAttribute("x",-margin);f.setAttribute("y",-margin);f.setAttribute("width",x.width+2*margin);f.setAttribute("height",x.height+2*margin);
     f.id="lg-mat-"+materialId+"-v"+(++v);
-    const value=supportsBackdropUrl()?frost+" url(#"+f.id+")":frost;
+    const value=frost+" url(#"+f.id+")";
     el.style.backdropFilter=value;
     el.style.webkitBackdropFilter=value;
   };
