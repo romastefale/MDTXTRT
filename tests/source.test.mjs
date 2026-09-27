@@ -14,17 +14,17 @@ test('application scripts parse',()=>{
 test('script cache keys are versioned and stale app key is gone',()=>{
   const html=read('index.html');
   assert.match(html,/app\.js\?v=[a-f0-9]{12}/);
-  assert.match(html,/glass\.js\?v=[a-f0-9]{12}/);
+  assert.match(html,/glass\.js\?v=8c5538a2953d/);
   assert.doesNotMatch(html,/app\.js\?v=46df031c221a/);
 });
 
-test('all frost chrome surfaces are liquid-glass material targets without CSS fallback',()=>{
+test('all frost chrome surfaces use an explicit liquid-glass material mode',()=>{
   const html=read('index.html');
   const tags=[...html.matchAll(/<[^>]+\bclass="[^"]*\bfrost\b[^"]*"[^>]*>/g)].map(match=>match[0]);
   assert.equal(tags.length,13);
   for(const tag of tags)assert.match(tag,/\bdata-lg(?:\s|=|>)/,tag);
   assert.doesNotMatch(html,/(?:-webkit-)?backdrop-filter\s*:/);
-  assert.match(html,/class="bar frost"\s+data-lg\s+id="typebar"/);
+  assert.match(html,/class="bar frost"\s+data-lg\s+data-lg-mode="frost"\s+id="typebar"/);
   assert.doesNotMatch(html,/data-lg-wide/);
   assert.match(html,/class="brand frost"\s+data-lg/);
   assert.equal((html.match(/class="sheet frost"\s+data-lg/g)||[]).length,8);
@@ -42,6 +42,9 @@ test('liquid-glass engine retains binding material optics on every chrome surfac
   assert.match(glass,/feDisplacementMap/);
   assert.match(glass,/inset 0 1px 0 rgba\(255,255,255,\.55\).*inset 0 0 0 1px rgba\(255,255,255,\.12\)/s);
   assert.doesNotMatch(glass,/data-lg-wide/);
+  assert.match(glass,/el\.dataset\.lgMode==="frost"\?"frost":"material"/);
+  assert.match(glass,/if\(mode==="frost"\)\{/);
+  assert.doesNotMatch(glass,/willChange/);
   assert.match(glass,/f\.id="lg-mat-"\+materialId\+"-v"\+\(\+\+v\)/);
   assert.doesNotMatch(glass,/el\.style\.filter\s*=/);
 });

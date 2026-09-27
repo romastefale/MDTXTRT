@@ -319,8 +319,19 @@ const supportsBackdropUrl=()=>{
 let materialSeq=0;
 const material=el=>{
   if(el.dataset.liquidGlass)return;
-  el.dataset.liquidGlass="material";
-  el.style.willChange="backdrop-filter";
+  const mode=el.dataset.lgMode==="frost"?"frost":"material";
+  el.dataset.liquidGlass=mode;
+  const frost="blur("+O.frost+"px) saturate("+O.saturate+")";
+  const edge=document.createElement('span');
+  edge.setAttribute('aria-hidden','true');
+  edge.dataset.lgLayer='';
+  Object.assign(edge.style,{position:'absolute',inset:'0',pointerEvents:'none',borderRadius:'inherit',boxShadow:'inset 0 1px 0 rgba(255,255,255,.55), inset 0 0 0 1px rgba(255,255,255,.12)'});
+  el.append(edge);
+  if(mode==="frost"){
+    el.style.backdropFilter=frost;
+    el.style.webkitBackdropFilter=frost;
+    return;
+  }
   const svg=node("svg",{width:0,height:0,"aria-hidden":"true"});
   svg.dataset.lgLayer="";
   Object.assign(svg.style,{position:"absolute",width:"0",height:"0"});
@@ -340,18 +351,12 @@ const material=el=>{
   const sc=node("feComposite",{in:"sheenMask",in2:"lensOut",operator:"arithmetic",k1:"0",k2:String(O.specular),k3:"1",k4:"0"});
   f.append(flood,img,comp,r,rc,g,gc,b,bc,rg,rgb,sm,sc);
   defs.append(f);svg.append(defs);el.append(svg);
-  const edge=document.createElement('span');
-  edge.setAttribute('aria-hidden','true');
-  edge.dataset.lgLayer='';
-  Object.assign(edge.style,{position:'absolute',inset:'0',pointerEvents:'none',borderRadius:'inherit',boxShadow:'inset 0 1px 0 rgba(255,255,255,.55), inset 0 0 0 1px rgba(255,255,255,.12)'});
-  el.append(edge);
   const gen=createLensMapGenerator(O.mapSize);
   const materialId=++materialSeq;
   let v=0;
   const draw=()=>{
     const x=el.getBoundingClientRect();
     if(!x.width||!x.height)return;
-    const frost="blur("+O.frost+"px) saturate("+O.saturate+")";
     const cs=getComputedStyle(el);
     const rad=Math.min(parseFloat(cs.borderTopLeftRadius)||0,Math.min(x.width,x.height)/2);
     const map=gen.generate({lensHalfWidth:x.width/2,lensHalfHeight:x.height/2,borderRadius:rad,depth:O.depth,clipToShape:O.clipToShape,softEdge:O.softEdge,sheenAngle:O.sheenAngle,glow:O.glow,glowSpread:O.glowSpread,glowFalloff:O.glowFalloff,sheen:O.sheen,sheenWidth:O.sheenWidth,sheenFalloff:O.sheenFalloff,curvature:O.curvature,splay:O.splay,bend:O.bend,bendWidth:O.bendWidth});
