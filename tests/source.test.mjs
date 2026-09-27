@@ -14,7 +14,7 @@ test('application scripts parse',()=>{
 test('script cache keys are versioned and stale app key is gone',()=>{
   const html=read('index.html');
   assert.match(html,/app\.js\?v=[a-f0-9]{12}/);
-  assert.match(html,/glass\\.js\\?v=7f54cec710ce/);
+  assert.match(html,/glass\.js\?v=7f54cec710ce/);
   assert.doesNotMatch(html,/app\.js\?v=46df031c221a/);
 });
 
