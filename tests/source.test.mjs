@@ -1,6 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync,existsSync} from 'node:fs';
+import {createHash} from 'node:crypto';
 import vm from 'node:vm';
 
 const root=new URL('../',import.meta.url);
@@ -11,6 +12,12 @@ test('application controller parses and canonical React bundle is committed',()=
   assert.doesNotThrow(()=>new vm.Script(read('app.js'),{filename:'app.js'}));
   assert.ok(existsSync(new URL('../ui.js',import.meta.url)));
   assert.equal(existsSync(new URL('../glass.js',import.meta.url)),false);
+});
+
+test('ui.js cache buster follows the committed Git blob SHA',()=>{
+  const html=read('index.html'),ui=readFileSync(new URL('../ui.js',import.meta.url));
+  const sha=createHash('sha1').update(Buffer.from('blob '+ui.length+'\0')).update(ui).digest('hex').slice(0,12);
+  assert.match(html,new RegExp('ui\\.js\\?v='+sha));
 });
 
 test('official Liquid Glass React dependencies and deterministic build are pinned',()=>{
