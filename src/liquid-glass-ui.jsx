@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useLayoutEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { flushSync } from "react-dom";
 import { Glass } from "@samasante/liquid-glass";
@@ -32,6 +32,10 @@ export const MENU_LENS = {
 };
 
 const MENU_RADIUS = 9;
+// Long control bars need frost and an edge, not a stretched displacement lens.
+const CONTROL_LENS = { ...MENU_LENS, strength: 0, bend: 0, curvature: 0, dispersion: 0, frost: 2, brightness: 0.12, sheen: 0.25 };
+// A notification is small enough for a softer, independent lens.
+const TOAST_LENS = { ...MENU_LENS, depth: 1, curvature: 0.5, strength: 0.17, bendWidth: 0.12, frost: 3, brightness: 0.22, sheen: 1.3 };
 
 function Icon({ name }) {
   return <span className="ui-icon" data-icon={name} aria-hidden="true" />;
@@ -55,6 +59,20 @@ export function GlassContextMenu({
   placement = "auto",
   ...props
 }) {
+  const contentRef = useRef(null);
+  const [size, setSize] = useState({ width: 0, height: 0 });
+  useLayoutEffect(() => {
+    const content = contentRef.current;
+    if (!content) return;
+    const measure = () => {
+      const { width, height } = content.getBoundingClientRect();
+      setSize(old => old.width === width && old.height === height ? old : { width, height });
+    };
+    const observer = new ResizeObserver(measure);
+    observer.observe(content);
+    measure();
+    return () => observer.disconnect();
+  }, []);
   return (
     <div
       id={id}
@@ -68,8 +86,12 @@ export function GlassContextMenu({
         optics={MENU_LENS}
         className="glass-menu-material"
         style={{ display: "block", width: "100%" }}
+        width={size.width || undefined}
+        height={size.height || undefined}
+        radius={MENU_RADIUS}
+        refract={size.width && size.height ? <div aria-hidden="true" className="glass-menu-wallpaper" /> : undefined}
       >
-        <div className="glass-menu-content">{children}</div>
+        <div ref={contentRef} className="glass-menu-content">{children}</div>
       </Glass>
     </div>
   );
@@ -78,7 +100,7 @@ export function GlassContextMenu({
 function GlassControl({ className = "", children, style, ...props }) {
   return (
     <Glass
-      optics={MENU_LENS}
+      optics={CONTROL_LENS}
       className={className}
       style={{ display: "flex", alignItems: "center", ...style }}
       {...props}
@@ -299,7 +321,7 @@ function FindMenu() {
 function Toast() {
   return (
     <div className="toast" id="toast" role="status" aria-live="polite" aria-atomic="true">
-      <Glass optics={MENU_LENS} className="toast-material">
+      <Glass optics={TOAST_LENS} className="toast-material">
         <span className="toast-content" id="toastTextHost" />
       </Glass>
     </div>
