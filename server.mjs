@@ -304,6 +304,12 @@ function saveHandoff(draft, file) {
   }
 }
 
+function richEmojiImage(value){
+  let url;
+  try{url=new URL(String(value||""));}catch{return false;}
+  return url.protocol==="tg:"&&url.hostname==="emoji"&&/^\d+$/.test(url.searchParams.get("id")||"")&&[...url.searchParams.keys()].every(key=>key==="id");
+}
+
 async function sendRich(initData,html,file=null){
   richValid(html);
   const { chatId } = userFromInitData(String(initData || ""));
@@ -314,6 +320,10 @@ async function sendRich(initData,html,file=null){
   const visit = node => {
     if (node.type === "tag" && kinds[node.name]) {
       const kind = kinds[node.name], src = node.attribs.src;
+      if(node.name==="img"&&richEmojiImage(src)){
+        node.children?.forEach(visit);
+        return;
+      }
       let id, source;
       if (/^https?:\/\//i.test(src)) {
         id = randomUUID().replace(/-/g, "");
@@ -417,10 +427,12 @@ function richValid(html){
       if(!allowed.has(key))throw new Error("Atributo inválido em "+node.name+": "+key);
       if(bool.has(key)&&value!=="")throw new Error("Atributo booleano inválido: "+key);
     }
-    if(media.has(node.name)){
+    const emojiImage=node.name==="img"&&richEmojiImage(node.attribs.src);
+    if(media.has(node.name)&&!emojiImage){
       if(++mediaCount>50)throw new Error("A mensagem excede 50 mídias");
       if(!["","figure","tg-collage","tg-slideshow"].includes(parent))throw new Error("Mídia precisa ser um bloco separado");
     }
+    if(emojiImage&&!node.attribs.alt)throw new Error("Emoji personalizado precisa de texto alternativo");
     if(node.name==="figcaption"&&!["figure","tg-collage","tg-slideshow"].includes(parent))throw new Error("Legenda fora de bloco de mídia");
     if(node.name==="cite"&&!["figcaption","blockquote","aside"].includes(parent))throw new Error("Crédito fora de citação ou legenda");
     if(node.name==="caption"&&parent!=="table")throw new Error("Legenda de tabela inválida");
@@ -444,7 +456,10 @@ function richValid(html){
         if(cols>20)throw new Error("A tabela excede 20 colunas");
       }
     }
-    if(node.name==="code"&&node.attribs.class&&!/^language-[a-z0-9+-]+$/i.test(node.attribs.class))throw new Error("Linguagem de código inválida");
+    if(node.name==="code"&&node.attribs.class){
+      if(!/^language-[a-z0-9+-]+$/i.test(node.attribs.class))throw new Error("Linguagem de código inválida");
+      if(parent!=="pre")throw new Error("Linguagem de código exige bloco pre");
+    }
     if(node.name==="a"){
       const href=node.attribs.href,name=node.attribs.name;
       if(Boolean(href)===Boolean(name))throw new Error("Âncora ou link inválido");
@@ -507,7 +522,7 @@ function richValid(html){
       }
 
     }
-    if(media.has(node.name)){
+    if(media.has(node.name)&&!emojiImage){
       if(!node.attribs.src)throw new Error("Mídia sem endereço");
       urlValid(node.attribs.src,true);
     }
