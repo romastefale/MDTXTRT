@@ -146,11 +146,11 @@ test('execution toolchain is pinned across local, CI and Railway builds',()=>{
   const lock=JSON.parse(read('package-lock.json'));
   const workflow=read('.github/workflows/regression.yml');
   const railpack=JSON.parse(read('railpack.json'));
-  assert.equal(pkg.packageManager,'npm@11.20.0');
-  assert.deepEqual(pkg.engines,{node:'24.21.0',npm:'11.20.0'});
+  assert.equal(pkg.packageManager,'npm@11.19.0');
+  assert.deepEqual(pkg.engines,{node:'24.21.0',npm:'11.19.0'});
   assert.equal(pkg.devEngines.runtime.version,'24.21.0');
   assert.equal(pkg.devEngines.runtime.onFail,'error');
-  assert.equal(pkg.devEngines.packageManager.version,'11.20.0');
+  assert.equal(pkg.devEngines.packageManager.version,'11.19.0');
   assert.equal(pkg.devEngines.packageManager.onFail,'error');
   assert.deepEqual(lock.packages[''].engines,pkg.engines);
   assert.match(workflow,/actions\/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7\.0\.1/);
