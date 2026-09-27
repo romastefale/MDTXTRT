@@ -90,9 +90,9 @@ export function GlassContextMenu({ id, children, className = "", popover = "auto
   );
 }
 
-function GlassControl({ className = "", children }) {
+function GlassControl({ className = "", children, ...props }) {
   return (
-    <Glass optics={MENU_LENS} className={className}>
+    <Glass optics={MENU_LENS} className={className} {...props}>
       {children}
     </Glass>
   );
