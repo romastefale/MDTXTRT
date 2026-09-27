@@ -189,9 +189,12 @@ function draftValid(draft) {
   if (draft.action !== undefined && draft.action !== "publish") throw new Error("Ação do rascunho inválida");
   if (!/^[a-f0-9-]{36}$/i.test(String(draft.docId || ""))) throw new Error("Documento inválido");
   if (typeof draft.telegraphPath !== "string" || draft.telegraphPath.length > 256) throw new Error("Página do rascunho inválida");
+  if (typeof draft.importedMd !== "string" || typeof draft.importedTxt !== "string" || typeof draft.importedHtml !== "string") throw new Error("Origem importada do rascunho inválida");
+  if (Buffer.byteLength(draft.importedMd,"utf8")+Buffer.byteLength(draft.importedTxt,"utf8")+Buffer.byteLength(draft.importedHtml,"utf8") > 240_000) throw new Error("Origem importada do rascunho grande demais");
   const tags = new Set("a b strong i em u ins s strike del code mark sub sup tg-spoiler tg-reference tg-emoji tg-time tg-math h1 h2 h3 h4 h5 h6 p pre footer hr ul ol li input blockquote aside cite img video audio tg-document figure figcaption iframe tg-map tg-collage tg-slideshow table caption thead tbody tfoot tr th td details summary tg-math-block tg-button tg-button-row br div".split(" "));
   const attrs = new Set("href name class style src alt tg-spoiler start type reversed value checked disabled controls expandable unix format emoji-id lat long zoom width height bordered striped compact colspan rowspan align valign open url data query text forward-text request-write-access allow-user-chats allow-bot-chats allow-group-chats allow-channel-chats data-media-id data-media-missing".split(" "));
   const doc = parseDocument(draft.html);
+  const localMedia=[];
   const walk = node => {
     if (node.type === "text") return;
     if (node.type !== "tag" || !tags.has(node.name)) throw new Error("O rascunho contém marcação inválida");
@@ -199,7 +202,10 @@ function draftValid(draft) {
       if (!attrs.has(key)) throw new Error("O rascunho contém atributo inválido");
       if (key === "class" && !(/^language-[a-z0-9+-]+$/i.test(value) || value === "tg-footer")) throw new Error("O rascunho contém classe inválida");
       if (key === "style" && !(node.name === "tg-button" && ["link","primary","success","danger"].includes(value))) throw new Error("O rascunho contém estilo inválido");
-      if (key === "data-media-id" && !/^[A-Za-z0-9_-]{1,64}$/.test(value)) throw new Error("Identificador de mídia inválido");
+      if (key === "data-media-id") {
+        if (!/^[A-Za-z0-9_-]{1,64}$/.test(value)) throw new Error("Identificador de mídia inválido");
+        localMedia.push(value);
+      }
       if (["href","src","url"].includes(key) && value) {
         if (key === "href" && value.startsWith("#")) continue;
         let parsed;
@@ -210,6 +216,15 @@ function draftValid(draft) {
     node.children?.forEach(walk);
   };
   doc.children.forEach(walk);
+  if(localMedia.length>1)throw new Error("O rascunho contém mais de um anexo local");
+  if(draft.media!==null&&draft.media!==undefined){
+    if(!draft.media||typeof draft.media!=="object"||Array.isArray(draft.media)||!/^[A-Za-z0-9_-]{1,64}$/.test(String(draft.media.id||""))||!["image","video","audio","voice","document"].includes(draft.media.kind))throw new Error("Metadados de mídia do rascunho inválidos");
+  }
+  if(localMedia.length===1){
+    if(!draft.media||draft.media.id!==localMedia[0])throw new Error("Metadados de mídia do rascunho não correspondem ao anexo");
+  }else if(draft.media!==null&&draft.media!==undefined){
+    throw new Error("Metadados de mídia sem anexo local");
+  }
   return draft;
 }
 
