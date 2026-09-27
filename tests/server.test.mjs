@@ -187,6 +187,23 @@ test('Rich HTML details and button-row containers reject malformed structure loc
   assert.equal(valid.status,200);
 });
 
+test('Rich HTML RichText-only containers reject nested block markup locally',async()=>{
+  const expandable=await formPost('/api/telegram/send',{initData:init(),html:'<blockquote expandable><p>x</p></blockquote>'});
+  assert.equal(expandable.status,400);
+  const pullquote=await formPost('/api/telegram/send',{initData:init(),html:'<aside><p>x</p></aside>'});
+  assert.equal(pullquote.status,400);
+  const caption=await formPost('/api/telegram/send',{initData:init(),html:'<figure><img src="https://example.com/x.jpg"><figcaption><p>x</p></figcaption></figure>'});
+  assert.equal(caption.status,400);
+  const summary=await formPost('/api/telegram/send',{initData:init(),html:'<details><summary><p>x</p></summary>Body</details>'});
+  assert.equal(summary.status,400);
+  const formula=await formPost('/api/telegram/send',{initData:init(),html:'<tg-math><b>x</b></tg-math>'});
+  assert.equal(formula.status,400);
+  const nestedAnchor=await formPost('/api/telegram/send',{initData:init(),html:'<p><a name="section"></a></p>'});
+  assert.equal(nestedAnchor.status,400);
+  const valid=await formPost('/api/telegram/send',{initData:init(),html:'<a name="section"></a><blockquote expandable>Quote<br><cite>Author</cite></blockquote><aside>Pull <cite>Author</cite></aside><tg-math>x^2</tg-math>'});
+  assert.equal(valid.status,200);
+});
+
 test('Rich Message buttons enforce one action contract and official button URL schemes',async()=>{
   const before=calls().filter(call=>call.method==='sendRichMessage').length;
   const wrongAction=await formPost('/api/telegram/send',{initData:init(),html:'<tg-button-row><tg-button type="disabled" data="x">Disabled</tg-button></tg-button-row>'});
