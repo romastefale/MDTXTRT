@@ -259,16 +259,15 @@ test('Markdown block markers wait for content, convert in either typing order an
   w.close();
 });
 
-test('Markdown block markers accept element-anchored carets and non-breaking spaces',()=>{
+test('Markdown block markers accept element-anchored carets and non-breaking spaces once content exists',()=>{
   const w=page(),d=w.document,e=d.querySelector('#editor');
-  e.innerHTML='<div>#&nbsp;</div>';
+  e.innerHTML='<div>#&nbsp;Palavra</div>';
   const block=e.firstElementChild,range=d.createRange();
-  range.setStart(block,block.childNodes.length);range.collapse(true);
+  range.setStart(block,1);range.collapse(true);
   w.getSelection().removeAllRanges();w.getSelection().addRange(range);
   d.dispatchEvent(new w.Event('selectionchange'));
-  e.dispatchEvent(new w.Event('input',{bubbles:true}));
-  assert.ok(e.querySelector('h1'));
-  assert.equal(e.querySelector('h1')?.textContent,'');
+  e.dispatchEvent(new w.InputEvent('input',{bubbles:true,inputType:'insertText'}));
+  assert.equal(e.querySelector('h1')?.textContent,'Palavra');
   w.close();
 });
 
