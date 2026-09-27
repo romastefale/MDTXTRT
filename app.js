@@ -846,7 +846,7 @@ function toRichHTML(root){
   const allow=new Set(['a','b','strong','i','em','u','ins','s','strike','del','code','mark','sub','sup','tg-spoiler','tg-reference','tg-emoji','tg-time','tg-math','h1','h2','h3','h4','h5','h6','p','pre','footer','hr','ul','ol','li','input','blockquote','aside','cite','img','video','audio','tg-document','figure','figcaption','tg-map','tg-collage','tg-slideshow','table','caption','tr','th','td','details','summary','tg-math-block','tg-button','tg-button-row','br']);
   const unwrap=new Set(['div','article','section','span','thead','tbody','tfoot']);
   const amap={
-    a:['href','name'],ol:['start','type','reversed'],li:['value','type'],input:['type','checked'],
+    a:['href','name'],code:['class'],ol:['start','type','reversed'],li:['value','type'],input:['type','checked'],
     img:['src','alt','tg-spoiler'],video:['src','tg-spoiler'],audio:['src'],'tg-document':['src'],
     'tg-map':['lat','long','zoom','width','height'],table:['bordered','striped','compact'],
     th:['colspan','rowspan','align','valign'],td:['colspan','rowspan','align','valign'],
