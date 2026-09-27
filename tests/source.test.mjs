@@ -157,7 +157,7 @@ test('execution toolchain is pinned across local, CI and Railway builds',()=>{
   assert.match(workflow,/node-version-file: package\.json/);
   assert.match(workflow,/test "\$\(npm --version\)" = "11\.19\.0"/);
   assert.deepEqual(railpack.steps.install.deployOutputs,[]);
-  assert.equal(railpack.steps.install.commands.at(-2),'test "$(npm --version)" = "11.19.0"');
+  assert.equal(railpack.steps.install.commands.at(-2),'npm --version | grep -Fx 11.19.0');
   assert.equal(railpack.steps.install.commands.at(-1),'npm ci');
 });
 
