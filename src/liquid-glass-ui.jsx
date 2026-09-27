@@ -31,6 +31,13 @@ export const MENU_LENS = {
   sheenWidth: 1,
 };
 
+// Supported fork override: preserve the normative lens and only reduce the
+// brightness veil so the translucent chromatic material reads over flat themes.
+export const APP_GLASS_LENS = {
+  ...MENU_LENS,
+  brightness: 0.46,
+};
+
 const MENU_RADIUS = 9;
 
 function Icon({ name }) {
@@ -65,7 +72,7 @@ export function GlassContextMenu({
       {...props}
     >
       <Glass
-        optics={MENU_LENS}
+        optics={APP_GLASS_LENS}
         className="glass-menu-material"
         style={{ display: "block", width: "100%" }}
       >
@@ -78,7 +85,7 @@ export function GlassContextMenu({
 function GlassControl({ className = "", children, style, ...props }) {
   return (
     <Glass
-      optics={MENU_LENS}
+      optics={APP_GLASS_LENS}
       className={className}
       style={{ display: "flex", alignItems: "center", ...style }}
       {...props}
@@ -299,7 +306,7 @@ function FindMenu() {
 function Toast() {
   return (
     <div className="toast" id="toast" role="status" aria-live="polite" aria-atomic="true">
-      <Glass optics={MENU_LENS} className="toast-material">
+      <Glass optics={APP_GLASS_LENS} className="toast-material">
         <span className="toast-content" id="toastTextHost" />
       </Glass>
     </div>

@@ -39,9 +39,11 @@ test('React UX imports the official Glass primitive and follows GlassContextMenu
     'sheenAngle: 45','glow: 0.06','glowSpread: 1','glowFalloff: 0.8',
     'sheen: 0.4','sheenWidth: 1'
   ])assert.ok(src.includes(fragment),fragment);
+  assert.match(src,/export const APP_GLASS_LENS = \{[\s\S]*?\.\.\.MENU_LENS,[\s\S]*?brightness: 0\.46/);
   assert.match(src,/function GlassContextMenu/);
-  assert.match(src,/<Glass[\s\S]*?optics=\{MENU_LENS\}[\s\S]*?className="glass-menu-material"/);
+  assert.match(src,/<Glass[\s\S]*?optics=\{APP_GLASS_LENS\}[\s\S]*?className="glass-menu-material"/);
   assert.match(src,/function GlassControl/);
+  assert.equal((src.match(/optics=\{APP_GLASS_LENS\}/g)||[]).length,3);
   assert.match(src,/style=\{\{ display: "flex", alignItems: "center", \.\.\.style \}\}/);
   assert.match(src,/className="glass-menu-material"[\s\S]*?style=\{\{ display: "block", width: "100%" \}\}/);
 });
@@ -67,6 +69,12 @@ test('theme neutrals are chromatic derivatives of the active accent',()=>{
     assert.match(html,new RegExp('--'+name+':color-mix\\(in oklab,var\\(--accent\\) '+amount+'%,var\\(--bg\\)\\);'));
   }
   assert.match(html,/--line:color-mix\(in oklab,var\(--accent\) 22%,var\(--bg\)\);/);
+  assert.match(html,/--glass-tint:color-mix\(in oklab,var\(--accent\) 11%,transparent\);/);
+  assert.match(html,/html\.light\{[\s\S]*?--glass-tint:color-mix\(in oklab,var\(--accent\) 7%,transparent\);/);
+  assert.match(html,/\.seg,\.bar,\.theme-control\{[^}]*background:var\(--glass-tint\)/);
+  assert.match(html,/\.glass-menu-material,\.toast-material\{background:var\(--glass-tint\)\}/);
+  assert.match(html,/box-shadow:inset 0 0 0 \.5px var\(--glass-inner\),0 0 0 \.5px var\(--glass-edge\)/);
+  assert.match(html,/\.menu-divider::after\{[^}]*background:var\(--glass-edge\)\}/);
   assert.match(html,/\.menu-list > button:hover,\.menu-list > button:focus-visible\{background:var\(--accent\);color:#fff\}/);
   assert.match(html,/\.dialog-actions #dialogOk\{background:var\(--accent\);color:#fff\}/);
   assert.match(html,/html\.dark\{--accent:#269c65;--muted:#dcf1db;color-scheme:dark\}/);
