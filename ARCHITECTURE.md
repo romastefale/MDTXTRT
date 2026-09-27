@@ -25,7 +25,7 @@ This document records the implementation boundaries that are authoritative for M
 - Publishing uses the official Telegra.ph API and its `Node` / `NodeElement` content model.
 - Page creation and editing use `createPage` and `editPage`; persisted paths are verified with `getPage`.
 - The server enforces the documented 64 KB content limit before publication.
-- A Telegraph page path is bound to the authenticated Telegram user and MDTXTRT document identifier so an edit cannot be redirected to an unrelated page.
+- A Telegraph page path is bound to an explicit owner plus the MDTXTRT document identifier so an edit cannot be redirected to an unrelated page. Inside the Mini App, the owner is the Telegram identity verified from `initData`; in a standalone browser, the owner is the SHA-256 digest of a locally generated 256-bit capability key. The raw browser capability is never persisted by the server.
 - The Telegraph access token and page ownership mapping are durable state and must not be moved to an ephemeral filesystem.
 - If persisted page ownership exists but the corresponding access token is missing, startup fails closed. MDTXTRT never creates a replacement Telegraph account behind existing ownership mappings.
 - Telegra.ph request validation and ownership failures are typed locally as `400` (or explicit `404` for an absent owned page). Telegra.ph transport/API failures are surfaced as `502`; status classification does not depend on matching error strings.
@@ -40,8 +40,12 @@ This document records the implementation boundaries that are authoritative for M
 - There is no local displacement-map renderer, SVG-filter implementation, browser-engine detector, or compatibility renderer in MDTXTRT. `glass.js` was deleted rather than retained as a compatibility layer.
 - Browser rendering behavior belongs to `@samasante/liquid-glass` and follows its README/BROWSERS contract. MDTXTRT does not inspect the engine and does not substitute blur, screenshots, canvas copies, or a second visual implementation when browser capabilities differ.
 - When a component requires cross-browser bending rather than the package's material-mode behavior, it must migrate to the package's documented `refract`, in-place, or media-surface mode. A custom fallback is not an accepted migration path.
+- The top chrome has one safe-area-aware row: undo/redo in the left pill, the application title plus theme switch centered independently of the side controls, and destination/publication controls in the right pill. The title is not an interaction trigger.
+- Top pills, theme control, and the bottom formatting bar share one responsive control-size token. The bottom bar keeps the most frequent formatting actions in-line and places the accent-tinted “more” control at the far right.
+- Context menus preserve the `GlassContextMenu.tsx` compact scale (`210px` base width, `24px` rows, `9px` radius) and declare their invoking control as an anchor. Placement is clamped against the visual viewport and safe edges rather than expanding into full-screen sheets.
+- The light/dark preference is explicit and persisted. HTML/body background, browser `theme-color`, standalone status-bar metadata, and Telegram header/background/bottom-bar colors are updated from the same selected mode so system chrome cannot retain the opposite theme.
 - Menus and interaction chrome are compact, content-sized surfaces. Scrollbar chrome is hidden, and browser zoom/pinch zoom remains disabled by the explicit viewport/touch contract requested for this product.
-- `ui.js` is committed so GitHub Pages and Railway serve the same canonical artifact. CI rebuilds it and fails on any diff; CI never writes a corrective commit to `main`.
+- `ui.js` is committed so GitHub Pages and Railway serve the same canonical artifact. Read-only CI rebuilds it, uploads the generated bundle as a verification artifact, and fails on any diff; ordinary verification never writes a corrective commit to `main`.
 
 ## Execution and hosting boundary
 
