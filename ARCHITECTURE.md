@@ -32,14 +32,16 @@ This document records the implementation boundaries that are authoritative for M
 
 ## Liquid Glass design contract
 
-- The normative implementation reference is `romastefale/liquid-glass` at commit `4e7b769e1df7e5a7d3669fef22417fe3d2f79ade` (v0.1.1 lineage, MIT, © Sam Asante).
-- `glass.js` is an attributed plain-JavaScript adaptation of the reference material-mode optics and displacement-map technique; the adapted source itself carries the reference URL, pinned revision, author attribution, and MIT status.
-- Material chrome uses the reference optics vocabulary and values: refraction strength, depth, curvature, bend, dispersion, frost, saturation, sheen, glow, and specular gain.
-- Content remains crisp above the material surface. The glass treatment belongs to chrome; it is not decorative blur applied to document content.
-- The reference explicitly warns against stretching one displacement lens across a very wide dock-style panel. Such surfaces use an explicit frost-only material mode. This is a chosen material variant, not a runtime fallback.
-- Material-mode browser capability is an explicit rendering profile on each surface through `data-lg-rendering`: `material-refraction` when the reference's `backdrop-filter: url(#…)` path is available, `material-frost` where the reference documents material mode as frost + tint + edge only, and `frost` for intentionally frost-only wide surfaces.
-- The WebKit/Gecko `material-frost` profile is not presented as equivalent refraction. If cross-browser bending becomes a product requirement, the implementation must move to one of the reference's copy/in-place refraction architectures instead of silently substituting blur.
-- Unsupported material refraction returns before displacement-map allocation, so no hidden ternary or late rendering fallback generates unused SVG lens work.
+- The normative design and implementation reference is `romastefale/liquid-glass` at commit `4e7b769e1df7e5a7d3669fef22417fe3d2f79ade` (release 0.1.1, MIT, © Sam Asante).
+- MDTXTRT uses the reference through its published engine package, pinned as `@samasante/liquid-glass@0.1.1`, with React and React DOM as explicit runtime dependencies. The product does not maintain a parallel Liquid Glass engine.
+- The authored UX layer is `src/liquid-glass-ui.jsx`; `ui.js` is its deterministic production bundle. The source imports `Glass` directly from `@samasante/liquid-glass`.
+- Menu construction follows the reference's `examples/GlassContextMenu.tsx` “copy and own” model. MDTXTRT owns the application-specific menu shell and restyling while the optical primitive remains the package's `<Glass>`.
+- The copied menu optics remain traceable to that example: `mapSize 256`, `depth 0.65`, `curvature 0.26`, `dispersion 0.16`, `strength 0.22`, `bend 0.65`, `bendWidth 0.07`, `frost 3.5`, `brightness 0.55`, `specular 0.8`, `sheen 0.4`, and `sheenWidth 1`.
+- There is no local displacement-map renderer, SVG-filter implementation, browser-engine detector, or compatibility renderer in MDTXTRT. `glass.js` was deleted rather than retained as a compatibility layer.
+- Browser rendering behavior belongs to `@samasante/liquid-glass` and follows its README/BROWSERS contract. MDTXTRT does not inspect the engine and does not substitute blur, screenshots, canvas copies, or a second visual implementation when browser capabilities differ.
+- When a component requires cross-browser bending rather than the package's material-mode behavior, it must migrate to the package's documented `refract`, in-place, or media-surface mode. A custom fallback is not an accepted migration path.
+- Menus and interaction chrome are compact, content-sized surfaces. Scrollbar chrome is hidden, and browser zoom/pinch zoom remains disabled by the explicit viewport/touch contract requested for this product.
+- `ui.js` is committed so GitHub Pages and Railway serve the same canonical artifact. CI rebuilds it and fails on any diff; CI never writes a corrective commit to `main`.
 
 ## Execution and hosting boundary
 

@@ -2,15 +2,16 @@
 
 MDTXTRT keeps implementation provenance explicit so architectural references are used transparently and licenses remain attached to derived work.
 
-## Liquid Glass material architecture
+## Liquid Glass React architecture
 
-- Design and implementation reference: https://github.com/romastefale/liquid-glass
-- Reference revision used for the architecture contract: `4e7b769e1df7e5a7d3669fef22417fe3d2f79ade` (v0.1.1 lineage).
-- Upstream project credited by that repository: `@samasante/liquid-glass`, © Sam Asante.
-- License: MIT.
-- MDTXTRT file: `glass.js`.
-- Relationship: `glass.js` is an adapted plain-JavaScript implementation of the reference project's displacement-map / SVG backdrop-filter material architecture and its published material optics. MDTXTRT does not present that technique as independently originated.
-- Browser behavior follows the reference's documented material-mode split: Blink may use SVG backdrop displacement; WebKit/Gecko use the material frost + tint + edge profile unless the product is explicitly migrated to the reference's copy/in-place refraction architecture. MDTXTRT exposes the active profile through `data-lg-rendering` instead of claiming cross-engine optical equivalence.
+- Normative repository: https://github.com/romastefale/liquid-glass
+- Pinned normative revision: `4e7b769e1df7e5a7d3669fef22417fe3d2f79ade` (release 0.1.1).
+- Runtime engine: `@samasante/liquid-glass@0.1.1`, © Sam Asante, MIT.
+- Component reference: https://github.com/romastefale/liquid-glass/blob/main/examples/GlassContextMenu.tsx
+- MDTXTRT authored source: `src/liquid-glass-ui.jsx`; generated production artifact: `ui.js`.
+- Relationship: MDTXTRT imports the package's `Glass` primitive directly. Its context-menu component structure and `MENU_LENS` values are copied/adapted from the reference example under the project's documented “copy and own” model. The application shell, labels, editor controls, Telegram/Telegraph behavior, and product-specific styling remain MDTXTRT code.
+- MDTXTRT does not claim the refraction engine, signed-distance-field displacement technique, SVG filter implementation, WebKit fixes, or cross-browser renderer as independently originated. Those remain package implementation concerns.
+- The former local `glass.js` adaptation has been removed. No alternate displacement renderer or browser-specific visual fallback is retained in MDTXTRT.
 - The repository `LICENSE` retains the Sam Asante copyright notice alongside the MDTXTRT copyright notice.
 
 ## Telegram Bot API
