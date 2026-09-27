@@ -714,16 +714,31 @@ function readPages() {
 }
 
 function writePages(pages) {
-  writeFileSync(PAGES_FILE + ".tmp", JSON.stringify(pages), { mode: 0o600 });
-  renameSync(PAGES_FILE + ".tmp", PAGES_FILE);
+  const tmp=PAGES_FILE+".tmp";
+  try{
+    writeFileSync(tmp, JSON.stringify(pages), { mode: 0o600 });
+    renameSync(tmp, PAGES_FILE);
+  }catch(error){
+    try{if(existsSync(tmp))unlinkSync(tmp);}catch(cleanupError){console.error("Telegraph pages cleanup",cleanupError);}
+    throw error;
+  }
 }
 
 async function ensureTelegraphToken() {
   if (telegraphToken) return telegraphToken;
   const account = await telegraphCall("createAccount", { short_name: "MDTXTRT", author_name: "MDTXTRT" });
-  telegraphToken = account.access_token;
+  const token=String(account?.access_token||"").trim();
+  if(!token)throw new Error("O Telegraph não retornou uma credencial válida");
   mkdirSync(DATA, { recursive: true });
-  writeFileSync(TELEGRAPH_FILE, telegraphToken, { mode: 0o600 });
+  const tmp=TELEGRAPH_FILE+".tmp";
+  try{
+    writeFileSync(tmp, token, { mode: 0o600 });
+    renameSync(tmp, TELEGRAPH_FILE);
+  }catch(error){
+    try{if(existsSync(tmp))unlinkSync(tmp);}catch(cleanupError){console.error("Telegraph token cleanup",cleanupError);}
+    throw error;
+  }
+  telegraphToken=token;
   return telegraphToken;
 }
 
