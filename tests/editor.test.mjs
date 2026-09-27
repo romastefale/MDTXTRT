@@ -196,22 +196,26 @@ test('destination controls remain functional without changing editor shell',()=>
   w.close();
 });
 
-test('Telegraph title is visible in the editor and stays synchronized with the document name',()=>{
-  const w=page(),d=w.document,title=d.querySelector('#telegraphTitle'),menuName=d.querySelector('#docName');
-  assert.equal(title.hidden,true);
+test('Telegraph moves the existing document-name input into the editor title slot',async()=>{
+  const w=page(),d=w.document,slot=d.querySelector('#telegraphTitleSlot'),input=d.querySelector('#docName');
+  const tools=input.closest('.document-tools'),menu=tools.parentElement;
+  await wait(0);
+  assert.equal(slot.hidden,true);
+  assert.equal(tools.parentElement,menu);
   d.querySelector('#destBtn').click();
-  assert.equal(title.hidden,false);
-  assert.equal(menuName.closest('.document-tools').hidden,true);
-  title.value='Minha página';
-  title.dispatchEvent(new w.Event('input',{bubbles:true}));
-  assert.equal(menuName.value,'Minha página');
+  await wait(0);
+  assert.equal(slot.hidden,false);
+  assert.equal(tools.parentElement,slot);
+  assert.equal(input.getAttribute('placeholder'),'Título');
+  assert.equal(input.getAttribute('aria-label'),'Título da página Telegraph');
+  input.value='Minha página';
+  input.dispatchEvent(new w.Event('input',{bubbles:true}));
   assert.equal(w.eval('buildTelegraph().title'),'Minha página');
   d.querySelector('#destBtn').click();
-  assert.equal(title.hidden,true);
-  assert.equal(menuName.closest('.document-tools').hidden,false);
-  menuName.value='Arquivo local';
-  menuName.dispatchEvent(new w.Event('input',{bubbles:true}));
-  assert.equal(title.value,'Arquivo local');
+  await wait(0);
+  assert.equal(slot.hidden,true);
+  assert.equal(tools.parentElement,menu);
+  assert.equal(input.hasAttribute('placeholder'),false);
   w.close();
 });
 

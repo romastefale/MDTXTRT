@@ -232,16 +232,16 @@ test('plus menu keeps normative compact geometry and opens categorized submenus 
   assert.match(html,/\.plus-submenu \.submenu-back\{font-weight:650\}/);
 });
 
-test('Telegraph title uses an editorial field while preserving the document-name contract',()=>{
+test('Telegraph title reuses the canonical document-name input inside the editor',()=>{
   const html=read('index.html'),src=uiSource(),app=read('app.js');
-  assert.match(html,/class="telegraph-title" data-telegraph-only hidden/);
-  assert.match(html,/id="telegraphTitle"[^>]*placeholder="Título"/);
-  assert.match(html,/#telegraphTitle\{[\s\S]*?Georgia,"Times New Roman",serif/);
+  assert.match(html,/class="telegraph-title" id="telegraphTitleSlot" hidden/);
+  assert.match(html,/\.telegraph-title \.document-tools input\{[\s\S]*?Georgia,"Times New Roman",serif/);
+  assert.match(html,/slot\.append\(tools\)/);
+  assert.match(html,/menu\.insertBefore\(tools,anchor\)/);
+  assert.match(html,/new MutationObserver\(sync\)\.observe\(destBtn,\{attributes:true,attributeFilter:\['aria-pressed'\]\}\)/);
   assert.match(src,/className="tools document-tools"/);
-  assert.match(app,/one\('\.document-tools'\)\.hidden=dest==='telegraph'/);
-  assert.match(app,/const telegraphTitle = one\('#telegraphTitle'\)/);
-  assert.match(app,/function setDocumentName\(value\)/);
-  assert.match(app,/telegraphTitle\.addEventListener\('input'/);
+  assert.doesNotMatch(html,/id="telegraphTitle"/);
+  assert.doesNotMatch(app,/telegraphTitle|setDocumentName/);
 });
 
 test('Glass wrappers keep chrome controls horizontal instead of package inline-block stacking',()=>{
