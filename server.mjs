@@ -432,7 +432,7 @@ function richValid(html){
       if(++mediaCount>50)throw new Error("A mensagem excede 50 mídias");
       if(!["","figure","tg-collage","tg-slideshow"].includes(parent))throw new Error("Mídia precisa ser um bloco separado");
     }
-    if(emojiImage&&!node.attribs.alt)throw new Error("Emoji personalizado precisa de texto alternativo");
+    if(emojiImage&&!node.attribs.alt)throw new Error("Emoji personalizado inválido: texto alternativo ausente");
     if(node.name==="figcaption"&&!["figure","tg-collage","tg-slideshow"].includes(parent))throw new Error("Legenda fora de bloco de mídia");
     if(node.name==="cite"&&!["figcaption","blockquote","aside"].includes(parent))throw new Error("Crédito fora de citação ou legenda");
     if(node.name==="caption"&&parent!=="table")throw new Error("Legenda de tabela inválida");
@@ -458,7 +458,7 @@ function richValid(html){
     }
     if(node.name==="code"&&node.attribs.class){
       if(!/^language-[a-z0-9+-]+$/i.test(node.attribs.class))throw new Error("Linguagem de código inválida");
-      if(parent!=="pre")throw new Error("Linguagem de código exige bloco pre");
+      if(parent!=="pre")throw new Error("Linguagem de código inválida fora de bloco pre");
     }
     if(node.name==="a"){
       const href=node.attribs.href,name=node.attribs.name;
