@@ -369,7 +369,15 @@ async function sendRich(initData,html,file=null){
     body = { chat_id: chatId, rich_message: rich };
     if (file) {
       const kind={image:"photo",video:"video",audio:"audio",voice:"voice_note",document:"document"}[file.kind];
-      if (!kind || !/^[A-Za-z0-9_-]{1,64}$/.test(file.id) || !["image/", "video/", "audio/", "application/", "text/"].some(prefix=>file.mime.startsWith(prefix))) throw new Error("Mídia inválida");
+      const mimeContract={
+        image:/^image\//,
+        video:/^video\//,
+        audio:/^audio\//,
+        voice:/^audio\//,
+        document:/^(?:image|video|audio|application|text)\//
+      }[file.kind];
+      if (!kind || !mimeContract?.test(file.mime) || !/^[A-Za-z0-9_-]{1,64}$/.test(file.id)) throw new Error("Mídia inválida");
+      if(file.kind==="image"&&file.bytes.length>10_000_000)throw new Error("Fotos devem ter no máximo 10 MB");
       const form = new FormData();
       form.set("chat_id", chatId);
       form.set("rich_message", JSON.stringify(body.rich_message));
