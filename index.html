@@ -200,6 +200,14 @@
       overflow-x:hidden;overflow-y:auto;overscroll-behavior-y:contain;
       -webkit-overflow-scrolling:touch;touch-action:pan-y;pointer-events:auto
     }
+    .telegraph-title{width:100%;margin:0 0 12px;padding:0}
+    .telegraph-title[hidden]{display:none}
+    #telegraphTitle{
+      width:100%;margin:0;padding:0;border:0;background:transparent;color:var(--text);outline:0;
+      font:700 clamp(30px,8.5vw,40px)/1.12 Georgia,"Times New Roman",serif;
+      letter-spacing:-.025em;caret-color:var(--accent)
+    }
+    #telegraphTitle::placeholder{color:color-mix(in oklab,var(--text) 42%,transparent);opacity:1}
     .editor:empty::before{content:attr(data-placeholder);color:var(--muted);pointer-events:none}
     .editor{
       outline:none;min-height:100%;caret-color:var(--accent);font-size:16px;
@@ -348,6 +356,9 @@
     <div id="ux-root"></div>
     <div class="canvas" id="canvas">
       <div class="scroll" id="scroll">
+        <div class="telegraph-title" data-telegraph-only hidden>
+          <input id="telegraphTitle" value="Ideia" maxlength="120" aria-label="Título da página Telegraph" placeholder="Título" autocomplete="off" enterkeyhint="next" />
+        </div>
         <article id="editor" class="editor" contenteditable="true" spellcheck="true" inputmode="text" enterkeyhint="enter" aria-label="Editor" data-placeholder="Escreva aqui…"></article>
       </div>
     </div>

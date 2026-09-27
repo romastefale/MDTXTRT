@@ -232,6 +232,17 @@ test('plus menu keeps normative compact geometry and opens categorized submenus 
   assert.match(html,/\.plus-submenu \.submenu-back\{font-weight:650\}/);
 });
 
+test('Telegraph title uses an editorial field while preserving the document-name contract',()=>{
+  const html=read('index.html'),src=uiSource(),app=read('app.js');
+  assert.match(html,/class="telegraph-title" data-telegraph-only hidden/);
+  assert.match(html,/id="telegraphTitle"[^>]*placeholder="Título"/);
+  assert.match(html,/#telegraphTitle\{[\s\S]*?Georgia,"Times New Roman",serif/);
+  assert.match(src,/className="tools document-tools" data-telegram-only=""/);
+  assert.match(app,/const telegraphTitle = one\('#telegraphTitle'\)/);
+  assert.match(app,/function setDocumentName\(value\)/);
+  assert.match(app,/telegraphTitle\.addEventListener\('input'/);
+});
+
 test('Glass wrappers keep chrome controls horizontal instead of package inline-block stacking',()=>{
   const src=uiSource(),html=read('index.html');
   assert.match(src,/function GlassControl\(\{ className = "", children, style, \.\.\.props \}\)/);

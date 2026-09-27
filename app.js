@@ -2,6 +2,7 @@ const one=s=>document.querySelector(s);
 const all=s=>Array.from(document.querySelectorAll(s));
 const editor = one('#editor');
 const docName = one('#docName');
+const telegraphTitle = one('#telegraphTitle');
 const toast = one('#toast');
 const toastTextHost = one('#toastTextHost');
 if(!toast||!toastTextHost)throw new Error('Interface React incompleta: toast');
@@ -14,6 +15,12 @@ let session='browser',busy=false;
 const plusSubmenus=['#plus-file-menu','#plus-format-menu','#plus-structure-menu','#plus-media-menu','#plus-interaction-menu'];
 const sheets=['#plusMenu',...plusSubmenus,'#headingMenu','#quoteMenu','#listMenu','#exportMenu','#findMenu'];
 let savedRange = null, hist = [], histI = -1, histLock = false, composing = false, saveTimer = null, telegraphPath = '', docId = crypto.randomUUID(), importedMd = '', importedTxt = '', importedHtml = '', mediaFile = null, mediaChoice = null;
+function setDocumentName(value){
+  const next=String(value??'').slice(0,120);
+  docName.value=next;
+  telegraphTitle.value=next;
+}
+setDocumentName(docName.value);
 function applyAssets(){
   all('[data-icon]').forEach(el => {
     const name = el.getAttribute('data-icon');
@@ -203,7 +210,7 @@ async function claimHandoff(){
   if(!res.ok)throw new Error(data.error||'Não foi possível recuperar o rascunho');
   const d=data.draft;
   if(!d||d.version!==STATE_VERSION||typeof d.html!=='string'||typeof d.name!=='string'||!['telegram','telegraph'].includes(d.dest)||typeof d.telegraphPath!=='string'||!/^[a-f0-9-]{36}$/i.test(d.docId)||typeof d.importedMd!=='string'||typeof d.importedTxt!=='string'||typeof d.importedHtml!=='string')throw new Error('Rascunho transferido incompatível');
-  editor.innerHTML=cleanDraftHTML(d.html);docName.value=d.name;
+  editor.innerHTML=cleanDraftHTML(d.html);setDocumentName(d.name);
   dest=d.dest;telegraphPath=d.telegraphPath;docId=d.docId;
   importedMd=d.importedMd;importedTxt=d.importedTxt;importedHtml=d.importedHtml;
   if(data.file){
@@ -931,7 +938,7 @@ function loadLocal(){
     localStorage.removeItem('rmdtxtml');
     throw new Error('Rascunho local antigo foi descartado');
   }
-  editor.innerHTML=cleanDraftHTML(d.html);docName.value=d.name;telegraphPath=d.telegraphPath;docId=d.docId;importedMd=d.importedMd;importedTxt=d.importedTxt;importedHtml=d.importedHtml;dest=d.dest;
+  editor.innerHTML=cleanDraftHTML(d.html);setDocumentName(d.name);telegraphPath=d.telegraphPath;docId=d.docId;importedMd=d.importedMd;importedTxt=d.importedTxt;importedHtml=d.importedHtml;dest=d.dest;
 }
 function escapeHTML(s){ return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function htmlToText(html){
@@ -1135,7 +1142,8 @@ one('#exportBtn').addEventListener('click', e=>{
   if(session==='ready')return publishCurrent();
   openPanel('#exportMenu');
 });
-docName.addEventListener('input',markDirty);
+docName.addEventListener('input',()=>{telegraphTitle.value=docName.value;markDirty();});
+telegraphTitle.addEventListener('input',()=>{docName.value=telegraphTitle.value;markDirty();});
 one('#importMdBtn').addEventListener('click', ()=>{ fileInput.accept='.md,text/markdown'; fileInput.click(); closePanels(); });
 one('#importTxtBtn').addEventListener('click', ()=>{ fileInput.accept='.txt,text/plain'; fileInput.click(); closePanels(); });
 one('#exportTxtBtn').addEventListener('click', ()=>exportFile('txt'));
@@ -1287,7 +1295,7 @@ fileInput.addEventListener('change', async ()=>{
     if(!/\.(md|txt)$/i.test(file.name)) throw new Error('Escolha um arquivo Markdown ou TXT');
     const text = await file.text();
     const html = /\.md$/i.test(file.name) ? mdToBasicHTML(text.replace(/^\uFEFF/,'')) : '<p>'+escapeHTML(text.replace(/^\uFEFF/,'')).replace(/\n/g,'<br>')+'</p>';
-    docName.value = file.name.replace(/\.(md|txt)$/i,'').slice(0,120);
+    setDocumentName(file.name.replace(/\.(md|txt)$/i,'').slice(0,120));
     editor.innerHTML = html;
     importedMd = /\.md$/i.test(file.name) ? text.replace(/^\uFEFF/,'') : '';
     importedTxt = /\.txt$/i.test(file.name) ? text.replace(/^\uFEFF/,'') : '';
@@ -1308,7 +1316,7 @@ document.addEventListener('keydown', e => {
 let viewportFrame=0,inset=0;
 function keyboardTarget(){
   const active=document.activeElement;
-  return active===editor||active===docName||active===one('#dialogInput')||active===one('#findText')||active===one('#replaceText');
+  return active===editor||active===docName||active===telegraphTitle||active===one('#dialogInput')||active===one('#findText')||active===one('#replaceText');
 }
 function syncBrowserViewport(){
   const root=document.documentElement,viewport=window.visualViewport;

@@ -60,7 +60,7 @@ function mountReactContract(document){
       <button id="exportMdBtn"></button><button id="exportTxtBtn"></button>
     </div>
     <div id="plusMenu" popover="auto" data-anchor="plusBtn" data-placement="top">
-      <input id="docName" value="Ideia">
+      <div data-telegram-only><input id="docName" value="Ideia"></div>
       <div class="menu-list">
         <button data-plus-category="file"></button>
         <button data-plus-category="format"></button>
@@ -193,6 +193,25 @@ test('destination controls remain functional without changing editor shell',()=>
   assert.equal(d.querySelector('#destBtn').title,'Destino: Telegraph');
   assert.ok(d.querySelector('#editor'));
   assert.ok(d.querySelector('#typebar'));
+  w.close();
+});
+
+test('Telegraph title is visible in the editor and stays synchronized with the document name',()=>{
+  const w=page(),d=w.document,title=d.querySelector('#telegraphTitle'),menuName=d.querySelector('#docName');
+  assert.equal(title.hidden,true);
+  d.querySelector('#destBtn').click();
+  assert.equal(title.hidden,false);
+  assert.equal(menuName.closest('[data-telegram-only]').hidden,true);
+  title.value='Minha página';
+  title.dispatchEvent(new w.Event('input',{bubbles:true}));
+  assert.equal(menuName.value,'Minha página');
+  assert.equal(w.eval('buildTelegraph().title'),'Minha página');
+  d.querySelector('#destBtn').click();
+  assert.equal(title.hidden,true);
+  assert.equal(menuName.closest('[data-telegram-only]').hidden,false);
+  menuName.value='Arquivo local';
+  menuName.dispatchEvent(new w.Event('input',{bubbles:true}));
+  assert.equal(title.value,'Arquivo local');
   w.close();
 });
 
