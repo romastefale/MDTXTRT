@@ -286,16 +286,27 @@ async function sendRich(initData,html,file=null){
   const visit = node => {
     if (node.type === "tag" && kinds[node.name]) {
       const kind = kinds[node.name], src = node.attribs.src;
-      if (src.startsWith("tg://")) {
+      let id, source;
+      if (/^https?:\/\//i.test(src)) {
+        id = randomUUID().replace(/-/g, "");
+        source = src;
+      } else if (src.startsWith("tg://")) {
         const url = new URL(src);
-        const id = url.searchParams.get("id") || "";
+        id = url.searchParams.get("id") || "";
         const fileKind=kind==="audio"&&file?.kind==="voice"?"voice":({photo:"image",video:"video",audio:"audio",document:"document"})[kind];
-        if(!file||id!==file.id||url.hostname!==kind||file.kind!==fileKind)throw new Error("Anexe a mídia novamente antes de publicar");
-        if(!/^[A-Za-z0-9_-]{1,64}$/.test(id))throw new Error("Identificador de mídia inválido");
-        const mediaType=file.kind==="voice"?"voice_note":kind;
-        media.push({id,media:{type:mediaType,media:"attach://upload"}});
-        attached=true;
+        if(file&&id===file.id&&url.hostname===kind&&file.kind===fileKind){
+          source="attach://upload";
+          attached=true;
+        }else{
+          throw new Error("Anexe a mídia novamente antes de publicar");
+        }
+      } else {
+        throw new Error("Endereço de mídia inválido");
       }
+      if (!/^[A-Za-z0-9_-]{1,64}$/.test(id)) throw new Error("Identificador de mídia inválido");
+      node.attribs.src = `tg://${kind}?id=${id}`;
+      const mediaType=kind==="audio"&&file?.kind==="voice"&&source==="attach://upload"?"voice_note":kind;
+      media.push({id,media:{type:mediaType,media:source}});
     }
     node.children?.forEach(visit);
   };
@@ -316,7 +327,6 @@ async function sendRich(initData,html,file=null){
   const msg = await telegramCall("sendRichMessage", body);
   return { via: "sendRichMessage", messageId: msg.message_id };
 }
-
 
 function webhookSecret(){
   return createHmac("sha256",BOT_TOKEN).update("MDTXTRT_WEBHOOK").digest("hex");
