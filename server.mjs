@@ -74,7 +74,7 @@ const MIME = {
 const PUBLIC = new Set([
   "index.html",
   "app.js",
-  "glass.js",
+  "ui.js",
   "marked.js",
   "turndown.js",
   "favicon.svg",
