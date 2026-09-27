@@ -76,14 +76,26 @@ test('theme neutrals are chromatic derivatives of the active accent',()=>{
   assert.match(html,/--line:color-mix\(in oklab,var\(--accent\) 22%,var\(--bg\)\);/);
   assert.match(html,/--glass-tint:color-mix\(in oklab,var\(--accent\) 11%,transparent\);/);
   assert.match(html,/html\.light\{[\s\S]*?--glass-tint:color-mix\(in oklab,var\(--accent\) 7%,transparent\);/);
-  assert.match(html,/\.seg,\.bar,\.theme-control\{[^}]*background:var\(--glass-tint\)/);
+  assert.match(html,/\.seg,\.bar,\.theme-control\{[^}]*background:var\(--chrome-veil\)/);
   assert.match(html,/\.glass-menu-material,\.toast-material\{background:var\(--glass-tint\)\}/);
-  assert.match(html,/box-shadow:inset 0 0 0 \.5px var\(--glass-inner\),0 0 0 \.5px var\(--glass-edge\)/);
+  assert.match(html,/--menu-veil:linear-gradient\(/);
+  assert.match(html,/html\.light\{[\s\S]*?--menu-veil:linear-gradient\(/);
+  assert.match(html,/box-shadow:inset 0 1px 0 var\(--glass-inner\),inset 0 0 0 1px var\(--glass-outline\)/);
   assert.match(html,/\.menu-divider::after\{[^}]*background:var\(--glass-edge\)\}/);
-  assert.match(html,/\.menu-list > button:hover,\.menu-list > button:focus-visible\{background:var\(--accent\);color:#fff\}/);
-  assert.match(html,/\.dialog-actions #dialogOk\{background:var\(--accent\);color:#fff\}/);
+  assert.match(html,/\.menu-list > button:hover,\.menu-list > button:focus-visible\{background:var\(--selected-bg\);color:var\(--selected-ink\)\}/);
+  assert.match(html,/\.dialog-actions #dialogOk\{background:var\(--selected-bg\);color:var\(--selected-ink\)\}/);
   assert.match(html,/html\.dark\{--accent:#269c65;--muted:#dcf1db;color-scheme:dark\}/);
   assert.equal((html.match(/--muted:#dcf1db;/g)||[]).length,1);
+});
+
+test('menu refracts the aligned decorative background while compact controls avoid stretched displacement',()=>{
+  const src=uiSource(),html=read('index.html');
+  assert.match(src,/refract=\{size\.width && size\.height \? <div aria-hidden="true" className="glass-menu-wallpaper" \/>/);
+  assert.match(src,/const CONTROL_LENS = \{ \.\.\.MENU_LENS, strength: 0, bend: 0, curvature: 0, dispersion: 0/);
+  assert.match(src,/const TOAST_LENS = \{ \.\.\.MENU_LENS/);
+  assert.match(html,/\.glass-menu-wallpaper\{[^}]*left:calc\(-1 \* var\(--menu-left,0px\)\)/);
+  assert.match(html,/@media \(pointer:coarse\)\{[\s\S]*?\.menu-list > button\{height:44px;min-height:44px\}/);
+  assert.match(html,/max-height:min\(55vh,calc\(var\(--vv-height\) - var\(--topbar-h\) - var\(--bar-h\) - 48px\),420px\)/);
 });
 
 test('editor uses incremental Markdown input rules without replacing the rich-text model',()=>{
