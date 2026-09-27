@@ -229,6 +229,8 @@ function setupTelegram(){
   tg.expand();
   applyScheme();
   tg.onEvent('themeChanged',applyScheme);
+  tg.onEvent('viewportChanged',scheduleBrowserViewport);
+  scheduleBrowserViewport();
   tg.SettingsButton.show();
   tg.SettingsButton.onClick(()=>openPanel('#importMenu'));
   tg.BackButton.onClick(closeTopLayer);
@@ -1117,20 +1119,20 @@ document.addEventListener('keydown', e => {
   if(k==='z' && !e.shiftKey){ e.preventDefault(); histUndo(); flashBtn(one('#undoBtn')); }
   if(k==='z' && e.shiftKey || k==='y'){ e.preventDefault(); histRedo(); flashBtn(one('#redoBtn')); }
 });
-let viewportFrame=0;
+let viewportFrame=0,inset=0;
 function keyboardTarget(){
   const active=document.activeElement;
   return active===editor||active===docName||active===one('#dialogInput')||active===one('#findText')||active===one('#replaceText');
 }
 function syncBrowserViewport(){
-  if(session==='ready')return;
   const root=document.documentElement,viewport=window.visualViewport;
   const top=Math.max(0,viewport.offsetTop);
-  const bottom=Math.max(0,root.clientHeight-(viewport.offsetTop+viewport.height));
-  const open=keyboardTarget()&&bottom>80;
-  root.style.setProperty('--vv-top',open?top+'px':'0px');
-  root.style.setProperty('--vv-bottom',open?bottom+'px':'0px');
-  root.style.setProperty('--vv-height',open?viewport.height+'px':'100dvh');
+  const bottom=Math.max(0,root.clientHeight-top-viewport.height);
+  inset=keyboardTarget()||inset>0?bottom:0;
+  root.toggleAttribute('data-keyboard',inset>0);
+  root.style.setProperty('--vv-top',top+'px');
+  root.style.setProperty('--vv-bottom',inset+'px');
+  root.style.setProperty('--vv-height',Math.max(0,root.clientHeight-top-inset)+'px');
 }
 function scheduleBrowserViewport(){
   cancelAnimationFrame(viewportFrame);
@@ -1138,7 +1140,7 @@ function scheduleBrowserViewport(){
 }
 window.visualViewport.addEventListener('resize',scheduleBrowserViewport);
 window.visualViewport.addEventListener('scroll',scheduleBrowserViewport);
-window.addEventListener('orientationchange',scheduleBrowserViewport);
+window.addEventListener('resize',scheduleBrowserViewport);
 document.addEventListener('focusin',scheduleBrowserViewport);
 document.addEventListener('focusout',scheduleBrowserViewport);
 syncBrowserViewport();

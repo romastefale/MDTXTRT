@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-title" content="MDTXTRT" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=overlays-content" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-visual" />
   <meta name="color-scheme" content="light dark" />
   <meta name="theme-color" id="themeColor" content="#f8fbff" />
   <title>MDTXTRT</title>
@@ -38,17 +38,15 @@
       --vv-top:0px;
       --vv-bottom:0px;
       --vv-height:100dvh;
+      --bottom:var(--safe-bottom);
       --head-inset:calc(var(--safe-top) + var(--gap) + var(--topbar-h) + var(--gap) + var(--meta-h) + var(--gap));
-      --foot-inset:calc(var(--safe-bottom) + var(--gap) + var(--bar-h) + var(--gap));
+      --foot-inset:calc(var(--bottom) + var(--gap) + var(--bar-h) + var(--gap));
     }
     html.tg-shell{
       --safe-top:max(var(--tg-safe-area-inset-top),var(--tg-content-safe-area-inset-top));
       --safe-bottom:max(var(--tg-safe-area-inset-bottom),var(--tg-content-safe-area-inset-bottom));
       --safe-left:max(var(--tg-safe-area-inset-left),var(--tg-content-safe-area-inset-left));
       --safe-right:max(var(--tg-safe-area-inset-right),var(--tg-content-safe-area-inset-right));
-      --vv-top:0px;
-      --vv-bottom:0px;
-      --vv-height:var(--tg-viewport-stable-height);
       --head-inset:calc(var(--safe-top) + var(--gap) + var(--meta-h) + var(--gap));
     }
     html.light{
@@ -59,7 +57,8 @@
     html.light{color-scheme:light}
     html.dark{color-scheme:dark}
     *{box-sizing:border-box}
-    html,body,.app{margin:0;width:100%;min-height:100lvh;overflow:visible}
+    html,body{margin:0;width:100%;min-height:100svh;overflow:clip}
+    html[data-keyboard]{--bottom:0px}
     html{background:var(--bg)}
     body{
       padding:0;color:var(--text);background:transparent;overscroll-behavior:none;touch-action:manipulation;
@@ -67,7 +66,7 @@
       font:16px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif
     }
     .bg{
-      position:fixed;top:-50lvh;left:0;width:100%;height:200lvh;z-index:0;pointer-events:none;
+      position:fixed;top:0;left:0;width:100%;height:100lvh;z-index:0;pointer-events:none;
       background:var(--bg)
     }
 
@@ -110,16 +109,16 @@
       background-repeat:no-repeat
     }
     .fade-top{
-      top:var(--vv-top);height:calc(var(--head-inset) + 4px);
-      background:linear-gradient(180deg,var(--bg) 0%,var(--bg) 24%,color-mix(in srgb,var(--bg) 78%,transparent) 52%,color-mix(in srgb,var(--bg) 42%,transparent) 76%,transparent 100%)
+      top:var(--vv-top);height:calc(var(--head-inset) + 20px);
+      background:linear-gradient(180deg,var(--bg) 0,var(--bg) calc(var(--safe-top) + var(--gap)),color-mix(in srgb,var(--bg) 78%,transparent) 52%,color-mix(in srgb,var(--bg) 42%,transparent) 76%,transparent 100%)
     }
     .fade-bot{
       top:auto;bottom:var(--vv-bottom);
-      height:calc(var(--safe-bottom) + var(--bar-h) + var(--gap) + 40px);
-      background:linear-gradient(180deg,transparent 0,color-mix(in srgb,var(--bg) 42%,transparent) 12px,color-mix(in srgb,var(--bg) 78%,transparent) 24px,var(--bg) 40px,var(--bg) 100%)
+      height:calc(var(--foot-inset) + 20px);
+      background:linear-gradient(0deg,var(--bg) 0,var(--bg) calc(var(--bottom) + var(--gap)),color-mix(in srgb,var(--bg) 78%,transparent) 52%,color-mix(in srgb,var(--bg) 42%,transparent) 76%,transparent 100%)
     }
     [data-lg]{position:relative;isolation:isolate}
-    .app{position:relative;z-index:1;background:transparent}
+    .app{display:contents}
     .chrome-top{display:contents}
     .chrome-top .topbar,.chrome-top .meta{pointer-events:auto}
     body.tg .topbar{display:none}
@@ -165,7 +164,9 @@
     }
     .scroll{
       position:absolute;
-      top:var(--head-inset);bottom:var(--foot-inset);
+      top:0;bottom:0;
+      padding-top:var(--head-inset);padding-bottom:var(--foot-inset);
+      scroll-padding-top:var(--head-inset);scroll-padding-bottom:var(--foot-inset);
       left:max(16px,var(--safe-left));right:max(16px,var(--safe-right));
       overflow-x:hidden;overflow-y:auto;overscroll-behavior-y:contain;
       -webkit-overflow-scrolling:touch;touch-action:pan-y;pointer-events:auto
@@ -200,7 +201,7 @@
     .editor tg-spoiler{background:color-mix(in srgb,var(--text) 18%,transparent);border-radius:4px}
     .bar-wrap{
       position:fixed;left:max(12px,var(--safe-left));right:max(12px,var(--safe-right));
-      top:auto;bottom:calc(var(--vv-bottom) + var(--safe-bottom) + var(--gap));z-index:30;
+      top:auto;bottom:calc(var(--vv-bottom) + var(--bottom) + var(--gap));z-index:30;
       transform:translateZ(0);backface-visibility:hidden;
       padding:0;background:transparent;pointer-events:none;
     }
@@ -389,7 +390,7 @@
   <div class="sheet frost" id="findMenu" popover="auto"><div class="menu-list"><div class="tools"><input id="findText" placeholder="Localizar"></div><div class="tools"><input id="replaceText" placeholder="Substituir"></div><div class="tools"><button id="findNext">Próximo</button><button id="replaceOne">Substituir</button><button id="replaceAll">Substituir tudo</button></div></div></div>
   </div>
   <div class="bar-wrap">
-    <div class="bar frost" id="typebar">
+    <div class="bar frost" data-lg id="typebar">
       <button class="plus" id="plusBtn" aria-label="Mais" popovertarget="plusMenu"><span class="ui-icon" data-icon="plus"></span></button>
       <button type="button" data-cmd="bold" aria-label="Negrito"><span class="ui-icon" data-icon="bold"></span></button>
       <button type="button" data-cmd="italic" aria-label="Itálico"><span class="ui-icon" data-icon="italic"></span></button>
