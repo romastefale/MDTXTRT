@@ -65,6 +65,10 @@ test('editor keeps target-specific publishing validation and code metadata',()=>
   assert.match(app,/Formato de data inválido/);
   assert.match(app,/function activeMedia\(\)/);
   assert.match(app,/redoUsesMedia=hist\.slice\(histI\+1\)/);
+  assert.match(app,/function searchRegex\(term,exact=false\)/);
+  const searchBlock=app.slice(app.indexOf('function matches(){'),app.indexOf("one('#findNext')"));
+  assert.doesNotMatch(searchBlock,/toLocaleLowerCase/);
+  assert.match(searchBlock,/matchAll\(searchRegex\(term\)\)/);
 });
 
 test('server exposes every referenced local SVG icon and vector app icon',()=>{
