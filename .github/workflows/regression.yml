@@ -6,7 +6,7 @@ on:
     branches: [main]
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: regression-${{ github.workflow }}-${{ github.ref }}
@@ -29,13 +29,5 @@ jobs:
           name: react-ui-bundle
           path: ui.js
           if-no-files-found: error
-      - name: Promote generated UI bundle
-        run: |
-          git add ui.js
-          if ! git diff --cached --quiet; then
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git commit -m "Build corrected React Liquid Glass UI"
-            git push
-          fi
+      - run: git diff --exit-code -- ui.js
       - run: npm test
