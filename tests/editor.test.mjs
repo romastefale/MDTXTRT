@@ -196,6 +196,21 @@ test('destination controls remain functional without changing editor shell',()=>
   w.close();
 });
 
+test('plus categories open their submenus and the back action restores the root menu',()=>{
+  const w=page(),d=w.document;
+  const root=d.querySelector('#plusMenu');
+  root.showPopover();
+  d.querySelector('#plusMenu [data-plus-category="file"]').click();
+  assert.equal(root.matches(':popover-open'),false);
+  const submenu=d.querySelector('#plus-file-menu');
+  assert.equal(submenu.matches(':popover-open'),true);
+  assert.ok(submenu.querySelector('#importMdBtn'));
+  submenu.querySelector('[data-plus-back]').click();
+  assert.equal(submenu.matches(':popover-open'),false);
+  assert.equal(root.matches(':popover-open'),true);
+  w.close();
+});
+
 test('document name stays in export flow and becomes the Telegraph title',async()=>{
   const w=page(),d=w.document,slot=d.querySelector('#telegraphTitleSlot'),input=d.querySelector('#docName');
   const tools=input.closest('.document-tools'),exportMenu=d.querySelector('#exportMenu');
