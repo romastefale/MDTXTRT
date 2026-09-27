@@ -79,8 +79,13 @@
       font:16px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif
     }
     .bg{
-      position:fixed;top:0;left:0;width:100%;height:100lvh;z-index:0;pointer-events:none;
-      background:var(--bg)
+      position:fixed;top:var(--vv-top);left:0;width:100%;height:var(--vv-height);z-index:0;pointer-events:none;
+      background:
+        radial-gradient(ellipse 72% 46% at 50% 50%,
+          color-mix(in oklab,var(--accent) 9%,transparent) 0%,
+          color-mix(in oklab,var(--accent) 5%,transparent) 38%,
+          transparent 76%),
+        var(--bg)
     }
     .device-gate{
       display:none;position:fixed;inset:0;z-index:100;
