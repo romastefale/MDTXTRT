@@ -117,6 +117,24 @@ test('HTTP media URLs become native Rich Message media references',async()=>{
   }
 });
 
+test('official Rich HTML custom emoji and code-language contracts are preserved',async()=>{
+  const emoji='<p>Olá <img src="tg://emoji?id=5368324170671202286" alt="👍"></p>';
+  const emojiRes=await formPost('/api/telegram/send',{initData:init(),html:emoji});
+  assert.equal(emojiRes.status,200);
+  const emojiRich=lastCall('sendRichMessage').body.rich_message;
+  assert.equal(emojiRich.media,undefined);
+  assert.match(emojiRich.html,/tg:\/\/emoji\?id=5368324170671202286/);
+
+  const noAlt=await formPost('/api/telegram/send',{initData:init(),html:'<p><img src="tg://emoji?id=5368324170671202286"></p>'});
+  assert.equal(noAlt.status,400);
+
+  const standalone=await formPost('/api/telegram/send',{initData:init(),html:'<p><code class="language-js">const x=1</code></p>'});
+  assert.equal(standalone.status,400);
+
+  const nested=await formPost('/api/telegram/send',{initData:init(),html:'<pre><code class="language-js">const x=1</code></pre>'});
+  assert.equal(nested.status,200);
+});
+
 test('local attachment is represented as attach upload and stale tg media is rejected',async()=>{
   const id='media1';
   const html=`<figure><img src="tg://photo?id=${id}"><figcaption>Imagem</figcaption></figure>`;
