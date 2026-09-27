@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-title" content="MDTXTRT" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-visual" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-visual" />
   <meta name="color-scheme" content="light dark" />
   <meta name="theme-color" id="themeColor" content="#f8fbff" />
   <title>MDTXTRT</title>
@@ -69,7 +69,14 @@
       position:fixed;top:0;left:0;width:100%;height:100lvh;z-index:0;pointer-events:none;
       background:var(--bg)
     }
-
+    .device-gate{
+      display:none;position:fixed;inset:0;z-index:100;
+      place-items:center;padding:32px;text-align:center;background:var(--bg);color:var(--text)
+    }
+    .device-gate-card{max-width:320px}
+    .device-gate strong{display:block;font-size:20px;line-height:1.2;letter-spacing:-.02em}
+    .device-gate p{margin:10px 0 0;color:var(--muted);font-size:15px;line-height:1.45}
+    html[data-device-gate] .device-gate{display:grid}
     ::selection{background:color-mix(in srgb,var(--accent) 38%, transparent);color:inherit}
     button,input{font:inherit;color:inherit}
     button{cursor:pointer;-webkit-tap-highlight-color:transparent}
@@ -271,17 +278,19 @@
     #findMenu .tools:last-child{flex-wrap:wrap}
     #findMenu .tools button{flex:1 1 auto;white-space:nowrap}
     @media (prefers-reduced-motion:reduce){.sheet{animation:none}}
-    @media (min-width:760px){
-      .meta{width:min(calc(100% - 32px),960px);margin:8px auto 0}
-      .canvas{width:100%;max-width:960px;margin-inline:auto}
-      .scroll{left:32px;right:32px}
-      .bar-wrap{padding-inline:24px}
-      .bar{max-width:760px;margin-inline:auto}
+    @media (orientation:landscape),(min-width:760px){
+      .device-gate{display:grid}
     }
   </style>
 </head>
 <body>
   <div class="bg" aria-hidden="true"></div>
+  <div class="device-gate" id="deviceGate" role="dialog" aria-modal="true" aria-labelledby="deviceGateTitle" aria-describedby="deviceGateText">
+    <div class="device-gate-card">
+      <strong id="deviceGateTitle">Use no modo retrato</strong>
+      <p id="deviceGateText">Este WebApp funciona apenas em smartphones no modo retrato. Gire o aparelho para continuar.</p>
+    </div>
+  </div>
   <div class="fade-top" aria-hidden="true"></div>
   <div class="fade-bot" aria-hidden="true"></div>
   <div class="app">
