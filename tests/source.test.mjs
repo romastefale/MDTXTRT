@@ -159,6 +159,16 @@ test('Telegram Mini App safe areas are sourced from WebApp fields and updated by
   assert.match(app,/!syncTelegramSafeAreas\(\)/);
 });
 
+test('theme switch keeps a deliberate sixty-percent visual scale across access modes',()=>{
+  const html=read('index.html');
+  assert.match(html,/--control-size:clamp\(36px,10vw,40px\)/);
+  assert.match(html,/--theme-control-size:clamp\(21\.6px,6vw,24px\)/);
+  assert.match(html,/--theme-icon-size:clamp\(10\.8px,3vw,12px\)/);
+  assert.match(html,/\.theme-control\{width:var\(--theme-control-size\);height:var\(--theme-control-size\)\}/);
+  assert.match(html,/\.theme-control button\{[\s\S]*?width:var\(--theme-control-size\);height:var\(--theme-control-size\)/);
+  assert.match(html,/\.theme-control \.ui-icon\{width:var\(--theme-icon-size\);height:var\(--theme-icon-size\)\}/);
+});
+
 test('top chrome keeps lateral pills below the centered title and inside Telegram safe areas',()=>{
   const html=read('index.html');
   assert.match(html,/--top-side-offset:12px/);
@@ -181,6 +191,8 @@ test('UI preserves compact portrait contract, unified chrome scale and anchored 
   assert.match(html,/:where\(button,input,textarea,\[contenteditable="true"\]\):focus-visible/);
   assert.match(html,/@media \(orientation:landscape\),\(min-width:760px\)/);
   assert.match(html,/--control-size:clamp\(36px,10vw,40px\)/);
+  assert.match(html,/--theme-control-size:clamp\(21\.6px,6vw,24px\)/);
+  assert.match(html,/--theme-icon-size:clamp\(10\.8px,3vw,12px\)/);
   assert.match(html,/--menu-w:210px/);
   assert.match(html,/--menu-row-h:24px/);
   assert.match(html,/\.bar > button\.more\{color:var\(--accent\);background:var\(--neutral-3\)\}/);

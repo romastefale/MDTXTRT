@@ -38,6 +38,8 @@
       --safe-right:env(safe-area-inset-right,0px);
       --gap:8px;
       --control-size:clamp(36px,10vw,40px);
+      --theme-control-size:clamp(21.6px,6vw,24px);
+      --theme-icon-size:clamp(10.8px,3vw,12px);
       --pill-pad:4px;
       --pill-h:calc(var(--control-size) + 8px);
       --top-side-offset:12px;
@@ -151,11 +153,12 @@
       color:var(--text);font-size:14px;line-height:1;font-weight:750;letter-spacing:.08em;
       white-space:nowrap;text-align:center
     }
-    .theme-control{width:var(--control-size);height:var(--control-size)}
+    .theme-control{width:var(--theme-control-size);height:var(--theme-control-size)}
     .theme-control button{
-      width:var(--control-size);height:var(--control-size);border:0;border-radius:50%;
+      width:var(--theme-control-size);height:var(--theme-control-size);border:0;border-radius:50%;
       background:transparent;color:inherit;display:grid;place-items:center;padding:0
     }
+    .theme-control .ui-icon{width:var(--theme-icon-size);height:var(--theme-icon-size)}
     .seg{display:flex;align-items:center;gap:0;padding:var(--pill-pad);height:var(--pill-h)}
     .seg button{
       width:var(--control-size);height:var(--control-size);border:0;border-radius:50%;
