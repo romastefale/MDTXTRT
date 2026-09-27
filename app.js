@@ -844,6 +844,11 @@ function download(name,content,type){
   a.href=url;a.download=name;a.hidden=true;document.body.append(a);a.click();a.remove();
   setTimeout(()=>URL.revokeObjectURL(url),0);
 }
+function telegraphURL(value){
+  let url;try{url=new URL(value,location.href);}catch{throw new Error('Link do Telegraph inválido');}
+  if(!['http:','https:'].includes(url.protocol))throw new Error('O Telegraph exige links HTTP ou HTTPS');
+  return url.href;
+}
 function telegraphNodes(root){
   const allow = new Set(['a','aside','b','blockquote','br','code','em','figcaption','figure','h3','h4','hr','i','iframe','img','li','ol','p','pre','s','strong','u','ul','video']);
   const conv = (el, standalone=false) => {
@@ -854,8 +859,8 @@ function telegraphNodes(root){
     if(['div','article','section','span','thead','tbody','tfoot'].includes(tag)) return Array.from(el.childNodes).map(child=>conv(child,standalone)).flat().filter(Boolean);
     if(!allow.has(tag)) throw new Error('O conteúdo contém um elemento que o Telegraph não aceita: ' + tag);
     const node = {tag};
-    if(tag === 'a'){const href=el.getAttribute('href');if(!href)throw new Error('Âncoras do Telegram não podem ser publicadas no Telegraph');node.attrs={href};}
-    if(['img','video','iframe'].includes(tag)){const src=el.getAttribute('src');if(!src)throw new Error('A mídia precisa de um endereço');node.attrs={src};}
+    if(tag === 'a'){const href=el.getAttribute('href');if(!href)throw new Error('Âncoras do Telegram não podem ser publicadas no Telegraph');node.attrs={href:telegraphURL(href)};}
+    if(['img','video','iframe'].includes(tag)){const src=el.getAttribute('src');if(!src)throw new Error('A mídia precisa de um endereço');node.attrs={src:telegraphURL(src)};}
     const children = Array.from(el.childNodes).map(child=>conv(child,false)).flat().filter(v => v !== null && v !== '');
     if(children.length) node.children = children;
     return node;
