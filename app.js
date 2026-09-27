@@ -674,7 +674,7 @@ function formatBlock(tag){
   } else {
     replace(block);
   }
-  saveSel(); pushHist(); markDirty(); closePanels();
+  saveSel(); pushHist(); markDirty(); closePanels(); syncEditorSelectionUI();
 }
 function insertHTML(html, asBlock=false){
   restoreSel();
@@ -1063,6 +1063,24 @@ function markdownCaret(target,offset=null){
   else range.setStart(target,offset),range.collapse(true);
   sel.removeAllRanges();sel.addRange(range);savedRange=range.cloneRange();
 }
+function editorSelectionElement(){
+  const node=window.getSelection()?.anchorNode;
+  return node&&(node.nodeType===1?node:node.parentElement);
+}
+function editorTopLevelBlock(){
+  let el=editorSelectionElement();
+  while(el&&el!==editor){
+    if(el.parentElement===editor&&el.matches('p,div,h1,h2,h3,h4,h5,h6,blockquote,footer,aside,ul,ol'))return el;
+    el=el.parentElement;
+  }
+  return null;
+}
+function editorBlockKind(block=editorTopLevelBlock()){
+  if(!block)return 'p';
+  if(block.classList?.contains('tg-footer')||block.tagName==='FOOTER')return 'footer';
+  if(['UL','OL'].includes(block.tagName))return 'p';
+  return block.tagName.toLowerCase();
+}
 function markdownBlockContext(){
   const sel=window.getSelection();
   if(!sel||!sel.rangeCount||!sel.isCollapsed)return null;
@@ -1074,24 +1092,19 @@ function markdownBlockContext(){
     if(!current||!current.rangeCount)return null;
     range=current.getRangeAt(0);node=range.startContainer;
   }
-  let el=node.nodeType===1?node:node.parentElement;
-  if(el===editor){
-    const index=Math.max(0,range.startOffset-1);
-    const candidate=editor.childNodes[index];
-    el=candidate&&(candidate.nodeType===1?candidate:candidate.parentElement);
-  }
-  const block=el&&el!==editor?el.closest('p,div'):null;
-  if(!block||block.parentElement!==editor)return null;
+  const block=editorTopLevelBlock();
+  if(!block||!['P','DIV'].includes(block.tagName))return null;
   const prefixRange=document.createRange();
   prefixRange.selectNodeContents(block);
   try{prefixRange.setEnd(range.startContainer,range.startOffset);}catch{return null;}
-  const prefix=prefixRange.toString().replace(/\u00a0/g,' ');
-  return {block,prefix};
+  const normalize=s=>s.replace(/\u00a0/g,' ');
+  return {block,prefix:normalize(prefixRange.toString()),text:normalize(block.textContent||'')};
 }
+const markdownEscapedBlocks=new WeakSet();
 function markdownBlockRule(){
   const ctx=markdownBlockContext();
   if(!ctx)return false;
-  const {block,prefix}=ctx;
+  const {block,prefix,text}=ctx;
   const deletePrefix=count=>{
     const walker=document.createTreeWalker(block,NodeFilter.SHOW_TEXT);
     let left=count,node=walker.nextNode();
@@ -1101,14 +1114,20 @@ function markdownBlockRule(){
       node=walker.nextNode();
     }
   };
+  const literal=/^(#{1,6}|>|[-*+]|\d+\.) /.test(text);
+  if(markdownEscapedBlocks.has(block)){
+    if(literal)return false;
+    markdownEscapedBlocks.delete(block);
+  }
   const escaped=prefix.match(/^\\(#{1,6}|>|[-*+]|\d+\.) $/);
   if(escaped){
-    deletePrefix(1);
-    const text=document.createTreeWalker(block,NodeFilter.SHOW_TEXT).nextNode();
-    if(text)markdownCaret(text,Math.min(text.length,prefix.length-1));
+    deletePrefix(1);markdownEscapedBlocks.add(block);
+    const textNode=document.createTreeWalker(block,NodeFilter.SHOW_TEXT).nextNode();
+    if(textNode)markdownCaret(textNode,Math.min(textNode.length,prefix.length-1));
     return true;
   }
   const replaceBlock=(tag,markerLength,{start=null,task=null}={})=>{
+    if(prefix.length<markerLength)return false;
     deletePrefix(markerLength);
     if(tag==='ul'||tag==='ol'){
       const list=document.createElement(tag);
@@ -1130,14 +1149,16 @@ function markdownBlockRule(){
     if(!next.childNodes.length)next.append(document.createElement('br'));
     block.replaceWith(next);markdownCaret(next);return true;
   };
-  const task=dest==='telegram'&&prefix.match(/^- \[([ xX])\] $/);
-  if(task)return replaceBlock('ul',prefix.length,{task:task[1].toLowerCase()==='x'});
-  const heading=prefix.match(/^(#{1,6}) $/);
-  if(heading)return replaceBlock('h'+heading[1].length,prefix.length);
-  if(prefix==='> ')return replaceBlock('blockquote',2);
-  if(/^[-*+] $/.test(prefix))return replaceBlock('ul',2);
-  const ordered=prefix.match(/^(\d+)\. $/);
-  if(ordered)return replaceBlock('ol',prefix.length,{start:Number(ordered[1])});
+  const task=dest==='telegram'&&text.match(/^- \[([ xX])\] (?=\S)/);
+  if(task)return replaceBlock('ul',task[0].length,{task:task[1].toLowerCase()==='x'});
+  const heading=text.match(/^(#{1,6}) (?=\S)/);
+  if(heading)return replaceBlock('h'+heading[1].length,heading[0].length);
+  const quote=text.match(/^> (?=\S)/);
+  if(quote)return replaceBlock('blockquote',quote[0].length);
+  const bullet=text.match(/^[-*+] (?=\S)/);
+  if(bullet)return replaceBlock('ul',bullet[0].length);
+  const ordered=text.match(/^(\d+)\. (?=\S)/);
+  if(ordered)return replaceBlock('ol',ordered[0].length,{start:Number(ordered[1])});
   return false;
 }
 function markdownInlineWrap(textNode,offset,marker,tag,{single=false}={}){
@@ -1174,13 +1195,50 @@ function markdownInlineRule(){
 function applyMarkdownInputRule(){
   return markdownBlockRule()||markdownInlineRule();
 }
-function commitEditorInput(){
-  applyMarkdownInputRule();markDirty();pushHist();
+function blockIsEmpty(block){
+  return !String(block?.textContent||'').replace(/\u200b/g,'').trim()&&!block?.querySelector('img,video,audio,iframe,input,tg-button,tg-map,hr');
 }
-editor.addEventListener('input', ()=>{ if(!composing)commitEditorInput(); });
-editor.addEventListener('change',e=>{if(e.target.matches('input[type=checkbox]')){e.target.toggleAttribute('checked',e.target.checked);pushHist();markDirty();}});
+function normalizeEmptyFormattedBlock(event){
+  if(!String(event?.inputType||'').startsWith('delete'))return false;
+  const block=editorTopLevelBlock();
+  if(!block||!(/H[1-6]/.test(block.tagName)||block.tagName==='BLOCKQUOTE')||!blockIsEmpty(block))return false;
+  const p=document.createElement('p');p.append(document.createElement('br'));block.replaceWith(p);markdownCaret(p);
+  return true;
+}
+function fragmentHasContent(fragment){
+  return Boolean(fragment.textContent?.trim()||fragment.querySelector?.('img,video,audio,iframe,input,tg-button,tg-map,hr'));
+}
+function exitFormattedBlockOnParagraph(event){
+  if(composing||event.inputType!=='insertParagraph')return;
+  const sel=window.getSelection(),block=editorTopLevelBlock();
+  if(!sel||!sel.rangeCount||!sel.isCollapsed||!block||!(/H[1-6]/.test(block.tagName)||block.tagName==='BLOCKQUOTE'))return;
+  if(block.tagName==='BLOCKQUOTE'&&block.querySelector(':scope > p,:scope > div,:scope > blockquote'))return;
+  const caret=sel.getRangeAt(0),before=document.createRange();
+  before.selectNodeContents(block);
+  try{before.setEnd(caret.startContainer,caret.startOffset);}catch{return;}
+  event.preventDefault();
+  const p=document.createElement('p');
+  if(!fragmentHasContent(before.cloneContents())){
+    p.append(document.createElement('br'));block.before(p);
+  }else{
+    const tail=document.createRange();tail.selectNodeContents(block);tail.setStart(caret.startContainer,caret.startOffset);
+    const content=tail.extractContents();
+    if(fragmentHasContent(content))p.append(content);else p.append(document.createElement('br'));
+    block.after(p);
+  }
+  markdownCaret(p);syncEditorSelectionUI();pushHist();markDirty();
+}
+function commitEditorInput(event){
+  const transformed=applyMarkdownInputRule();
+  const normalized=normalizeEmptyFormattedBlock(event);
+  if(transformed||normalized)syncEditorSelectionUI();
+  markDirty();pushHist();
+}
+editor.addEventListener('beforeinput',exitFormattedBlockOnParagraph);
+editor.addEventListener('input', event=>{ if(!composing)commitEditorInput(event); });
+editor.addEventListener('change',e=>{if(e.target.matches('input[type=checkbox]')){e.target.toggleAttribute('checked',e.target.checked);pushHist();markDirty();syncEditorSelectionUI();}});
 editor.addEventListener('compositionstart', ()=> composing = true);
-editor.addEventListener('compositionend', ()=>{ composing = false; commitEditorInput(); });
+editor.addEventListener('compositionend', event=>{ composing = false; commitEditorInput(event); });
 editor.addEventListener('keyup', saveSel);
 editor.addEventListener('mouseup', saveSel);
 editor.addEventListener('paste', e => {
@@ -1188,28 +1246,26 @@ editor.addEventListener('paste', e => {
   const text=e.clipboardData.getData('text/plain');
   insertPlainText(text);
 });
-document.addEventListener('selectionchange', ()=>{
+function toggleToolbarState(btn,on){
+  if(!btn)return;
+  btn.classList.toggle('on',on);
+  btn.setAttribute('aria-pressed',String(on));
+}
+function syncEditorSelectionUI(){
   saveSel();
-  const node = document.getSelection()?.anchorNode;
-  const el = node && (node.nodeType === 1 ? node : node.parentElement);
-  const headingEl = el && el.closest('h1,h2,h3,h4,h5,h6,footer,.tg-footer');
-  const block = el && el.closest('p,h1,h2,h3,h4,h5,h6,blockquote,footer,div');
-  let kind = 'p';
-  if(block){
-    if(block.classList.contains('tg-footer') || block.tagName === 'FOOTER') kind = 'footer';
-    else kind = block.tagName.toLowerCase();
-  }
-  all('#typebar [data-cmd]').forEach(btn => {
+  const el=editorSelectionElement(),kind=editorBlockKind();
+  all('#typebar [data-cmd]').forEach(btn=>{
     const marks={bold:'strong,b',italic:'em,i',underline:'u',insertUnorderedList:'ul'};
-    btn.classList.toggle('on', Boolean(el && el.closest(marks[btn.dataset.cmd] || '')));
+    toggleToolbarState(btn,Boolean(el&&el.closest(marks[btn.dataset.cmd]||'')));
   });
-  one('#listBtn').classList.toggle('on', !!(el && el.closest('ul,ol')) || one('#listMenu').matches(':popover-open'));
-  one('#quoteBtn')?.classList.toggle('on', !!(el && el.closest('blockquote,aside')) || one('#quoteMenu')?.matches(':popover-open'));
-  one('#headingBtn')?.classList.toggle('on', !!(headingEl || one('#headingMenu')?.matches(':popover-open')));
-  one('#linkBtn')?.classList.toggle('on', !!(el && el.closest('a')));
-  one('#plusBtn')?.classList.toggle('on', one('#plusMenu')?.matches(':popover-open') || plusSubmenus.some(sel=>one(sel).matches(':popover-open')));
-  all('#headingMenu [data-block]').forEach(btn => btn.classList.toggle('is-current', btn.dataset.block === kind));
-});
+  toggleToolbarState(one('#listBtn'),!!(el&&el.closest('ul,ol'))||one('#listMenu').matches(':popover-open'));
+  toggleToolbarState(one('#quoteBtn'),!!(el&&el.closest('blockquote,aside'))||one('#quoteMenu')?.matches(':popover-open'));
+  toggleToolbarState(one('#headingBtn'),/^(h[1-6]|footer)$/.test(kind)||one('#headingMenu')?.matches(':popover-open'));
+  toggleToolbarState(one('#linkBtn'),!!(el&&el.closest('a')));
+  one('#plusBtn')?.classList.toggle('on',one('#plusMenu')?.matches(':popover-open')||plusSubmenus.some(sel=>one(sel).matches(':popover-open')));
+  all('#headingMenu [data-block]').forEach(btn=>btn.classList.toggle('is-current',btn.dataset.block===kind));
+}
+document.addEventListener('selectionchange',syncEditorSelectionUI);
 one('#typebar').addEventListener('mousedown', e => e.preventDefault());
 all('#typebar [data-cmd], [data-plus-submenu] [data-cmd], #listMenu [data-cmd]').forEach(btn => btn.addEventListener('click', ()=>{try{exec(btn.dataset.cmd);closePanels();}catch(err){showToast(err.message);}}));
 all('#typebar [data-block], #headingMenu [data-block], #quoteMenu [data-block]').forEach(btn => btn.addEventListener('click', ()=>{try{formatBlock(btn.dataset.block);}catch(err){showToast(err.message);}}));

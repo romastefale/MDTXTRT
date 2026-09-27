@@ -90,16 +90,20 @@ test('editor uses incremental Markdown input rules without replacing the rich-te
   const app=read('app.js');
   for(const fragment of [
     'function markdownBlockRule()',
-    'const heading=prefix.match(/^(#{1,6}) $/);',
-    "if(prefix==='> ')return replaceBlock('blockquote',2);",
-    "if(/^[-*+] $/.test(prefix))return replaceBlock('ul',2);",
-    'const ordered=prefix.match(/^(\\d+)\\. $/);',
-    "dest==='telegram'&&prefix.match(/^- \\[([ xX])\\] $/)",
+    'const heading=text.match(/^(#{1,6}) (?=\\S)/);',
+    "const quote=text.match(/^> (?=\\S)/);",
+    "const bullet=text.match(/^[-*+] (?=\\S)/);",
+    'const ordered=text.match(/^(\\d+)\\. (?=\\S)/);',
+    "dest==='telegram'&&text.match(/^- \\[([ xX])\\] (?=\\S)/)",
+    'function exitFormattedBlockOnParagraph(event)',
+    "editor.addEventListener('beforeinput',exitFormattedBlockOnParagraph);",
+    'function normalizeEmptyFormattedBlock(event)',
+    'function syncEditorSelectionUI()',
+    "btn.setAttribute('aria-pressed',String(on));",
     "markdownInlineWrap(text,offset,'**','strong')",
     "markdownInlineWrap(text,offset,'~~','s')",
     "markdownInlineWrap(text,offset,'`','code')",
-    "markdownInlineWrap(text,offset,'*','em',{single:true})",
-    "editor.addEventListener('input', ()=>{ if(!composing)commitEditorInput(); });"
+    "markdownInlineWrap(text,offset,'*','em',{single:true})"
   ])assert.ok(app.includes(fragment),fragment);
 });
 

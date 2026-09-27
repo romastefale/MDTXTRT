@@ -219,32 +219,42 @@ test('document name stays in export flow and becomes the Telegraph title',async(
   w.close();
 });
 
-test('Markdown block markers convert at the caret and preserve rich-text semantics',()=>{
+test('Markdown block markers wait for content, convert in either typing order and preserve semantics',()=>{
   const w=page(),d=w.document,e=d.querySelector('#editor');
-  const apply=(html,selector='p',offset=null)=>{
+  const apply=(html,offset=null,inputType='insertText')=>{
     e.innerHTML=html;
-    const node=e.querySelector(selector)?.firstChild;
+    const block=e.firstElementChild,node=block.firstChild;
     assert.ok(node);
     const range=d.createRange();
     range.setStart(node,offset===null?node.length:offset);range.collapse(true);
     w.getSelection().removeAllRanges();w.getSelection().addRange(range);
     d.dispatchEvent(new w.Event('selectionchange'));
-    e.dispatchEvent(new w.Event('input',{bubbles:true}));
+    const event=new w.InputEvent('input',{bubbles:true,inputType});
+    e.dispatchEvent(event);
   };
   apply('<p># </p>');
-  assert.ok(e.querySelector('h1'));
-  apply('<p>## Texto existente</p>','p',3);
-  assert.equal(e.querySelector('h2')?.textContent,'Texto existente');
-  apply('<p>&gt; </p>');
-  assert.ok(e.querySelector('blockquote'));
-  apply('<p>- </p>');
+  assert.equal(e.firstElementChild.tagName,'P');
+  assert.equal(e.textContent,'# ');
+
+  apply('<p># Palavra</p>');
+  assert.equal(e.querySelector('h1')?.textContent,'Palavra');
+  assert.equal(d.querySelector('#headingBtn').classList.contains('on'),true);
+  assert.equal(d.querySelector('#headingBtn').getAttribute('aria-pressed'),'true');
+  assert.equal(d.querySelector('#headingMenu [data-block="h1"]').classList.contains('is-current'),true);
+
+  apply('<p>## Palavra</p>',3);
+  assert.equal(e.querySelector('h2')?.textContent,'Palavra');
+  apply('<p>&gt; Citação</p>');
+  assert.equal(e.querySelector('blockquote')?.textContent,'Citação');
+  assert.equal(d.querySelector('#quoteBtn').classList.contains('on'),true);
+  apply('<p>- Item</p>');
   assert.ok(e.querySelector('ul > li'));
-  apply('<p>3. </p>');
+  apply('<p>3. Item</p>');
   assert.equal(e.querySelector('ol')?.getAttribute('start'),'3');
-  apply('<p>- [x] </p>');
+  apply('<p>- [x] Tarefa</p>');
   assert.equal(e.querySelector('li > input[type="checkbox"]')?.checked,true);
-  apply('<p>\\# </p>');
-  assert.equal(e.querySelector('p')?.textContent,'# ');
+  apply('<p>\\# Literal</p>',3);
+  assert.equal(e.querySelector('p')?.textContent,'# Literal');
   assert.equal(e.querySelector('h1'),null);
   w.close();
 });
@@ -259,6 +269,47 @@ test('Markdown block markers accept element-anchored carets and non-breaking spa
   e.dispatchEvent(new w.Event('input',{bubbles:true}));
   assert.ok(e.querySelector('h1'));
   assert.equal(e.querySelector('h1')?.textContent,'');
+  w.close();
+});
+
+test('Enter exits headings and quotes to body without leaking formatting',()=>{
+  const w=page(),d=w.document,e=d.querySelector('#editor');
+  const exitAtEnd=html=>{
+    e.innerHTML=html;
+    const block=e.firstElementChild,node=block.firstChild,range=d.createRange();
+    range.setStart(node,node.length);range.collapse(true);
+    w.getSelection().removeAllRanges();w.getSelection().addRange(range);
+    d.dispatchEvent(new w.Event('selectionchange'));
+    const before=new w.InputEvent('beforeinput',{bubbles:true,cancelable:true,inputType:'insertParagraph'});
+    e.dispatchEvent(before);
+    return block;
+  };
+  let block=exitAtEnd('<h1>Título</h1>');
+  assert.equal(block.nextElementSibling?.tagName,'P');
+  assert.equal(d.querySelector('#headingBtn').classList.contains('on'),false);
+  assert.equal(d.querySelector('#headingMenu [data-block="p"]').classList.contains('is-current'),true);
+
+  block=exitAtEnd('<blockquote>Citação</blockquote>');
+  assert.equal(block.nextElementSibling?.tagName,'P');
+  assert.equal(d.querySelector('#quoteBtn').classList.contains('on'),false);
+  w.close();
+});
+
+test('deleting the last character of a heading or quote returns the block to body',()=>{
+  const w=page(),d=w.document,e=d.querySelector('#editor');
+  const reset=tag=>{
+    e.innerHTML='<'+tag+'><br></'+tag+'>';
+    const block=e.firstElementChild,range=d.createRange();
+    range.setStart(block,0);range.collapse(true);
+    w.getSelection().removeAllRanges();w.getSelection().addRange(range);
+    const event=new w.InputEvent('input',{bubbles:true,inputType:'deleteContentBackward'});
+    e.dispatchEvent(event);
+    assert.equal(e.firstElementChild.tagName,'P');
+  };
+  reset('h2');
+  reset('blockquote');
+  assert.equal(d.querySelector('#headingBtn').classList.contains('on'),false);
+  assert.equal(d.querySelector('#quoteBtn').classList.contains('on'),false);
   w.close();
 });
 
@@ -282,12 +333,12 @@ test('Markdown inline markers become semantic rich-text marks and support escapi
 
 test('Markdown input rules stay idle during IME composition',()=>{
   const w=page(),d=w.document,e=d.querySelector('#editor');
-  e.innerHTML='<p># </p>';
+  e.innerHTML='<p># Palavra</p>';
   const node=e.querySelector('p').firstChild,range=d.createRange();
   range.setStart(node,node.length);range.collapse(true);
   w.getSelection().removeAllRanges();w.getSelection().addRange(range);
   e.dispatchEvent(new w.CompositionEvent('compositionstart',{bubbles:true}));
-  e.dispatchEvent(new w.Event('input',{bubbles:true}));
+  e.dispatchEvent(new w.InputEvent('input',{bubbles:true,inputType:'insertText'}));
   assert.equal(e.querySelector('h1'),null);
   e.dispatchEvent(new w.CompositionEvent('compositionend',{bubbles:true}));
   assert.ok(e.querySelector('h1'));
