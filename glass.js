@@ -1,6 +1,7 @@
 /*
  * Liquid Glass material adaptation.
  * Reference: https://github.com/romastefale/liquid-glass
+ * UX profile source: examples/GlassContextMenu.tsx
  * Pinned reference revision: 4e7b769e1df7e5a7d3669fef22417fe3d2f79ade
  * Upstream: @samasante/liquid-glass, © Sam Asante, MIT License.
  * This plain-JavaScript adaptation preserves attribution; see PROVENANCE.md and LICENSE.
@@ -334,7 +335,11 @@ const material=el=>{
   const supportsRefraction=mode==="material"&&supportsBackdropUrl();
   el.dataset.liquidGlass=mode;
   el.dataset.lgProfileResolved=profile;
-  el.dataset.lgRendering=mode==="frost"?"frost":supportsRefraction?"material-refraction":"material-frost";
+  el.dataset.lgRendering=mode==="frost"
+    ?"frost"
+    :profile==="context-menu"
+      ?supportsRefraction?"context-menu-refraction":"context-menu-frost"
+      :supportsRefraction?"material-refraction":"material-frost";
   const frost="blur("+optics.frost+"px) saturate("+optics.saturate+")";
   const edge=document.createElement('span');
   edge.setAttribute('aria-hidden','true');
@@ -381,9 +386,9 @@ const material=el=>{
     const scale=optics.strength*Math.sqrt((x.width*x.width+x.height*x.height)/2);
     const margin=Math.ceil(scale*1.2*.5+28);
     img.setAttribute("href",map);img.setAttribute("width",x.width);img.setAttribute("height",x.height);
-    r.setAttribute("scale",scale*(1+D*optics.dispersion));
-    g.setAttribute("scale",scale*(1+D*.5*optics.dispersion));
-    b.setAttribute("scale",scale);
+    r.setAttribute("scale",scale*(1+D*.5*optics.dispersion));
+    g.setAttribute("scale",scale);
+    b.setAttribute("scale",scale*(1-D*.5*optics.dispersion));
     f.setAttribute("x",-margin);f.setAttribute("y",-margin);f.setAttribute("width",x.width+2*margin);f.setAttribute("height",x.height+2*margin);
     f.id="lg-mat-"+materialId+"-v"+(++v);
     const value=frost+" url(#"+f.id+")";
