@@ -14,7 +14,7 @@ test('application scripts parse',()=>{
 test('script cache keys are versioned and stale app key is gone',()=>{
   const html=read('index.html');
   assert.match(html,/app\.js\?v=[a-f0-9]{12}/);
-  assert.match(html,/glass\.js\?v=8c5538a2953d/);
+  assert.match(html,/glass\\.js\\?v=7f54cec710ce/);
   assert.doesNotMatch(html,/app\.js\?v=46df031c221a/);
 });
 
@@ -43,7 +43,10 @@ test('liquid-glass engine retains binding material optics on every chrome surfac
   assert.match(glass,/inset 0 1px 0 rgba\(255,255,255,\.55\).*inset 0 0 0 1px rgba\(255,255,255,\.12\)/s);
   assert.doesNotMatch(glass,/data-lg-wide/);
   assert.match(glass,/el\.dataset\.lgMode==="frost"\?"frost":"material"/);
-  assert.match(glass,/if\(mode==="frost"\)\{/);
+  assert.match(glass,/supportsRefraction=mode==="material"&&supportsBackdropUrl\(\)/);
+  assert.match(glass,/el\.dataset\.lgRendering=mode==="frost"\?"frost":supportsRefraction\?"material-refraction":"material-frost"/);
+  assert.match(glass,/if\(mode==="frost"\|\|!supportsRefraction\)\{/);
+  assert.doesNotMatch(glass,/const value=supportsBackdropUrl\(\)\?/);
   assert.doesNotMatch(glass,/willChange/);
   assert.match(glass,/f\.id="lg-mat-"\+materialId\+"-v"\+\(\+\+v\)/);
   assert.doesNotMatch(glass,/el\.style\.filter\s*=/);
