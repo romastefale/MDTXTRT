@@ -135,6 +135,13 @@ test('official Rich HTML custom emoji and code-language contracts are preserved'
   assert.equal(nested.status,200);
 });
 
+test('Telegram request errors are typed independently from upstream failures',async()=>{
+  const invalid=await formPost('/api/telegram/send',{initData:init(),html:'<p><code class="language-js">x</code></p>'});
+  assert.equal(invalid.status,400);
+  const upstream=await formPost('/api/telegram/send',{initData:init(),html:'<p>UPSTREAM_REJECT</p>'});
+  assert.equal(upstream.status,502);
+});
+
 test('local attachment is represented as attach upload and stale tg media is rejected',async()=>{
   const id='media1';
   const html=`<figure><img src="tg://photo?id=${id}"><figcaption>Imagem</figcaption></figure>`;
