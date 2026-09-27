@@ -607,7 +607,7 @@ async function insertFeature(kind){
   }
   if(kind==='anchor'){
     const answer=await ask('Nome da âncora','secao');
-    const name=(answer||'').trim().replace(/[^A-Za-z0-9_-]/g,'-');
+    const name=(answer||'').trim().replace(/[^A-Za-z0-9_-]/g,'-').slice(0,64);
     if(name)return insertHTML('<a name="'+escapeHTML(name)+'"></a>');
     return;
   }
@@ -625,9 +625,10 @@ async function insertFeature(kind){
     if(!/^\d+$/.test(unix))return showToast('Timestamp inválido');
     const format=await ask('Formato Telegram','wDT');
     if(format===null)return;
+    if(!/^(?:r|w?[dD]?[tT]?)$/.test(format.trim()))return showToast('Formato de data inválido');
     const label=await ask('Texto exibido','Data e hora');
     if(label===null)return;
-    return insertHTML('<tg-time unix="'+escapeHTML(unix)+'" format="'+escapeHTML(format)+'">'+escapeHTML(label)+'</tg-time>');
+    return insertHTML('<tg-time unix="'+escapeHTML(unix)+'" format="'+escapeHTML(format.trim())+'">'+escapeHTML(label)+'</tg-time>');
   }
   if(kind==='emoji'){
     const answer=await ask('ID do emoji personalizado','');
@@ -1026,9 +1027,9 @@ function exportName(ext){
   return base+"."+ext;
 }
 async function exportFile(format) {
-  if(format!=='md'&&format!=='txt')throw new Error('Formato de exportação inválido');
-  let content, type, ext;
   try {
+    if(format!=='md'&&format!=='txt')throw new Error('Formato de exportação inválido');
+    let content, type, ext;
     if (format === "md") {
       content = htmlToMarkdown(editor.innerHTML);
       type = "text/markdown";
@@ -1039,13 +1040,12 @@ async function exportFile(format) {
       type = "text/plain";
       ext = "txt";
     }
+    download(exportName(ext),content,type);
+    showToast('Download iniciado');
+    closePanels();
   } catch (err) {
-    showToast(err.message);
-    return;
+    showToast(err.message||'Não foi possível exportar o arquivo');
   }
-  download(exportName(ext),content,type);
-  showToast('Download iniciado');
-  closePanels();
 }
 async function readResponse(res){
   try{return await res.json();}catch{throw new Error('A resposta do serviço não pôde ser lida');}
@@ -1101,7 +1101,7 @@ fileInput.addEventListener('change', async ()=>{
     if(!/\.(md|txt)$/i.test(file.name)) throw new Error('Escolha um arquivo Markdown ou TXT');
     const text = await file.text();
     const html = /\.md$/i.test(file.name) ? mdToBasicHTML(text.replace(/^\uFEFF/,'')) : '<p>'+escapeHTML(text.replace(/^\uFEFF/,'')).replace(/\n/g,'<br>')+'</p>';
-    docName.value = file.name.replace(/\.(md|txt)$/i,'');
+    docName.value = file.name.replace(/\.(md|txt)$/i,'').slice(0,120);
     editor.innerHTML = html;
     importedMd = /\.md$/i.test(file.name) ? text.replace(/^\uFEFF/,'') : '';
     importedTxt = /\.txt$/i.test(file.name) ? text.replace(/^\uFEFF/,'') : '';
