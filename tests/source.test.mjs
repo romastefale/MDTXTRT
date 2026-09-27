@@ -14,7 +14,7 @@ test('application scripts parse',()=>{
 test('script cache keys are versioned and stale app key is gone',()=>{
   const html=read('index.html');
   assert.match(html,/app\.js\?v=[a-f0-9]{12}/);
-  assert.match(html,/glass\.js\?v=7f54cec710ce/);
+  assert.match(html,/glass\.js\?v=a974cc0d4b74/);
   assert.doesNotMatch(html,/app\.js\?v=46df031c221a/);
 });
 
@@ -161,11 +161,15 @@ test('execution toolchain is pinned across local, CI and Railway builds',()=>{
   assert.equal(railpack.steps.install.commands.at(-1),'npm ci');
 });
 
-test('architecture provenance is shipped with the repository',()=>{
+test('architecture provenance is shipped with the repository and adapted source',()=>{
   assert.ok(existsSync(new URL('../PROVENANCE.md',import.meta.url)));
   const provenance=read('PROVENANCE.md');
+  const glass=read('glass.js');
   assert.match(provenance,/romastefale\/liquid-glass/);
   assert.match(provenance,/Sam Asante/);
   assert.match(provenance,/sendRichMessage/);
   assert.match(provenance,/telegra\.ph\/api/);
+  assert.match(glass,/Reference: https:\/\/github\.com\/romastefale\/liquid-glass/);
+  assert.match(glass,/4e7b769e1df7e5a7d3669fef22417fe3d2f79ade/);
+  assert.match(glass,/© Sam Asante, MIT License/);
 });
