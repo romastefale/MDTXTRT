@@ -11,7 +11,8 @@ const fileInput = one('#fileInput');
 const STATE_VERSION=2;
 let dest = 'telegram';
 let session='browser',busy=false;
-const sheets=['#plusMenu','#headingMenu','#quoteMenu','#listMenu','#exportMenu','#findMenu'];
+const plusSubmenus=['#plus-file-menu','#plus-format-menu','#plus-structure-menu','#plus-media-menu','#plus-interaction-menu'];
+const sheets=['#plusMenu',...plusSubmenus,'#headingMenu','#quoteMenu','#listMenu','#exportMenu','#findMenu'];
 let savedRange = null, hist = [], histI = -1, histLock = false, composing = false, saveTimer = null, telegraphPath = '', docId = crypto.randomUUID(), importedMd = '', importedTxt = '', importedHtml = '', mediaFile = null, mediaChoice = null;
 function applyAssets(){
   all('[data-icon]').forEach(el => {
@@ -338,7 +339,7 @@ function setupTelegram(){
   syncDeviceContract();
   scheduleBrowserViewport();
   tg.SettingsButton.show();
-  tg.SettingsButton.onClick(()=>openPanel('#plusMenu'));
+  tg.SettingsButton.onClick(openPlusRoot);
   tg.BackButton.onClick(closeTopLayer);
   tg.BackButton.hide();
   tg.MainButton.hide();
@@ -418,6 +419,20 @@ function openPanel(sel){
   const anchorRect=anchor?.getBoundingClientRect()||null;
   panel.showPopover();
   placePanel(panel,anchorRect);
+}
+function openPlusSubmenu(key){
+  const sel='#plus-'+key+'-menu';
+  if(!plusSubmenus.includes(sel))throw new Error('Categoria indisponível');
+  const root=one('#plusMenu');
+  if(root.matches(':popover-open'))root.hidePopover();
+  openPanel(sel);
+}
+function openPlusRoot(){
+  for(const sel of plusSubmenus){
+    const panel=one(sel);
+    if(panel.matches(':popover-open'))panel.hidePopover();
+  }
+  openPanel('#plusMenu');
 }
 function closePanels(){
   for(const sel of sheets){
@@ -1070,13 +1085,15 @@ document.addEventListener('selectionchange', ()=>{
   one('#quoteBtn')?.classList.toggle('on', !!(el && el.closest('blockquote,aside')) || one('#quoteMenu')?.matches(':popover-open'));
   one('#headingBtn')?.classList.toggle('on', !!(headingEl || one('#headingMenu')?.matches(':popover-open')));
   one('#linkBtn')?.classList.toggle('on', !!(el && el.closest('a')));
-  one('#plusBtn')?.classList.toggle('on', one('#plusMenu')?.matches(':popover-open'));
+  one('#plusBtn')?.classList.toggle('on', one('#plusMenu')?.matches(':popover-open') || plusSubmenus.some(sel=>one(sel).matches(':popover-open')));
   all('#headingMenu [data-block]').forEach(btn => btn.classList.toggle('is-current', btn.dataset.block === kind));
 });
 one('#typebar').addEventListener('mousedown', e => e.preventDefault());
-all('#typebar [data-cmd], #plusMenu [data-cmd], #listMenu [data-cmd]').forEach(btn => btn.addEventListener('click', ()=>{try{exec(btn.dataset.cmd);closePanels();}catch(err){showToast(err.message);}}));
+all('#typebar [data-cmd], [data-plus-submenu] [data-cmd], #listMenu [data-cmd]').forEach(btn => btn.addEventListener('click', ()=>{try{exec(btn.dataset.cmd);closePanels();}catch(err){showToast(err.message);}}));
 all('#typebar [data-block], #headingMenu [data-block], #quoteMenu [data-block]').forEach(btn => btn.addEventListener('click', ()=>{try{formatBlock(btn.dataset.block);}catch(err){showToast(err.message);}}));
-document.querySelectorAll('#plusMenu [data-insert], #quoteMenu [data-insert], #listMenu [data-insert]').forEach(btn => btn.addEventListener('click', ()=>{void insertFeature(btn.dataset.insert).catch(err=>showToast(err.message));}));
+document.querySelectorAll('[data-plus-submenu] [data-insert], #quoteMenu [data-insert], #listMenu [data-insert]').forEach(btn => btn.addEventListener('click', ()=>{void insertFeature(btn.dataset.insert).catch(err=>showToast(err.message));}));
+all('#plusMenu [data-plus-category]').forEach(btn=>btn.addEventListener('click',()=>openPlusSubmenu(btn.dataset.plusCategory)));
+all('[data-plus-submenu] [data-plus-back]').forEach(btn=>btn.addEventListener('click',()=>openPlusRoot()));
 one('#linkBtn').addEventListener('click',async()=>{
   restoreSel();expandWord();saveSel();
   const node=document.getSelection()?.anchorNode;
@@ -1144,7 +1161,7 @@ one('#mediaInput').addEventListener('change',async()=>{
     showToast(err.message||'Não foi possível salvar o anexo');
   }
 });
-one('#findBtn').addEventListener('click', ()=>openPanel('#findMenu'));
+one('#findBtn').addEventListener('click', ()=>{closePanels();openPanel('#findMenu');});
 function searchRegex(term,exact=false){
   const meta=new Set(['\\','^','$','.','*','+','?','(',')','[',']','{','}','|']);
   let escaped='';
