@@ -66,7 +66,7 @@ const PUBLIC = new Set([
   "marked.js",
   "turndown.js",
   "favicon.svg",
-  "logo.png",
+  "logo.svg",
   "og.jpg",
   "x-banner.jpg",
   ...["bold","buttons","details","export","file","footer","h1","h2","h3","h4","h5","h6","heading","italic","link","list","paragraph","plus","quote","redo","table","task","telegram","telegraph","underline","undo"].map(name=>`icons/${name}.svg`),
