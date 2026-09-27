@@ -301,6 +301,25 @@ test('startup fails closed when Telegraph page ownership survives credential los
   }
 });
 
+test('Telegraph title limit counts Unicode characters instead of UTF-16 code units',async()=>{
+  const content=[{tag:'p',children:['texto']}];
+  const atLimit=await jsonPost('/api/telegraph/publish',{
+    title:'😀'.repeat(256),
+    doc:'55555555-5555-4555-8555-555555555555',
+    content,
+    initData:init()
+  });
+  assert.equal(atLimit.status,200,atLimit.data.error);
+  const overLimit=await jsonPost('/api/telegraph/publish',{
+    title:'😀'.repeat(257),
+    doc:'66666666-6666-4666-8666-666666666666',
+    content,
+    initData:init()
+  });
+  assert.equal(overLimit.status,400);
+  assert.match(overLimit.data.error,/256 caracteres/);
+});
+
 test('Telegraph ownership mapping survives create and edit on same document',async()=>{
   const page={title:'Página',doc:'33333333-3333-4333-8333-333333333333',content:[{tag:'h3',children:['Título']},{tag:'p',children:['texto']}],initData:init()};
   const created=await jsonPost('/api/telegraph/publish',page);
