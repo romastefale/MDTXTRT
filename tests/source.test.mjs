@@ -237,7 +237,8 @@ test('Telegraph title uses an editorial field while preserving the document-name
   assert.match(html,/class="telegraph-title" data-telegraph-only hidden/);
   assert.match(html,/id="telegraphTitle"[^>]*placeholder="Título"/);
   assert.match(html,/#telegraphTitle\{[\s\S]*?Georgia,"Times New Roman",serif/);
-  assert.match(src,/className="tools document-tools" data-telegram-only=""/);
+  assert.match(src,/className="tools document-tools"/);
+  assert.match(app,/one\('\.document-tools'\)\.hidden=dest==='telegraph'/);
   assert.match(app,/const telegraphTitle = one\('#telegraphTitle'\)/);
   assert.match(app,/function setDocumentName\(value\)/);
   assert.match(app,/telegraphTitle\.addEventListener\('input'/);

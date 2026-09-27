@@ -376,6 +376,7 @@ function setDestination(value, notify=true){
   });
   one('#quoteMenu [data-insert="expandquote"]').hidden = dest === 'telegraph';
   all('[data-telegram-only]').forEach(item=>item.hidden=dest==='telegraph');
+  one('.document-tools').hidden=dest==='telegraph';
   all('[data-telegraph-only]').forEach(item=>item.hidden=dest!=='telegraph');
   closePanels();
   saveLocal();

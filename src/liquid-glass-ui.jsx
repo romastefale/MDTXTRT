@@ -246,7 +246,7 @@ function PlusMenu() {
   return (
     <>
       <GlassContextMenu id="plusMenu" className="wide-menu" anchorId="plusBtn" placement="top">
-        <div className="tools document-tools" data-telegram-only="">
+        <div className="tools document-tools">
           <input id="docName" defaultValue="Ideia" aria-label="Nome do documento" maxLength={120} />
         </div>
         <div className="menu-list">
