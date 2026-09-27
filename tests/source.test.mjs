@@ -26,7 +26,7 @@ test('compact UX surfaces use the GlassContextMenu profile and no legacy sheet s
   assert.doesNotMatch(html,/(?:-webkit-)?backdrop-filter\s*:/);
   assert.match(html,/class="bar frost"\s+data-lg\s+data-lg-mode="frost"\s+id="typebar"/);
   assert.equal((html.match(/class="glass-menu frost"\s+data-lg\s+data-lg-profile="context-menu"/g)||[]).length,8);
-  assert.equal((html.match(/data-lg-profile="context-menu"/g)||[]).length,12);
+  assert.equal((html.match(/<[^>]+data-lg-profile="context-menu"[^>]*>/g)||[]).length,12);
   assert.doesNotMatch(html,/class="sheet frost"/);
   assert.doesNotMatch(html,/data-lg-wide/);
 });
