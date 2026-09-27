@@ -118,6 +118,8 @@ test('server follows Bot API 10.3 Rich Message contracts without message downgra
   assert.match(server,/A mensagem excede 32768 caracteres/);
   assert.match(server,/insideButton&&!\['tg-emoji','tg-time'\]\.includes\(node\.name\)/);
   assert.match(server,/"mailto:","tel:"/);
+  assert.match(server,/allowedByType=\{/);
+  assert.match(server,/URL de botão deve usar HTTP, HTTPS ou tg:\/\//);
   assert.doesNotMatch(server,/telegramCall\("sendMessage"/);
 });
 
