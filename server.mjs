@@ -892,7 +892,7 @@ async function verifyTelegraphPage(path) {
 async function publishTelegraphOne(title, content, path = "", user = "", doc = "") {
   const pageTitle = String(title || "").trim();
   if (!pageTitle) throw new HttpError(400,"Dê um nome à página antes de publicar");
-  if (pageTitle.length > 256) throw new HttpError(400,"O nome da página deve ter até 256 caracteres");
+  if (Array.from(pageTitle).length > 256) throw new HttpError(400,"O nome da página deve ter até 256 caracteres");
   try{telegraphValid(content);}catch(error){throw asHttpError(error,400,"Conteúdo do Telegraph inválido");}
   if (!/^[a-f0-9-]{36}$/i.test(doc)) throw new HttpError(400,"Documento inválido");
   const pages = readPages();
