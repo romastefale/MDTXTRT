@@ -24,9 +24,9 @@ test('compact UX surfaces use the GlassContextMenu profile and no legacy sheet s
   assert.equal(tags.length,13);
   for(const tag of tags)assert.match(tag,/\bdata-lg(?:\s|=|>)/,tag);
   assert.doesNotMatch(html,/(?:-webkit-)?backdrop-filter\s*:/);
-  assert.match(html,/class="bar frost"\s+data-lg\s+data-lg-mode="frost"\s+id="typebar"/);
+  assert.match(html,/class="bar frost"\s+data-lg\s+data-lg-profile="context-menu"\s+id="typebar"/);
   assert.equal((html.match(/class="glass-menu frost"\s+data-lg\s+data-lg-profile="context-menu"/g)||[]).length,8);
-  assert.equal((html.match(/<[^>]+data-lg-profile="context-menu"[^>]*>/g)||[]).length,12);
+  assert.equal((html.match(/<[^>]+data-lg-profile="context-menu"[^>]*>/g)||[]).length,13);
   assert.doesNotMatch(html,/class="sheet frost"/);
   assert.doesNotMatch(html,/data-lg-wide/);
 });
@@ -118,7 +118,7 @@ test('server exposes every referenced local SVG icon and vector app icon',()=>{
   assert.doesNotMatch(server,/"logo\.png"/);
 });
 
-test('UI preserves portrait phone contract, disables zoom and pinch zoom, hides scrollbars and keeps 44px shell targets',()=>{
+test('UI preserves portrait phone contract, disables zoom and pinch zoom, hides scrollbars and keeps compact shell geometry',()=>{
   const html=read('index.html');
   assert.match(html,/minimum-scale=1, maximum-scale=1, user-scalable=no/);
   assert.match(html,/touch-action:pan-x pan-y/);
@@ -130,8 +130,9 @@ test('UI preserves portrait phone contract, disables zoom and pinch zoom, hides 
   assert.match(html,/id="deviceGate" role="dialog" aria-modal="true"/);
   assert.match(html,/@media \(orientation:landscape\),\(min-width:760px\)/);
   assert.match(html,/--meta-h:52px/);
-  assert.match(html,/--bar-h:52px/);
-  assert.match(html,/min-width:44px;height:44px/);
+  assert.match(html,/--bar-h:46px/);
+  assert.match(html,/\.seg button\{[\s\S]*?height:calc\(var\(--meta-h\) - 8px\)/);
+  assert.match(html,/flex:0 0 38px;min-width:38px;height:38px/);
 });
 
 test('menus use compact context-menu geometry and anchor to their invoking controls',()=>{
@@ -139,6 +140,8 @@ test('menus use compact context-menu geometry and anchor to their invoking contr
   assert.match(html,/\.glass-menu\{[\s\S]*?min-width:210px;max-width:min\(280px,calc\(100vw - 16px\)\);[\s\S]*?max-height:min\(55vh,420px\)/);
   assert.match(html,/height:32px;min-height:32px/);
   assert.match(html,/border-radius:9px/);
+  assert.match(html,/\.bar-wrap\{[\s\S]*?left:50%;right:auto;width:max-content;max-width:calc\(100vw - 24px\)/);
+  assert.match(html,/\.bar\{[\s\S]*?width:max-content;max-width:calc\(100vw - 24px\)/);
   assert.match(html,/data-anchor="plusBtn" data-placement="top"/);
   assert.match(html,/data-anchor="brandBtn" data-placement="bottom"/);
   assert.match(html,/data-anchor="findBtn" data-placement="right"/);
