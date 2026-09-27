@@ -189,3 +189,102 @@ test('handoff rejects draft media metadata that cannot be restored by the client
   const multiRes=await fetch(`http://127.0.0.1:${port}/api/handoff`,{method:'POST',headers:{origin},body:multiForm});
   assert.equal(multiRes.status,400);
 });
+
+
+test('stale signed Telegram sessions are rejected',async()=>{
+  const stale=new URLSearchParams(init());
+  stale.set('auth_date',String(Math.floor(Date.now()/1000)-86401));
+  stale.delete('hash');
+  const secret=createHmac('sha256','WebAppData').update(token).digest();
+  stale.set('hash',createHmac('sha256',secret).update([...stale].sort(([a],[b])=>a.localeCompare(b)).map(([k,v])=>`${k}=${v}`).join('\n')).digest('hex'));
+  assert.equal((await jsonPost('/api/telegram/session',{initData:stale.toString()})).status,401);
+});
+
+test('invalid Rich Message input is rejected before Telegram is called',async()=>{
+  const before=calls().filter(call=>call.method==='sendRichMessage').length;
+  const auth=await formPost('/api/telegram/send',{initData:'wrong',html:'<p>ok</p>'});
+  assert.equal(auth.status,400);
+  const markup=await formPost('/api/telegram/send',{initData:init(),html:'<script>alert(1)</script>'});
+  assert.equal(markup.status,400);
+  assert.equal(calls().filter(call=>call.method==='sendRichMessage').length,before);
+});
+
+test('webhook authentication and bot command responses retain their contracts',async()=>{
+  assert.equal((await webhook({message:{text:'/start',message_id:1,chat:{id:7,type:'private'}}},false)).status,401);
+  const registered=lastCall('setMyCommands')?.body?.commands?.map(item=>item.command)||[];
+  for(const name of ['start','app','novo','ajuda','enviar','exportar'])assert.ok(registered.includes(name),name);
+
+  for(const [text,message_id] of [['/start',11],['/app',12],['/novo',13],['/ajuda',14]]){
+    const res=await webhook({message:{text,message_id,chat:{id:7,type:'private'}}});
+    assert.equal(res.status,200,text);
+  }
+  const richCalls=calls().filter(call=>call.method==='sendRichMessage');
+  const start=parseDocument(richCalls.at(-4).body.rich_message.html);
+  const buttons=find(start,'tg-button');
+  assert.equal(buttons.length,2);
+  assert.equal(buttons[0].attribs.type,'web_app');
+  assert.equal(buttons[0].attribs.url,origin+'/');
+  assert.equal(buttons[1].attribs.type,'url');
+  assert.equal(buttons[1].attribs.url,origin+'/');
+  assert.match(richCalls.at(-1).body.rich_message.html,/\/exportar/);
+});
+
+test('enviar, exportar, callbacks and group commands produce explicit Telegram actions',async()=>{
+  let res=await webhook({message:{text:'/enviar Olá forte',entities:[{type:'bold',offset:12,length:5}],message_id:21,chat:{id:7,type:'private'}}});
+  assert.equal(res.status,200);
+  let sent=lastCall('sendRichMessage');
+  assert.deepEqual(sent.body.reply_parameters,{message_id:21});
+  assert.equal(sent.body.rich_message.html,'<p>Olá <b>forte</b></p>');
+
+  res=await webhook({message:{text:'/exportar txt linha literal',message_id:22,chat:{id:7,type:'private'}}});
+  assert.equal(res.status,200);
+  const document=lastCall('sendDocument');
+  assert.equal(document.body.document.name,'mdtxtrt.txt');
+  assert.equal(document.body.document.text,'linha literal');
+
+  res=await webhook({callback_query:{id:'cb1',data:'abrir',from:{id:7}}});
+  assert.equal(res.status,200);
+  assert.deepEqual(lastCall('answerCallbackQuery').body,{callback_query_id:'cb1',text:'abrir'});
+
+  res=await webhook({message:{text:'/app',message_id:23,chat:{id:-2,type:'group'}}});
+  assert.equal(res.status,200);
+  assert.match(lastCall('sendRichMessage').body.rich_message.html,/chat privado/);
+});
+
+test('Telegraph path ownership is scoped to the authenticated user and document',async()=>{
+  const doc='66666666-6666-4666-8666-666666666666';
+  const base={title:'Owned',doc,content:[{tag:'p',children:['texto']}],initData:init()};
+  const created=await jsonPost('/api/telegraph/publish',base);
+  assert.equal(created.status,200);
+  const otherUser=await jsonPost('/api/telegraph/publish',{...base,initData:init(8),path:created.data.path});
+  assert.equal(otherUser.status,400);
+  assert.match(otherUser.data.error,/não pertence/);
+  const otherDoc=await jsonPost('/api/telegraph/publish',{...base,doc:'77777777-7777-4777-8777-777777777777',path:created.data.path});
+  assert.equal(otherDoc.status,400);
+  assert.match(otherDoc.data.error,/não pertence/);
+});
+
+test('handoff attachment survives backend restart and remains session-bound',async()=>{
+  const id='restartmedia1',doc='88888888-8888-4888-8888-888888888888';
+  const draft={version:2,name:'Restart',html:`<figure><img data-media-id="${id}"><figcaption>foto.png</figcaption></figure>`,dest:'telegram',telegraphPath:'',docId:doc,importedMd:'',importedTxt:'',importedHtml:'',media:{id,kind:'image'}};
+  const form=new FormData();
+  form.set('draft',JSON.stringify(draft));
+  form.set('upload',new Blob([new Uint8Array([1,2,3,4,5])],{type:'image/png'}),'foto.png');
+  let res=await fetch(`http://127.0.0.1:${port}/api/handoff`,{method:'POST',headers:{origin},body:form});
+  assert.equal(res.status,200);
+  const made=await res.json();
+  await restart();
+
+  res=await fetch(`http://127.0.0.1:${port}/telegram/open?handoff=${made.token}`,{redirect:'manual'});
+  assert.equal(res.status,302);
+  assert.equal(res.headers.get('location'),`https://t.me/mdtxtrt_test_bot?startapp=h_${made.token}`);
+
+  const wrong=await jsonPost('/api/handoff/claim',{initData:init(8),token:made.token});
+  assert.equal(wrong.status,200);
+  const ownerMismatch=await jsonPost('/api/handoff/claim',{initData:init(7),token:made.token});
+  assert.equal(ownerMismatch.status,400);
+
+  res=await fetch(`http://127.0.0.1:${port}/api/handoff/file`,{method:'POST',headers:{origin,'content-type':'application/json'},body:JSON.stringify({initData:init(8),token:made.token})});
+  assert.equal(res.status,200);
+  assert.deepEqual([...new Uint8Array(await res.arrayBuffer())],[1,2,3,4,5]);
+});
