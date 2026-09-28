@@ -1080,7 +1080,8 @@ test('Markdown round-trip preserves strike through edited semantic state',()=>{
 
 test('Markdown file boundary strips runtime media controls and remains reimportable',()=>{
   const w=page(),d=w.document,e=d.querySelector('#editor');
-  w.eval("currentEditorCore().resetHTML('<video src="https://example.com/video.mp4" controls></video><audio src="https://example.com/audio.ogg" controls></audio>',{silent:true})");
+  const mediaHtml='<video src="https://example.com/video.mp4" controls></video><audio src="https://example.com/audio.ogg" controls></audio>';
+  w.eval('currentEditorCore().resetHTML('+JSON.stringify(mediaHtml)+',{silent:true})');
   assert.equal(e.querySelector('video')?.hasAttribute('controls'),true);
   assert.equal(e.querySelector('audio')?.hasAttribute('controls'),true);
   const md=w.eval('htmlToMarkdown(document.querySelector("#editor").innerHTML)');
