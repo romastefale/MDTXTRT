@@ -578,6 +578,7 @@ test('step 4 format contract is explicit and conversion code uses the shared por
   const app=read('app.js'),contract=read('FORMAT_CONTRACT.md');
   assert.match(app,/const FORMAT_CONTRACT=Object\.freeze/);
   assert.match(app,/function normalizePortableHTML\(root,label='conteúdo'\)/);
+  assert.match(app,/function exportDocumentHTML\(\)\{[\s\S]*?editorCore\?editorCore\.html\(\):editor\.innerHTML/);
   assert.match(app,/svc\.addRule\('strikethrough'/);
   assert.doesNotMatch(app,/if\(importedMd && editor\.innerHTML === importedHtml\) return importedMd/);
   assert.doesNotMatch(app,/if\(importedTxt && editor\.innerHTML===importedHtml\)return importedTxt/);
