@@ -32,10 +32,6 @@ export const MENU_LENS = {
 };
 
 const MENU_RADIUS = 9;
-// Long control bars need frost and an edge, not a stretched displacement lens.
-const CONTROL_LENS = { ...MENU_LENS, strength: 0, bend: 0, curvature: 0, dispersion: 0, frost: 2, brightness: 0.12, sheen: 0.25 };
-// A notification is small enough for a softer, independent lens.
-const TOAST_LENS = { ...MENU_LENS, depth: 1, curvature: 0.5, strength: 0.17, bendWidth: 0.12, frost: 3, brightness: 0.22, sheen: 1.3 };
 
 function Icon({ name }) {
   return <span className="ui-icon" data-icon={name} aria-hidden="true" />;
@@ -82,7 +78,7 @@ export function GlassContextMenu({
 function GlassControl({ className = "", children, style, ...props }) {
   return (
     <Glass
-      optics={CONTROL_LENS}
+      optics={MENU_LENS}
       className={className}
       style={{ display: "flex", alignItems: "center", ...style }}
       {...props}
@@ -303,7 +299,7 @@ function FindMenu() {
 function Toast() {
   return (
     <div className="toast" id="toast" role="status" aria-live="polite" aria-atomic="true">
-      <Glass optics={TOAST_LENS} className="toast-material">
+      <Glass optics={MENU_LENS} className="toast-material">
         <span className="toast-content" id="toastTextHost" />
       </Glass>
     </div>
