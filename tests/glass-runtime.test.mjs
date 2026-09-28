@@ -66,6 +66,11 @@ test("bar Glass material changes real optical veil and edge with the live theme"
       pretendToBeVisual: true,
     },
   );
+  dom.window.matchMedia = () => ({
+    matches: true,
+    addEventListener() {},
+    removeEventListener() {},
+  });
   const restore = installBrowserGlobals(dom.window);
 
   try {
