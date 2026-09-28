@@ -1,6 +1,6 @@
 # Format contract — evolution step 4/6
 
-This document is the executable product contract for import, export and publication in evolution step 4/6. It is intentionally separate from `ARCHITECTURE.md`; the broader architecture/documentation alignment belongs to step 6.
+This document is the executable product contract for import, export and publication introduced in evolution step 4/6 and retained by the architecture alignment in step 6/6. `ARCHITECTURE.md` records the broader system boundaries; this file remains the format-specific contract.
 
 The visual contract remains commit `dde30467ed9b0d108bac2ae7ad9bcac1137c169e`.
 
