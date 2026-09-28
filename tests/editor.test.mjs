@@ -884,3 +884,67 @@ test('editing recovered handoff prevents publishing a stale transferred action',
   assert.match(d.querySelector('#toast').textContent,/documento mudou/);
   w.close();
 });
+
+
+test('ProseMirror normalizes equivalent mark aliases and toggles the semantic mark off',()=>{
+  const w=page(),d=w.document;
+  w.eval("editorCore.resetHTML('<p><b>um</b> <strong>dois</strong> <i>x</i> <em>y</em></p>',{silent:true})");
+  assert.equal(d.querySelectorAll('#editor b').length,0);
+  assert.equal(d.querySelectorAll('#editor i').length,0);
+  assert.equal(d.querySelectorAll('#editor strong').length,2);
+  assert.equal(d.querySelectorAll('#editor em').length,2);
+
+  w.eval("editorCore.selectRange(editorCore.findLiteral('um dois')[0],{focus:true});exec('bold')");
+  assert.equal(d.querySelectorAll('#editor strong,#editor b').length,0);
+
+  w.eval("editorCore.selectRange(editorCore.findLiteral('x y')[0],{focus:true});exec('italic')");
+  assert.equal(d.querySelectorAll('#editor em,#editor i').length,0);
+  w.close();
+});
+
+test('editor shortcuts do not hijack document-name or find-field commands',()=>{
+  const w=page(),d=w.document;
+  w.eval("editorCore.resetHTML('<p>texto</p>',{silent:true})");
+  const before=d.querySelector('#editor').innerHTML;
+
+  const name=d.querySelector('#docName');
+  name.focus();
+  const bold=new w.KeyboardEvent('keydown',{key:'b',ctrlKey:true,bubbles:true,cancelable:true});
+  name.dispatchEvent(bold);
+  assert.equal(bold.defaultPrevented,false);
+  assert.equal(d.querySelector('#editor').innerHTML,before);
+
+  const find=d.querySelector('#findText');
+  find.value='abc';
+  find.focus();
+  const undo=new w.KeyboardEvent('keydown',{key:'z',ctrlKey:true,bubbles:true,cancelable:true});
+  find.dispatchEvent(undo);
+  assert.equal(undo.defaultPrevented,false);
+  assert.equal(d.querySelector('#editor').innerHTML,before);
+  w.close();
+});
+
+test('find treats punctuation and regex metacharacters literally',()=>{
+  const w=page(),d=w.document;
+  w.eval("editorCore.resetHTML('<p>a.b C++ ( [ fim</p>',{silent:true})");
+  const find=d.querySelector('#findText');
+  for(const term of ['a.b','C++','(','[']){
+    find.value=term;
+    d.querySelector('#findNext').click();
+    assert.equal(w.eval('editorCore.selectedText()'),term);
+  }
+  w.close();
+});
+
+test('plain-text paste is one transactional history step',()=>{
+  const w=page(),d=w.document;
+  w.eval("editorCore.resetHTML('<p>base</p>',{silent:true})");
+  w.eval("const r=editorCore.findLiteral('base')[0];editorCore.selectRange({from:r.to,to:r.to},{focus:true})");
+  const event=new w.Event('paste',{bubbles:true,cancelable:true});
+  Object.defineProperty(event,'clipboardData',{value:{getData:type=>type==='text/plain'?' X\nY':''}});
+  d.querySelector('#editor').dispatchEvent(event);
+  assert.match(d.querySelector('#editor').textContent,/base X\s*Y/);
+  d.querySelector('#undoBtn').click();
+  assert.equal(d.querySelector('#editor').textContent,'base');
+  w.close();
+});
