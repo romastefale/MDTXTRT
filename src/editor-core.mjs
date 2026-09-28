@@ -439,8 +439,8 @@ export function createEditorCore({element,onChange=()=>{},onSelectionChange=()=>
       const caretOffset=Math.max(0,$from.parentOffset-markerLength);
       const checkbox=schema.nodes.task_checkbox.create({checked:task[1].toLowerCase()==="x",disabled:false});
       const content=Fragment.from(checkbox).append(node.content.cut(markerLength));
-      const paragraph=schema.nodes.paragraph.create(null,node.content.cut(markerLength));
-      const item=schema.nodes.list_item.create(null,Fragment.fromArray([checkbox,paragraph]));
+      const paragraph=schema.nodes.paragraph.create(null,content);
+      const item=schema.nodes.list_item.create(null,paragraph);
       const list=schema.nodes.bullet_list.create(null,item);
       let tr=state.tr.replaceWith(blockPos,blockPos+node.nodeSize,list);
       tr=tr.setSelection(TextSelection.create(tr.doc,blockPos+4+caretOffset));
