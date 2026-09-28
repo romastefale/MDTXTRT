@@ -48,7 +48,9 @@ test('React UX imports the official Glass primitive and follows GlassContextMenu
   ])assert.ok(src.includes(fragment),fragment);
   assert.match(src,/function GlassContextMenu/);
   assert.match(src,/<Glass[\s\S]*?optics=\{MENU_LENS\}[\s\S]*?className="glass-menu-material"/);
-  assert.match(src,/function GlassControl/);
+  assert.match(src,/const BAR_LENS = \{[\s\S]*?light: \{[\s\S]*?brightness: 0\.34,[\s\S]*?specular: 0\.68,[\s\S]*?sheen: 0\.3,[\s\S]*?dark: \{[\s\S]*?brightness: 0\.2,[\s\S]*?specular: 0\.5,[\s\S]*?sheen: 0\.22,[\s\S]*?readTheme\(\)[\s\S]*?subscribe\(onStoreChange\)[\s\S]*?serverTheme\(\)/);
+  assert.doesNotMatch(src,/const BAR_LENS = \{[\s\S]*?\.\.\.MENU_LENS/);
+  assert.match(src,/function GlassControl[\s\S]*?React\.useSyncExternalStore\([\s\S]*?BAR_LENS\.subscribe,[\s\S]*?BAR_LENS\.readTheme,[\s\S]*?BAR_LENS\.serverTheme,[\s\S]*?<Glass[\s\S]*?optics=\{BAR_LENS\[theme\]\}/);
   assert.match(src,/style=\{\{ display: "flex", alignItems: "center", \.\.\.style \}\}/);
   assert.match(src,/className="glass-menu-material"[\s\S]*?style=\{\{ display: "block", width: "100%" \}\}/);
 });
@@ -76,7 +78,14 @@ test('theme neutrals are chromatic derivatives of the active accent',()=>{
   assert.match(html,/--line:color-mix\(in oklab,var\(--accent\) 22%,var\(--bg\)\);/);
   assert.match(html,/--glass-tint:color-mix\(in oklab,var\(--accent\) 11%,transparent\);/);
   assert.match(html,/html\.light\{[\s\S]*?--glass-tint:color-mix\(in oklab,var\(--accent\) 7%,transparent\);/);
-  assert.match(html,/\.seg,\.bar,\.theme-control\{[^}]*background:var\(--glass-tint\)/);
+  assert.match(html,/--bar-glass-tint:color-mix\(in oklab,var\(--accent\) 20%,transparent\);/);
+  assert.match(html,/--bar-glass-tint-strong:color-mix\(in oklab,var\(--accent\) 28%,transparent\);/);
+  assert.match(html,/--bar-control-accent-bg:color-mix\(in oklab,var\(--accent\) 26%,transparent\);/);
+  assert.match(html,/html\.light\{[\s\S]*?--bar-glass-tint:color-mix\(in oklab,var\(--accent\) 16%,transparent\);/);
+  assert.match(html,/html\.light\{[\s\S]*?--bar-glass-tint-strong:color-mix\(in oklab,var\(--accent\) 23%,transparent\);/);
+  assert.match(html,/html\.light\{[\s\S]*?--bar-control-accent-bg:color-mix\(in oklab,var\(--accent\) 20%,transparent\);/);
+  assert.doesNotMatch(html,/--bar-(?:glass-tint|glass-tint-strong|control-accent-bg):[^;]*rgba\(/);
+  assert.match(html,/\.seg,\.bar,\.theme-control\{[^}]*background:var\(--bar-glass-tint\)/);
   assert.match(html,/\.glass-menu-material,\.toast-material\{background:var\(--glass-tint\)\}/);
   assert.match(html,/box-shadow:inset 0 0 0 \.5px var\(--glass-inner\),0 0 0 \.5px var\(--glass-edge\)/);
   assert.match(html,/\.menu-divider::after\{[^}]*background:var\(--glass-edge\)\}/);
@@ -140,7 +149,7 @@ test('interface icon assets are vector SVG only and referenced from React source
   assert.equal(existsSync(new URL('../logo.png',import.meta.url)),false);
   const names=new Set([
     ...[...src.matchAll(/(?:name|icon)="([a-z0-9_]+)"/g)].map(m=>m[1]),
-    ...[...src.matchAll(/\["([a-z0-9_]+)",\s*"[^"]+"/g)].map(m=>m[1]),
+    ...[...src.matchAll(/\["([a-z0-9_]+)",\s*"[A-ZÀ-Ý][^"]*"/g)].map(m=>m[1]),
   ]);
   assert.ok(names.size>40);
   for(const name of names)assert.ok(existsSync(new URL('../icons/'+name+'.svg',import.meta.url)),name);
@@ -171,9 +180,14 @@ test('editor keeps target-specific publishing validation and code metadata',()=>
 
 test('server exposes every React-referenced local SVG icon and vector app icon',()=>{
   const src=uiSource(),server=read('server.mjs');
+  const plusStart=src.indexOf('const plusSections = [');
+  const plusEnd=src.indexOf('function PlusCategory',plusStart);
+  assert.ok(plusStart>=0&&plusEnd>plusStart);
+  const plus=src.slice(plusStart,plusEnd);
   const names=new Set([
-    ...[...src.matchAll(/(?:name|icon)="([a-z0-9_]+)"/g)].map(m=>m[1]),
-    ...[...src.matchAll(/\["([a-z0-9_]+)",\s*"[^"]+"/g)].map(m=>m[1]),
+    ...[...src.matchAll(/\b(?:name|icon)="([a-z0-9_]+)"/g)].map(m=>m[1]),
+    ...[...plus.matchAll(/\bicon:\s*"([a-z0-9_]+)"/g)].map(m=>m[1]),
+    ...[...plus.matchAll(/\["([a-z0-9_]+)",\s*"[^"]+"/g)].map(m=>m[1]),
   ]);
   for(const name of names)assert.ok(server.includes('"'+name+'"')||server.includes('icons/'+name+'.svg'),name);
   assert.match(server,/"logo\.svg"/);
@@ -248,7 +262,9 @@ test('UI preserves compact portrait contract, unified chrome scale and anchored 
   assert.match(html,/--theme-icon-size:clamp\(10\.8px,3vw,12px\)/);
   assert.match(html,/--menu-w:210px/);
   assert.match(html,/--menu-row-h:24px/);
-  assert.match(html,/\.bar > button\.more\{color:var\(--accent\);background:var\(--glass-tint-strong\)\}/);
+  assert.match(html,/\.fade-top\{[\s\S]*?height:calc\(var\(--head-inset\) \+ 20px\);[\s\S]*?var\(--bg\) 86%,transparent[\s\S]*?var\(--bg\) 60%,transparent\) 52%[\s\S]*?var\(--bg\) 26%,transparent\) 76%[\s\S]*?transparent 100%/);
+  assert.match(html,/\.fade-bot\{[\s\S]*?height:calc\(var\(--foot-inset\) \+ 20px\);[\s\S]*?var\(--bg\) 86%,transparent[\s\S]*?var\(--bg\) 60%,transparent\) 52%[\s\S]*?var\(--bg\) 26%,transparent\) 76%[\s\S]*?transparent 100%/);
+  assert.match(html,/\.bar > button\.more\{color:var\(--accent\);background:var\(--bar-control-accent-bg\)\}/);
   assert.match(src,/className="app-title"[^>]*>MDTXTRT<\/span>/);
   assert.match(src,/id="themeBtn"/);
   assert.match(src,/id="plusBtn"[\s\S]*popoverTarget="plusMenu"/);

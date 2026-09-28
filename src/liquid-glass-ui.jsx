@@ -31,6 +31,70 @@ export const MENU_LENS = {
   sheenWidth: 1,
 };
 
+const BAR_LENS = {
+  light: {
+    mapSize: 256,
+    clipToShape: true,
+    softEdge: true,
+    depth: 0.72,
+    curvature: 0.3,
+    dispersion: 0.16,
+    strength: 0.24,
+    bend: 0.65,
+    bendWidth: 0.07,
+    frost: 3,
+    brightness: 0.34,
+    specular: 0.68,
+    sheenAngle: 45,
+    glow: 0.04,
+    glowSpread: 1,
+    glowFalloff: 0.8,
+    sheen: 0.3,
+    sheenWidth: 1,
+  },
+  dark: {
+    mapSize: 256,
+    clipToShape: true,
+    softEdge: true,
+    depth: 0.72,
+    curvature: 0.3,
+    dispersion: 0.16,
+    strength: 0.24,
+    bend: 0.65,
+    bendWidth: 0.07,
+    frost: 3,
+    brightness: 0.2,
+    specular: 0.5,
+    sheenAngle: 45,
+    glow: 0.025,
+    glowSpread: 1,
+    glowFalloff: 0.8,
+    sheen: 0.22,
+    sheenWidth: 1,
+  },
+  readTheme() {
+    if (typeof document === "undefined") return "dark";
+    const root = document.documentElement;
+    return root.dataset.theme === "light" || root.classList.contains("light")
+      ? "light"
+      : "dark";
+  },
+  subscribe(onStoreChange) {
+    if (typeof document === "undefined" || typeof MutationObserver === "undefined") {
+      return () => {};
+    }
+    const observer = new MutationObserver(onStoreChange);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class", "data-theme"],
+    });
+    return () => observer.disconnect();
+  },
+  serverTheme() {
+    return "dark";
+  },
+};
+
 const MENU_RADIUS = 9;
 
 function Icon({ name }) {
@@ -76,9 +140,14 @@ export function GlassContextMenu({
 }
 
 function GlassControl({ className = "", children, style, ...props }) {
+  const theme = React.useSyncExternalStore(
+    BAR_LENS.subscribe,
+    BAR_LENS.readTheme,
+    BAR_LENS.serverTheme,
+  );
   return (
     <Glass
-      optics={MENU_LENS}
+      optics={BAR_LENS[theme]}
       className={className}
       style={{ display: "flex", alignItems: "center", ...style }}
       {...props}
