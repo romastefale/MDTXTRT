@@ -591,7 +591,7 @@ for(const sel of sheets){
 document.addEventListener('keydown',event=>{if(event.key==='Escape'&&one('#dialogMenu').matches(':popover-open')){event.preventDefault();finishDialog(dialogConfirm?false:null);}});
 function currentEditorCore(){return editorCore;}
 function saveSel(){
-  if(editorCore){savedRange=editorCore.captureSelection();return;}
+  if(editorCore){savedRange=editorCore.saveSelection();return;}
   const sel=window.getSelection();
   if(!sel||!sel.rangeCount)return;
   const n=sel.anchorNode;
@@ -1177,7 +1177,7 @@ function commitEditorInput(event){
   let blockTransformed=false,inlineTransformed=false,normalized=false;
   if(editorCore){
     editorCore.syncFromDOM({addToHistory:true});
-    blockTransformed=editorCore.applyMarkdownBlockRule();
+    blockTransformed=editorCore.applyMarkdownBlockRule({allowTask:dest==='telegram'});
   }
   if(!blockTransformed){
     inlineTransformed=markdownInlineRule();
