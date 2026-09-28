@@ -246,14 +246,16 @@ test('editor keeps target-specific publishing validation and code metadata',()=>
   assert.match(app,/slice\(0,64\)/);
   assert.match(app,/Formato de data inválido/);
   assert.match(app,/function activeMedia\(\)/);
-  assert.match(app,/redoUsesMedia=hist\.slice\(histI\+1\)/);
+  assert.match(app,/editorCore\.patchMedia/);
+  assert.doesNotMatch(app,/\bhistI\b|\bhistLock\b/);
   assert.doesNotMatch(app,/toast\.textContent\s*=/);
   assert.match(app,/toastTextHost/);
   assert.match(app,/if\(window\.visualViewport\)\{/);
-  assert.match(app,/function searchRegex\(term,exact=false\)/);
-  const searchBlock=app.slice(app.indexOf('function matches(){'),app.indexOf("one('#findNext')"));
-  assert.doesNotMatch(searchBlock,/toLocaleLowerCase/);
-  assert.match(searchBlock,/matchAll\(searchRegex\(term\)\)/);
+  assert.doesNotMatch(app,/function searchRegex\(/);
+  const core=read('src/editor-core.mjs');
+  assert.match(core,/function findLiteral\(term\)/);
+  assert.match(core,/\.indexOf\(needle,at\)/);
+  assert.doesNotMatch(core,/new RegExp\(term/);
 });
 
 test('server exposes every React-referenced local SVG icon and vector app icon',()=>{
