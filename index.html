@@ -115,7 +115,8 @@
     }
     .device-gate strong{display:block;font-size:14px;line-height:1.25;letter-spacing:-.01em}
     .device-gate p{margin:4px 0 0;color:var(--muted);font-size:12px;line-height:1.35}
-    html[data-device-gate] .device-gate{display:block}
+    html[data-device-gate] .device-gate{display:block;animation:device-gate-out .22s ease 4s forwards}
+    @keyframes device-gate-out{to{opacity:0;visibility:hidden}}
     ::selection{background:color-mix(in srgb,var(--accent) 38%, transparent);color:inherit}
     button,input{font:inherit;color:inherit}
     button{cursor:pointer;-webkit-tap-highlight-color:transparent}
@@ -362,7 +363,7 @@
     #findMenu .tools button{flex:1 1 auto;white-space:nowrap}
     @media (prefers-reduced-motion:reduce){.glass-menu{animation:none}}
     @media (orientation:landscape),(min-width:760px){
-      .device-gate{display:grid}
+      html[data-device-gate] .device-gate{display:block}
     }
   </style>
 </head>
@@ -390,6 +391,12 @@
   <script type="module" src="ui.js?v=a1bade83e4da"></script>
   <script>
     document.addEventListener('DOMContentLoaded',()=>{
+      const root=document.documentElement;
+      const initialDeviceNotice=matchMedia('(orientation:landscape)').matches||matchMedia('(min-width:760px)').matches;
+      if(initialDeviceNotice){
+        root.setAttribute('data-device-gate','');
+        setTimeout(()=>root.removeAttribute('data-device-gate'),4300);
+      }
       const destBtn=document.querySelector('#destBtn');
       const tools=document.querySelector('.document-tools');
       const slot=document.querySelector('#telegraphTitleSlot');
