@@ -9,6 +9,8 @@ A release is approved only when every gate below is PASS and every evidence refe
 Run on the exact candidate SHA with a clean checkout.
 
 Acceptance:
+- the release workflow explicitly checks out the candidate SHA rather than GitHub's synthetic pull-request merge ref;
+- `git rev-parse HEAD` equals the candidate/anchor SHA before validation starts;
 - all regression tests pass;
 - no skipped regression may be used to waive a known defect;
 - the result identifies the exact commit SHA and GitHub Actions run.
@@ -37,7 +39,9 @@ Normative visual baseline: `dde30467ed9b0d108bac2ae7ad9bcac1137c169e`.
 
 Automated component:
 - the release workflow renders candidate and baseline with the same Chrome binary, viewport and host;
-- the stable 390×844 browser shell must produce an identical screenshot.
+- light and dark stable 390×844 browser shells must produce identical candidate/baseline screenshots;
+- the screenshots and `summary.json` are retained as a `release-visual-baseline-<anchor-sha>` Actions artifact;
+- missing visual evidence is itself a workflow failure.
 
 Manual/physical component:
 - verify baseline material, control scale, normal dimensions and composition for top chrome, formatting bar, context menus and dialogs;
