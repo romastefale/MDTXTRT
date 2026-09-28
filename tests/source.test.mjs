@@ -364,8 +364,8 @@ test('UI preserves compact portrait contract, unified chrome scale and anchored 
   assert.doesNotMatch(html,/--theme-icon-size:/);
   assert.match(html,/--menu-w:210px/);
   assert.match(html,/--menu-row-h:24px/);
-  assert.match(html,/\.fade-top\{[\s\S]*?height:calc\(var\(--head-inset\) \+ 50px\);[\s\S]*?var\(--bg\) 86%,transparent[\s\S]*?var\(--bg\) 60%,transparent\) 52%[\s\S]*?var\(--bg\) 26%,transparent\) 76%[\s\S]*?transparent 100%/);
-  assert.match(html,/\.fade-bot\{[\s\S]*?height:calc\(var\(--foot-inset\) \+ 50px\);[\s\S]*?var\(--bg\) 86%,transparent[\s\S]*?var\(--bg\) 60%,transparent\) 52%[\s\S]*?var\(--bg\) 26%,transparent\) 76%[\s\S]*?transparent 100%/);
+  assert.match(html,/\.fade-top\{[\s\S]*?height:calc\(var\(--head-inset\) \+ 50px\);[\s\S]*?linear-gradient\(180deg,var\(--bg\) 0,var\(--bg\) calc\(var\(--safe-top\) \+ var\(--gap\)\)[\s\S]*?var\(--bg\) 60%,transparent\) 52%[\s\S]*?var\(--bg\) 26%,transparent\) 76%[\s\S]*?transparent 100%/);
+  assert.match(html,/\.fade-bot\{[\s\S]*?height:calc\(var\(--foot-inset\) \+ 50px\);[\s\S]*?linear-gradient\(0deg,var\(--bg\) 0,var\(--bg\) calc\(var\(--bottom\) \+ var\(--gap\)\)[\s\S]*?var\(--bg\) 60%,transparent\) 52%[\s\S]*?var\(--bg\) 26%,transparent\) 76%[\s\S]*?transparent 100%/);
   assert.match(html,/\.bar > button\.more\{color:#fff;background:var\(--accent\);box-shadow:0 4px 20px color-mix\(in oklab,var\(--accent\) 70%,transparent\)\}/);
   assert.match(src,/className="theme-switch" id="themeBtn"/);
   assert.match(src,/<span className="app-title">MDTXTRT<\/span>/);
