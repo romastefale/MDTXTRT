@@ -245,14 +245,13 @@ test('server exposes every React-referenced local SVG icon and vector app icon',
   assert.doesNotMatch(server,/"logo\.png"/);
 });
 
-test('bottom bar keeps the same rendered inset on the bottom and both sides',()=>{
+test('bottom bar uses a fixed 20px edge inset and redistributes controls',()=>{
   const html=read('index.html'),app=read('app.js');
-  assert.match(html,/--bar-side-inset:12px/);
+  assert.match(html,/--bar-side-inset:20px/);
   assert.match(html,/--foot-inset:calc\(var\(--bottom\) \+ var\(--bar-side-inset\) \+ var\(--bar-h\) \+ var\(--gap\)\)/);
-  assert.match(html,/\.bar-wrap\{[\s\S]*?bottom:calc\(var\(--vv-bottom\) \+ var\(--bottom\) \+ var\(--bar-side-inset\)\)/);
-  assert.match(app,/const bar=one\('#typebar'\)/);
-  assert.match(app,/const side=Math\.max\(0,Math\.min\(rect\.left-left,left\+width-rect\.right\)\)/);
-  assert.match(app,/root\.style\.setProperty\('--bar-side-inset',side\+'px'\)/);
+  assert.match(html,/\.bar-wrap\{[\s\S]*?left:max\(var\(--bar-side-inset\),var\(--safe-left\)\);right:max\(var\(--bar-side-inset\),var\(--safe-right\)\);width:auto;[\s\S]*?bottom:calc\(var\(--vv-bottom\) \+ var\(--bottom\) \+ var\(--bar-side-inset\)\)[\s\S]*?transform:none/);
+  assert.match(html,/\.bar\{[\s\S]*?width:100%;margin:0;[\s\S]*?justify-content:space-between/);
+  assert.doesNotMatch(app,/root\.style\.setProperty\('--bar-side-inset'/);
 });
 
 test('editor content starts below the lowered side pills without bypassing Telegram safe-area tokens',()=>{
