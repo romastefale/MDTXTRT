@@ -255,6 +255,7 @@ test('Chrome PWA install metadata is exposed without changing runtime caching',(
   assert.equal(manifest.start_url,'./');
   assert.equal(manifest.scope,'./');
   assert.equal(manifest.display,'standalone');
+  assert.equal(manifest.theme_color,'#f8fbff');
   assert.equal(manifest.prefer_related_applications,false);
   assert.ok(manifest.icons.some(icon=>icon.sizes==='192x192'&&icon.src==='pwa-192.svg'&&icon.type==='image/svg+xml'));
   assert.ok(manifest.icons.some(icon=>icon.sizes==='512x512'&&icon.src==='pwa-512.svg'&&icon.type==='image/svg+xml'));
@@ -287,8 +288,9 @@ test('editor content starts below the lowered side pills without bypassing Teleg
 test('browser PWA uses platform safe areas while Telegram keeps its content safe area',()=>{
   const html=read('index.html'),app=read('app.js');
   assert.match(html,/viewport-fit=cover/);
-  assert.match(html,/--safe-top:env\(safe-area-inset-top,0px\);[\s\S]*?--safe-bottom:env\(safe-area-inset-bottom,0px\);[\s\S]*?--safe-left:env\(safe-area-inset-left,0px\);[\s\S]*?--safe-right:env\(safe-area-inset-right,0px\);/);
-  assert.match(html,/html\.tg-shell\{[\s\S]*?--safe-top:var\(--app-tg-content-safe-top\);[\s\S]*?--safe-bottom:var\(--app-tg-content-safe-bottom\);[\s\S]*?--safe-left:var\(--app-tg-content-safe-left\);[\s\S]*?--safe-right:var\(--app-tg-content-safe-right\)/);
+  assert.match(html,/--safe-top:env\(safe-area-inset-top,0px\);[\s\S]*?--safe-bottom:env\(safe-area-inset-bottom,0px\);[\s\S]*?--safe-left:env\(safe-area-inset-left,0px\);[\s\S]*?--safe-right:env\(safe-area-inset-right,0px\);[\s\S]*?--safe-bottom-max:env\(safe-area-max-inset-bottom,36px\);/);
+  assert.match(html,/html\.tg-shell\{[\s\S]*?--safe-top:var\(--app-tg-content-safe-top\);[\s\S]*?--safe-bottom:var\(--app-tg-content-safe-bottom\);[\s\S]*?--safe-left:var\(--app-tg-content-safe-left\);[\s\S]*?--safe-right:var\(--app-tg-content-safe-right\);[\s\S]*?--safe-bottom-max:0px/);
+  assert.match(html,/\.fade-bot\{[\s\S]*?bottom:calc\(var\(--vv-bottom\) \+ var\(--safe-bottom\) - var\(--safe-bottom-max\)\);[\s\S]*?height:calc\(var\(--foot-inset\) \+ 50px \+ var\(--safe-bottom-max\)\)/);
   assert.match(app,/function syncTelegramContentSafeArea\(\)/);
   assert.doesNotMatch(app,/tg\.safeAreaInset/);
   assert.match(app,/tg\.contentSafeAreaInset/);
@@ -385,7 +387,7 @@ test('UI preserves compact portrait contract, unified chrome scale and anchored 
   assert.match(html,/--menu-w:210px/);
   assert.match(html,/--menu-row-h:24px/);
   assert.match(html,/\.fade-top\{[\s\S]*?height:calc\(var\(--head-inset\) \+ 50px\);[\s\S]*?linear-gradient\(180deg,var\(--bg\) 0,var\(--bg\) calc\(var\(--safe-top\) \+ var\(--gap\)\)[\s\S]*?var\(--bg\) 60%,transparent\) 52%[\s\S]*?var\(--bg\) 26%,transparent\) 76%[\s\S]*?transparent 100%/);
-  assert.match(html,/\.fade-bot\{[\s\S]*?height:calc\(var\(--foot-inset\) \+ 50px\);[\s\S]*?linear-gradient\(0deg,var\(--bg\) 0,var\(--bg\) calc\(var\(--bottom\) \+ var\(--gap\)\)[\s\S]*?var\(--bg\) 60%,transparent\) 52%[\s\S]*?var\(--bg\) 26%,transparent\) 76%[\s\S]*?transparent 100%/);
+  assert.match(html,/\.fade-bot\{[\s\S]*?bottom:calc\(var\(--vv-bottom\) \+ var\(--safe-bottom\) - var\(--safe-bottom-max\)\);[\s\S]*?height:calc\(var\(--foot-inset\) \+ 50px \+ var\(--safe-bottom-max\)\);[\s\S]*?linear-gradient\(0deg,var\(--bg\) 0,var\(--bg\) calc\(var\(--safe-bottom-max\) \+ var\(--gap\)\)[\s\S]*?var\(--bg\) 60%,transparent\) 52%[\s\S]*?var\(--bg\) 26%,transparent\) 76%[\s\S]*?transparent 100%/);
   assert.match(html,/\.bar > button\.more\{color:#fff;background:var\(--accent\);box-shadow:0 4px 20px color-mix\(in oklab,var\(--accent\) 70%,transparent\)\}/);
   assert.match(src,/className="theme-switch" id="themeBtn"/);
   assert.match(src,/<span className="app-title">MDTXTRT<\/span>/);

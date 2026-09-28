@@ -47,6 +47,7 @@
       --safe-bottom:env(safe-area-inset-bottom,0px);
       --safe-left:env(safe-area-inset-left,0px);
       --safe-right:env(safe-area-inset-right,0px);
+      --safe-bottom-max:env(safe-area-max-inset-bottom,36px);
       --gap:8px;
       --bar-side-inset:20px;
       --bar-bottom-inset:32px;
@@ -72,6 +73,7 @@
       --safe-bottom:var(--app-tg-content-safe-bottom);
       --safe-left:var(--app-tg-content-safe-left);
       --safe-right:var(--app-tg-content-safe-right);
+      --safe-bottom-max:0px;
     }
     html.light{
       --bg:#f8fbff; --text:#151515; --accent:#269c65;
@@ -164,9 +166,9 @@
       background:linear-gradient(180deg,var(--bg) 0,var(--bg) calc(var(--safe-top) + var(--gap)),color-mix(in srgb,var(--bg) 60%,transparent) 52%,color-mix(in srgb,var(--bg) 26%,transparent) 76%,transparent 100%)
     }
     .fade-bot{
-      top:auto;bottom:var(--vv-bottom);
-      height:calc(var(--foot-inset) + 50px);
-      background:linear-gradient(0deg,var(--bg) 0,var(--bg) calc(var(--bottom) + var(--gap)),color-mix(in srgb,var(--bg) 60%,transparent) 52%,color-mix(in srgb,var(--bg) 26%,transparent) 76%,transparent 100%)
+      top:auto;bottom:calc(var(--vv-bottom) + var(--safe-bottom) - var(--safe-bottom-max));
+      height:calc(var(--foot-inset) + 50px + var(--safe-bottom-max));
+      background:linear-gradient(0deg,var(--bg) 0,var(--bg) calc(var(--safe-bottom-max) + var(--gap)),color-mix(in srgb,var(--bg) 60%,transparent) 52%,color-mix(in srgb,var(--bg) 26%,transparent) 76%,transparent 100%)
     }
     .app{display:contents}
     .topbar{
