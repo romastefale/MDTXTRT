@@ -640,6 +640,7 @@ test('final release gap analysis and immutable anchor gates are explicit',()=>{
   const anchor=read('RELEASE_ANCHOR.md');
   const manifest=JSON.parse(read('RELEASE_MANIFEST.json'));
   assert.match(workflow,/workflow_dispatch:/);
+  assert.match(workflow,/ref: \\?\$\{\{ github\.event\.pull_request\.head\.sha \|\| github\.sha \}\}/);
   assert.match(workflow,/name: Rebuild all committed bundles[\s\S]*?npm run build/);
   assert.match(workflow,/git diff --exit-code -- editor-core\.js ui\.js/);
   assert.match(workflow,/node scripts\/verify-release-manifest\.mjs/);
