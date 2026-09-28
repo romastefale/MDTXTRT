@@ -245,6 +245,26 @@ test('server exposes every React-referenced local SVG icon and vector app icon',
   assert.doesNotMatch(server,/"logo\.png"/);
 });
 
+test('Chrome PWA install metadata is exposed without changing runtime caching',()=>{
+  const html=read('index.html'),server=read('server.mjs');
+  const manifest=JSON.parse(read('manifest.webmanifest'));
+  assert.match(html,/<link rel="manifest" href="manifest\.webmanifest" \/>/);
+  assert.equal(manifest.name,'MDTXTRT');
+  assert.equal(manifest.short_name,'MDTXTRT');
+  assert.equal(manifest.id,'./');
+  assert.equal(manifest.start_url,'./');
+  assert.equal(manifest.scope,'./');
+  assert.equal(manifest.display,'standalone');
+  assert.equal(manifest.prefer_related_applications,false);
+  assert.ok(manifest.icons.some(icon=>icon.sizes==='192x192'&&icon.src==='pwa-192.svg'&&icon.type==='image/svg+xml'));
+  assert.ok(manifest.icons.some(icon=>icon.sizes==='512x512'&&icon.src==='pwa-512.svg'&&icon.type==='image/svg+xml'));
+  assert.match(server,/"\.webmanifest": "application\/manifest\+json; charset=utf-8"/);
+  assert.match(server,/"manifest\.webmanifest"/);
+  assert.match(server,/"pwa-192\.svg"/);
+  assert.match(server,/"pwa-512\.svg"/);
+  assert.doesNotMatch(html,/service-worker|serviceWorker/);
+});
+
 test('bottom bar uses 20px side insets, 32px bottom inset and redistributes controls',()=>{
   const html=read('index.html'),app=read('app.js');
   assert.match(html,/--bar-side-inset:20px/);
