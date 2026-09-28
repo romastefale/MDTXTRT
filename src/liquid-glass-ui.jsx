@@ -11,24 +11,9 @@ import { Glass } from "@samasante/liquid-glass";
  * MDTXTRT owns only this application-specific React shell.
  */
 export const MENU_LENS = {
-  mapSize: 256,
-  clipToShape: true,
-  softEdge: true,
-  depth: 0.65,
-  curvature: 0.26,
-  dispersion: 0.16,
-  strength: 0.22,
-  bend: 0.65,
-  bendWidth: 0.07,
-  frost: 3.5,
-  brightness: 0.55,
-  specular: 0.8,
-  sheenAngle: 45,
-  glow: 0.06,
-  glowSpread: 1,
-  glowFalloff: 0.8,
-  sheen: 0.4,
-  sheenWidth: 1,
+  sheen: 0,
+  glow: 0,
+  specular: 0,
 };
 
 const BAR_LENS = {
