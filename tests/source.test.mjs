@@ -20,7 +20,7 @@ test('browser bundle cache busters follow the committed Git blob SHAs',()=>{
   for(const file of ['ui.js','editor-core.js']){
     const bytes=readFileSync(new URL('../'+file,import.meta.url));
     const sha=createHash('sha1').update(Buffer.from('blob '+bytes.length+'\0')).update(bytes).digest('hex').slice(0,12);
-    assert.match(html,new RegExp(file.replace('.','\\\\.')+'\\\\?v='+sha));
+    assert.ok(html.includes(file+'?v='+sha),file+' cache buster must match committed blob');
   }
 });
 
@@ -526,7 +526,7 @@ test('server follows Bot API 10.3 Rich Message contracts without message downgra
   assert.doesNotMatch(server,/telegramCall\("sendMessage"/);
 });
 
-test('execution toolchain is pinned and CI verifies generated UI without mutating main',()=>{
+test('execution toolchain is pinned and CI verifies committed browser bundles without mutating main',()=>{
   const pkg=JSON.parse(read('package.json'));
   const lock=JSON.parse(read('package-lock.json'));
   const workflow=read('.github/workflows/regression.yml');
@@ -539,10 +539,8 @@ test('execution toolchain is pinned and CI verifies generated UI without mutatin
   assert.match(workflow,/actions\/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7\.0\.1/);
   assert.match(workflow,/actions\/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7\.0\.0/);
   assert.match(workflow,/test "\$\(npm --version\)" = "11\.19\.0"/);
-  assert.match(workflow,/npm run build/);
-  assert.match(workflow,/actions\/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4/);
-  assert.match(workflow,/name: react-ui-bundle/);
-  assert.match(workflow,/git diff --exit-code -- ui\.js/);
+  assert.match(workflow,/name: Rebuild committed browser bundles[\s\S]*?npm run build/);
+  assert.match(workflow,/name: Verify committed browser bundles[\s\S]*?git diff --exit-code -- editor-core\.js ui\.js/);
   assert.doesNotMatch(workflow,/git push|contents: write/);
   assert.deepEqual(railpack.steps.install.deployOutputs,[]);
   assert.equal(railpack.steps.install.commands.at(-2),'npm --version | grep -Fx 11.19.0');
