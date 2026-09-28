@@ -31,6 +31,18 @@ export const MENU_LENS = {
   sheenWidth: 1,
 };
 
+const BAR_LENS = {
+  ...MENU_LENS,
+  depth: 0.72,
+  curvature: 0.3,
+  strength: 0.24,
+  frost: 3,
+  brightness: 0.42,
+  specular: 0.72,
+  glow: 0.05,
+  sheen: 0.34,
+};
+
 const MENU_RADIUS = 9;
 
 function Icon({ name }) {
@@ -78,7 +90,7 @@ export function GlassContextMenu({
 function GlassControl({ className = "", children, style, ...props }) {
   return (
     <Glass
-      optics={MENU_LENS}
+      optics={BAR_LENS}
       className={className}
       style={{ display: "flex", alignItems: "center", ...style }}
       {...props}
