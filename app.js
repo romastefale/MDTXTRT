@@ -9,11 +9,13 @@ const toastText = document.createTextNode('');
 toastTextHost.append(toastText);
 const fileInput = one('#fileInput');
 const STATE_VERSION=2;
+const DRAFT_KEY='rmdtxtml';
+const DRAFT_RECOVERY_PREFIX='rmdtxtml-recovery-';
 let dest = 'telegram';
 let session='browser',busy=false;
 const plusSubmenus=['#plus-file-menu','#plus-format-menu','#plus-structure-menu','#plus-media-menu','#plus-interaction-menu'];
 const sheets=['#plusMenu',...plusSubmenus,'#headingMenu','#quoteMenu','#listMenu','#exportMenu','#findMenu'];
-let savedRange = null, hist = [], histI = -1, histLock = false, composing = false, saveTimer = null, telegraphPath = '', docId = crypto.randomUUID(), importedMd = '', importedTxt = '', importedHtml = '', mediaFile = null, mediaChoice = null;
+let savedRange = null, hist = [], histI = -1, histLock = false, composing = false, saveTimer = null, telegraphPath = '', docId = crypto.randomUUID(), docRevision = 0, importedMd = '', importedTxt = '', importedHtml = '', mediaFile = null, mediaChoice = null, draftWriteBlocked = false, draftRecoveryProtected = false;
 function applyAssets(){
   all('[data-icon]').forEach(el => {
     const name = el.getAttribute('data-icon');
@@ -77,13 +79,17 @@ function setTheme(mode){
   window.location.reload();
 }
 function browserOwnerKey(){
-  let key='';
-  try{key=localStorage.getItem(BROWSER_OWNER_KEY)||'';}catch{}
-  if(/^[a-f0-9]{64}$/.test(key))return key;
-  const bytes=crypto.getRandomValues(new Uint8Array(32));
-  key=Array.from(bytes,byte=>byte.toString(16).padStart(2,'0')).join('');
-  try{localStorage.setItem(BROWSER_OWNER_KEY,key);}catch{}
-  return key;
+  try{
+    let key=localStorage.getItem(BROWSER_OWNER_KEY)||'';
+    if(/^[a-f0-9]{64}$/.test(key))return key;
+    const bytes=crypto.getRandomValues(new Uint8Array(32));
+    key=Array.from(bytes,byte=>byte.toString(16).padStart(2,'0')).join('');
+    localStorage.setItem(BROWSER_OWNER_KEY,key);
+    if(localStorage.getItem(BROWSER_OWNER_KEY)!==key)throw new Error('Identidade não confirmada');
+    return key;
+  }catch{
+    throw new Error('Não foi possível persistir a identidade deste navegador');
+  }
 }
 applyScheme();
 scheme.addEventListener('change',()=>{if(!themePreference)applyScheme();});
@@ -134,7 +140,7 @@ function activeMedia(){
 }
 function draftState(action=''){
   const active=activeMedia();
-  const state={version:STATE_VERSION,name:docName.value,html:draftHTML(),dest,telegraphPath,docId,importedMd,importedTxt,importedHtml,media:active?{id:active.id,kind:active.kind}:null};
+  const state={version:STATE_VERSION,name:docName.value,html:draftHTML(),dest,telegraphPath,docId,revision:docRevision,importedMd,importedTxt,importedHtml,media:active?{id:active.id,kind:active.kind}:null};
   if(action)state.action=action;
   return state;
 }
@@ -212,9 +218,9 @@ async function claimHandoff(){
   const data=await readResponse(res);
   if(!res.ok)throw new Error(data.error||'Não foi possível recuperar o rascunho');
   const d=data.draft;
-  if(!d||d.version!==STATE_VERSION||typeof d.html!=='string'||typeof d.name!=='string'||!['telegram','telegraph'].includes(d.dest)||typeof d.telegraphPath!=='string'||!/^[a-f0-9-]{36}$/i.test(d.docId)||typeof d.importedMd!=='string'||typeof d.importedTxt!=='string'||typeof d.importedHtml!=='string')throw new Error('Rascunho transferido incompatível');
+  if(!d||d.version!==STATE_VERSION||typeof d.html!=='string'||typeof d.name!=='string'||!['telegram','telegraph'].includes(d.dest)||typeof d.telegraphPath!=='string'||!/^[a-f0-9-]{36}$/i.test(d.docId)||(d.revision!==undefined&&(!Number.isInteger(d.revision)||d.revision<0))||typeof d.importedMd!=='string'||typeof d.importedTxt!=='string'||typeof d.importedHtml!=='string')throw new Error('Rascunho transferido incompatível');
   editor.innerHTML=cleanDraftHTML(d.html);docName.value=d.name;
-  dest=d.dest;telegraphPath=d.telegraphPath;docId=d.docId;
+  dest=d.dest;telegraphPath=d.telegraphPath;docId=d.docId;docRevision=d.revision===undefined?0:d.revision;
   importedMd=d.importedMd;importedTxt=d.importedTxt;importedHtml=d.importedHtml;
   if(data.file){
     const fileRes=await fetch(API+'/api/handoff/file',{method:'POST',signal:AbortSignal.timeout(60000),headers:{'content-type':'application/json'},body:JSON.stringify({initData,token})});
@@ -233,12 +239,14 @@ async function claimHandoff(){
 }
 async function recoverTelegraph(){
   if(!/^[a-f0-9-]{36}$/i.test(docId))throw new Error('Documento inválido');
+  const request={doc:docId,revision:docRevision};
   const identity=session==='ready'?{initData:getTg().initData}:{browserKey:browserOwnerKey()};
-  const res=await fetch(API+'/api/telegraph/recover',{method:'POST',signal:AbortSignal.timeout(15000),headers:{'content-type':'application/json'},body:JSON.stringify({...identity,doc:docId})});
+  const res=await fetch(API+'/api/telegraph/recover',{method:'POST',signal:AbortSignal.timeout(15000),headers:{'content-type':'application/json'},body:JSON.stringify({...identity,...request})});
   if(res.status===404)return;
   const data=await readResponse(res);
   if(!res.ok)throw new Error(data.error||'Não foi possível recuperar a página do Telegraph');
-  if(typeof data.path!=='string'||!data.path)throw new Error('Resposta de recuperação do Telegraph inválida');
+  if(typeof data.path!=='string'||!data.path||data.doc!==request.doc||data.revision!==request.revision)throw new Error('Resposta de recuperação do Telegraph inválida');
+  if(docId!==request.doc||docRevision!==request.revision)return;
   telegraphPath=data.path;
   saveLocal();
 }
@@ -379,8 +387,7 @@ function setDestination(value, notify=true){
   all('[data-telegram-only]').forEach(item=>item.hidden=dest==='telegraph');
   all('[data-telegraph-only]').forEach(item=>item.hidden=dest!=='telegraph');
   closePanels();
-  saveLocal();
-  if(notify) showToast('Destino: ' + name);
+  if(notify){saveLocal();showToast('Destino: ' + name);}
 }
 function hasOpenLayer(){
   return one('#dialogMenu').matches(':popover-open')||sheets.some(sel=>one(sel).matches(':popover-open'));
@@ -911,13 +918,30 @@ function insertPlainText(text){
   saveSel();pushHist();markDirty();
 }
 function markDirty(){
+  docRevision++;
+  if(draftRecoveryProtected)draftRecoveryProtected=false;
   decorateSpecials();
   clearTimeout(saveTimer);
   saveTimer = setTimeout(saveLocal, 400);
 }
 window.addEventListener('pagehide',saveLocal);
+function preserveUnreadableDraft(raw){
+  try{
+    for(let i=0;i<localStorage.length;i++){
+      const key=localStorage.key(i);
+      if(key&&key.startsWith(DRAFT_RECOVERY_PREFIX)&&localStorage.getItem(key)===raw)return true;
+    }
+    const key=DRAFT_RECOVERY_PREFIX+Date.now().toString(36)+'-'+crypto.randomUUID();
+    localStorage.setItem(key,raw);
+    return localStorage.getItem(key)===raw;
+  }catch{return false;}
+}
 function saveLocal(){
   clearTimeout(saveTimer);
+  if(draftWriteBlocked||draftRecoveryProtected){
+    if(draftWriteBlocked)showToast('O rascunho anterior foi preservado; novas gravações locais estão bloqueadas');
+    return false;
+  }
   if(!editor.querySelector('[data-media-id]')&&mediaFile){
     const id=mediaFile.id;
     const redoUsesMedia=hist.slice(histI+1).some(html=>html.includes('data-media-id="'+id+'"'));
@@ -927,19 +951,30 @@ function saveLocal(){
       void mediaClear().catch(error=>console.error('Media cleanup',error));
     }
   }
-  try{ localStorage.setItem('rmdtxtml', JSON.stringify(draftState())); }
-  catch{ showToast('Não foi possível salvar neste dispositivo'); }
+  try{localStorage.setItem(DRAFT_KEY,JSON.stringify(draftState()));return true;}
+  catch{showToast('Não foi possível salvar neste dispositivo');return false;}
 }
 function loadLocal(){
-  const raw=localStorage.getItem('rmdtxtml');
-  if(raw===null)return;
-  let d;
-  try{d=JSON.parse(raw);}catch{localStorage.removeItem('rmdtxtml');throw new Error('Rascunho local inválido foi descartado');}
-  if(!d||d.version!==STATE_VERSION||typeof d.html!=='string'||typeof d.name!=='string'||d.name.length>120||!['telegram','telegraph'].includes(d.dest)||typeof d.telegraphPath!=='string'||!/^[a-f0-9-]{36}$/i.test(d.docId)||typeof d.importedMd!=='string'||typeof d.importedTxt!=='string'||typeof d.importedHtml!=='string'){
-    localStorage.removeItem('rmdtxtml');
-    throw new Error('Rascunho local antigo foi descartado');
+  let raw;
+  try{raw=localStorage.getItem(DRAFT_KEY);}
+  catch{
+    draftWriteBlocked=true;
+    throw new Error('Não foi possível ler o rascunho local sem arriscar sobrescrevê-lo');
   }
-  editor.innerHTML=cleanDraftHTML(d.html);docName.value=d.name;telegraphPath=d.telegraphPath;docId=d.docId;importedMd=d.importedMd;importedTxt=d.importedTxt;importedHtml=d.importedHtml;dest=d.dest;
+  if(raw===null)return;
+  try{
+    let d;
+    try{d=JSON.parse(raw);}catch{throw new Error('Rascunho local inválido');}
+    if(!d||d.version!==STATE_VERSION||typeof d.html!=='string'||typeof d.name!=='string'||d.name.length>120||!['telegram','telegraph'].includes(d.dest)||typeof d.telegraphPath!=='string'||!/^[a-f0-9-]{36}$/i.test(d.docId)||(d.revision!==undefined&&(!Number.isInteger(d.revision)||d.revision<0))||typeof d.importedMd!=='string'||typeof d.importedTxt!=='string'||typeof d.importedHtml!=='string')throw new Error('Rascunho local incompatível');
+    const html=cleanDraftHTML(d.html);
+    editor.innerHTML=html;docName.value=d.name;telegraphPath=d.telegraphPath;docId=d.docId;docRevision=d.revision===undefined?0:d.revision;importedMd=d.importedMd;importedTxt=d.importedTxt;importedHtml=d.importedHtml;dest=d.dest;
+  }catch(error){
+    const backedUp=preserveUnreadableDraft(raw);
+    draftWriteBlocked=!backedUp;
+    draftRecoveryProtected=backedUp;
+    const reason=error instanceof Error&&error.message?error.message:'Rascunho local inválido';
+    throw new Error(reason+'. A cópia original foi preservada.');
+  }
 }
 function escapeHTML(s){ return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function htmlToText(html){
@@ -1061,7 +1096,7 @@ function buildTelegraph(){
   const title=docName.value.trim();
   if(!title) throw new Error('Dê um nome à página antes de publicar');
   const identity=session==='ready'?{initData:getTg().initData}:{browserKey:browserOwnerKey()};
-  return {title, content: telegraphNodes(editor), path: telegraphPath, doc: docId, ...identity};
+  return {title, content: telegraphNodes(editor), path: telegraphPath, doc: docId, revision:docRevision, ...identity};
 }
 function markdownCaret(target,offset=null){
   const sel=window.getSelection();
@@ -1464,38 +1499,46 @@ async function publishTelegram(){
 }
 async function publishTelegraph(){
   let payload;
-  try{ payload = buildTelegraph(); }catch(err){ showToast(err.message); return; }
+  try{payload=buildTelegraph();}catch(err){showToast(err.message);return;}
   try{
-    const res = await fetch(API+'/api/telegraph/publish', {
+    const res=await fetch(API+'/api/telegraph/publish',{
       method:'POST',signal:AbortSignal.timeout(60000),
       headers:{'content-type':'application/json'},
-      body: JSON.stringify(payload)
+      body:JSON.stringify(payload)
     });
-    const result = await readResponse(res);
+    const result=await readResponse(res);
     if(!res.ok)throw new Error(result.error||'Não foi possível publicar no Telegraph');
-    if(typeof result.path!=='string'||!result.path||typeof result.url!=='string'||!/^https:\/\//.test(result.url))throw new Error('Resposta do Telegraph inválida');
+    if(typeof result.path!=='string'||!result.path||typeof result.url!=='string'||!/^https:\/\//.test(result.url)||result.doc!==payload.doc||result.revision!==payload.revision)throw new Error('Resposta do Telegraph inválida');
+    if(docId!==payload.doc||docRevision!==payload.revision){
+      showToast('Página salva no Telegraph para uma revisão anterior');
+      return;
+    }
     telegraphPath=result.path;
     saveLocal();
     showToast('Página salva no Telegraph');
     if(session==='ready'&&typeof getTg()?.openLink==='function')getTg().openLink(result.url,{try_instant_view:true});
     else window.location.assign(result.url);
-  }catch(err){ showToast(err.name==='TimeoutError'?'Tempo de publicação esgotado. Confira a página antes de tentar novamente.':err instanceof TypeError?'Não foi possível conectar ao Telegraph':err.message || 'Não foi possível publicar no Telegraph'); }
+  }catch(err){showToast(err.name==='TimeoutError'?'Tempo de publicação esgotado. Confira a página antes de tentar novamente.':err instanceof TypeError?'Não foi possível conectar ao Telegraph':err.message||'Não foi possível publicar no Telegraph');}
 }
 fileInput.addEventListener('change', async ()=>{
-  const file = fileInput.files?.[0]; if(!file) return;
+  const file=fileInput.files?.[0];if(!file)return;
   try{
-    if(!/\.(md|txt)$/i.test(file.name)) throw new Error('Escolha um arquivo Markdown ou TXT');
-    const text = await file.text();
-    const html = /\.md$/i.test(file.name) ? mdToBasicHTML(text.replace(/^\uFEFF/,'')) : '<p>'+escapeHTML(text.replace(/^\uFEFF/,'')).replace(/\n/g,'<br>')+'</p>';
-    docName.value = file.name.replace(/\.(md|txt)$/i,'').slice(0,120);
-    editor.innerHTML = html;
-    importedMd = /\.md$/i.test(file.name) ? text.replace(/^\uFEFF/,'') : '';
-    importedTxt = /\.txt$/i.test(file.name) ? text.replace(/^\uFEFF/,'') : '';
-    importedHtml = editor.innerHTML;
-    telegraphPath='';docId=crypto.randomUUID();
-    if(mediaFile?.url)URL.revokeObjectURL(mediaFile.url);mediaFile=null;await mediaClear();
+    if(!/\.(md|txt)$/i.test(file.name))throw new Error('Escolha um arquivo Markdown ou TXT');
+    const text=await file.text(),raw=text.replace(/^\uFEFF/,'');
+    const nextHtml=cleanDraftHTML(/\.md$/i.test(file.name)?mdToBasicHTML(raw):'<p>'+escapeHTML(raw).replace(/\n/g,'<br>')+'</p>');
+    const nextName=file.name.replace(/\.(md|txt)$/i,'').slice(0,120);
+    if(window.indexedDB)await mediaClear();
+    if(mediaFile?.url)URL.revokeObjectURL(mediaFile.url);
+    mediaFile=null;
+    docName.value=nextName;
+    editor.innerHTML=nextHtml;
+    importedMd=/\.md$/i.test(file.name)?raw:'';
+    importedTxt=/\.txt$/i.test(file.name)?raw:'';
+    importedHtml=editor.innerHTML;
+    telegraphPath='';docId=crypto.randomUUID();docRevision=0;
+    savedRange=null;hist=[];histI=-1;histLock=false;
     decorateSpecials();pushHist();markDirty();closePanels();
-  }catch(err){ showToast(err.message || 'Não foi possível importar o arquivo'); }
+  }catch(err){showToast(err.message||'Não foi possível importar o arquivo');}
   fileInput.value='';
 });
 document.addEventListener('keydown', e => {
