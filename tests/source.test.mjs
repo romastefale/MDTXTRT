@@ -161,6 +161,7 @@ test('editorial document typography uses the Telegraph serif family without chan
 test('theme switch owns browser and Telegram chrome without mixed system bars',()=>{
   const html=read('index.html'),src=uiSource(),app=read('app.js');
   assert.match(html,/id="statusBarStyle"/);
+  assert.match(html,/name="color-scheme" id="colorScheme"/);
   assert.match(html,/mdtxtrt-theme/);
   assert.match(html,/root\.classList|r\.classList/);
   assert.match(src,/Icon name="light_mode"/);
@@ -172,6 +173,11 @@ test('theme switch owns browser and Telegram chrome without mixed system bars',(
   assert.match(app,/tg\.setBackgroundColor\(color\)/);
   assert.match(app,/tg\.setBottomBarColor\(color\)/);
   assert.match(app,/light\?'dark_mode':'light_mode'/);
+  assert.match(app,/function syncBrowserChrome\(mode,color\)/);
+  assert.match(app,/schemeMeta\.setAttribute\('content',mode\)/);
+  assert.match(app,/replacement\.setAttribute\('content',color\)/);
+  assert.match(app,/themeMeta\.replaceWith\(replacement\)/);
+  assert.match(app,/root\.style\.colorScheme=mode/);
   assert.match(app,/statusMeta\.content=light\?'default':'black-translucent'/);
 });
 
@@ -226,6 +232,16 @@ test('server exposes every React-referenced local SVG icon and vector app icon',
   for(const name of names)assert.ok(server.includes('"'+name+'"')||server.includes('icons/'+name+'.svg'),name);
   assert.match(server,/"logo\.svg"/);
   assert.doesNotMatch(server,/"logo\.png"/);
+});
+
+test('bottom bar keeps the same rendered inset on the bottom and both sides',()=>{
+  const html=read('index.html'),app=read('app.js');
+  assert.match(html,/--bar-side-inset:12px/);
+  assert.match(html,/--foot-inset:calc\(var\(--bottom\) \+ var\(--bar-side-inset\) \+ var\(--bar-h\) \+ var\(--gap\)\)/);
+  assert.match(html,/\.bar-wrap\{[\s\S]*?bottom:calc\(var\(--vv-bottom\) \+ var\(--bottom\) \+ var\(--bar-side-inset\)\)/);
+  assert.match(app,/const bar=one\('#typebar'\)/);
+  assert.match(app,/const side=Math\.max\(0,Math\.min\(rect\.left-left,left\+width-rect\.right\)\)/);
+  assert.match(app,/root\.style\.setProperty\('--bar-side-inset',side\+'px'\)/);
 });
 
 test('editor content starts below the lowered side pills without bypassing Telegram safe-area tokens',()=>{
