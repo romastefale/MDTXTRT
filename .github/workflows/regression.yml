@@ -25,20 +25,9 @@ jobs:
           cache: npm
       - run: test "$(npm --version)" = "11.19.0"
       - run: npm ci
-      - name: Detect editor core input changes
-        id: editor_inputs
-        shell: bash
-        run: |
-          if git diff --quiet HEAD^ HEAD -- src/editor-core.mjs package.json package-lock.json; then
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-          fi
       - name: Rebuild editor core
-        if: steps.editor_inputs.outputs.changed == 'true'
         run: npm run build:editor
       - name: Verify committed editor core
-        if: steps.editor_inputs.outputs.changed == 'true'
         run: git diff --exit-code -- editor-core.js
       - name: Detect UI source changes
         id: ui_inputs
