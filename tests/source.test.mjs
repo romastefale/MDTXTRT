@@ -90,14 +90,13 @@ test('theme neutrals are chromatic derivatives of the active accent',()=>{
   assert.match(html,/--line:color-mix\(in oklab,var\(--accent\) 22%,var\(--bg\)\);/);
   assert.match(html,/--glass-tint:color-mix\(in oklab,var\(--accent\) 11%,transparent\);/);
   assert.match(html,/html\.light\{[\s\S]*?--glass-tint:color-mix\(in oklab,var\(--accent\) 7%,transparent\);/);
-  assert.match(html,/--bar-glass-tint:color-mix\(in oklab,var\(--accent\) 20%,transparent\);/);
+  assert.doesNotMatch(html,/--bar-glass-tint:/);
   assert.match(html,/--bar-glass-tint-strong:color-mix\(in oklab,var\(--accent\) 28%,transparent\);/);
   assert.match(html,/--bar-control-accent-bg:color-mix\(in oklab,var\(--accent\) 26%,transparent\);/);
-  assert.match(html,/html\.light\{[\s\S]*?--bar-glass-tint:color-mix\(in oklab,var\(--accent\) 16%,transparent\);/);
   assert.match(html,/html\.light\{[\s\S]*?--bar-glass-tint-strong:color-mix\(in oklab,var\(--accent\) 23%,transparent\);/);
   assert.match(html,/html\.light\{[\s\S]*?--bar-control-accent-bg:color-mix\(in oklab,var\(--accent\) 20%,transparent\);/);
-  assert.doesNotMatch(html,/--bar-(?:glass-tint|glass-tint-strong|control-accent-bg):[^;]*rgba\(/);
-  assert.match(html,/\.seg,\.bar\{[^}]*background:var\(--bar-glass-tint\)/);
+  assert.doesNotMatch(html,/--bar-(?:glass-tint-strong|control-accent-bg):[^;]*rgba\(/);
+  assert.match(html,/\.seg,\.bar\{[^}]*background:var\(--glass-tint\)/);
   assert.doesNotMatch(html,/\.theme-switch\{[^}]*background:var\(--bar-glass-tint\)/);
   assert.match(html,/\.glass-menu-material,\.toast-material\{background:var\(--glass-tint\)\}/);
   assert.match(html,/box-shadow:inset 0 0 0 \.5px var\(--menu-inner\),0 0 0 \.5px var\(--menu-edge\)/);
@@ -278,7 +277,7 @@ test('theme switch is a text-and-icon target with no control background',()=>{
 
 test('top chrome keeps lateral pills below the centered title and inside Telegram safe areas',()=>{
   const html=read('index.html');
-  assert.match(html,/--top-side-offset:24px/);
+  assert.match(html,/--top-side-offset:32px/);
   assert.match(html,/--editor-top-gap:8px/);
   assert.match(html,/--topbar-h:calc\(var\(--pill-h\) \+ var\(--top-side-offset\)\)/);
   assert.match(html,/--head-inset:calc\(var\(--safe-top\) \+ var\(--gap\) \+ var\(--topbar-h\) \+ var\(--editor-top-gap\) \+ var\(--gap\)\)/);
