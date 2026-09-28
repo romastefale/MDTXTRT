@@ -119,6 +119,16 @@ function page(setup={}){
     pretendToBeVisual:true
   });
   const w=dom.window;
+  const timeouts=new Set(),intervals=new Set(),frames=new Set();
+  const nativeSetTimeout=w.setTimeout.bind(w),nativeClearTimeout=w.clearTimeout.bind(w);
+  const nativeSetInterval=w.setInterval.bind(w),nativeClearInterval=w.clearInterval.bind(w);
+  const nativeRequestAnimationFrame=w.requestAnimationFrame.bind(w),nativeCancelAnimationFrame=w.cancelAnimationFrame.bind(w);
+  w.setTimeout=(...args)=>{const id=nativeSetTimeout(...args);timeouts.add(id);return id;};
+  w.clearTimeout=id=>{timeouts.delete(id);return nativeClearTimeout(id);};
+  w.setInterval=(...args)=>{const id=nativeSetInterval(...args);intervals.add(id);return id;};
+  w.clearInterval=id=>{intervals.delete(id);return nativeClearInterval(id);};
+  w.requestAnimationFrame=callback=>{const id=nativeRequestAnimationFrame(callback);frames.add(id);return id;};
+  w.cancelAnimationFrame=id=>{frames.delete(id);return nativeCancelAnimationFrame(id);};
   w.TextEncoder=TextEncoder;
   Object.defineProperty(w.crypto,'randomUUID',{value:randomUUID,configurable:true});
   w.matchMedia=()=>({matches:true,addEventListener(){},removeEventListener(){}});
@@ -188,10 +198,14 @@ function page(setup={}){
   w.eval(readFileSync(new URL('turndown.js',root),'utf8'));
   w.eval(readFileSync(new URL('editor-core.js',root),'utf8'));
   w.eval(readFileSync(new URL('app.js',root),'utf8'));
-  const close=w.close.bind(w);
   w.close=()=>{
-    try{w.eval('(()=>{const core=currentEditorCore?.();if(core?.view?.docView)core.destroy();})()');}catch{}
-    close();
+    for(const id of timeouts)nativeClearTimeout(id);
+    for(const id of intervals)nativeClearInterval(id);
+    for(const id of frames)nativeCancelAnimationFrame(id);
+    timeouts.clear();intervals.clear();frames.clear();
+    try{w.eval('(()=>{clearTimeout(saveTimer);const core=currentEditorCore?.();if(core?.view?.docView)core.destroy();})()');}catch{}
+    // Keep the JSDOM realm alive until the runner releases it so already-queued
+    // MutationObserver/promise callbacks cannot dereference a closed document.
   };
   return w;
 }
