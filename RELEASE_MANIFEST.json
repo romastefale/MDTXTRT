@@ -1,0 +1,72 @@
+{
+  "schema": 1,
+  "visualBaseline": "dde30467ed9b0d108bac2ae7ad9bcac1137c169e",
+  "runtime": {
+    "node": "24.21.0",
+    "npm": "11.19.0"
+  },
+  "stages": [
+    {
+      "step": 1,
+      "name": "integrity",
+      "pr": 56,
+      "head": "2e4754729eb0c4ff8de9fe3e5334291535a0947c"
+    },
+    {
+      "step": 2,
+      "name": "handoff-publication",
+      "pr": 58,
+      "head": "e975e80e355d25a671c8343619cf90a4719e9379"
+    },
+    {
+      "step": 3,
+      "name": "editor-core",
+      "pr": 61,
+      "head": "1f8a7658f210f9f8c68874b8559537fcc4645562"
+    },
+    {
+      "step": 4,
+      "name": "format-contract",
+      "pr": 63,
+      "head": "1049fed8a388c8458f3e3a57a3ebc6081b35a613"
+    },
+    {
+      "step": 5,
+      "name": "mobile-interaction",
+      "pr": 66,
+      "head": "63a9477305b8a507117b54d9941b8b47c8a2bf97"
+    },
+    {
+      "step": 6,
+      "name": "semantics-docs",
+      "pr": 68,
+      "head": "e20d115b18424ab5c9abfa7e175b5376fe0633fb"
+    }
+  ],
+  "releaseGates": {
+    "automated": [
+      "regression",
+      "runtime",
+      "npm-ci",
+      "editor-bundle-reproducible",
+      "ui-bundle-reproducible",
+      "stage-ancestry",
+      "visual-shell-baseline"
+    ],
+    "external": [
+      "authorized-test-environment",
+      "telegraph-restart",
+      "telegram-rich-message-receipt",
+      "physical-device-matrix",
+      "network-storage-fault-matrix",
+      "rollback",
+      "evidence-completeness"
+    ]
+  },
+  "anchorPolicy": {
+    "authority": "full-git-commit-sha",
+    "convenienceBranchPrefix": "release-anchor/",
+    "immutable": true,
+    "supersedeInsteadOfMove": true
+  }
+}
