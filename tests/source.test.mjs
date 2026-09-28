@@ -201,7 +201,8 @@ test('editor content starts below the lowered side pills without bypassing Teleg
   const html=read('index.html');
   assert.match(html,/html\.tg-shell\{[\s\S]*?--safe-top:max\(var\(--app-tg-safe-top\),var\(--app-tg-content-safe-top\)\)/);
   assert.match(html,/\.topbar\{[\s\S]*?top:calc\(var\(--vv-top\) \+ var\(--safe-top\) \+ var\(--gap\)\)/);
-  assert.match(html,/\.top-slot\{[\s\S]*?margin-top:var\(--top-side-offset\)/);
+  assert.match(html,/\.top-slot\{[\s\S]*?margin-top:0;transform:translateY\(var\(--top-side-offset\)\)/);
+  assert.match(html,/\.seg\.top-pill\{gap:var\(--pill-pad\)\}/);
   assert.match(html,/\.scroll\{[\s\S]*?padding-top:var\(--head-inset\)/);
 });
 
