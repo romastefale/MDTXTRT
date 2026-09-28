@@ -13,3 +13,9 @@ A baseline não representa congelamento do código, versão final imutável nem 
 Uma baseline futura somente substitui esta quando essa mudança for feita de modo explícito no repositório, identificando ao menos o novo commit e a razão da substituição.
 
 Consulte [BASELINE.md](BASELINE.md) para a definição operacional, regras de evolução e instruções de reprodução do estado de referência.
+
+## Contratos de implementação
+
+- [ARCHITECTURE.md](ARCHITECTURE.md): fronteiras arquiteturais e decisões deliberadas da evolução.
+- [FORMAT_CONTRACT.md](FORMAT_CONTRACT.md): matriz de importação, exportação e publicação.
+- [LOCAL_DRAFTS.md](LOCAL_DRAFTS.md): alcance exato, preservação e limites dos rascunhos locais.
