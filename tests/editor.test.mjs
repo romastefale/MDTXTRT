@@ -1062,3 +1062,61 @@ test('find treats punctuation and regex metacharacters literally',()=>{
   }
   w.close();
 });
+
+
+test('Markdown round-trip preserves strike through edited semantic state',()=>{
+  const w=page(),d=w.document,e=d.querySelector('#editor');
+  w.eval("currentEditorCore().resetHTML('<p>antes <del>cortado</del> depois</p>',{silent:true})");
+  assert.equal(e.querySelector('s')?.textContent,'cortado');
+  const md=w.eval('htmlToMarkdown(document.querySelector("#editor").innerHTML)');
+  assert.match(md,/~~cortado~~/);
+  const imported=w.eval('mdToBasicHTML('+JSON.stringify(md)+')');
+  w.eval('currentEditorCore().resetHTML('+JSON.stringify(imported)+',{silent:true})');
+  assert.equal(e.querySelector('s')?.textContent,'cortado');
+  const second=w.eval('htmlToMarkdown(document.querySelector("#editor").innerHTML)');
+  assert.match(second,/~~cortado~~/);
+  w.close();
+});
+
+test('Markdown file boundary strips runtime media controls and remains reimportable',()=>{
+  const w=page(),d=w.document,e=d.querySelector('#editor');
+  w.eval("currentEditorCore().resetHTML('<video src="https://example.com/video.mp4" controls></video><audio src="https://example.com/audio.ogg" controls></audio>',{silent:true})");
+  assert.equal(e.querySelector('video')?.hasAttribute('controls'),true);
+  assert.equal(e.querySelector('audio')?.hasAttribute('controls'),true);
+  const md=w.eval('htmlToMarkdown(document.querySelector("#editor").innerHTML)');
+  assert.doesNotMatch(md,/\scontrols(?:[\s=>]|$)/i);
+  const imported=w.eval('mdToBasicHTML('+JSON.stringify(md)+')');
+  const box=d.createElement('div');box.innerHTML=imported;
+  assert.equal(box.querySelector('video')?.hasAttribute('controls'),false);
+  assert.equal(box.querySelector('audio')?.hasAttribute('controls'),false);
+  w.eval('currentEditorCore().resetHTML('+JSON.stringify(imported)+',{silent:true})');
+  assert.equal(e.querySelector('video')?.hasAttribute('controls'),true);
+  assert.doesNotThrow(()=>w.eval('mdToBasicHTML('+JSON.stringify(w.eval('htmlToMarkdown(document.querySelector("#editor").innerHTML)'))+')'));
+  w.close();
+});
+
+test('real Markdown import normalizes presentation attributes instead of returning original bytes',async()=>{
+  const w=page(),d=w.document,input=d.querySelector('#fileInput'),e=d.querySelector('#editor');
+  const original='<video src="https://example.com/video.mp4" controls></video>\n\n~~cortado~~';
+  Object.defineProperty(input,'files',{configurable:true,value:[{name:'portable.md',text:async()=>original}]});
+  input.dispatchEvent(new w.Event('change'));
+  await wait(10);
+  assert.equal(e.querySelector('video')?.hasAttribute('controls'),true);
+  assert.equal(e.querySelector('s')?.textContent,'cortado');
+  const exported=w.eval('htmlToMarkdown(document.querySelector("#editor").innerHTML)');
+  assert.notEqual(exported,original);
+  assert.doesNotMatch(exported,/\scontrols(?:[\s=>]|$)/i);
+  assert.match(exported,/~~cortado~~/);
+  assert.doesNotThrow(()=>w.eval('mdToBasicHTML('+JSON.stringify(exported)+')'));
+  w.close();
+});
+
+test('lossy TXT conversion exposes a warning only when rich semantics would be dropped',()=>{
+  const w=page(),e=w.document.querySelector('#editor');
+  e.innerHTML='<p>texto simples</p>';
+  assert.equal(w.eval('conversionWarning("txt")'),'');
+  e.innerHTML='<p><strong>texto</strong> <a href="https://example.com">link</a></p>';
+  assert.match(w.eval('conversionWarning("txt")'),/serão perdidos/i);
+  assert.equal(w.eval('conversionWarning("md")'),'');
+  w.close();
+});
