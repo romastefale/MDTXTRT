@@ -175,7 +175,7 @@ test('editor uses incremental Markdown input rules on the transactional core',()
     "const bullet=text.match(/^[-*+] (?=\\S)/);",
     'const ordered=text.match(/^(\\d+)\\. (?=\\S)/);',
     'const task=allowTask&&text.match(/^- \\[([ xX])\\] (?=\\S)/)',
-    'const wrapped=schema.nodes.blockquote.create({expandable:false},paragraph)',
+    'const wrapped=schema.nodes.blockquote.create({expandable:false},node.content.cut(markerLength))',
     'function applyMarkdownInlineRule()',
     'function normalizeEmptyFormattedBlock(inputType="")',
     'function exitFormattedBlock()',
