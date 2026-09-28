@@ -9,6 +9,16 @@ const toastText = document.createTextNode('');
 toastTextHost.append(toastText);
 const fileInput = one('#fileInput');
 const STATE_VERSION=2;
+const FORMAT_CONTRACT=Object.freeze({
+  files:Object.freeze({
+    md:Object.freeze({import:true,export:true,preservation:"declared-rich-semantics",presentation:"normalized"}),
+    txt:Object.freeze({import:true,export:true,preservation:"plain-text",lossy:true})
+  }),
+  destinations:Object.freeze({
+    telegram:Object.freeze({publish:true,unsupported:"reject"}),
+    telegraph:Object.freeze({publish:true,unsupported:"reject"})
+  })
+});
 let dest = 'telegram';
 let session='browser',busy=false;
 const plusSubmenus=['#plus-file-menu','#plus-format-menu','#plus-structure-menu','#plus-media-menu','#plus-interaction-menu'];
@@ -879,7 +889,6 @@ function loadLocal(){
 }
 function escapeHTML(s){ return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function htmlToText(html){
-  if(importedTxt && editor.innerHTML===importedHtml)return importedTxt;
   const d=document.createElement('div');d.innerHTML=html;
   if(d.querySelector('img,video,audio,iframe,tg-document,tg-map,tg-collage,tg-slideshow,tg-button'))throw new Error('TXT não comporta mídia ou botões');
   const block=new Set(['P','DIV','H1','H2','H3','H4','H5','H6','FOOTER','BLOCKQUOTE','PRE','UL','OL','LI','TABLE','TR','FIGURE','DETAILS','ASIDE']);
@@ -895,32 +904,51 @@ function htmlToText(html){
   return Array.from(d.childNodes).map(read).join('').replace(/^\n+|\n+$/g,'').replace(/\n{3,}/g,'\n\n');
 }
 function txtLosesStructure(){return Boolean(editor.querySelector('h1,h2,h3,h4,h5,h6,strong,b,em,i,u,ins,s,strike,del,code,mark,sub,sup,tg-spoiler,tg-reference,tg-emoji,tg-time,tg-math,tg-math-block,hr,ul,ol,li,blockquote,aside,footer,table,details,summary,a[href],figure,figcaption,input'))||Boolean(editor.querySelector('.tg-footer,blockquote[expandable]'));}
+function conversionWarning(format){
+  if(format==='txt'&&txtLosesStructure())return 'TXT preserva apenas texto simples. Formatação, links e estrutura detectados serão perdidos. Exportar mesmo assim?';
+  return '';
+}
+const PORTABLE_TAGS=new Set('a b strong i em u ins s strike del code mark sub sup tg-spoiler tg-reference tg-emoji tg-time tg-math h1 h2 h3 h4 h5 h6 p pre footer hr ul ol li input blockquote aside cite img video audio tg-document figure figcaption iframe tg-map tg-collage tg-slideshow table caption thead tbody tfoot tr th td details summary tg-math-block tg-button tg-button-row br div'.split(' '));
+const PORTABLE_ATTRS=new Set('href name class style src alt tg-spoiler start type reversed value checked disabled controls expandable unix format emoji-id lat long zoom width height bordered striped compact colspan rowspan align valign open url data query text forward-text request-write-access allow-user-chats allow-bot-chats allow-group-chats allow-channel-chats'.split(' '));
+function normalizePortableHTML(root,label='conteúdo'){
+  for(const el of root.querySelectorAll('*')){
+    const tag=el.localName;
+    if(!PORTABLE_TAGS.has(tag))throw new Error('Elemento '+label+' não suportado: '+tag);
+    el.removeAttribute('contenteditable');
+    el.removeAttribute('draggable');
+    if(el.hasAttribute('class')){
+      const kept=(el.getAttribute('class')||'').split(/\s+/).filter(Boolean).filter(name=>name!=='ProseMirror-selectednode');
+      if(kept.length)el.setAttribute('class',kept.join(' '));else el.removeAttribute('class');
+    }
+    for(const a of [...el.attributes]){
+      if(a.name==='controls'&&['video','audio'].includes(tag)){el.removeAttribute(a.name);continue;}
+      if(a.name==='disabled'&&tag==='input'&&el.getAttribute('type')==='checkbox'){el.removeAttribute(a.name);continue;}
+      if(!PORTABLE_ATTRS.has(a.name) || a.name==='class' && !(tag==='code'&&/^language-[a-z0-9+-]+$/i.test(a.value)||['p','footer'].includes(tag)&&a.value==='tg-footer') || a.name==='style' && !(tag==='tg-button'&&['link','primary','success','danger'].includes(a.value))) throw new Error('Atributo '+label+' não suportado: '+a.name);
+      if(['src','href','url'].includes(a.name) && !/^(https?:|mailto:|tel:|tg:|#)/i.test(a.value)) throw new Error('Link '+label+' inválido');
+    }
+  }
+  return root;
+}
+function portableExportHTML(html){
+  const box=document.createElement('div');box.innerHTML=String(html||'');
+  if(box.querySelector('[data-media-id]'))throw new Error('Anexos locais precisam de URL pública para exportar Markdown');
+  normalizePortableHTML(box,'do documento');
+  return box.innerHTML;
+}
 function htmlToMarkdown(html){
-  if(importedMd && editor.innerHTML === importedHtml) return importedMd;
-  if(editor.querySelector('[data-media-id]')) throw new Error('Anexos locais precisam de URL pública para exportar Markdown');
   if(!window.TurndownService) throw new Error('Conversão Markdown indisponível');
+  const portable=portableExportHTML(html);
   const svc = new TurndownService({headingStyle:'atx', codeBlockStyle:'fenced', bulletListMarker:'-', emDelimiter:'*'});
+  svc.addRule('strikethrough',{filter:['s','strike','del'],replacement:content=>content?'~~'+content+'~~':''});
   svc.addRule('special', {filter: node => ['TG-SPOILER','TG-REFERENCE','TG-EMOJI','TG-TIME','TG-MATH','TG-MATH-BLOCK','TG-MAP','TG-COLLAGE','TG-SLIDESHOW','TG-DOCUMENT','TG-BUTTON','TG-BUTTON-ROW','DETAILS','TABLE','FIGURE','ASIDE','FOOTER','SUB','SUP','MARK','U','INPUT','IFRAME','VIDEO','AUDIO'].includes(node.nodeName) || node.nodeName==='BLOCKQUOTE' && node.hasAttribute('expandable') || node.classList?.contains('tg-footer') || node.nodeName === 'A' && node.hasAttribute('name'), replacement: (_,node)=>['DETAILS','TABLE','FIGURE','ASIDE','FOOTER','IFRAME','VIDEO','AUDIO','BLOCKQUOTE','TG-MAP','TG-COLLAGE','TG-SLIDESHOW','TG-DOCUMENT','TG-MATH-BLOCK','TG-BUTTON-ROW','P'].includes(node.nodeName)?'\n\n'+node.outerHTML+'\n\n':node.outerHTML});
-  return svc.turndown(html);
-
+  return svc.turndown(portable);
 }
 function mdToBasicHTML(md){
   if(!window.marked) throw new Error('Importação Markdown indisponível');
   const box = document.createElement('div');
   box.innerHTML = window.marked.parse(md, {gfm:true, breaks:false});
-  const allowed = new Set('a b strong i em u ins s strike del code mark sub sup tg-spoiler tg-reference tg-emoji tg-time tg-math h1 h2 h3 h4 h5 h6 p pre footer hr ul ol li input blockquote aside cite img video audio tg-document figure figcaption iframe tg-map tg-collage tg-slideshow table caption thead tbody tfoot tr th td details summary tg-math-block tg-button tg-button-row br div'.split(' '));
-  const attrs = new Set('href name class style src alt tg-spoiler start type reversed value checked disabled expandable unix format emoji-id lat long zoom width height bordered striped compact colspan rowspan align valign open url data query text forward-text request-write-access allow-user-chats allow-bot-chats allow-group-chats allow-channel-chats'.split(' '));
-  for(const el of box.querySelectorAll('*')){
-    const tag = el.localName;
-    if(!allowed.has(tag)) throw new Error('Elemento Markdown não suportado: '+tag);
-    for(const a of [...el.attributes]) {
-      if(!attrs.has(a.name) || a.name==='class' && !(tag==='code'&&/^language-[a-z0-9+-]+$/i.test(a.value)||['p','footer'].includes(tag)&&a.value==='tg-footer') || a.name==='style' && !(tag==='tg-button'&&['link','primary','success','danger'].includes(a.value))) throw new Error('Atributo Markdown não suportado: '+a.name);
-      if(['src','href','url'].includes(a.name) && !/^(https?:|mailto:|tel:|tg:|#)/i.test(a.value)) throw new Error('Link Markdown inválido');
-    }
-    if(tag==='input'&&el.getAttribute('type')==='checkbox')el.removeAttribute('disabled');
-      }
+  normalizePortableHTML(box,'Markdown');
   return box.innerHTML;
-
 }
 function download(name,content,type){
   const url=URL.createObjectURL(new Blob([content],{type}));
@@ -1138,14 +1166,16 @@ function exportName(ext){
 }
 async function exportFile(format) {
   try {
-    if(format!=='md'&&format!=='txt')throw new Error('Formato de exportação inválido');
+    const contract=FORMAT_CONTRACT.files[format];
+    if(!contract?.export)throw new Error('Formato de exportação inválido');
+    const warning=conversionWarning(format);
+    if(warning&&!await approve(warning))return;
     let content, type, ext;
     if (format === "md") {
       content = htmlToMarkdown(editor.innerHTML);
       type = "text/markdown";
       ext = "md";
     } else {
-      if(txtLosesStructure()&&!await approve('TXT não preserva formatação nem estrutura. Exportar como texto simples?'))return;
       content = htmlToText(editor.innerHTML);
       type = "text/plain";
       ext = "txt";
