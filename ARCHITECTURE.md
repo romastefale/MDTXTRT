@@ -75,7 +75,7 @@ This document records the implementation boundaries that are authoritative for M
 - Find is anchored to a control that remains visible while Find is open. Dialogs use the same visible-area contract, inert the background, trap keyboard focus, handle Escape and return focus to the visible origin control. Moving focus through overlays does not replace the transactional editor selection.
 - These interaction corrections do not restore superseded geometry or menu behavior. Commit `dde30467ed9b0d108bac2ae7ad9bcac1137c169e` remains the visual design contract; subsequent changes are behavioral evolution from that reference.
 - `ui.js` is committed so GitHub Pages and Railway serve the same canonical artifact. Read-only CI rebuilds it, uploads the generated bundle as a verification artifact, and fails on any diff; ordinary verification never writes a corrective commit to `main`.
-- The React UI release build deliberately minifies syntax and whitespace but not identifiers. This avoids runner-dependent symbol-renaming churn while preserving a compact production artifact. Release validation rebuilds both browser bundles unconditionally and requires byte identity.
+- Release validation rebuilds both committed browser bundles unconditionally on the contracted GitHub Actions runtime and requires byte identity with the committed artifacts. If a runner/toolchain change regenerates a different artifact from unchanged inputs, the difference is treated as a release-blocking configuration change and must be explicitly reconciled before a new anchor is sealed.
 
 ## Action semantics
 
