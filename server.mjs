@@ -914,13 +914,25 @@ async function sendBotRich(chatId,html,replyTo){
   return telegramCall("sendRichMessage", body);
 }
 
-function appButton() {
-  return "<tg-button-row align=\"center\"><tg-button type=\"web_app\" style=\"success\" url=\"" + htmlEscape(MINI_APP_URL) + "\">Mini App MDTXTRT</tg-button></tg-button-row>" +
-    "<tg-button-row align=\"center\"><tg-button type=\"url\" style=\"danger\" url=\"" + htmlEscape(WEBHOOK_BASE + "/") + "\">Abrir MDTXTRT no browser</tg-button></tg-button-row>";
+function documentLaunchURL(base,newToken="") {
+  if(!newToken)return base;
+  if(!/^[a-f0-9]{32}$/.test(newToken))throw new Error("Token de novo documento inválido");
+  const url=new URL(base);
+  url.searchParams.set("new",newToken);
+  return url.href;
 }
 
-function appMessage(title) {
-  return "<h1>MDTXTRT</h1><p>" + title + "</p>" + appButton();
+function appButton(newToken="") {
+  const miniURL=documentLaunchURL(MINI_APP_URL,newToken);
+  const browserURL=documentLaunchURL(WEBHOOK_BASE + "/",newToken);
+  const miniLabel=newToken?"Criar novo documento no Mini App":"Mini App MDTXTRT";
+  const browserLabel=newToken?"Criar novo documento no browser":"Abrir MDTXTRT no browser";
+  return "<tg-button-row align=\"center\"><tg-button type=\"web_app\" style=\"success\" url=\"" + htmlEscape(miniURL) + "\">"+miniLabel+"</tg-button></tg-button-row>" +
+    "<tg-button-row align=\"center\"><tg-button type=\"url\" style=\"danger\" url=\"" + htmlEscape(browserURL) + "\">"+browserLabel+"</tg-button></tg-button-row>";
+}
+
+function appMessage(title,newToken="") {
+  return "<h1>MDTXTRT</h1><p>" + title + "</p>" + appButton(newToken);
 }
 
 async function sendDocument(chatId,name,content,type){
@@ -960,12 +972,17 @@ async function handleBotUpdate(update) {
     return;
   }
   const body = commandBody(message);
-  if (command === "start" || command === "app" || command === "novo") {
+  if (command === "start" || command === "app") {
     await sendBotRich(chatId, appMessage("Edite, publique e exporte seus textos do Telegram."), message.message_id);
     return;
   }
+  if (command === "novo") {
+    const newToken=randomUUID().replace(/-/g,"");
+    await sendBotRich(chatId, appMessage("Crie outro documento sem substituir o rascunho local atual.",newToken), message.message_id);
+    return;
+  }
   if (command === "ajuda") {
-    const html = "<h1>Comandos</h1><p><b>/app</b> abre o Mini App.</p><p><b>/novo</b> começa um documento.</p><p><b>/enviar texto</b> envia o texto como mensagem rica. Também pode responder a uma mensagem com <b>/enviar</b>.</p><p><b>/exportar [txt|md]</b> exporta o texto da mensagem respondida como arquivo.</p>" + appButton();
+    const html = "<h1>Comandos</h1><p><b>/app</b> abre o documento local ativo no Mini App.</p><p><b>/novo</b> abre outro documento e preserva o rascunho local anterior neste dispositivo.</p><p><b>/enviar texto</b> envia o texto como mensagem rica. Também pode responder a uma mensagem com <b>/enviar</b>.</p><p><b>/exportar [txt|md]</b> exporta o texto da mensagem respondida como arquivo.</p>" + appButton();
     await sendBotRich(chatId, html, message.message_id);
     return;
   }
