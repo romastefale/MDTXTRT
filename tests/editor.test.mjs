@@ -323,7 +323,7 @@ test('Enter exits headings and quotes to body without leaking formatting',async(
   assert.equal(d.querySelector('#headingBtn').classList.contains('on'),false);
   assert.equal(d.querySelector('#headingMenu [data-block="p"]').classList.contains('is-current'),true);
 
-  block=await exitAtEnd('<blockquote><p>Citação</p></blockquote>','Citação');
+  block=await exitAtEnd('<blockquote>Citação</blockquote>','Citação');
   assert.equal(block.nextElementSibling?.tagName,'P');
   assert.equal(d.querySelector('#quoteBtn').classList.contains('on'),false);
   w.close();
@@ -340,7 +340,7 @@ test('deleting the last character of a heading or quote returns the block to bod
     assert.equal(e.firstElementChild.tagName,'P');
   };
   await reset('<h2><br></h2>',1);
-  await reset('<blockquote><p><br></p></blockquote>',2);
+  await reset('<blockquote><br></blockquote>',1);
   assert.equal(d.querySelector('#headingBtn').classList.contains('on'),false);
   assert.equal(d.querySelector('#quoteBtn').classList.contains('on'),false);
   w.eval('currentEditorCore().destroy()');w.close();
