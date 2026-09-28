@@ -1141,7 +1141,7 @@ test('visual viewport constrains overlays and Find stays anchored to a visible c
 
   d.querySelector('#findBtn').click();
   assert.equal(find.matches(':popover-open'),true);
-  assert.equal(w.eval("panelAnchor(one('#findMenu'))===one('#plusBtn')"),true);
+  assert.equal(w.eval("panelAnchor(document.querySelector('#findMenu'))===document.querySelector('#plusBtn')"),true);
   const findLimit=parseFloat(find.style.getPropertyValue('--menu-max-height'));
   const findTop=parseFloat(find.style.getPropertyValue('--menu-top'));
   assert.ok(findLimit>0&&findLimit<=165);
