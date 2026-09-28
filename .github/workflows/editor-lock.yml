@@ -24,7 +24,7 @@ jobs:
       - name: Commit generated editor artifacts
         shell: bash
         run: |
-          if git diff --quiet -- package-lock.json editor-core.js; then
+          if [ -z "$(git status --porcelain -- package-lock.json editor-core.js)" ]; then
             exit 0
           fi
           git config user.name "github-actions[bot]"
