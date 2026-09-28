@@ -1035,8 +1035,8 @@ function syncEditorSelectionUI(){
   saveSel();
   const kind=editorCore?editorCore.currentBlockKind():editorBlockKind();
   all('#typebar [data-cmd]').forEach(btn=>toggleToolbarState(btn,Boolean(editorCore&&editorCore.activeMark(btn.dataset.cmd))));
-  toggleToolbarState(one('#listBtn'),Boolean(editorCore&&['li'].includes(kind))||one('#listMenu').matches(':popover-open'));
-  toggleToolbarState(one('#quoteBtn'),kind==='blockquote'||kind==='aside'||one('#quoteMenu')?.matches(':popover-open'));
+  toggleToolbarState(one('#listBtn'),Boolean(editorCore?.inBlock('li'))||one('#listMenu').matches(':popover-open'));
+  toggleToolbarState(one('#quoteBtn'),Boolean(editorCore?.inBlock('blockquote')||editorCore?.inBlock('aside'))||one('#quoteMenu')?.matches(':popover-open'));
   toggleToolbarState(one('#headingBtn'),/^(h[1-6]|footer)$/.test(kind)||one('#headingMenu')?.matches(':popover-open'));
   toggleToolbarState(one('#linkBtn'),Boolean(editorCore?.linkHref()));
   one('#plusBtn')?.classList.toggle('on',one('#plusMenu')?.matches(':popover-open')||plusSubmenus.some(sel=>one(sel).matches(':popover-open')));
