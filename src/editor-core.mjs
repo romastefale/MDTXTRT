@@ -611,3 +611,5 @@ export function createEditorCore({element,onChange=()=>{},onSelectionChange=()=>
     destroy:()=>view.destroy()
   };
 }
+
+if(typeof window!=="undefined")window.MDTXTRTEditorCore={schema,createEditorCore};
