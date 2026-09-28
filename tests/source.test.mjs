@@ -329,7 +329,7 @@ test('chrome circles share one control diameter and dark icons retain contrast',
 test('menus use the same theme glass fill and uniform hairline as chrome capsules',()=>{
   const html=read('index.html');
   assert.match(html,/\.glass-menu-material,\.toast-material\{background:var\(--glass-tint\)\}/);
-  assert.match(html,/\.glass-menu-content\{[\s\S]*?box-shadow:inset 0 0 0 1px var\(--glass-hairline\),0 14px 34px var\(--menu-shadow),0 2px 6px var\(--menu-shadow-tight\)/);
+  assert.match(html,/\.glass-menu-content\{[\s\S]*?box-shadow:inset 0 0 0 1px var\(--glass-hairline\),0 14px 34px var\(--menu-shadow\),0 2px 6px var\(--menu-shadow-tight\)/);
   assert.doesNotMatch(html,/--menu-inner:/);
   assert.doesNotMatch(html,/box-shadow:inset 0 0 0 \.5px var\(--menu-inner\),0 0 0 \.5px var\(--menu-edge\)/);
 });
