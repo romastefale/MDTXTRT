@@ -295,7 +295,19 @@ export function createEditorCore({element,onChange=()=>{},onSelectionChange=()=>
     dispatch(tr,{silent,addToHistory});
     return true;
   }
+  function captureSelection(){
+    const selected=domSelection();
+    if(selected){
+      const anchor=clampPos(state.doc,selected.anchor),head=clampPos(state.doc,selected.head);
+      try{
+        const selection=TextSelection.create(state.doc,anchor,head);
+        if(!selection.eq(state.selection))dispatch(state.tr.setSelection(selection),{silent:true,addToHistory:false});
+      }catch{}
+    }
+    return state.selection.getBookmark();
+  }
   function expandWord(){
+    captureSelection();
     if(!state.selection.empty)return false;
     const {$from}=state.selection;
     if(!$from.parent.isTextblock)return false;
@@ -412,10 +424,20 @@ export function createEditorCore({element,onChange=()=>{},onSelectionChange=()=>
     view.focus();
     return true;
   }
+  function folded(value){
+    let text="",starts=[],ends=[];
+    for(let i=0;i<value.length;){
+      const cp=value.codePointAt(i),char=String.fromCodePoint(cp),fold=char.toLocaleLowerCase();
+      for(let j=0;j<fold.length;j++){starts.push(i);ends.push(i+char.length);}
+      text+=fold;i+=char.length;
+    }
+    return {text,starts,ends};
+  }
   function findLiteral(term){
     term=String(term||"");
     if(!term)return [];
-    const needle=term.toLocaleLowerCase();
+    const needle=folded(term).text;
+    if(!needle)return [];
     const found=[];
     state.doc.descendants((node,pos)=>{
       if(!node.isTextblock)return true;
@@ -429,11 +451,14 @@ export function createEditorCore({element,onChange=()=>{},onSelectionChange=()=>
         }
         return true;
       });
-      const hay=text.toLocaleLowerCase();
+      const hay=folded(text);
       let at=0;
-      while((at=hay.indexOf(needle,at))!==-1){
-        if(map[at]!==undefined&&map[at+term.length-1]!==undefined)found.push({from:map[at],to:map[at+term.length-1]+1});
-        at+=Math.max(1,term.length);
+      while((at=hay.text.indexOf(needle,at))!==-1){
+        const start=hay.starts[at],end=hay.ends[at+needle.length-1];
+        if(start!==undefined&&end!==undefined&&map[start]!==undefined&&map[end-1]!==undefined){
+          found.push({from:map[start],to:map[end-1]+1});
+        }
+        at+=Math.max(1,needle.length);
       }
       return false;
     });
@@ -497,7 +522,8 @@ export function createEditorCore({element,onChange=()=>{},onSelectionChange=()=>
     syncFromDOM,
     patchMedia,
     focus:()=>view.focus(),
-    saveSelection:()=>state.selection.getBookmark(),
+    saveSelection:captureSelection,
+    captureSelection,
     restoreSelection:()=>view.focus(),
     expandWord,
     exec:runMark,
