@@ -70,6 +70,7 @@ const MIME = {
   ".svg": "image/svg+xml",
   ".png": "image/png",
   ".jpg": "image/jpeg",
+  ".webmanifest": "application/manifest+json; charset=utf-8",
 };
 const PUBLIC = new Set([
   "index.html",
@@ -79,6 +80,9 @@ const PUBLIC = new Set([
   "turndown.js",
   "favicon.svg",
   "logo.svg",
+  "pwa-192.svg",
+  "pwa-512.svg",
+  "manifest.webmanifest",
   "og.jpg",
   "x-banner.jpg",
   ...["arrow_back","bold","buttons","chevron_right","dark_mode","details","export","file","footer","h1","h2","h3","h4","h5","h6","heading","italic","light_mode","link","list","paragraph","plus","quote","redo","table","task","telegram","telegraph","underline","undo"].map(name=>`icons/${name}.svg`),
