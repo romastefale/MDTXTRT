@@ -574,6 +574,24 @@ test('architecture provenance records official package use and copied example ow
 });
 
 
+test('step 6 semantics and documentation preserve the pinned visual baseline',()=>{
+  const app=read('app.js'),server=read('server.mjs'),architecture=read('ARCHITECTURE.md'),drafts=read('LOCAL_DRAFTS.md'),baseline=read('BASELINE.md');
+  assert.match(app,/const DRAFT_ARCHIVE_PREFIX='rmdtxtml-document:'/);
+  assert.match(app,/function archiveStoredDraftForNew\(token\)/);
+  assert.match(app,/openPanel\('#exportMenu'\)/);
+  assert.doesNotMatch(app,/if\(session==='ready'\)return publishCurrent\(\)/);
+  assert.match(app,/Abrir opções de publicação e exportação/);
+  assert.match(app,/Alternar destino\. Atual:/);
+  assert.match(server,/function documentLaunchURL\(base,newToken=""\)/);
+  assert.match(server,/command === "novo"[\s\S]*?randomUUID\(\)\.replace\(\/-\/g,""\)/);
+  assert.match(architecture,/Transactional editor boundary/);
+  assert.match(architecture,/Browser → Mini App handoff/);
+  assert.match(architecture,/Durable document provenance boundary/);
+  assert.match(drafts,/one \*\*active draft slot\*\*/);
+  assert.match(drafts,/not a synchronized document database or a durable provenance ledger/);
+  assert.match(baseline,/dde30467ed9b0d108bac2ae7ad9bcac1137c169e/);
+});
+
 test('step 4 format contract is explicit and conversion code uses the shared portable boundary',()=>{
   const app=read('app.js'),contract=read('FORMAT_CONTRACT.md');
   assert.match(app,/const FORMAT_CONTRACT=Object\.freeze/);
