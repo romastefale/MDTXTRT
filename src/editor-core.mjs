@@ -362,12 +362,16 @@ export function createEditorCore({element,onChange=()=>{},onSelectionChange=()=>
       if(node.type===schema.nodes.heading)return "h"+node.attrs.level;
       if(node.type===schema.nodes.footer)return "footer";
       if(node.type===schema.nodes.paragraph)return "p";
-      if(node.type===schema.nodes.blockquote)return "blockquote";
-      if(node.type===schema.nodes.aside)return "aside";
       if(node.type===schema.nodes.pre)return "pre";
-      if(node.type===schema.nodes.list_item)return "li";
     }
     return "p";
+  }
+  function inBlock(kind){
+    const type={blockquote:schema.nodes.blockquote,aside:schema.nodes.aside,li:schema.nodes.list_item}[kind];
+    if(!type)return false;
+    const {$from}=state.selection;
+    for(let depth=$from.depth;depth>0;depth--)if($from.node(depth).type===type)return true;
+    return false;
   }
   function removeStrongFromCurrentBlock(){
     const {$from}=state.selection,depth=$from.depth;
@@ -471,7 +475,6 @@ export function createEditorCore({element,onChange=()=>{},onSelectionChange=()=>
 
   function normalizeEmptyFormattedBlock(inputType=""){
     if(!String(inputType).startsWith("delete"))return false;
-    captureSelection();
     if(!state.selection.empty)return false;
     const {$from}=state.selection;
     for(let depth=$from.depth;depth>0;depth--){
@@ -677,6 +680,7 @@ export function createEditorCore({element,onChange=()=>{},onSelectionChange=()=>
     activeMark,
     linkHref,
     currentBlockKind,
+    inBlock,
     applyMarkdownBlockRule,
     applyMarkdownInlineRule,
     normalizeEmptyFormattedBlock,
