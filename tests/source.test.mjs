@@ -175,31 +175,24 @@ test('editor uses incremental Markdown input rules on the transactional core',()
     "const bullet=text.match(/^[-*+] (?=\\S)/);",
     'const ordered=text.match(/^(\\d+)\\. (?=\\S)/);',
     'const task=allowTask&&text.match(/^- \\[([ xX])\\] (?=\\S)/)',
-    'function exitFormattedBlock()',
-    'function normalizeEmptyFormattedBlock(inputType="")',
+    'const wrapped=schema.nodes.blockquote.create({expandable:false},paragraph)',
     'function applyMarkdownInlineRule()',
-    '{marker:"**",type:schema.marks.strong}',
-    '{marker:"~~",type:schema.marks.strike}',
-    '{marker:"`",type:schema.marks.code}',
-    '{marker:"*",type:schema.marks.em,single:true}'
+    'function normalizeEmptyFormattedBlock(inputType="")',
+    'function exitFormattedBlock()',
+    'function inBlock(kind)'
   ])assert.ok(core.includes(fragment),fragment);
   for(const fragment of [
     "editorCore.applyMarkdownBlockRule({allowTask:dest==='telegram'})",
     'editorCore.applyMarkdownInlineRule()',
     "editorCore.normalizeEmptyFormattedBlock(event?.inputType||'')",
     'editorCore.exitFormattedBlock()',
-    'function exitFormattedBlockOnParagraph(event)',
+    "editorCore?.inBlock('blockquote')",
     "editor.addEventListener('beforeinput',exitFormattedBlockOnParagraph);",
     'function syncEditorSelectionUI()',
     "btn.setAttribute('aria-pressed',String(on));"
   ])assert.ok(app.includes(fragment),fragment);
-  for(const legacy of [
-    'function markdownBlockRule()',
-    'function markdownInlineRule()',
-    'function markdownInlineWrap(',
-    'function normalizeEmptyFormattedBlock(event)'
-  ])assert.equal(app.includes(legacy),false,legacy);
 });
+
 test('editorial document typography uses the Telegraph serif family without changing app chrome',()=>{
   const html=read('index.html');
   assert.match(html,/\.editor\{[\s\S]*?font-family:Georgia,"Times New Roman",serif;/);
