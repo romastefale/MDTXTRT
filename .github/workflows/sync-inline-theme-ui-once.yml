@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   sync:
-    if: \${{ github.actor != 'github-actions[bot]' }}
+    if: ${{ github.actor != 'github-actions[bot]' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -26,8 +26,8 @@ jobs:
         shell: bash
         run: |
           blob="$(git hash-object ui.js)"
-          short="\${blob:0:12}"
-          sed -E -i "s#ui\\.js\\?v=[a-f0-9]{12}#ui.js?v=\${short}#" index.html
+          short="${blob:0:12}"
+          sed -E -i "s#ui\.js\?v=[a-f0-9]{12}#ui.js?v=${short}#" index.html
       - name: Commit deterministic bundle
         shell: bash
         run: |
