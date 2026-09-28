@@ -647,7 +647,8 @@ test('final release gap analysis and immutable anchor gates are explicit',()=>{
   assert.match(workflow,/release-visual-baseline-\$\{\{ env\.RELEASE_CANDIDATE_SHA \}\}/);
   assert.match(workflow,/include-hidden-files: true/);
   assert.match(workflow,/if-no-files-found: error/);
-  assert.match(workflow,/ref: \\?\$\{\{ github\.event\.pull_request\.head\.sha \|\| github\.sha \}\}/);
+  assert.match(workflow,/RELEASE_CANDIDATE_SHA: \$\{\{ github\.event_name == 'pull_request' && github\.event\.pull_request\.head\.sha \|\| github\.sha \}\}/);
+  assert.match(workflow,/ref: \$\{\{ env\.RELEASE_CANDIDATE_SHA \}\}[\s\S]*?Verify exact candidate checkout[\s\S]*?git rev-parse HEAD/);
   assert.match(workflow,/name: Rebuild all committed bundles[\s\S]*?npm run build/);
   assert.match(workflow,/git diff --exit-code -- editor-core\.js ui\.js/);
   assert.match(workflow,/node scripts\/verify-release-manifest\.mjs/);
