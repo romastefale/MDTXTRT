@@ -44,7 +44,7 @@ const nodes={
     toDOM(){return ["p",{class:"tg-footer"},0];}
   },
   blockquote:{
-    attrs:{...boolAttrs("expandable")},content:"block+",group:"block",defining:true,
+    attrs:{...boolAttrs("expandable")},content:"inline*",group:"block",defining:true,
     parseDOM:[{tag:"blockquote",getAttrs:el=>readAttrs(el,[],["expandable"])}],
     toDOM:node=>["blockquote",domAttrs(node.attrs,[],["expandable"]),0]
   },
@@ -381,13 +381,9 @@ export function createEditorCore({element,onChange=()=>{},onSelectionChange=()=>
   function formatBlock(kind){
     const current=currentBlockKind();
     const target=current===kind?"p":kind;
-    if(target==="blockquote"){
-      if(current==="blockquote"){lift(state,view.dispatch);return true;}
-      return wrapIn(schema.nodes.blockquote)(state,view.dispatch);
-    }
-    if(current==="blockquote"&&target==="p"){lift(state,view.dispatch);return true;}
     let type,attrs=null;
-    if(target==="footer")type=schema.nodes.footer;
+    if(target==="blockquote")type=schema.nodes.blockquote;
+    else if(target==="footer")type=schema.nodes.footer;
     else if(/^h[1-6]$/.test(target)){type=schema.nodes.heading;attrs={level:Number(target.slice(1))};}
     else type=schema.nodes.paragraph;
     const ok=setBlockType(type,attrs)(state,view.dispatch);
@@ -395,6 +391,49 @@ export function createEditorCore({element,onChange=()=>{},onSelectionChange=()=>
     view.focus();
     return ok;
   }
+  function applyMarkdownBlockRule(){
+    captureSelection();
+    if(!state.selection.empty)return false;
+    const {$from}=state.selection;
+    const node=$from.parent;
+    if(node.type!==schema.nodes.paragraph)return false;
+    const text=node.textContent.replace(/\u00a0/g," ");
+    const depth=$from.depth,blockPos=$from.before(depth),contentStart=$from.start(depth);
+    const escaped=text.match(/^\\(#{1,6}|>|[-*+]|\d+\.) (?=\S)/);
+    if(escaped){
+      dispatch(state.tr.delete(contentStart,contentStart+1));
+      return true;
+    }
+    const task=text.match(/^- \[([ xX])\] (?=\S)/);
+    const heading=text.match(/^(#{1,6}) (?=\S)/);
+    const quote=text.match(/^> (?=\S)/);
+    const bullet=text.match(/^[-*+] (?=\S)/);
+    const ordered=text.match(/^(\d+)\. (?=\S)/);
+    if(!task&&!heading&&!quote&&!bullet&&!ordered)return false;
+
+    if(heading||quote){
+      const match=heading||quote,markerLength=match[0].length;
+      let tr=state.tr.delete(contentStart,contentStart+markerLength);
+      if(heading)tr=tr.setNodeMarkup(blockPos,schema.nodes.heading,{level:heading[1].length});
+      else tr=tr.setNodeMarkup(blockPos,schema.nodes.blockquote,{expandable:false});
+      dispatch(tr);
+      view.focus();
+      return true;
+    }
+
+    const match=task||ordered||bullet,markerLength=match[0].length;
+    dispatch(state.tr.delete(contentStart,contentStart+markerLength));
+    const listType=ordered?schema.nodes.ordered_list:schema.nodes.bullet_list;
+    const attrs=ordered?{order:Number(ordered[1]),reversed:false}:null;
+    if(!wrapInList(listType,attrs)(state,view.dispatch))return false;
+    if(task){
+      const pos=state.selection.$from.start();
+      dispatch(state.tr.insert(pos,schema.nodes.task_checkbox.create({checked:task[1].toLowerCase()==="x",disabled:false})));
+    }
+    view.focus();
+    return true;
+  }
+
   function listDepth(type){
     const {$from}=state.selection;
     for(let d=$from.depth;d>0;d--)if($from.node(d).type===type)return d;
@@ -542,6 +581,7 @@ export function createEditorCore({element,onChange=()=>{},onSelectionChange=()=>
     activeMark,
     linkHref,
     currentBlockKind,
+    applyMarkdownBlockRule,
     toggleList,
     formatBlock,
     insertHTML,
