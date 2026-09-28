@@ -18,6 +18,7 @@ function memoryIndexedDB(){
         const store={
           put(value){rows.set(value.id,value);return {};},
           clear(){rows.clear();return {};},
+          delete(id){rows.delete(id);return {};},
           get(id){const out={};queueMicrotask(()=>{out.result=rows.get(id);out.onsuccess?.();});return out;}
         };
         const db={
@@ -114,7 +115,7 @@ function mountReactContract(document){
 
 function page(setup={}){
   const dom=new JSDOM(readFileSync(new URL('index.html',root),'utf8'),{
-    url:'https://mdtxtrt.example/',
+    url:setup.url||'https://mdtxtrt.example/',
     runScripts:'outside-only',
     pretendToBeVisual:true
   });
@@ -210,6 +211,87 @@ function page(setup={}){
   };
   return w;
 }
+
+test('novo launch preserves the previous local draft and creates a distinct active document',async()=>{
+  const token='a'.repeat(32);
+  const oldDoc='12345678-1234-4123-8123-123456789abc';
+  const raw=JSON.stringify({version:2,name:'Anterior',html:'<p>preservar</p>',dest:'telegraph',telegraphPath:'pagina-anterior',docId:oldDoc,revision:7,importedMd:'',importedTxt:'',importedHtml:'',media:null});
+  const w=page({url:'https://mdtxtrt.example/?new='+token,local:{rmdtxtml:raw}}),d=w.document;
+  await wait(5);
+  const active=JSON.parse(w.localStorage.getItem('rmdtxtml'));
+  assert.notEqual(active.docId,oldDoc);
+  assert.equal(active.name,'Ideia');
+  assert.equal(active.dest,'telegram');
+  assert.equal(active.telegraphPath,'');
+  assert.equal(active.revision,0);
+  assert.equal(w.localStorage.getItem('rmdtxtml-document:'+oldDoc),raw);
+  assert.equal(new URL(w.location.href).searchParams.has('new'),false);
+  assert.equal(d.querySelector('#docName').value,'Ideia');
+  assert.equal(d.querySelector('#editor').textContent,'');
+  assert.match(d.querySelector('#toast').textContent,/anterior foi preservado/i);
+  w.close();
+});
+
+test('novo launch archives an unreadable draft byte-for-byte before replacing the active slot',async()=>{
+  const token='b'.repeat(32),raw='{"version":2';
+  const w=page({url:'https://mdtxtrt.example/?new='+token,local:{rmdtxtml:raw}});
+  await wait(5);
+  assert.equal(w.localStorage.getItem('rmdtxtml-document:unreadable-'+token),raw);
+  const active=JSON.parse(w.localStorage.getItem('rmdtxtml'));
+  assert.equal(active.version,2);
+  assert.match(active.docId,/^[a-f0-9-]{36}$/i);
+  w.dispatchEvent(new w.Event('pagehide'));
+  assert.doesNotThrow(()=>JSON.parse(w.localStorage.getItem('rmdtxtml')));
+  assert.equal(w.localStorage.getItem('rmdtxtml-document:unreadable-'+token),raw);
+  w.close();
+});
+
+test('novo preserves archived attachment records when the new document stores another attachment',async()=>{
+  const token='c'.repeat(32),db=memoryIndexedDB(),oldMedia='oldmedia',oldDoc='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+  db.rows.set(oldMedia,{id:oldMedia,file:{},kind:'image',name:'old.png',type:'image/png',lastModified:0});
+  const raw=JSON.stringify({version:2,name:'Com mídia',html:'<figure><img data-media-id="'+oldMedia+'"><figcaption>old.png</figcaption></figure>',dest:'telegram',telegraphPath:'',docId:oldDoc,revision:1,importedMd:'',importedTxt:'',importedHtml:'',media:{id:oldMedia,kind:'image'}});
+  const w=page({url:'https://mdtxtrt.example/?new='+token,local:{rmdtxtml:raw},indexedDB:db}),d=w.document;
+  await wait(5);
+  const mediaInput=d.querySelector('#mediaInput');
+  const attachment=new w.File([new Uint8Array([1,2,3])],'new.png',{type:'image/png'});
+  Object.defineProperty(mediaInput,'files',{configurable:true,value:[attachment]});
+  mediaInput.dispatchEvent(new w.Event('change'));
+  await wait(10);
+  assert.equal(db.rows.has(oldMedia),true);
+  assert.equal(db.rows.size,2);
+  assert.equal(w.localStorage.getItem('rmdtxtml-document:'+oldDoc),raw);
+  w.close();
+});
+
+test('Mini App exposes the export menu and keeps publication as an explicit menu action',async()=>{
+  const requests=[];
+  const fetch=async(url)=>{
+    const target=String(url);requests.push(target);
+    if(target.endsWith('/api/telegram/session'))return {ok:true,status:200,json:async()=>({ok:true})};
+    if(target.endsWith('/api/telegraph/recover'))return {ok:false,status:404,json:async()=>({})};
+    return {ok:false,status:404,json:async()=>({error:'not found'})};
+  };
+  const w=page({fetch,tg:{}}),d=w.document;
+  await wait(10);
+  assert.equal(d.querySelector('#openAppLabel').textContent,'Publicar no Telegram');
+  assert.equal(d.querySelector('#openAppBtn').getAttribute('aria-label'),'Publicar no Telegram');
+  assert.equal(d.querySelector('#exportBtn').getAttribute('aria-label'),'Abrir opções de publicação e exportação');
+  assert.equal(d.querySelector('#destBtn').getAttribute('aria-label'),'Alternar destino. Atual: Telegram');
+  d.querySelector('#exportBtn').click();
+  assert.equal(d.querySelector('#exportMenu').hasAttribute('data-test-popover-open'),true);
+  assert.equal(requests.filter(url=>url.endsWith('/api/telegram/send')).length,0);
+  assert.ok(d.querySelector('#exportMdBtn'));
+  assert.ok(d.querySelector('#exportTxtBtn'));
+  w.close();
+});
+
+test('browser export flow labels Telegram transfer as opening the Mini App rather than publishing',()=>{
+  const w=page(),d=w.document;
+  assert.equal(d.querySelector('#openAppLabel').textContent,'Abrir no Mini App');
+  assert.equal(d.querySelector('#openAppBtn').getAttribute('aria-label'),'Abrir no Mini App');
+  assert.equal(d.querySelector('#exportBtn').title,'Abrir opções de publicação e exportação');
+  w.close();
+});
 
 test('destination controls remain functional without changing editor shell',()=>{
   const w=page(),d=w.document;
