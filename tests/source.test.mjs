@@ -279,7 +279,7 @@ test('UI preserves compact portrait contract, unified chrome scale and anchored 
   assert.match(html,/--menu-row-h:24px/);
   assert.match(html,/\.fade-top\{[\s\S]*?height:calc\(var\(--head-inset\) \+ 20px\);[\s\S]*?var\(--bg\) 86%,transparent[\s\S]*?var\(--bg\) 60%,transparent\) 52%[\s\S]*?var\(--bg\) 26%,transparent\) 76%[\s\S]*?transparent 100%/);
   assert.match(html,/\.fade-bot\{[\s\S]*?height:calc\(var\(--foot-inset\) \+ 20px\);[\s\S]*?var\(--bg\) 86%,transparent[\s\S]*?var\(--bg\) 60%,transparent\) 52%[\s\S]*?var\(--bg\) 26%,transparent\) 76%[\s\S]*?transparent 100%/);
-  assert.match(html,/\.bar > button\.more\{color:var\(--accent\);background:var\(--bar-control-accent-bg\)\}/);
+  assert.match(html,/\.bar > button\.more\{color:#fff;background:var\(--accent\);box-shadow:0 4px 14px color-mix\(in oklab,var\(--accent\) 45%,transparent\)\}/);
   assert.match(src,/className="app-title"[^>]*>MDTXTRT<\/span>/);
   assert.match(src,/id="themeBtn"/);
   assert.match(src,/id="plusBtn"[\s\S]*popoverTarget="plusMenu"/);
