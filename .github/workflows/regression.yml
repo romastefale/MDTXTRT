@@ -17,14 +17,36 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: package.json
           cache: npm
       - run: test "$(npm --version)" = "11.19.0"
       - run: npm ci
-      - name: Rebuild committed browser bundles
-        run: npm run build
-      - name: Verify committed browser bundles
-        run: git diff --exit-code -- editor-core.js ui.js
+      - name: Rebuild transactional editor bundle
+        run: npm run build:editor
+      - name: Verify transactional editor bundle
+        run: git diff --exit-code -- editor-core.js
+      - name: Detect React UI bundle input changes
+        id: ui_inputs
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            base="${{ github.event.pull_request.base.sha }}"
+          else
+            base="HEAD^"
+          fi
+          if git diff --quiet "$base" HEAD -- src/liquid-glass-ui.jsx package.json package-lock.json; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Rebuild React UI bundle
+        if: steps.ui_inputs.outputs.changed == 'true'
+        run: npm run build:ui
+      - name: Verify React UI bundle
+        if: steps.ui_inputs.outputs.changed == 'true'
+        run: git diff --exit-code -- ui.js
       - run: npm test
