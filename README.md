@@ -1,11 +1,15 @@
 # MDTXTRT
 
-## Baseline
+## Baseline de trabalho
 
-A única baseline autoritativa deste repositório é o commit atualmente apontado pelo `HEAD` da branch `main`.
+A baseline de trabalho explicitamente adotada por este repositório é o commit:
 
-O estado funcional atualmente consolidado na baseline inclui o PR #50, incorporado à `main` no merge commit `5a116819a75c424b433cdea98521ddb633d89dea`. Esse estado incorpora todos os PRs anteriores já presentes em `main` e é a referência funcional e visual vigente. Entre os detalhes agora contratuais, os pills superiores e a barra inferior preservam a hairline interna de `1px` em branco a `12%` no modo claro e usam a mesma hairline a `5%` no modo escuro, mantendo o restante do material, tint, geometria e espaçamento inalterados. A barra inferior mantém margem lateral de `20px` e afastamento inferior de `32px`, preservando os offsets de safe area e teclado.
+`dde30467ed9b0d108bac2ae7ad9bcac1137c169e`
 
-Não existe nenhuma baseline alternativa ou anterior válida para implementação, comparação, restauração ou regressão. Qualquer branch, commit, documentação ou referência histórica que descreva outro estado como “baseline” deve ser considerada obsoleta.
+Esse commit corresponde ao merge do PR #53 (`Fix dark-mode menu text contrast`) e constitui o ponto de referência fixo para comparação, validação, regressão e evolução do projeto.
 
-Ao atualizar deliberadamente a baseline, o novo estado deve ser primeiro incorporado à `main`. A partir desse momento, o novo `HEAD` de `main` passa a ser a única baseline vigente.
+A baseline não representa congelamento do código, versão final imutável nem impedimento a mudanças posteriores. A branch `main` pode avançar normalmente com correções, refinamentos e novas funcionalidades. Alterações posteriores devem ser entendidas como evolução a partir desta referência enquanto ela permanecer documentada como baseline vigente.
+
+Uma baseline futura somente substitui esta quando essa mudança for feita de modo explícito no repositório, identificando ao menos o novo commit e a razão da substituição.
+
+Consulte [BASELINE.md](BASELINE.md) para a definição operacional, regras de evolução e instruções de reprodução do estado de referência.
