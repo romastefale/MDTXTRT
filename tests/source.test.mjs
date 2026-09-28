@@ -49,7 +49,7 @@ test('React UX imports the official Glass primitive and follows GlassContextMenu
   assert.match(src,/function GlassContextMenu/);
   assert.match(src,/<Glass[\s\S]*?optics=\{MENU_LENS\}[\s\S]*?className="glass-menu-material"/);
   const barLens=src.slice(src.indexOf('const BAR_LENS = {'),src.indexOf('const MENU_RADIUS'));
-  assert.match(barLens,/const BAR_LENS = \{\s*sheen: 0,\s*glow: 0,\s*\};/);
+  assert.match(barLens,/const BAR_LENS = \{\s*sheen: 0,\s*glow: 0,\s*specular: 0,\s*\};/);
   assert.doesNotMatch(barLens,/brightness:/);
   for(const field of [
     'mapSize','clipToShape','softEdge','depth','curvature','dispersion','strength',
@@ -111,13 +111,15 @@ test('theme neutrals are chromatic derivatives of the active accent',()=>{
   assert.doesNotMatch(html,/html\.dark\{[^}]*--muted:/);
 });
 
-// The package GlassMaterial owns the bright rim; app CSS must not duplicate that material edge.
-test('bar material finish is owned by the Liquid Glass renderer',()=>{
+test('bars use one uniform 1px white hairline at 12 percent',()=>{
   const html=read('index.html');
   const shared=html.match(/\.seg,\.bar\{([^}]*)\}/)?.[1]||'';
   const seg=html.match(/\.seg\{([^}]*)\}/)?.[1]||'';
   const bar=html.match(/\.bar\{([^}]*)\}/)?.[1]||'';
-  for(const block of [shared,seg,bar]){
+  assert.doesNotMatch(shared,/(?:^|;)\s*border\s*:/);
+  assert.match(shared,/box-shadow:inset 0 0 0 1px rgba\(255,255,255,\.12\)/);
+  assert.doesNotMatch(shared,/(?:linear|radial|conic)-gradient/);
+  for(const block of [seg,bar]){
     assert.doesNotMatch(block,/(?:^|;)\s*border\s*:/);
     assert.doesNotMatch(block,/box-shadow|(?:linear|radial|conic)-gradient/);
   }
