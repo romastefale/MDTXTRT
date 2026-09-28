@@ -34,9 +34,13 @@ export const MENU_LENS = {
 const BAR_LENS = {
   light: {
     brightness: 0.34,
+    sheen: 0,
+    glow: 0,
   },
   dark: {
     brightness: 0.2,
+    sheen: 0,
+    glow: 0,
   },
   readTheme() {
     if (typeof document === "undefined") return "dark";
