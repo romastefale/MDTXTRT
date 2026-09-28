@@ -295,14 +295,15 @@ test('Markdown block conversion preserves the logical caret while typing',async(
   w.close();
 });
 
-test('Markdown block markers accept element-anchored carets and non-breaking spaces once content exists',()=>{
+test('Markdown block markers accept element-anchored carets and non-breaking spaces once content exists',async()=>{
   const w=page(),d=w.document,e=d.querySelector('#editor');
-  e.innerHTML='<div>#&nbsp;Palavra</div>';
+  w.eval("currentEditorCore().resetHTML('<div>#&nbsp;Palavra</div>',{silent:true})");
   const block=e.firstElementChild,range=d.createRange();
   range.setStart(block,1);range.collapse(true);
   w.getSelection().removeAllRanges();w.getSelection().addRange(range);
   d.dispatchEvent(new w.Event('selectionchange'));
   e.dispatchEvent(new w.InputEvent('input',{bubbles:true,inputType:'insertText'}));
+  await wait();
   assert.equal(e.querySelector('h1')?.textContent,'Palavra');
   w.close();
 });
@@ -331,39 +332,42 @@ test('Enter exits headings and quotes to body without leaking formatting',async(
   w.close();
 });
 
-test('deleting the last character of a heading or quote returns the block to body',()=>{
+test('deleting the last character of a heading or quote returns the block to body',async()=>{
   const w=page(),d=w.document,e=d.querySelector('#editor');
-  const reset=tag=>{
-    e.innerHTML='<'+tag+'><br></'+tag+'>';
+  const reset=async tag=>{
+    w.eval('currentEditorCore().resetHTML('+JSON.stringify('<'+tag+'><br></'+tag+'>')+',{silent:true})');
     const block=e.firstElementChild,range=d.createRange();
     range.setStart(block,0);range.collapse(true);
     w.getSelection().removeAllRanges();w.getSelection().addRange(range);
     const event=new w.InputEvent('input',{bubbles:true,inputType:'deleteContentBackward'});
     e.dispatchEvent(event);
+    await wait();
     assert.equal(e.firstElementChild.tagName,'P');
   };
-  reset('h2');
-  reset('blockquote');
+  await reset('h2');
+  await reset('blockquote');
   assert.equal(d.querySelector('#headingBtn').classList.contains('on'),false);
   assert.equal(d.querySelector('#quoteBtn').classList.contains('on'),false);
   w.close();
 });
 
-test('Markdown inline markers become semantic rich-text marks and support escaping',()=>{
+test('Markdown inline markers become semantic rich-text marks and support escaping',async()=>{
   const w=page(),d=w.document,e=d.querySelector('#editor');
-  const apply=text=>{
-    e.innerHTML='<p></p>';e.querySelector('p').textContent=text;
+  const apply=async text=>{
+    const escaped=text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    w.eval('currentEditorCore().resetHTML('+JSON.stringify('<p>'+escaped+'</p>')+',{silent:true})');
     const node=e.querySelector('p').firstChild,range=d.createRange();
     range.setStart(node,node.length);range.collapse(true);
     w.getSelection().removeAllRanges();w.getSelection().addRange(range);
     d.dispatchEvent(new w.Event('selectionchange'));
     e.dispatchEvent(new w.Event('input',{bubbles:true}));
+    await wait();
   };
-  apply('**forte**');assert.equal(e.querySelector('strong')?.textContent,'forte');
-  apply('*ênfase*');assert.equal(e.querySelector('em')?.textContent,'ênfase');
-  apply('~~riscado~~');assert.equal(e.querySelector('s')?.textContent,'riscado');
-  apply('`código`');assert.equal(e.querySelector('code')?.textContent,'código');
-  apply('\\*literal*');assert.equal(e.querySelector('em'),null);assert.equal(e.textContent,'*literal*');
+  await apply('**forte**');assert.equal(e.querySelector('strong')?.textContent,'forte');
+  await apply('*ênfase*');assert.equal(e.querySelector('em')?.textContent,'ênfase');
+  await apply('~~riscado~~');assert.equal(e.querySelector('s')?.textContent,'riscado');
+  await apply('`código`');assert.equal(e.querySelector('code')?.textContent,'código');
+  await apply('\\*literal*');assert.equal(e.querySelector('em'),null);assert.equal(e.textContent,'*literal*');
   w.close();
 });
 
