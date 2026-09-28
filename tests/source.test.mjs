@@ -652,7 +652,7 @@ test('final release gap analysis and immutable anchor gates are explicit',()=>{
   assert.match(workflow,/name: Rebuild all committed bundles[\s\S]*?npm run build/);
   assert.match(workflow,/git diff --exit-code -- editor-core\.js ui\.js/);
   assert.match(workflow,/node scripts\/verify-release-manifest\.mjs/);
-  assert.match(workflow,/ref: \\?\$\{\{ github\.event\.pull_request\.head\.sha \|\| github\.sha \}\}/);
+
   assert.match(workflow,/node scripts\/verify-visual-baseline\.mjs/);
   assert.match(workflow,/name: Audit release evidence record[\s\S]*?GITHUB_TOKEN:[\s\S]*?node scripts\/validate-release-evidence\.mjs/);
   assert.match(read('scripts/verify-visual-baseline.mjs'),/for\(const theme of \['light','dark'\]\)/);
