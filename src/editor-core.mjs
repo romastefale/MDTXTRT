@@ -428,10 +428,9 @@ export function createEditorCore({element,onChange=()=>{},onSelectionChange=()=>
     if(quote){
       const markerLength=quote[0].length;
       const caretOffset=Math.max(0,$from.parentOffset-markerLength);
-      const paragraph=schema.nodes.paragraph.create(node.attrs,node.content.cut(markerLength));
-      const wrapped=schema.nodes.blockquote.create({expandable:false},paragraph);
+      const wrapped=schema.nodes.blockquote.create({expandable:false},node.content.cut(markerLength));
       let tr=state.tr.replaceWith(blockPos,blockPos+node.nodeSize,wrapped);
-      tr=tr.setSelection(TextSelection.create(tr.doc,blockPos+2+caretOffset));
+      tr=tr.setSelection(TextSelection.create(tr.doc,blockPos+1+caretOffset));
       dispatch(tr);view.focus();return true;
     }
 
