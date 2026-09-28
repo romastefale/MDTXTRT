@@ -2,7 +2,7 @@ import {Schema, DOMParser as PMDOMParser, DOMSerializer, Fragment, Slice} from "
 import {EditorState, TextSelection, Selection} from "prosemirror-state";
 import {EditorView} from "prosemirror-view";
 import {history, undo, redo} from "prosemirror-history";
-import {toggleMark, setBlockType, splitBlock} from "prosemirror-commands";
+import {toggleMark, setBlockType} from "prosemirror-commands";
 import {keymap} from "prosemirror-keymap";
 import {wrapInList, liftListItem} from "prosemirror-schema-list";
 
@@ -333,6 +333,7 @@ export function createEditorCore({element,onChange=()=>{},onSelectionChange=()=>
     return true;
   }
   function runMark(command,value=null){
+    captureSelection();
     const name=markName(command),type=schema.marks[name];
     if(!type)throw new Error("Ação de edição indisponível");
     if(state.selection.empty)expandWord();
@@ -379,6 +380,7 @@ export function createEditorCore({element,onChange=()=>{},onSelectionChange=()=>
     }
   }
   function formatBlock(kind){
+    captureSelection();
     const current=currentBlockKind();
     const target=current===kind?"p":kind;
     let type,attrs=null;
@@ -391,7 +393,7 @@ export function createEditorCore({element,onChange=()=>{},onSelectionChange=()=>
     view.focus();
     return ok;
   }
-  function applyMarkdownBlockRule(){
+  function applyMarkdownBlockRule({allowTask=true}={}){
     captureSelection();
     if(!state.selection.empty)return false;
     const {$from}=state.selection;
@@ -404,45 +406,82 @@ export function createEditorCore({element,onChange=()=>{},onSelectionChange=()=>
       dispatch(state.tr.delete(contentStart,contentStart+1));
       return true;
     }
-    const task=text.match(/^- \[([ xX])\] (?=\S)/);
+    const task=allowTask&&text.match(/^- \[([ xX])\] (?=\S)/);
     const heading=text.match(/^(#{1,6}) (?=\S)/);
     const quote=text.match(/^> (?=\S)/);
     const bullet=text.match(/^[-*+] (?=\S)/);
     const ordered=text.match(/^(\d+)\. (?=\S)/);
     if(!task&&!heading&&!quote&&!bullet&&!ordered)return false;
 
-    if(heading||quote){
-      const match=heading||quote,markerLength=match[0].length;
+    if(heading){
+      const markerLength=heading[0].length;
       let tr=state.tr.delete(contentStart,contentStart+markerLength);
-      if(heading)tr=tr.setNodeMarkup(blockPos,schema.nodes.heading,{level:heading[1].length});
-      else tr=tr.setNodeMarkup(blockPos,schema.nodes.blockquote,{expandable:false});
-      dispatch(tr);
-      view.focus();
-      return true;
+      tr=tr.setNodeMarkup(blockPos,schema.nodes.heading,{level:heading[1].length});
+      dispatch(tr);view.focus();return true;
+    }
+
+    if(quote){
+      const markerLength=quote[0].length;
+      let tr=state.tr.delete(contentStart,contentStart+markerLength);
+      const range=tr.selection.$from.blockRange();
+      if(!range)return false;
+      tr=tr.wrap(range,[{type:schema.nodes.blockquote,attrs:{expandable:false}}]);
+      dispatch(tr);view.focus();return true;
     }
 
     const match=task||ordered||bullet,markerLength=match[0].length;
-    dispatch(state.tr.delete(contentStart,contentStart+markerLength));
+    let tr=state.tr.delete(contentStart,contentStart+markerLength);
+    const range=tr.selection.$from.blockRange();
+    if(!range)return false;
     const listType=ordered?schema.nodes.ordered_list:schema.nodes.bullet_list;
     const attrs=ordered?{order:Number(ordered[1]),reversed:false}:null;
-    if(!wrapInList(listType,attrs)(state,view.dispatch))return false;
+    tr=tr.wrap(range,[{type:listType,attrs},{type:schema.nodes.list_item}]);
     if(task){
-      const pos=state.selection.$from.start();
-      dispatch(state.tr.insert(pos,schema.nodes.task_checkbox.create({checked:task[1].toLowerCase()==="x",disabled:false})));
+      const insertAt=tr.selection.$from.start();
+      tr=tr.insert(insertAt,schema.nodes.task_checkbox.create({checked:task[1].toLowerCase()==="x",disabled:false}));
     }
-    view.focus();
-    return true;
+    dispatch(tr);view.focus();return true;
   }
 
   function exitFormattedBlock(){
     captureSelection();
     if(!state.selection.empty)return false;
-    const type=state.selection.$from.parent.type;
-    if(type!==schema.nodes.heading&&type!==schema.nodes.blockquote)return false;
-    if(!splitBlock(state,view.dispatch))return false;
-    setBlockType(schema.nodes.paragraph)(state,view.dispatch);
-    view.focus();
-    return true;
+    const {$from}=state.selection;
+    for(let depth=$from.depth;depth>0;depth--){
+      const node=$from.node(depth);
+      if(node.type===schema.nodes.heading){
+        if($from.parent!==node)return false;
+        const pos=$from.before(depth),offset=$from.parentOffset;
+        let tr=state.tr;
+        if(offset===0){
+          tr=tr.insert(pos,schema.nodes.paragraph.create());
+          tr=tr.setSelection(TextSelection.create(tr.doc,pos+1));
+        }else{
+          const before=node.copy(node.content.cut(0,offset));
+          const after=schema.nodes.paragraph.create(null,node.content.cut(offset));
+          tr=tr.replaceWith(pos,pos+node.nodeSize,Fragment.fromArray([before,after]));
+          tr=tr.setSelection(TextSelection.create(tr.doc,pos+before.nodeSize+1));
+        }
+        dispatch(tr);view.focus();return true;
+      }
+      if(node.type===schema.nodes.blockquote){
+        if(node.childCount!==1||depth+1!==$from.depth||!$from.parent.isTextblock)return false;
+        const pos=$from.before(depth),offset=$from.parentOffset,inner=$from.parent;
+        let tr=state.tr;
+        if(offset===0){
+          tr=tr.insert(pos,schema.nodes.paragraph.create());
+          tr=tr.setSelection(TextSelection.create(tr.doc,pos+1));
+        }else{
+          const quotedParagraph=inner.copy(inner.content.cut(0,offset));
+          const quoteBefore=node.copy(Fragment.from(quotedParagraph));
+          const bodyAfter=schema.nodes.paragraph.create(null,inner.content.cut(offset));
+          tr=tr.replaceWith(pos,pos+node.nodeSize,Fragment.fromArray([quoteBefore,bodyAfter]));
+          tr=tr.setSelection(TextSelection.create(tr.doc,pos+quoteBefore.nodeSize+1));
+        }
+        dispatch(tr);view.focus();return true;
+      }
+    }
+    return false;
   }
 
   function listDepth(type){
@@ -451,6 +490,7 @@ export function createEditorCore({element,onChange=()=>{},onSelectionChange=()=>
     return 0;
   }
   function toggleList(kind="ul"){
+    captureSelection();
     const target=kind==="ol"?schema.nodes.ordered_list:schema.nodes.bullet_list;
     const other=kind==="ol"?schema.nodes.bullet_list:schema.nodes.ordered_list;
     const sameDepth=listDepth(target);
@@ -467,6 +507,7 @@ export function createEditorCore({element,onChange=()=>{},onSelectionChange=()=>
     return ok;
   }
   function insertHTML(html){
+    captureSelection();
     const host=element.ownerDocument.createElement("div");
     host.innerHTML=String(html||"");
     const slice=parserFor(element).parseSlice(host,{preserveWhitespace:"full"});
@@ -476,6 +517,7 @@ export function createEditorCore({element,onChange=()=>{},onSelectionChange=()=>
     return true;
   }
   function insertText(text){
+    captureSelection();
     const parts=String(text).split(/\r\n|\r|\n/),content=[];
     parts.forEach((part,index)=>{
       if(index)content.push(schema.nodes.hard_break.create());
@@ -584,7 +626,7 @@ export function createEditorCore({element,onChange=()=>{},onSelectionChange=()=>
     syncFromDOM,
     patchMedia,
     focus:()=>view.focus(),
-    saveSelection:captureSelection,
+    saveSelection:()=>state.selection.getBookmark(),
     captureSelection,
     restoreSelection:()=>view.focus(),
     expandWord,
