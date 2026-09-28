@@ -681,20 +681,20 @@ test('browser Telegraph publishing stops before the external request when identi
   };
   d.querySelector('#docName').value='Sem identidade';
   d.querySelector('#editor').innerHTML='<p>texto</p>';
-  w.eval("dest='telegraph'");
   await w.eval('publishTelegraph()');
   assert.equal(w.__requests.filter(request=>request.url.endsWith('/api/telegraph/publish')).length,0);
   assert.match(d.querySelector('#toast').textContent,/persistir a identidade/);
+  w.Storage.prototype.setItem=original;
   w.close();
 });
 
 test('import starts a new document history and undo cannot restore prior identity, page or attachment',async()=>{
   const db=memoryIndexedDB();
-  const w=page({indexedDB:db,objectURL:()=> 'blob:old-media'}),d=w.document,e=d.querySelector('#editor');
-  d.querySelector('#docName').value='Documento A';
-  e.innerHTML='<p>texto A</p>';
-  w.eval("telegraphPath='pagina-a'");
-  const oldDoc=w.eval('docId');
+  const oldDoc='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+  const local=JSON.stringify({version:2,name:'Documento A',html:'<p>texto A</p>',dest:'telegraph',telegraphPath:'pagina-a',docId:oldDoc,revision:3,importedMd:'',importedTxt:'',importedHtml:'',media:null});
+  const w=page({local:{rmdtxtml:local},indexedDB:db,objectURL:()=> 'blob:old-media'}),d=w.document,e=d.querySelector('#editor');
+  assert.equal(w.eval('draftState().docId'),oldDoc);
+  assert.equal(w.eval('draftState().telegraphPath'),'pagina-a');
   const mediaInput=d.querySelector('#mediaInput');
   const attachment=new w.File([new Uint8Array([1,2,3])],'a.png',{type:'image/png'});
   Object.defineProperty(mediaInput,'files',{configurable:true,value:[attachment]});
@@ -707,19 +707,19 @@ test('import starts a new document history and undo cannot restore prior identit
   Object.defineProperty(fileInput,'files',{configurable:true,value:[{name:'Documento B.txt',text:async()=> 'texto B'}]});
   fileInput.dispatchEvent(new w.Event('change'));
   await wait(10);
-  const newDoc=w.eval('docId');
+  const newDoc=w.eval('draftState().docId');
   assert.notEqual(newDoc,oldDoc);
   assert.equal(d.querySelector('#docName').value,'Documento B');
   assert.equal(e.textContent,'texto B');
-  assert.equal(w.eval('telegraphPath'),'');
+  assert.equal(w.eval('draftState().telegraphPath'),'');
   assert.equal(d.querySelector('[data-media-id]'),null);
   assert.equal(db.rows.size,0);
 
   d.querySelector('#undoBtn').click();
-  assert.equal(w.eval('docId'),newDoc);
+  assert.equal(w.eval('draftState().docId'),newDoc);
   assert.equal(d.querySelector('#docName').value,'Documento B');
   assert.equal(e.textContent,'texto B');
-  assert.equal(w.eval('telegraphPath'),'');
+  assert.equal(w.eval('draftState().telegraphPath'),'');
   assert.equal(d.querySelector('[data-media-id]'),null);
   w.close();
 });
@@ -739,8 +739,7 @@ test('late Telegraph publish response cannot attach document A page to imported 
   await wait(10);
   d.querySelector('#docName').value='Documento A';
   e.innerHTML='<p>A</p>';
-  w.eval("dest='telegraph'");
-  const oldDoc=w.eval('docId');
+  const oldDoc=w.eval('draftState().docId');
   const publishing=w.eval('publishTelegraph()');
   await wait(0);
   assert.equal(publishedBody.doc,oldDoc);
@@ -749,13 +748,13 @@ test('late Telegraph publish response cannot attach document A page to imported 
   Object.defineProperty(input,'files',{configurable:true,value:[{name:'Documento B.txt',text:async()=> 'B'}]});
   input.dispatchEvent(new w.Event('change'));
   await wait(10);
-  const newDoc=w.eval('docId');
+  const newDoc=w.eval('draftState().docId');
   assert.notEqual(newDoc,oldDoc);
   resolvePublish();
   await publishing;
 
-  assert.equal(w.eval('docId'),newDoc);
-  assert.equal(w.eval('telegraphPath'),'');
+  assert.equal(w.eval('draftState().docId'),newDoc);
+  assert.equal(w.eval('draftState().telegraphPath'),'');
   assert.match(d.querySelector('#toast').textContent,/documento mudou/);
   w.close();
 });
@@ -777,9 +776,9 @@ test('late Telegraph recovery response is ignored after the same document advanc
   const name=d.querySelector('#docName');
   name.value='Revisão nova';
   name.dispatchEvent(new w.Event('input',{bubbles:true}));
-  assert.ok(w.eval('docRevision')>beforeRevision);
+  assert.ok(w.eval('draftState().revision')>beforeRevision);
   resolveRecover();
   await wait(10);
-  assert.equal(w.eval('telegraphPath'),'');
+  assert.equal(w.eval('draftState().telegraphPath'),'');
   w.close();
 });
