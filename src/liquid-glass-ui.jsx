@@ -387,12 +387,10 @@ function Chrome() {
         </div>
 
         <div className="top-center">
-          <span className="app-title" aria-label="MDTXTRT">MDTXTRT</span>
-          <GlassControl className="theme-control">
-            <button type="button" id="themeBtn" aria-label="Ativar modo claro" title="Ativar modo claro">
-              <Icon name="light_mode" />
-            </button>
-          </GlassControl>
+          <button type="button" className="theme-switch" id="themeBtn" aria-label="Ativar modo claro" title="Ativar modo claro">
+            <span className="app-title">MDTXTRT</span>
+            <Icon name="light_mode" />
+          </button>
         </div>
 
         <div className="top-slot top-right">

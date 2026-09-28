@@ -87,7 +87,8 @@ test('theme neutrals are chromatic derivatives of the active accent',()=>{
   assert.match(html,/html\.light\{[\s\S]*?--bar-glass-tint-strong:color-mix\(in oklab,var\(--accent\) 23%,transparent\);/);
   assert.match(html,/html\.light\{[\s\S]*?--bar-control-accent-bg:color-mix\(in oklab,var\(--accent\) 20%,transparent\);/);
   assert.doesNotMatch(html,/--bar-(?:glass-tint|glass-tint-strong|control-accent-bg):[^;]*rgba\(/);
-  assert.match(html,/\.seg,\.bar,\.theme-control\{[^}]*background:var\(--bar-glass-tint\)/);
+  assert.match(html,/\.seg,\.bar\{[^}]*background:var\(--bar-glass-tint\)/);
+  assert.doesNotMatch(html,/\.theme-switch\{[^}]*background:var\(--bar-glass-tint\)/);
   assert.match(html,/\.glass-menu-material,\.toast-material\{background:var\(--glass-tint\)\}/);
   assert.match(html,/box-shadow:inset 0 0 0 \.5px var\(--glass-inner\),0 0 0 \.5px var\(--glass-edge\)/);
   assert.match(html,/\.menu-divider::after\{[^}]*background:var\(--glass-edge\)\}/);
@@ -220,7 +221,7 @@ test('Telegram Mini App safe areas are sourced from WebApp fields and updated by
 
 test('chrome circles share one control diameter and dark icons retain contrast',()=>{
   const html=read('index.html');
-  assert.match(html,/html\.dark \.seg,html\.dark \.bar,html\.dark \.theme-control\{color:#f5f5f7\}/);
+  assert.match(html,/html\.dark \.seg,html\.dark \.bar\{color:#f5f5f7\}/);
   assert.match(html,/\.seg button\{[\s\S]*?width:var\(--control-size\);height:var\(--control-size\)/);
   assert.match(html,/\.bar > button\{[\s\S]*?flex:0 0 var\(--control-size\);width:var\(--control-size\);min-width:var\(--control-size\);height:var\(--control-size\)/);
   assert.match(html,/\.action-dot\{[\s\S]*?width:var\(--control-size\);height:var\(--control-size\)/);
@@ -230,14 +231,17 @@ test('chrome circles share one control diameter and dark icons retain contrast',
   assert.doesNotMatch(html,/\.action-dot\{[\s\S]*?control-size\) - 6px/);
 });
 
-test('theme switch keeps a deliberate sixty-percent visual scale across access modes',()=>{
-  const html=read('index.html');
+test('theme switch is a text-and-icon target with no control background',()=>{
+  const html=read('index.html'),src=uiSource(),app=read('app.js');
   assert.match(html,/--control-size:clamp\(36px,10vw,40px\)/);
-  assert.match(html,/--theme-control-size:clamp\(21\.6px,6vw,24px\)/);
-  assert.match(html,/--theme-icon-size:clamp\(10\.8px,3vw,12px\)/);
-  assert.match(html,/\.theme-control\{width:var\(--theme-control-size\);height:var\(--theme-control-size\)\}/);
-  assert.match(html,/\.theme-control button\{[\s\S]*?width:var\(--theme-control-size\);height:var\(--theme-control-size\)/);
-  assert.match(html,/\.theme-control \.ui-icon\{width:var\(--theme-icon-size\);height:var\(--theme-icon-size\)\}/);
+  assert.doesNotMatch(html,/--theme-control-size:/);
+  assert.doesNotMatch(html,/--theme-icon-size:/);
+  assert.match(html,/\.theme-switch\{[\s\S]*?border:0;background:transparent;box-shadow:none;[\s\S]*?display:flex;align-items:center;justify-content:center;gap:4px;[\s\S]*?padding:8px 0;line-height:1/);
+  assert.match(html,/\.app-title\{[\s\S]*?font-size:12px;line-height:1/);
+  assert.match(html,/\.theme-switch \.ui-icon\{width:12px;height:12px\}/);
+  assert.match(src,/<button type="button" className="theme-switch" id="themeBtn"[\s\S]*?<span className="app-title">MDTXTRT<\/span>[\s\S]*?<Icon name="light_mode" \/>[\s\S]*?<\/button>/);
+  assert.doesNotMatch(src,/GlassControl className="theme-control"/);
+  assert.match(app,/one\('#themeBtn'\)\.addEventListener\('click',[\s\S]*?setTheme/);
 });
 
 test('top chrome keeps lateral pills below the centered title and inside Telegram safe areas',()=>{
@@ -273,15 +277,15 @@ test('UI preserves compact portrait contract, unified chrome scale and anchored 
   assert.match(html,/@keyframes device-gate-out\{to\{opacity:0;visibility:hidden\}\}/);
   assert.doesNotMatch(html,/@media \(orientation:landscape\),\(min-width:760px\)\{\s*\.device-gate\{display:/);
   assert.match(html,/--control-size:clamp\(36px,10vw,40px\)/);
-  assert.match(html,/--theme-control-size:clamp\(21\.6px,6vw,24px\)/);
-  assert.match(html,/--theme-icon-size:clamp\(10\.8px,3vw,12px\)/);
+  assert.doesNotMatch(html,/--theme-control-size:/);
+  assert.doesNotMatch(html,/--theme-icon-size:/);
   assert.match(html,/--menu-w:210px/);
   assert.match(html,/--menu-row-h:24px/);
   assert.match(html,/\.fade-top\{[\s\S]*?height:calc\(var\(--head-inset\) \+ 20px\);[\s\S]*?var\(--bg\) 86%,transparent[\s\S]*?var\(--bg\) 60%,transparent\) 52%[\s\S]*?var\(--bg\) 26%,transparent\) 76%[\s\S]*?transparent 100%/);
   assert.match(html,/\.fade-bot\{[\s\S]*?height:calc\(var\(--foot-inset\) \+ 20px\);[\s\S]*?var\(--bg\) 86%,transparent[\s\S]*?var\(--bg\) 60%,transparent\) 52%[\s\S]*?var\(--bg\) 26%,transparent\) 76%[\s\S]*?transparent 100%/);
   assert.match(html,/\.bar > button\.more\{color:#fff;background:var\(--accent\);box-shadow:0 4px 14px color-mix\(in oklab,var\(--accent\) 45%,transparent\)\}/);
-  assert.match(src,/className="app-title"[^>]*>MDTXTRT<\/span>/);
-  assert.match(src,/id="themeBtn"/);
+  assert.match(src,/className="theme-switch" id="themeBtn"/);
+  assert.match(src,/<span className="app-title">MDTXTRT<\/span>/);
   assert.match(src,/id="plusBtn"[\s\S]*popoverTarget="plusMenu"/);
   const typebar=src.slice(src.indexOf('<GlassControl className="bar"'),src.indexOf('</GlassControl>',src.indexOf('<GlassControl className="bar"')));
   assert.ok(typebar.indexOf('id="plusBtn"')<typebar.indexOf('data-cmd="bold"'));

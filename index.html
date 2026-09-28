@@ -49,8 +49,6 @@
       --safe-right:env(safe-area-inset-right,0px);
       --gap:8px;
       --control-size:clamp(36px,10vw,40px);
-      --theme-control-size:clamp(21.6px,6vw,24px);
-      --theme-icon-size:clamp(10.8px,3vw,12px);
       --pill-pad:4px;
       --pill-h:calc(var(--control-size) + 8px);
       --top-side-offset:12px;
@@ -147,8 +145,8 @@
     .heading-list .h-opt.h6{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
     .heading-list .h-opt.footer{font-size:12px;color:var(--muted)}
     .heading-list button.is-current{color:var(--accent)}
-    .seg,.bar,.theme-control{color:#151515;border-radius:999px;background:var(--bar-glass-tint)}
-    html.dark .seg,html.dark .bar,html.dark .theme-control{color:#f5f5f7}
+    .seg,.bar{color:#151515;border-radius:999px;background:var(--bar-glass-tint)}
+    html.dark .seg,html.dark .bar{color:#f5f5f7}
     .glass-menu-material,.toast-material{background:var(--glass-tint)}
     .fade-top,.fade-bot{
       position:fixed;left:0;right:0;z-index:20;pointer-events:none;
@@ -184,16 +182,16 @@
       display:flex;align-items:center;justify-content:center;gap:4px;
       height:var(--pill-h);pointer-events:auto
     }
+    .theme-switch{
+      appearance:none;-webkit-appearance:none;border:0;background:transparent;box-shadow:none;
+      color:var(--text);display:flex;align-items:center;justify-content:center;gap:4px;
+      margin:0;padding:8px 0;line-height:1
+    }
     .app-title{
-      color:var(--text);font-size:14px;line-height:1;font-weight:750;letter-spacing:.08em;
+      color:inherit;font-size:12px;line-height:1;font-weight:750;letter-spacing:.08em;
       white-space:nowrap;text-align:center
     }
-    .theme-control{width:var(--theme-control-size);height:var(--theme-control-size)}
-    .theme-control button{
-      width:var(--theme-control-size);height:var(--theme-control-size);border:0;border-radius:50%;
-      background:transparent;color:inherit;display:grid;place-items:center;padding:0
-    }
-    .theme-control .ui-icon{width:var(--theme-icon-size);height:var(--theme-icon-size)}
+    .theme-switch .ui-icon{width:12px;height:12px}
     .seg{display:flex;align-items:center;gap:0;padding:var(--pill-pad);height:var(--pill-h)}
     .seg button{
       width:var(--control-size);height:var(--control-size);border:0;border-radius:50%;
@@ -395,7 +393,7 @@
   </div>
   <script src="marked.js"></script>
   <script src="turndown.js"></script>
-  <script type="module" src="ui.js?v=a417187602fd"></script>
+  <script type="module" src="ui.js?v=a41453f195b3"></script>
   <script>
     document.addEventListener('DOMContentLoaded',()=>{
       const root=document.documentElement;
