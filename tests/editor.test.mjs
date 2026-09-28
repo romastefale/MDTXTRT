@@ -445,34 +445,33 @@ test('import bounds document name to persisted draft contract',async()=>{
 
 test('import starts a new document history and undo cannot restore prior identity or attachment',async()=>{
   const db=memoryIndexedDB();
+  const original={version:2,name:'Documento A',html:'<p>conteúdo A</p>',dest:'telegram',telegraphPath:'pagina-a',docId:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',revision:3,importedMd:'',importedTxt:'',importedHtml:'',media:null};
   let n=0;
-  const w=page({indexedDB:db,objectURL:()=> 'blob:import-'+(++n)}),d=w.document,e=d.querySelector('#editor');
-  d.querySelector('#docName').value='Documento A';
-  d.querySelector('#docName').dispatchEvent(new w.Event('input',{bubbles:true}));
-  e.innerHTML='<p>conteúdo A</p>';
-  e.dispatchEvent(new w.Event('input',{bubbles:true}));
+  const w=page({indexedDB:db,objectURL:()=> 'blob:import-'+(++n),local:{rmdtxtml:JSON.stringify(original)}}),d=w.document,e=d.querySelector('#editor');
+  await wait(5);
   const mediaInput=d.querySelector('#mediaInput');
   Object.defineProperty(mediaInput,'files',{configurable:true,value:[new w.File([new Uint8Array([1,2,3])],'antigo.png',{type:'image/png'})]});
   mediaInput.dispatchEvent(new w.Event('change'));
   await wait(10);
-  w.eval("telegraphPath='pagina-a';saveLocal()");
-  const previous=w.eval('({doc:docId,revision:docRevision})');
+  const previous=w.eval('draftState()');
+  assert.equal(previous.telegraphPath,'pagina-a');
   assert.ok(d.querySelector('[data-media-id]'));
 
   const input=d.querySelector('#fileInput');
   Object.defineProperty(input,'files',{configurable:true,value:[{name:'Documento B.txt',text:async()=> 'conteúdo B'}]});
   input.dispatchEvent(new w.Event('change'));
   await wait(10);
-  const current=w.eval('({doc:docId,revision:docRevision,path:telegraphPath})');
-  assert.notEqual(current.doc,previous.doc);
-  assert.equal(current.path,'');
+  const current=w.eval('draftState()');
+  assert.notEqual(current.docId,previous.docId);
+  assert.equal(current.telegraphPath,'');
   assert.equal(d.querySelector('#docName').value,'Documento B');
   assert.equal(e.textContent,'conteúdo B');
   assert.equal(d.querySelector('[data-media-id]'),null);
 
   d.querySelector('#undoBtn').click();
-  assert.equal(w.eval('docId'),current.doc);
-  assert.equal(w.eval('telegraphPath'),'');
+  const afterUndo=w.eval('draftState()');
+  assert.equal(afterUndo.docId,current.docId);
+  assert.equal(afterUndo.telegraphPath,'');
   assert.equal(d.querySelector('#docName').value,'Documento B');
   assert.equal(e.textContent,'conteúdo B');
   assert.equal(d.querySelector('[data-media-id]'),null);
@@ -494,7 +493,7 @@ test('Telegraph publish response is ignored after another document replaces the 
   d.querySelector('#docName').dispatchEvent(new w.Event('input',{bubbles:true}));
   e.innerHTML='<p>A</p>';
   e.dispatchEvent(new w.Event('input',{bubbles:true}));
-  const request=w.eval('({doc:docId,revision:docRevision})');
+  const request=w.eval('draftState()');
   const pending=w.eval('publishCurrent()');
   await wait(0);
   assert.equal(typeof publishResolve,'function');
@@ -503,11 +502,11 @@ test('Telegraph publish response is ignored after another document replaces the 
   Object.defineProperty(input,'files',{configurable:true,value:[{name:'Documento B.txt',text:async()=> 'B'}]});
   input.dispatchEvent(new w.Event('change'));
   await wait(5);
-  assert.notEqual(w.eval('docId'),request.doc);
+  assert.notEqual(w.eval('draftState().docId'),request.docId);
 
-  publishResolve({ok:true,status:200,json:async()=>({path:'pagina-a',url:'https://telegra.ph/pagina-a',doc:request.doc,revision:request.revision})});
+  publishResolve({ok:true,status:200,json:async()=>({path:'pagina-a',url:'https://telegra.ph/pagina-a',doc:request.docId,revision:request.revision})});
   await pending;
-  assert.equal(w.eval('telegraphPath'),'');
+  assert.equal(w.eval('draftState().telegraphPath'),'');
   assert.equal(d.querySelector('#docName').value,'Documento B');
   assert.match(d.querySelector('#toast').textContent,/revisão anterior/);
   w.close();
@@ -524,7 +523,7 @@ test('Telegraph recovery response is ignored after the originating document revi
   };
   const w=page({fetch}),d=w.document;
   await wait(5);
-  const request=w.eval('({doc:docId,revision:docRevision})');
+  const request=w.eval('draftState()');
   defer=true;
   const pending=w.eval('recoverTelegraph()');
   await wait(0);
@@ -534,10 +533,10 @@ test('Telegraph recovery response is ignored after the originating document revi
   Object.defineProperty(input,'files',{configurable:true,value:[{name:'Outro.txt',text:async()=> 'novo'}]});
   input.dispatchEvent(new w.Event('change'));
   await wait(5);
-  recoverResolve({ok:true,status:200,json:async()=>({path:'pagina-antiga',url:'https://telegra.ph/pagina-antiga',doc:request.doc,revision:request.revision})});
+  recoverResolve({ok:true,status:200,json:async()=>({path:'pagina-antiga',url:'https://telegra.ph/pagina-antiga',doc:request.docId,revision:request.revision})});
   await pending;
-  assert.equal(w.eval('telegraphPath'),'');
-  assert.notEqual(w.eval('docId'),request.doc);
+  assert.equal(w.eval('draftState().telegraphPath'),'');
+  assert.notEqual(w.eval('draftState().docId'),request.docId);
   w.close();
 });
 
