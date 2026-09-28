@@ -1,4 +1,4 @@
-name: Generate editor lockfile
+name: Generate editor artifacts
 
 on:
   push:
@@ -8,7 +8,8 @@ permissions:
   contents: write
 
 jobs:
-  lockfile:
+  editor-artifacts:
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -18,14 +19,16 @@ jobs:
           cache: npm
       - run: test "$(npm --version)" = "11.19.0"
       - run: npm install --package-lock-only --ignore-scripts
-      - name: Commit generated lockfile
+      - run: npm ci
+      - run: npm run build:editor
+      - name: Commit generated editor artifacts
         shell: bash
         run: |
-          if git diff --quiet -- package-lock.json; then
+          if git diff --quiet -- package-lock.json editor-core.js; then
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add package-lock.json
-          git commit -m "build: lock ProseMirror editor dependencies"
+          git add package-lock.json editor-core.js
+          git commit -m "build: generate ProseMirror editor artifact"
           git push
