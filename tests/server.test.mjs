@@ -262,7 +262,7 @@ test('corrupt persisted handoff is discarded instead of breaking requests',async
 
 test('handoff persists valid document metadata and attachment',async()=>{
   const id='handoffmedia1',doc='44444444-4444-4444-8444-444444444444';
-  const draft={version:2,name:'Continuidade',html:`<p>Texto</p><figure><img data-media-id="${id}"><figcaption>foto.png</figcaption></figure>`,dest:'telegram',telegraphPath:'',docId:doc,importedMd:'',importedTxt:'',importedHtml:'',media:{id,kind:'image'}};
+  const draft={version:2,name:'Continuidade',html:`<p>Texto</p><figure><img data-media-id="${id}"><figcaption>foto.png</figcaption></figure>`,dest:'telegram',telegraphPath:'',docId:doc,revision:5,importedMd:'',importedTxt:'',importedHtml:'',media:{id,kind:'image'}};
   const file={name:'foto.png',blob:new Blob([new Uint8Array([1,2,3,4,5])],{type:'image/png'})};
   const form=new FormData();
   form.set('draft',JSON.stringify(draft));
@@ -274,6 +274,7 @@ test('handoff persists valid document metadata and attachment',async()=>{
   const claimed=await jsonPost('/api/handoff/claim',{initData:init(),token:made.token});
   assert.equal(claimed.status,200);
   assert.equal(claimed.data.draft.name,'Continuidade');
+  assert.equal(claimed.data.draft.revision,5);
   assert.equal(claimed.data.file.id,id);
 });
 
@@ -341,6 +342,18 @@ test('Telegraph title limit counts Unicode characters instead of UTF-16 code uni
   assert.match(overLimit.data.error,/256 caracteres/);
 });
 
+test('Telegraph rejects malformed document revisions before publication',async()=>{
+  const result=await jsonPost('/api/telegraph/publish',{
+    title:'Revision',
+    doc:'12121212-1212-4212-8212-121212121212',
+    revision:-1,
+    content:[{tag:'p',children:['texto']}],
+    initData:init()
+  });
+  assert.equal(result.status,400);
+  assert.match(result.data.error,/Revisão inválida/);
+});
+
 test('Telegraph ownership mapping survives create and edit on same document',async()=>{
   const page={title:'Página',doc:'33333333-3333-4333-8333-333333333333',content:[{tag:'h3',children:['Título']},{tag:'p',children:['texto']}],initData:init()};
   const created=await jsonPost('/api/telegraph/publish',page);
@@ -356,17 +369,23 @@ test('Telegraph browser capability can create, recover and edit without Telegram
   const browserKey='ab'.repeat(32);
   const otherKey='cd'.repeat(32);
   const doc='99999999-9999-4999-8999-999999999999';
-  const base={title:'Browser page',doc,content:[{tag:'p',children:['texto']}],browserKey};
+  const base={title:'Browser page',doc,revision:7,content:[{tag:'p',children:['texto']}],browserKey};
   const created=await jsonPost('/api/telegraph/publish',base);
   assert.equal(created.status,200,created.data.error);
   assert.equal(created.data.path,'test-page-regression');
+  assert.equal(created.data.doc,doc);
+  assert.equal(created.data.revision,7);
 
-  const recovered=await jsonPost('/api/telegraph/recover',{doc,browserKey});
+  const recovered=await jsonPost('/api/telegraph/recover',{doc,revision:7,browserKey});
   assert.equal(recovered.status,200,recovered.data.error);
   assert.equal(recovered.data.path,created.data.path);
+  assert.equal(recovered.data.doc,doc);
+  assert.equal(recovered.data.revision,7);
 
   const edited=await jsonPost('/api/telegraph/publish',{...base,title:'Browser page edited',path:created.data.path});
   assert.equal(edited.status,200,edited.data.error);
+  assert.equal(edited.data.doc,doc);
+  assert.equal(edited.data.revision,7);
 
   const wrongOwner=await jsonPost('/api/telegraph/publish',{...base,browserKey:otherKey,path:created.data.path});
   assert.equal(wrongOwner.status,400);
