@@ -245,11 +245,12 @@ test('server exposes every React-referenced local SVG icon and vector app icon',
   assert.doesNotMatch(server,/"logo\.png"/);
 });
 
-test('bottom bar uses a fixed 20px edge inset and redistributes controls',()=>{
+test('bottom bar uses 20px side insets, 32px bottom inset and redistributes controls',()=>{
   const html=read('index.html'),app=read('app.js');
   assert.match(html,/--bar-side-inset:20px/);
-  assert.match(html,/--foot-inset:calc\(var\(--bottom\) \+ var\(--bar-side-inset\) \+ var\(--bar-h\) \+ var\(--gap\)\)/);
-  assert.match(html,/\.bar-wrap\{[\s\S]*?left:max\(var\(--bar-side-inset\),var\(--safe-left\)\);right:max\(var\(--bar-side-inset\),var\(--safe-right\)\);width:auto;[\s\S]*?bottom:calc\(var\(--vv-bottom\) \+ var\(--bottom\) \+ var\(--bar-side-inset\)\)[\s\S]*?transform:none/);
+  assert.match(html,/--bar-bottom-inset:32px/);
+  assert.match(html,/--foot-inset:calc\(var\(--bottom\) \+ var\(--bar-bottom-inset\) \+ var\(--bar-h\) \+ var\(--gap\)\)/);
+  assert.match(html,/\.bar-wrap\{[\s\S]*?left:max\(var\(--bar-side-inset\),var\(--safe-left\)\);right:max\(var\(--bar-side-inset\),var\(--safe-right\)\);width:auto;[\s\S]*?bottom:calc\(var\(--vv-bottom\) \+ var\(--bottom\) \+ var\(--bar-bottom-inset\)\)[\s\S]*?transform:none/);
   assert.match(html,/\.bar\{[\s\S]*?width:100%;margin:0;[\s\S]*?justify-content:space-between/);
   assert.doesNotMatch(app,/root\.style\.setProperty\('--bar-side-inset'/);
 });
