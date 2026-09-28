@@ -133,8 +133,9 @@ function page(setup={}){
   Object.defineProperty(w.crypto,'randomUUID',{value:randomUUID,configurable:true});
   w.matchMedia=()=>({matches:true,addEventListener(){},removeEventListener(){}});
   Object.defineProperty(w,'visualViewport',{value:{
-    offsetTop:0,height:800,
-    addEventListener(){},removeEventListener(){}
+    offsetLeft:0,offsetTop:0,width:390,height:800,
+    addEventListener(){},removeEventListener(){},
+    ...(setup.visualViewport||{})
   },configurable:true});
   if(!w.AbortSignal.timeout)w.AbortSignal.timeout=()=>new w.AbortController().signal;
   w.HTMLElement.prototype.scrollIntoView=function(){};
@@ -1119,5 +1120,100 @@ test('lossy TXT conversion exposes a warning only when rich semantics would be d
   e.innerHTML='<p><strong>texto</strong> <a href="https://example.com">link</a></p>';
   assert.match(w.eval('conversionWarning("txt")'),/serão perdidos/i);
   assert.equal(w.eval('conversionWarning("md")'),'');
+  w.close();
+});
+
+
+test('visual viewport constrains overlays and Find stays anchored to a visible control',async()=>{
+  const w=page({visualViewport:{offsetLeft:0,offsetTop:100,width:390,height:300}}),d=w.document;
+  const plus=d.querySelector('#plusBtn'),find=d.querySelector('#findMenu'),dialog=d.querySelector('#dialogMenu');
+  plus.getBoundingClientRect=()=>({left:18,top:332,width:40,height:40,right:58,bottom:372});
+  find.getBoundingClientRect=()=>{
+    const limit=parseFloat(find.style.getPropertyValue('--menu-max-height'))||240;
+    const height=Math.min(240,limit);
+    return {left:0,top:0,width:280,height,right:280,bottom:height};
+  };
+  dialog.getBoundingClientRect=()=>{
+    const limit=parseFloat(dialog.style.getPropertyValue('--menu-max-height'))||120;
+    const height=Math.min(120,limit);
+    return {left:0,top:0,width:280,height,right:280,bottom:height};
+  };
+
+  d.querySelector('#findBtn').click();
+  assert.equal(find.matches(':popover-open'),true);
+  assert.equal(w.eval("panelAnchor(one('#findMenu'))===one('#plusBtn')"),true);
+  const findLimit=parseFloat(find.style.getPropertyValue('--menu-max-height'));
+  const findTop=parseFloat(find.style.getPropertyValue('--menu-top'));
+  assert.ok(findLimit>0&&findLimit<=165);
+  assert.ok(findTop>=108);
+  assert.ok(findTop+Math.min(240,findLimit)<=392);
+
+  const prompt=w.eval("ask('Teste','valor')");
+  await wait(0);
+  assert.equal(parseFloat(dialog.style.getPropertyValue('--menu-max-height')),165);
+  assert.equal(parseFloat(dialog.style.getPropertyValue('--menu-left')),195);
+  assert.equal(parseFloat(dialog.style.getPropertyValue('--menu-top')),250);
+  d.querySelector('#dialogCancel').click();
+  assert.equal(await prompt,null);
+  w.close();
+});
+
+test('dialog modality traps focus, restores its origin and preserves editor selection',async()=>{
+  const w=page(),d=w.document,canvas=d.querySelector('#canvas'),origin=d.querySelector('#linkBtn');
+  w.eval("currentEditorCore().resetHTML('<p>alpha beta</p>',{silent:true})");
+  w.eval("(()=>{const r=currentEditorCore().findLiteral('alpha')[0];currentEditorCore().selectRange({from:r.from,to:r.to},{focus:true});saveSel()})()");
+  const before=w.eval('currentEditorCore().state.selection.from');
+  origin.focus();
+  const prompt=w.eval("ask('Link','https://')");
+  await wait(0);
+
+  const input=d.querySelector('#dialogInput');
+  assert.equal(d.activeElement,input);
+  assert.equal(canvas.hasAttribute('inert'),true);
+  assert.equal(w.eval('currentEditorCore().state.selection.from'),before);
+
+  origin.focus();
+  await wait(0);
+  assert.equal(d.activeElement,input);
+
+  input.dispatchEvent(new w.KeyboardEvent('keydown',{key:'Tab',shiftKey:true,bubbles:true}));
+  assert.equal(d.activeElement,d.querySelector('#dialogOk'));
+  d.querySelector('#dialogCancel').click();
+  assert.equal(await prompt,null);
+  assert.equal(canvas.hasAttribute('inert'),false);
+  assert.equal(d.activeElement,origin);
+  assert.equal(w.eval('currentEditorCore().state.selection.from'),before);
+  w.close();
+});
+
+test('Escape closes a programmatic menu, restores its visible opener and keeps editor selection',()=>{
+  const w=page(),d=w.document,plus=d.querySelector('#plusBtn'),menu=d.querySelector('#plusMenu');
+  w.eval("currentEditorCore().resetHTML('<p>alpha beta</p>',{silent:true})");
+  w.eval("(()=>{const r=currentEditorCore().findLiteral('beta')[0];currentEditorCore().selectRange({from:r.from,to:r.to},{focus:true});saveSel()})()");
+  const before=w.eval('currentEditorCore().state.selection.from');
+  plus.focus();
+  w.eval("openPanel('#plusMenu')");
+  d.querySelector('#docName').focus();
+  assert.equal(w.eval('currentEditorCore().state.selection.from'),before);
+  d.dispatchEvent(new w.KeyboardEvent('keydown',{key:'Escape',bubbles:true}));
+  assert.equal(menu.matches(':popover-open'),false);
+  assert.equal(d.activeElement,plus);
+  assert.equal(w.eval('currentEditorCore().state.selection.from'),before);
+  w.close();
+});
+
+test('viewport resize repositions an open dialog using the current visual area',async()=>{
+  const w=page({visualViewport:{offsetLeft:0,offsetTop:20,width:390,height:700}}),d=w.document,dialog=d.querySelector('#dialogMenu');
+  dialog.getBoundingClientRect=()=>({left:0,top:0,width:280,height:100,right:280,bottom:100});
+  const prompt=w.eval("ask('Teste','valor')");
+  await wait(0);
+  assert.equal(parseFloat(dialog.style.getPropertyValue('--menu-top')),370);
+  w.visualViewport.offsetTop=80;
+  w.visualViewport.height=280;
+  w.eval('syncBrowserViewport()');
+  assert.equal(parseFloat(dialog.style.getPropertyValue('--menu-top')),220);
+  assert.equal(parseFloat(dialog.style.getPropertyValue('--menu-max-height')),154);
+  d.querySelector('#dialogCancel').click();
+  await prompt;
   w.close();
 });
