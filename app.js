@@ -501,36 +501,90 @@ function closeTopLayer(){
   if(sel)one(sel).hidePopover();
 }
 function clamp(value,min,max){return Math.max(min,Math.min(max,value));}
-function placePanel(panel,anchorRect=null){
-  const anchorId=panel.dataset.anchor;
-  if(!anchorId)return;
-  const anchor=one('#'+anchorId);
-  const rect=anchorRect||anchor?.getBoundingClientRect();
-  if(!rect)return;
-  const box=panel.getBoundingClientRect();
-  const viewport=window.visualViewport;
-  const vx=viewport?.offsetLeft||0,vy=viewport?.offsetTop||0;
-  const vw=viewport?.width||window.innerWidth,vh=viewport?.height||window.innerHeight;
-  const edge=8,gap=8;
-  const left=clamp(rect.left+rect.width/2-box.width/2,vx+edge,vx+vw-box.width-edge);
-  const above=rect.top-box.height-gap,below=rect.bottom+gap;
-  const preference=panel.dataset.placement||'auto';
-  let top=preference==='top'?above:(above>=vy+edge?above:below);
-  if(top<vy+edge||top+box.height>vy+vh-edge){
-    const alternate=top===above?below:above;
-    if(alternate>=vy+edge&&alternate+box.height<=vy+vh-edge)top=alternate;
-    else top=clamp(top,vy+edge,vy+vh-box.height-edge);
-  }
-  panel.style.setProperty('--menu-left',left+'px');
-  panel.style.setProperty('--menu-top',top+'px');
+const panelAnchors=new WeakMap(),panelOpeners=new WeakMap();
+let dialogReturnFocus=null,dialogInerted=[];
+function visualViewportBounds(){
+  const root=document.documentElement,viewport=window.visualViewport;
+  const left=viewport&&Number.isFinite(viewport.offsetLeft)?Math.max(0,viewport.offsetLeft):0;
+  const top=viewport&&Number.isFinite(viewport.offsetTop)?Math.max(0,viewport.offsetTop):0;
+  const width=viewport&&Number.isFinite(viewport.width)&&viewport.width>0?viewport.width:(root.clientWidth||window.innerWidth);
+  const height=viewport&&Number.isFinite(viewport.height)&&viewport.height>0?viewport.height:(root.clientHeight||window.innerHeight);
+  return {left,top,width,height,right:left+width,bottom:top+height};
 }
-function openPanel(sel){
+function panelAnchor(panel){
+  const override=panelAnchors.get(panel);
+  if(override?.isConnected)return override;
+  const id=panel.dataset.anchor;
+  return id?one('#'+id):null;
+}
+function panelOrigin(element){
+  if(!element||typeof element.focus!=='function')return null;
+  const panel=element.closest?.('.glass-menu');
+  return panel?(panelAnchor(panel)||element):element;
+}
+function focusControl(element){
+  if(!element||!element.isConnected||typeof element.focus!=='function'||element.hidden||element.disabled)return false;
+  try{element.focus({preventScroll:true});}catch{element.focus();}
+  return true;
+}
+function usableAnchorRect(rect,bounds){
+  return Boolean(rect&&(rect.width>0||rect.height>0)&&rect.right>bounds.left&&rect.left<bounds.right&&rect.bottom>bounds.top&&rect.top<bounds.bottom);
+}
+function placePanel(panel,anchorRect=null){
+  if(!panel)return;
+  const bounds=visualViewportBounds(),edge=8,gap=8;
+  const fullHeight=Math.max(0,bounds.height-edge*2);
+  const baseMax=Math.max(0,Math.min(420,bounds.height*.55,fullHeight));
+  const maxWidth=Math.max(0,bounds.width-edge*2);
+  panel.style.setProperty('--menu-max-height',baseMax+'px');
+  panel.style.setProperty('--menu-max-width',maxWidth+'px');
+  const anchor=panelAnchor(panel);
+  const rect=anchorRect||anchor?.getBoundingClientRect()||null;
+  let box=panel.getBoundingClientRect();
+  if(!usableAnchorRect(rect,bounds)){
+    if(panel.dataset.anchor){
+      panel.style.setProperty('--menu-left',clamp(bounds.left+(bounds.width-box.width)/2,bounds.left+edge,Math.max(bounds.left+edge,bounds.right-edge-box.width))+'px');
+      panel.style.setProperty('--menu-top',clamp(bounds.top+(bounds.height-box.height)/2,bounds.top+edge,Math.max(bounds.top+edge,bounds.bottom-edge-box.height))+'px');
+    }else{
+      panel.style.setProperty('--menu-left',(bounds.left+bounds.width/2)+'px');
+      panel.style.setProperty('--menu-top',(bounds.top+bounds.height/2)+'px');
+    }
+    return;
+  }
+  const aboveSpace=Math.max(0,rect.top-gap-(bounds.top+edge));
+  const belowSpace=Math.max(0,(bounds.bottom-edge)-(rect.bottom+gap));
+  const wanted=Math.min(box.height||baseMax,baseMax);
+  const preference=panel.dataset.placement||'auto';
+  let side;
+  if(preference==='top')side=aboveSpace>=wanted||aboveSpace>=belowSpace?'top':'bottom';
+  else if(preference==='bottom')side=belowSpace>=wanted||belowSpace>=aboveSpace?'bottom':'top';
+  else side=aboveSpace>=wanted?'top':belowSpace>=wanted?'bottom':aboveSpace>=belowSpace?'top':'bottom';
+  const available=side==='top'?aboveSpace:belowSpace;
+  panel.style.setProperty('--menu-max-height',Math.max(0,Math.min(baseMax,available))+'px');
+  box=panel.getBoundingClientRect();
+  const minLeft=bounds.left+edge,maxLeft=Math.max(minLeft,bounds.right-edge-box.width);
+  const left=clamp(rect.left+rect.width/2-box.width/2,minLeft,maxLeft);
+  const proposed=side==='top'?rect.top-gap-box.height:rect.bottom+gap;
+  const minTop=bounds.top+edge,maxTop=Math.max(minTop,bounds.bottom-edge-box.height);
+  panel.style.setProperty('--menu-left',left+'px');
+  panel.style.setProperty('--menu-top',clamp(proposed,minTop,maxTop)+'px');
+}
+function openPanel(sel,anchorOverride=null){
   const panel=one(sel);
   if(!panel)throw new Error('Painel indisponível: '+sel);
-  const anchor=panel.dataset.anchor?one('#'+panel.dataset.anchor):null;
+  saveSel();
+  if(anchorOverride)panelAnchors.set(panel,anchorOverride);else panelAnchors.delete(panel);
+  const anchor=panelAnchor(panel);
+  panelOpeners.set(panel,panelOrigin(anchor||document.activeElement));
   const anchorRect=anchor?.getBoundingClientRect()||null;
   panel.showPopover();
   placePanel(panel,anchorRect);
+}
+function closePanel(panel,returnFocus=false){
+  if(!panel?.matches(':popover-open'))return;
+  const target=returnFocus?panelOpeners.get(panel):null;
+  panel.hidePopover();
+  if(returnFocus)focusControl(target);
 }
 function openPlusSubmenu(key){
   const sel='#plus-'+key+'-menu';
@@ -552,17 +606,65 @@ function closePanels(){
     if(panel.matches(':popover-open'))panel.hidePopover();
   }
 }
-let dialogResolve=null,dialogConfirm=false;
+function dialogOutsideBranches(dialog){
+  const targets=[],seen=new Set();
+  let node=dialog;
+  while(node&&node!==document.body){
+    const parent=node.parentElement;
+    if(!parent)break;
+    for(const child of parent.children){
+      if(child!==node&&!seen.has(child)){seen.add(child);targets.push(child);}
+    }
+    node=parent;
+  }
+  return targets;
+}
+function setDialogModality(active){
+  const dialog=one('#dialogMenu');
+  if(active){
+    dialogInerted=dialogOutsideBranches(dialog).map(element=>[element,element.hasAttribute('inert')]);
+    for(const [element] of dialogInerted)element.setAttribute('inert','');
+  }else{
+    for(const [element,wasInert] of dialogInerted){
+      if(!wasInert)element.removeAttribute('inert');
+    }
+    dialogInerted=[];
+  }
+}
+function dialogFocusables(){
+  const dialog=one('#dialogMenu');
+  return [...dialog.querySelectorAll('button:not([disabled]):not([hidden]),input:not([disabled]):not([hidden]),textarea:not([disabled]):not([hidden]),select:not([disabled]):not([hidden]),[tabindex]:not([tabindex="-1"])')];
+}
+function focusDialogStart(selectValue=false){
+  const input=one('#dialogInput');
+  const target=!dialogConfirm&&!input.hidden?input:one('#dialogOk');
+  if(focusControl(target)&&selectValue&&!dialogConfirm&&input.rows===1)input.select();
+}
+let dialogResolve=null,dialogConfirm=false,lastInteractionControl=null;
+document.addEventListener('click',event=>{
+  const control=event.target?.closest?.('button,input,textarea,select,[role="button"],[tabindex]');
+  if(control&&!one('#dialogMenu').contains(control))lastInteractionControl=control;
+},true);
+function dialogOrigin(){
+  const active=document.activeElement;
+  if(active&&active!==document.body&&active!==editor)return panelOrigin(active);
+  if(lastInteractionControl?.isConnected)return panelOrigin(lastInteractionControl);
+  return panelOrigin(active)||editor;
+}
 function finishDialog(value){
-  const resolve=dialogResolve;
-  dialogResolve=null;
+  const resolve=dialogResolve,target=dialogReturnFocus;
+  dialogResolve=null;dialogReturnFocus=null;
   const dialog=one('#dialogMenu');
   if(dialog.matches(':popover-open'))dialog.hidePopover();
+  setDialogModality(false);
   syncBackButton();
+  focusControl(target);
   if(resolve)resolve(value);
 }
 function dialogOpen(label,value='',rows=1,confirmMode=false){
   if(dialogResolve)finishDialog(null);
+  saveSel();
+  dialogReturnFocus=dialogOrigin();
   closePanels();
   const dialog=one('#dialogMenu');
   const input=one('#dialogInput');
@@ -573,13 +675,12 @@ function dialogOpen(label,value='',rows=1,confirmMode=false){
   input.rows=Math.max(1,Math.min(5,rows));
   one('#dialogOk').textContent=confirmMode?'Continuar':'OK';
   dialog.showPopover();
+  setDialogModality(true);
+  placePanel(dialog);
   syncBackButton();
   return new Promise(resolve=>{
     dialogResolve=resolve;
-    if(!confirmMode){
-      input.focus({preventScroll:true});
-      if(rows===1)input.select();
-    }
+    focusDialogStart(rows===1);
   });
 }
 function ask(label,value='',rows=1){return dialogOpen(label,value,rows,false);}
@@ -587,18 +688,42 @@ async function approve(label){return await dialogOpen(label,'',1,true)===true;}
 one('#dialogOk').addEventListener('click',()=>finishDialog(dialogConfirm?true:one('#dialogInput').value));
 one('#dialogCancel').addEventListener('click',()=>finishDialog(dialogConfirm?false:null));
 one('#dialogInput').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&e.currentTarget.rows===1){e.preventDefault();finishDialog(e.currentTarget.value);}});
+one('#dialogMenu').addEventListener('keydown',event=>{
+  if(event.key==='Escape'){event.preventDefault();finishDialog(dialogConfirm?false:null);return;}
+  if(event.key!=='Tab')return;
+  const items=dialogFocusables();
+  if(!items.length){event.preventDefault();return;}
+  const at=items.indexOf(document.activeElement);
+  const next=event.shiftKey?(at<=0?items.length-1:at-1):(at<0||at===items.length-1?0:at+1);
+  event.preventDefault();focusControl(items[next]);
+});
+document.addEventListener('focusin',event=>{
+  const dialog=one('#dialogMenu');
+  if(dialog.matches(':popover-open')&&!dialog.contains(event.target))queueMicrotask(()=>focusDialogStart(false));
+});
 for(const sel of sheets){
   one(sel).addEventListener('toggle',event=>{
     if(event.newState==='open'){
+      saveSel();
+      const anchor=panelAnchor(event.currentTarget);
+      panelOpeners.set(event.currentTarget,panelOrigin(anchor||document.activeElement));
       const list=event.currentTarget.querySelector('.menu-list');
       if(list)list.scrollTop=0;
       placePanel(event.currentTarget);
+    }else{
+      panelAnchors.delete(event.currentTarget);
     }
     syncBackButton();
     document.dispatchEvent(new Event('selectionchange'));
   });
 }
-document.addEventListener('keydown',event=>{if(event.key==='Escape'&&one('#dialogMenu').matches(':popover-open')){event.preventDefault();finishDialog(dialogConfirm?false:null);}});
+document.addEventListener('keydown',event=>{
+  if(event.key!=='Escape')return;
+  const dialog=one('#dialogMenu');
+  if(dialog.matches(':popover-open')){event.preventDefault();finishDialog(dialogConfirm?false:null);return;}
+  const sel=sheets.find(name=>one(name).matches(':popover-open'));
+  if(sel){event.preventDefault();closePanel(one(sel),true);}
+});
 function currentEditorCore(){return editorCore;}
 function saveSel(){
   if(editorCore){savedRange=editorCore.saveSelection();return;}
@@ -1141,7 +1266,7 @@ one('#mediaInput').addEventListener('change',async()=>{
     showToast(err.message||'Não foi possível salvar o anexo');
   }
 });
-one('#findBtn').addEventListener('click', ()=>{closePanels();openPanel('#findMenu');});
+one('#findBtn').addEventListener('click', ()=>{saveSel();const anchor=one('#plusBtn');closePanels();openPanel('#findMenu',anchor);one('#findText').focus({preventScroll:true});});
 function literalMatches(term){return editorCore?editorCore.findLiteral(term):[];}
 one('#findNext').addEventListener('click',()=>{
   const term=one('#findText').value;
@@ -1278,16 +1403,16 @@ function keyboardTarget(){
   return active===editor||active===docName||active===one('#dialogInput')||active===one('#findText')||active===one('#replaceText');
 }
 function syncBrowserViewport(){
-  const root=document.documentElement,viewport=window.visualViewport;
-  const top=viewport?Math.max(0,viewport.offsetTop):0;
-  const height=viewport?viewport.height:root.clientHeight;
-  const bottom=Math.max(0,root.clientHeight-top-height);
+  const root=document.documentElement,viewport=window.visualViewport,bounds=visualViewportBounds();
+  const bottom=Math.max(0,root.clientHeight-bounds.top-bounds.height);
   inset=keyboardTarget()||inset>0?bottom:0;
   root.toggleAttribute('data-keyboard',inset>0);
-  root.style.setProperty('--vv-top',top+'px');
+  root.style.setProperty('--vv-top',bounds.top+'px');
   root.style.setProperty('--vv-bottom',inset+'px');
-  root.style.setProperty('--vv-height',Math.max(0,root.clientHeight-top-inset)+'px');
+  root.style.setProperty('--vv-height',bounds.height+'px');
   for(const sel of sheets){const panel=one(sel);if(panel?.matches(':popover-open'))placePanel(panel);}
+  const dialog=one('#dialogMenu');
+  if(dialog?.matches(':popover-open'))placePanel(dialog);
 }
 function scheduleBrowserViewport(){
   cancelAnimationFrame(viewportFrame);
