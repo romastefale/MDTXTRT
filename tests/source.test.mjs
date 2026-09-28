@@ -122,7 +122,7 @@ test('bar material finish is owned by the Liquid Glass renderer',()=>{
     assert.doesNotMatch(block,/box-shadow|(?:linear|radial|conic)-gradient/);
   }
   assert.doesNotMatch(html,/\.(?:seg|bar)::(?:before|after)\{/);
-  assert.match(shared,/background:var\(--bar-glass-tint\)/);
+  assert.match(shared,/background:var\(--glass-tint\)/);
   assert.match(shared,/border-radius:999px/);
 });
 
