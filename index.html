@@ -34,7 +34,6 @@
       --line:color-mix(in oklab,var(--accent) 22%,var(--bg));
       --glass-tint:color-mix(in oklab,var(--accent) 11%,transparent);
       --glass-tint-strong:color-mix(in oklab,var(--accent) 17%,transparent);
-      --bar-glass-tint:color-mix(in oklab,var(--accent) 20%,transparent);
       --bar-glass-tint-strong:color-mix(in oklab,var(--accent) 28%,transparent);
       --bar-control-accent-bg:color-mix(in oklab,var(--accent) 26%,transparent);
       --menu-edge:color-mix(in oklab,var(--accent) 22%,transparent);
@@ -51,7 +50,7 @@
       --control-size:clamp(36px,10vw,40px);
       --pill-pad:4px;
       --pill-h:calc(var(--control-size) + 8px);
-      --top-side-offset:24px;
+      --top-side-offset:32px;
       --editor-top-gap:8px;
       --topbar-h:calc(var(--pill-h) + var(--top-side-offset));
       --bar-h:var(--pill-h);
@@ -75,7 +74,6 @@
       --bg:#f8fbff; --text:#151515; --accent:#269c65;
       --glass-tint:color-mix(in oklab,var(--accent) 7%,transparent);
       --glass-tint-strong:color-mix(in oklab,var(--accent) 12%,transparent);
-      --bar-glass-tint:color-mix(in oklab,var(--accent) 16%,transparent);
       --bar-glass-tint-strong:color-mix(in oklab,var(--accent) 23%,transparent);
       --bar-control-accent-bg:color-mix(in oklab,var(--accent) 20%,transparent);
       --menu-edge:color-mix(in oklab,var(--accent) 15%,transparent);
@@ -145,7 +143,7 @@
     .heading-list .h-opt.h6{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
     .heading-list .h-opt.footer{font-size:12px;color:var(--muted)}
     .heading-list button.is-current{color:var(--accent)}
-    .seg,.bar{color:#151515;border-radius:999px;background:var(--bar-glass-tint)}
+    .seg,.bar{color:#151515;border-radius:999px;background:var(--glass-tint)}
     html.dark .seg,html.dark .bar{color:#f5f5f7}
     .glass-menu-material,.toast-material{background:var(--glass-tint)}
     .fade-top,.fade-bot{
