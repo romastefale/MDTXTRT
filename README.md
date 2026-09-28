@@ -4,7 +4,7 @@
 
 A única baseline autoritativa deste repositório é o commit atualmente apontado pelo `HEAD` da branch `main`.
 
-O estado funcional atualmente consolidado na baseline inclui o PR #45, incorporado à `main` no merge commit `4de49d596e38b5a6434ecb27628aa9657cb4c1e4`. Nesse estado, a barra inferior usa margem lateral de `20px` e afastamento inferior de `32px`, preservando os offsets de safe area e teclado.
+O estado funcional atualmente consolidado na baseline inclui o PR #50, incorporado à `main` no merge commit `5a116819a75c424b433cdea98521ddb633d89dea`. Esse estado incorpora todos os PRs anteriores já presentes em `main` e é a referência funcional e visual vigente. Entre os detalhes agora contratuais, os pills superiores e a barra inferior preservam a hairline interna de `1px` em branco a `12%` no modo claro e usam a mesma hairline a `5%` no modo escuro, mantendo o restante do material, tint, geometria e espaçamento inalterados. A barra inferior mantém margem lateral de `20px` e afastamento inferior de `32px`, preservando os offsets de safe area e teclado.
 
 Não existe nenhuma baseline alternativa ou anterior válida para implementação, comparação, restauração ou regressão. Qualquer branch, commit, documentação ou referência histórica que descreva outro estado como “baseline” deve ser considerada obsoleta.
 
