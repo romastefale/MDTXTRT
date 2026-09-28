@@ -435,16 +435,23 @@ export function createEditorCore({element,onChange=()=>{},onSelectionChange=()=>
     }
 
     const match=task||ordered||bullet,markerLength=match[0].length;
+    if(task){
+      const caretOffset=Math.max(0,$from.parentOffset-markerLength);
+      const checkbox=schema.nodes.task_checkbox.create({checked:task[1].toLowerCase()==="x",disabled:false});
+      const content=Fragment.from(checkbox).append(node.content.cut(markerLength));
+      const paragraph=schema.nodes.paragraph.create(null,content);
+      const item=schema.nodes.list_item.create(null,paragraph);
+      const list=schema.nodes.bullet_list.create(null,item);
+      let tr=state.tr.replaceWith(blockPos,blockPos+node.nodeSize,list);
+      tr=tr.setSelection(TextSelection.create(tr.doc,blockPos+4+caretOffset));
+      dispatch(tr);view.focus();return true;
+    }
     let tr=state.tr.delete(contentStart,contentStart+markerLength);
     const range=tr.selection.$from.blockRange();
     if(!range)return false;
     const listType=ordered?schema.nodes.ordered_list:schema.nodes.bullet_list;
     const attrs=ordered?{order:Number(ordered[1]),reversed:false}:null;
     tr=tr.wrap(range,[{type:listType,attrs},{type:schema.nodes.list_item}]);
-    if(task){
-      const insertAt=tr.selection.$from.start();
-      tr=tr.insert(insertAt,schema.nodes.task_checkbox.create({checked:task[1].toLowerCase()==="x",disabled:false}));
-    }
     dispatch(tr);view.focus();return true;
   }
 
