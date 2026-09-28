@@ -58,12 +58,12 @@ const nodes={
     toDOM:node=>["ol",{...(node.attrs.order!==1?{start:String(node.attrs.order)}:{}),...(node.attrs.reversed?{reversed:""}:{})},0]
   },
   list_item:{
-    attrs:{value:{default:null}},content:"task_checkbox? paragraph block*",defining:true,
+    attrs:{value:{default:null}},content:"paragraph block*",defining:true,
     parseDOM:[{tag:"li",getAttrs:el=>({value:el.hasAttribute("value")?Number(el.getAttribute("value")):null})}],
     toDOM:node=>["li",node.attrs.value===null?{}:{value:String(node.attrs.value)},0]
   },
   task_checkbox:{
-    attrs:{checked:{default:false},disabled:{default:false}},inline:false,group:"block",atom:true,selectable:false,
+    attrs:{checked:{default:false},disabled:{default:false}},inline:true,group:"inline",atom:true,selectable:false,
     parseDOM:[{tag:"input[type=checkbox]",getAttrs:el=>({checked:el.hasAttribute("checked"),disabled:el.hasAttribute("disabled")})}],
     toDOM:node=>["input",{type:"checkbox",...(node.attrs.checked?{checked:""}:{}),...(node.attrs.disabled?{disabled:""}:{})}]
   },
