@@ -13,7 +13,7 @@ let dest = 'telegram';
 let session='browser',busy=false;
 const plusSubmenus=['#plus-file-menu','#plus-format-menu','#plus-structure-menu','#plus-media-menu','#plus-interaction-menu'];
 const sheets=['#plusMenu',...plusSubmenus,'#headingMenu','#quoteMenu','#listMenu','#exportMenu','#findMenu'];
-let savedRange = null, hist = [], histI = -1, histLock = false, composing = false, saveTimer = null, telegraphPath = '', docId = crypto.randomUUID(), docRevision = 0, importedMd = '', importedTxt = '', importedHtml = '', mediaFile = null, mediaChoice = null, draftWriteBlocked = false, draftBlockNoticeShown = false;
+let savedRange = null, hist = [], histI = -1, histLock = false, composing = false, saveTimer = null, telegraphPath = '', docId = crypto.randomUUID(), docRevision = 0, importedMd = '', importedTxt = '', importedHtml = '', mediaFile = null, mediaChoice = null, draftWriteBlocked = false, draftBlockNoticeShown = false, activeHandoff = '', handoffAction = null;
 function applyAssets(){
   all('[data-icon]').forEach(el => {
     const name = el.getAttribute('data-icon');
@@ -215,6 +215,20 @@ function handoffToken(){
   const match=/^h_([a-f0-9]{32})$/.exec(raw);
   return match?match[1]:'';
 }
+function normalizedHandoffAction(value){
+  if(value===null)return null;
+  if(!value||typeof value!=='object'||value.type!=='publish'||!['pending','sending','succeeded','failed','uncertain'].includes(value.status)||!Number.isInteger(value.attempts)||value.attempts<0||typeof value.error!=='string'||!/^[a-f0-9-]{36}$/i.test(String(value.doc||''))||!Number.isSafeInteger(value.revision)||value.revision<0)throw new Error('Estado da publicação transferida inválido');
+  if(value.status==='succeeded'&&(!value.result||value.result.via!=='sendRichMessage'||!Number.isInteger(value.result.messageId)||value.result.messageId<=0))throw new Error('Resultado da publicação transferida inválido');
+  return value;
+}
+function handoffActionNotice(action,recovered=false){
+  if(!action)return recovered?'Rascunho aberto no Mini App':'Transferência sem ação pendente';
+  if(action.status==='succeeded')return 'Esta transferência já foi publicada no chat do bot';
+  if(action.status==='sending')return 'A publicação desta transferência ainda está em andamento. Não reenvie.';
+  if(action.status==='uncertain')return action.error||'O resultado desta publicação é incerto. Confira o chat antes de iniciar outra publicação.';
+  if(action.status==='failed')return action.error?('A publicação anterior falhou: '+action.error+'. Toque em Publicar para tentar novamente.'):'A publicação anterior falhou. Toque em Publicar para tentar novamente.';
+  return 'Rascunho recuperado. Toque em Publicar para autorizar o envio.';
+}
 async function claimHandoff(){
   const token=handoffToken();
   if(!token)throw new Error('Transferência inválida');
@@ -238,9 +252,62 @@ async function claimHandoff(){
     if(mediaFile?.url)URL.revokeObjectURL(mediaFile.url);
     mediaFile=null;await mediaClear();
   }
+  activeHandoff=token;
+  handoffAction=normalizedHandoffAction(data.action);
   decorateSpecials();setDestination(dest,false,false);hist=[];histI=-1;pushHist();saveLocal();
-  if(d.action==='publish')await publishCurrent();
-  else showToast('Rascunho aberto no Mini App');
+  showToast(handoffActionNotice(handoffAction,true));
+}
+async function refreshHandoffAction(){
+  if(!activeHandoff||session!=='ready')return null;
+  const res=await fetch(API+'/api/handoff/status',{method:'POST',signal:AbortSignal.timeout(15000),headers:{'content-type':'application/json'},body:JSON.stringify({initData:getTg().initData,token:activeHandoff})});
+  const data=await readResponse(res);
+  if(!res.ok)throw new Error(data.error||'Não foi possível consultar a transferência');
+  handoffAction=normalizedHandoffAction(data.action);
+  return handoffAction;
+}
+async function publishHandoff(){
+  if(!activeHandoff||!handoffAction)return false;
+  if(handoffAction.doc!==docId||handoffAction.revision!==docRevision){
+    showToast('O documento mudou desde a transferência. Inicie uma nova publicação para enviar esta versão.');
+    return true;
+  }
+  const body=JSON.stringify({initData:getTg().initData,token:activeHandoff});
+  try{
+    const res=await fetch(API+'/api/handoff/publish',{method:'POST',signal:AbortSignal.timeout(60000),headers:{'content-type':'application/json'},body});
+    const data=await readResponse(res);
+    if(data.action)handoffAction=normalizedHandoffAction(data.action);
+    if(handoffAction?.status==='succeeded'){
+      showToast(data.reused?'Esta transferência já foi publicada no chat do bot':'Mensagem enviada no chat do bot');
+      return true;
+    }
+    if(handoffAction?.status==='sending'){
+      showToast('A publicação está em andamento. Não reenvie; consulte o estado desta transferência.');
+      return true;
+    }
+    if(handoffAction?.status==='uncertain'){
+      showToast(handoffAction.error||'O resultado do envio é incerto. Confira o chat antes de iniciar outra publicação.');
+      return true;
+    }
+    if(handoffAction?.status==='failed'){
+      showToast(handoffActionNotice(handoffAction));
+      return true;
+    }
+    if(!res.ok)throw new Error(data.error||'Não foi possível publicar a transferência');
+    showToast(handoffActionNotice(handoffAction));
+    return true;
+  }catch(err){
+    if(err.name==='TimeoutError'||err instanceof TypeError){
+      try{
+        const action=await refreshHandoffAction();
+        showToast(handoffActionNotice(action));
+      }catch{
+        showToast('O resultado do envio é incerto. Nenhum reenvio foi feito; confira o chat ou reabra esta transferência antes de tentar outra publicação.');
+      }
+      return true;
+    }
+    showToast(err.message||'Não foi possível publicar a transferência');
+    return true;
+  }
 }
 async function recoverTelegraph(){
   if(!/^[a-f0-9-]{36}$/i.test(docId))throw new Error('Documento inválido');
@@ -263,7 +330,10 @@ async function openMiniApp(){
     const local=editor.querySelector('[data-media-id]');
     const active=activeMedia();
     if(local&&!active)throw new Error('O anexo local não pôde ser recuperado');
-    const form=new FormData();form.set('draft',JSON.stringify(draftState('publish')));
+    const rich=buildRich();
+    const form=new FormData();
+    form.set('draft',JSON.stringify(draftState()));
+    form.set('action',JSON.stringify({type:'publish',html:rich.rich_message.html,kind:active?.kind||'',id:active?.id||''}));
     if(active)form.set('upload',active.file,active.file.name);
     const res=await fetch(API+'/api/handoff',{method:'POST',signal:AbortSignal.timeout(60000),body:form});
     const data=await readResponse(res);
@@ -1472,6 +1542,10 @@ async function publishCurrent(){
 async function publishTelegram(){
   if(!editor.childNodes.length){ showToast('Escreva algo antes de enviar'); return; }
   if(session!=='ready'){showToast('Abra pelo bot no Telegram');return;}
+  if(activeHandoff&&handoffAction){
+    await publishHandoff();
+    return;
+  }
   const initData=getTg().initData;
   try{
     const p = buildRich();
