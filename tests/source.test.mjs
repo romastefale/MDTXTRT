@@ -180,9 +180,14 @@ test('editor keeps target-specific publishing validation and code metadata',()=>
 
 test('server exposes every React-referenced local SVG icon and vector app icon',()=>{
   const src=uiSource(),server=read('server.mjs');
+  const plusStart=src.indexOf('const plusSections = [');
+  const plusEnd=src.indexOf('function PlusCategory',plusStart);
+  assert.ok(plusStart>=0&&plusEnd>plusStart);
+  const plus=src.slice(plusStart,plusEnd);
   const names=new Set([
-    ...[...src.matchAll(/(?:name|icon)="([a-z0-9_]+)"/g)].map(m=>m[1]),
-    ...[...src.matchAll(/\["([a-z0-9_]+)",\s*"[^"]+"/g)].map(m=>m[1]),
+    ...[...src.matchAll(/\b(?:name|icon)="([a-z0-9_]+)"/g)].map(m=>m[1]),
+    ...[...plus.matchAll(/\bicon:\s*"([a-z0-9_]+)"/g)].map(m=>m[1]),
+    ...[...plus.matchAll(/\["([a-z0-9_]+)",\s*"[^"]+"/g)].map(m=>m[1]),
   ]);
   for(const name of names)assert.ok(server.includes('"'+name+'"')||server.includes('icons/'+name+'.svg'),name);
   assert.match(server,/"logo\.svg"/);
