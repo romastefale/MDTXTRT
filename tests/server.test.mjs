@@ -602,6 +602,22 @@ test('webhook authentication and bot command responses retain their contracts',a
   assert.equal(buttons[0].attribs.url,origin+'/');
   assert.equal(buttons[1].attribs.type,'url');
   assert.equal(buttons[1].attribs.url,origin+'/');
+
+  const app=parseDocument(richCalls.at(-3).body.rich_message.html);
+  for(const button of find(app,'tg-button'))assert.equal(new URL(button.attribs.url).searchParams.has('new'),false);
+
+  const novo=parseDocument(richCalls.at(-2).body.rich_message.html);
+  const novoButtons=find(novo,'tg-button');
+  assert.equal(novoButtons.length,2);
+  assert.equal(novoButtons[0].attribs.type,'web_app');
+  const miniURL=new URL(novoButtons[0].attribs.url);
+  const browserURL=new URL(novoButtons[1].attribs.url);
+  assert.equal(miniURL.origin,origin);
+  assert.equal(browserURL.origin,origin);
+  assert.match(miniURL.searchParams.get('new')||'',/^[a-f0-9]{32}$/);
+  assert.match(browserURL.searchParams.get('new')||'',/^[a-f0-9]{32}$/);
+  assert.match(richCalls.at(-2).body.rich_message.html,/sem substituir o rascunho local atual/);
+  assert.match(richCalls.at(-1).body.rich_message.html,/\/novo<\/b> abre outro documento e preserva o rascunho local anterior/);
   assert.match(richCalls.at(-1).body.rich_message.html,/\/exportar/);
 });
 
