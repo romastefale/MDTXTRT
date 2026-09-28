@@ -72,6 +72,15 @@ jobs:
       - name: Rebuild all committed bundles
         run: npm run build
 
+      - name: Preserve rebuilt bundle evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-rebuilt-bundles-${{ github.sha }}
+          path: |
+            editor-core.js
+            ui.js
+          retention-days: 7
+
       - name: Verify reproducible committed bundles
         run: git diff --exit-code -- editor-core.js ui.js
 
