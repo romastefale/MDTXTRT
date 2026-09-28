@@ -13,7 +13,7 @@ let dest = 'telegram';
 let session='browser',busy=false;
 const plusSubmenus=['#plus-file-menu','#plus-format-menu','#plus-structure-menu','#plus-media-menu','#plus-interaction-menu'];
 const sheets=['#plusMenu',...plusSubmenus,'#headingMenu','#quoteMenu','#listMenu','#exportMenu','#findMenu'];
-let savedRange = null, hist = [], histI = -1, histLock = false, composing = false, saveTimer = null, telegraphPath = '', docId = crypto.randomUUID(), importedMd = '', importedTxt = '', importedHtml = '', mediaFile = null, mediaChoice = null;
+let savedRange = null, hist = [], histI = -1, histLock = false, composing = false, saveTimer = null, telegraphPath = '', docId = crypto.randomUUID(), docRevision = 0, importedMd = '', importedTxt = '', importedHtml = '', mediaFile = null, mediaChoice = null, draftWriteBlocked = false, draftBlockNoticeShown = false;
 function applyAssets(){
   all('[data-icon]').forEach(el => {
     const name = el.getAttribute('data-icon');
@@ -23,6 +23,7 @@ function applyAssets(){
 applyAssets();
 const THEME_KEY='mdtxtrt-theme';
 const BROWSER_OWNER_KEY='mdtxtrt-browser-owner';
+const DRAFT_KEY='rmdtxtml';
 const scheme=window.matchMedia('(prefers-color-scheme: light)');
 let themePreference='';
 try{
@@ -76,13 +77,23 @@ function setTheme(mode){
   try{localStorage.setItem(THEME_KEY,mode);}catch{}
   window.location.reload();
 }
+function normalizedRevision(value){return Number.isSafeInteger(value)&&value>=0?value:0;}
+function bumpDocumentRevision(){
+  if(docRevision>=Number.MAX_SAFE_INTEGER)throw new Error('O documento excedeu o limite de revisões desta sessão');
+  docRevision++;
+}
+function requestMatchesDocument(doc,revision){return docId===doc&&docRevision===revision;}
 function browserOwnerKey(){
   let key='';
-  try{key=localStorage.getItem(BROWSER_OWNER_KEY)||'';}catch{}
+  try{key=localStorage.getItem(BROWSER_OWNER_KEY)||'';}
+  catch{throw new Error('Não foi possível acessar a identidade persistente do navegador');}
   if(/^[a-f0-9]{64}$/.test(key))return key;
   const bytes=crypto.getRandomValues(new Uint8Array(32));
   key=Array.from(bytes,byte=>byte.toString(16).padStart(2,'0')).join('');
-  try{localStorage.setItem(BROWSER_OWNER_KEY,key);}catch{}
+  try{
+    localStorage.setItem(BROWSER_OWNER_KEY,key);
+    if(localStorage.getItem(BROWSER_OWNER_KEY)!==key)throw new Error('A identidade não permaneceu armazenada');
+  }catch{throw new Error('Não foi possível persistir a identidade do navegador');}
   return key;
 }
 applyScheme();
@@ -134,7 +145,7 @@ function activeMedia(){
 }
 function draftState(action=''){
   const active=activeMedia();
-  const state={version:STATE_VERSION,name:docName.value,html:draftHTML(),dest,telegraphPath,docId,importedMd,importedTxt,importedHtml,media:active?{id:active.id,kind:active.kind}:null};
+  const state={version:STATE_VERSION,name:docName.value,html:draftHTML(),dest,telegraphPath,docId,revision:docRevision,importedMd,importedTxt,importedHtml,media:active?{id:active.id,kind:active.kind}:null};
   if(action)state.action=action;
   return state;
 }
@@ -212,9 +223,9 @@ async function claimHandoff(){
   const data=await readResponse(res);
   if(!res.ok)throw new Error(data.error||'Não foi possível recuperar o rascunho');
   const d=data.draft;
-  if(!d||d.version!==STATE_VERSION||typeof d.html!=='string'||typeof d.name!=='string'||!['telegram','telegraph'].includes(d.dest)||typeof d.telegraphPath!=='string'||!/^[a-f0-9-]{36}$/i.test(d.docId)||typeof d.importedMd!=='string'||typeof d.importedTxt!=='string'||typeof d.importedHtml!=='string')throw new Error('Rascunho transferido incompatível');
+  if(!d||d.version!==STATE_VERSION||typeof d.html!=='string'||typeof d.name!=='string'||!['telegram','telegraph'].includes(d.dest)||typeof d.telegraphPath!=='string'||!/^[a-f0-9-]{36}$/i.test(d.docId)||(d.revision!==undefined&&(!Number.isSafeInteger(d.revision)||d.revision<0))||typeof d.importedMd!=='string'||typeof d.importedTxt!=='string'||typeof d.importedHtml!=='string')throw new Error('Rascunho transferido incompatível');
   editor.innerHTML=cleanDraftHTML(d.html);docName.value=d.name;
-  dest=d.dest;telegraphPath=d.telegraphPath;docId=d.docId;
+  dest=d.dest;telegraphPath=d.telegraphPath;docId=d.docId;docRevision=normalizedRevision(d.revision);
   importedMd=d.importedMd;importedTxt=d.importedTxt;importedHtml=d.importedHtml;
   if(data.file){
     const fileRes=await fetch(API+'/api/handoff/file',{method:'POST',signal:AbortSignal.timeout(60000),headers:{'content-type':'application/json'},body:JSON.stringify({initData,token})});
@@ -227,20 +238,23 @@ async function claimHandoff(){
     if(mediaFile?.url)URL.revokeObjectURL(mediaFile.url);
     mediaFile=null;await mediaClear();
   }
-  decorateSpecials();setDestination(dest,false);hist=[];histI=-1;pushHist();saveLocal();
+  decorateSpecials();setDestination(dest,false,false);hist=[];histI=-1;pushHist();saveLocal();
   if(d.action==='publish')await publishCurrent();
   else showToast('Rascunho aberto no Mini App');
 }
 async function recoverTelegraph(){
   if(!/^[a-f0-9-]{36}$/i.test(docId))throw new Error('Documento inválido');
+  const requestDoc=docId,requestRevision=docRevision;
   const identity=session==='ready'?{initData:getTg().initData}:{browserKey:browserOwnerKey()};
-  const res=await fetch(API+'/api/telegraph/recover',{method:'POST',signal:AbortSignal.timeout(15000),headers:{'content-type':'application/json'},body:JSON.stringify({...identity,doc:docId})});
-  if(res.status===404)return;
+  const res=await fetch(API+'/api/telegraph/recover',{method:'POST',signal:AbortSignal.timeout(15000),headers:{'content-type':'application/json'},body:JSON.stringify({...identity,doc:requestDoc,revision:requestRevision})});
+  if(res.status===404)return false;
   const data=await readResponse(res);
   if(!res.ok)throw new Error(data.error||'Não foi possível recuperar a página do Telegraph');
-  if(typeof data.path!=='string'||!data.path)throw new Error('Resposta de recuperação do Telegraph inválida');
+  if(typeof data.path!=='string'||!data.path||data.doc!==requestDoc||data.revision!==requestRevision)throw new Error('Resposta de recuperação do Telegraph inválida');
+  if(!requestMatchesDocument(requestDoc,requestRevision))return false;
   telegraphPath=data.path;
   saveLocal();
+  return true;
 }
 async function openMiniApp(){
   if(busy)return;busy=true;
@@ -356,7 +370,8 @@ function showToast(msg){
   toastText.data = String(msg); toast.classList.add('on');
   clearTimeout(showToast.t); showToast.t = setTimeout(()=>toast.classList.remove('on'), 1600);
 }
-function setDestination(value, notify=true){
+function setDestination(value, notify=true, persist=true){
+  const changed=dest!==value;
   dest = value;
   const btn = one('#destBtn');
   const name = dest === 'telegram' ? 'Telegram' : 'Telegraph';
@@ -379,7 +394,8 @@ function setDestination(value, notify=true){
   all('[data-telegram-only]').forEach(item=>item.hidden=dest==='telegraph');
   all('[data-telegraph-only]').forEach(item=>item.hidden=dest!=='telegraph');
   closePanels();
-  saveLocal();
+  if(changed)bumpDocumentRevision();
+  if(persist)saveLocal();
   if(notify) showToast('Destino: ' + name);
 }
 function hasOpenLayer(){
@@ -911,6 +927,7 @@ function insertPlainText(text){
   saveSel();pushHist();markDirty();
 }
 function markDirty(){
+  bumpDocumentRevision();
   decorateSpecials();
   clearTimeout(saveTimer);
   saveTimer = setTimeout(saveLocal, 400);
@@ -918,6 +935,10 @@ function markDirty(){
 window.addEventListener('pagehide',saveLocal);
 function saveLocal(){
   clearTimeout(saveTimer);
+  if(draftWriteBlocked){
+    if(!draftBlockNoticeShown){draftBlockNoticeShown=true;showToast('O rascunho recuperável foi preservado; alterações desta sessão não substituirão essa cópia');}
+    return false;
+  }
   if(!editor.querySelector('[data-media-id]')&&mediaFile){
     const id=mediaFile.id;
     const redoUsesMedia=hist.slice(histI+1).some(html=>html.includes('data-media-id="'+id+'"'));
@@ -927,19 +948,26 @@ function saveLocal(){
       void mediaClear().catch(error=>console.error('Media cleanup',error));
     }
   }
-  try{ localStorage.setItem('rmdtxtml', JSON.stringify(draftState())); }
-  catch{ showToast('Não foi possível salvar neste dispositivo'); }
+  try{localStorage.setItem(DRAFT_KEY,JSON.stringify(draftState()));return true;}
+  catch{showToast('Não foi possível salvar neste dispositivo');return false;}
 }
 function loadLocal(){
-  const raw=localStorage.getItem('rmdtxtml');
+  let raw;
+  try{raw=localStorage.getItem(DRAFT_KEY);}
+  catch{draftWriteBlocked=true;throw new Error('Não foi possível acessar o rascunho local; nenhuma cópia foi alterada');}
   if(raw===null)return;
   let d;
-  try{d=JSON.parse(raw);}catch{localStorage.removeItem('rmdtxtml');throw new Error('Rascunho local inválido foi descartado');}
-  if(!d||d.version!==STATE_VERSION||typeof d.html!=='string'||typeof d.name!=='string'||d.name.length>120||!['telegram','telegraph'].includes(d.dest)||typeof d.telegraphPath!=='string'||!/^[a-f0-9-]{36}$/i.test(d.docId)||typeof d.importedMd!=='string'||typeof d.importedTxt!=='string'||typeof d.importedHtml!=='string'){
-    localStorage.removeItem('rmdtxtml');
-    throw new Error('Rascunho local antigo foi descartado');
+  try{d=JSON.parse(raw);}
+  catch{draftWriteBlocked=true;throw new Error('Rascunho local inválido preservado para recuperação');}
+  if(!d||d.version!==STATE_VERSION||typeof d.html!=='string'||typeof d.name!=='string'||d.name.length>120||!['telegram','telegraph'].includes(d.dest)||typeof d.telegraphPath!=='string'||!/^[a-f0-9-]{36}$/i.test(d.docId)||(d.revision!==undefined&&(!Number.isSafeInteger(d.revision)||d.revision<0))||typeof d.importedMd!=='string'||typeof d.importedTxt!=='string'||typeof d.importedHtml!=='string'){
+    draftWriteBlocked=true;
+    throw new Error('Rascunho local incompatível preservado para recuperação');
   }
-  editor.innerHTML=cleanDraftHTML(d.html);docName.value=d.name;telegraphPath=d.telegraphPath;docId=d.docId;importedMd=d.importedMd;importedTxt=d.importedTxt;importedHtml=d.importedHtml;dest=d.dest;
+  let html;
+  try{html=cleanDraftHTML(d.html);}
+  catch(error){draftWriteBlocked=true;throw new Error((error.message||'Rascunho local inválido')+'. A cópia local foi preservada para recuperação');}
+  editor.innerHTML=html;docName.value=d.name;telegraphPath=d.telegraphPath;docId=d.docId;docRevision=normalizedRevision(d.revision);importedMd=d.importedMd;importedTxt=d.importedTxt;importedHtml=d.importedHtml;dest=d.dest;
+  draftWriteBlocked=false;
 }
 function escapeHTML(s){ return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function htmlToText(html){
@@ -1061,7 +1089,7 @@ function buildTelegraph(){
   const title=docName.value.trim();
   if(!title) throw new Error('Dê um nome à página antes de publicar');
   const identity=session==='ready'?{initData:getTg().initData}:{browserKey:browserOwnerKey()};
-  return {title, content: telegraphNodes(editor), path: telegraphPath, doc: docId, ...identity};
+  return {title, content: telegraphNodes(editor), path: telegraphPath, doc: docId, revision: docRevision, ...identity};
 }
 function markdownCaret(target,offset=null){
   const sel=window.getSelection();
@@ -1465,6 +1493,7 @@ async function publishTelegram(){
 async function publishTelegraph(){
   let payload;
   try{ payload = buildTelegraph(); }catch(err){ showToast(err.message); return; }
+  const requestDoc=payload.doc,requestRevision=payload.revision;
   try{
     const res = await fetch(API+'/api/telegraph/publish', {
       method:'POST',signal:AbortSignal.timeout(60000),
@@ -1473,7 +1502,11 @@ async function publishTelegraph(){
     });
     const result = await readResponse(res);
     if(!res.ok)throw new Error(result.error||'Não foi possível publicar no Telegraph');
-    if(typeof result.path!=='string'||!result.path||typeof result.url!=='string'||!/^https:\/\//.test(result.url))throw new Error('Resposta do Telegraph inválida');
+    if(typeof result.path!=='string'||!result.path||typeof result.url!=='string'||!/^https:\/\//.test(result.url)||result.doc!==requestDoc||result.revision!==requestRevision)throw new Error('Resposta do Telegraph inválida');
+    if(!requestMatchesDocument(requestDoc,requestRevision)){
+      showToast('A página foi salva, mas o documento mudou durante a publicação; o resultado não foi aplicado ao documento atual');
+      return;
+    }
     telegraphPath=result.path;
     saveLocal();
     showToast('Página salva no Telegraph');
@@ -1486,15 +1519,21 @@ fileInput.addEventListener('change', async ()=>{
   try{
     if(!/\.(md|txt)$/i.test(file.name)) throw new Error('Escolha um arquivo Markdown ou TXT');
     const text = await file.text();
-    const html = /\.md$/i.test(file.name) ? mdToBasicHTML(text.replace(/^\uFEFF/,'')) : '<p>'+escapeHTML(text.replace(/^\uFEFF/,'')).replace(/\n/g,'<br>')+'</p>';
-    docName.value = file.name.replace(/\.(md|txt)$/i,'').slice(0,120);
-    editor.innerHTML = html;
-    importedMd = /\.md$/i.test(file.name) ? text.replace(/^\uFEFF/,'') : '';
-    importedTxt = /\.txt$/i.test(file.name) ? text.replace(/^\uFEFF/,'') : '';
-    importedHtml = editor.innerHTML;
-    telegraphPath='';docId=crypto.randomUUID();
-    if(mediaFile?.url)URL.revokeObjectURL(mediaFile.url);mediaFile=null;await mediaClear();
-    decorateSpecials();pushHist();markDirty();closePanels();
+    const normalized=text.replace(/^\uFEFF/,'');
+    const html = /\.md$/i.test(file.name) ? mdToBasicHTML(normalized) : '<p>'+escapeHTML(normalized).replace(/\n/g,'<br>')+'</p>';
+    const nextName=file.name.replace(/\.(md|txt)$/i,'').slice(0,120);
+    const hadLocalMedia=Boolean(mediaFile||editor.querySelector('[data-media-id]'));
+    if(hadLocalMedia)await mediaClear();
+    if(mediaFile?.url)URL.revokeObjectURL(mediaFile.url);
+    mediaFile=null;
+    docName.value=nextName;
+    editor.innerHTML=html;
+    importedMd=/\.md$/i.test(file.name)?normalized:'';
+    importedTxt=/\.txt$/i.test(file.name)?normalized:'';
+    importedHtml=editor.innerHTML;
+    telegraphPath='';docId=crypto.randomUUID();docRevision=0;savedRange=null;
+    hist=[];histI=-1;histLock=false;
+    decorateSpecials();pushHist();saveLocal();closePanels();
   }catch(err){ showToast(err.message || 'Não foi possível importar o arquivo'); }
   fileInput.value='';
 });
@@ -1537,7 +1576,7 @@ syncBrowserViewport();
 function boot(){
   let notice='';
   try{loadLocal();}catch(err){notice=err.message;}
-  decorateSpecials();setDestination(dest,false);pushHist();
+  decorateSpecials();setDestination(dest,false,false);pushHist();
   if(notice)showToast(notice);
   void restoreMedia().then(()=>verifyTelegram()).catch(err=>showToast(err.message||'Não foi possível restaurar o documento'));
 }
