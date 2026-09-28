@@ -319,7 +319,8 @@ test('destination Telegram and Telegraph icon is 28px',()=>{
 
 test('chrome circles share one control diameter and dark icons retain contrast',()=>{
   const html=read('index.html');
-  assert.match(html,/html\.dark \.seg,html\.dark \.bar\{color:#f5f5f7\}/);
+  assert.match(html,/\.seg,\.bar\{[\s\S]*?box-shadow:inset 0 0 0 1px rgba\(255,255,255,\.12\)/);
+  assert.match(html,/html\.dark \.seg,html\.dark \.bar\{color:#f5f5f7;box-shadow:inset 0 0 0 1px rgba\(255,255,255,\.05\)\}/);
   assert.match(html,/\.seg button\{[\s\S]*?width:var\(--control-size\);height:var\(--control-size\)/);
   assert.match(html,/\.bar > button\{[\s\S]*?flex:0 0 var\(--control-size\);width:var\(--control-size\);min-width:var\(--control-size\);height:var\(--control-size\)/);
   assert.match(html,/\.action-dot\{[\s\S]*?width:var\(--control-size\);height:var\(--control-size\)/);
