@@ -6,7 +6,7 @@
   <meta name="apple-mobile-web-app-title" content="MDTXTRT" />
   <meta name="apple-mobile-web-app-status-bar-style" id="statusBarStyle" content="default" />
   <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, interactive-widget=resizes-visual" />
-  <meta name="color-scheme" content="light dark" />
+  <meta name="color-scheme" id="colorScheme" content="light dark" />
   <meta name="theme-color" id="themeColor" content="#f8fbff" />
   <title>MDTXTRT</title>
   <meta name="description" content="Editor de texto para Telegram e Telegraph." />
@@ -19,7 +19,7 @@
   <meta property="og:type" content="website" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:image" content="https://romastefale.github.io/MDTXTRT/x-banner.jpg" />
-  <script>(()=>{const k="mdtxtrt-theme",r=document.documentElement,m=document.querySelector("#themeColor"),s=document.querySelector("#statusBarStyle");let p="";try{p=localStorage.getItem(k)||""}catch{}const t=p==="light"||p==="dark"?p:matchMedia("(prefers-color-scheme: light)").matches?"light":"dark",l=t==="light";r.classList.add(t);r.dataset.theme=t;m.content=l?"#f8fbff":"#000000";if(s)s.content=l?"default":"black-translucent";})();</script>
+  <script>(()=>{const k="mdtxtrt-theme",r=document.documentElement,m=document.querySelector("#themeColor"),c=document.querySelector("#colorScheme"),s=document.querySelector("#statusBarStyle");let p="";try{p=localStorage.getItem(k)||""}catch{}const t=p==="light"||p==="dark"?p:matchMedia("(prefers-color-scheme: light)").matches?"light":"dark",l=t==="light";r.classList.add(t);r.dataset.theme=t;r.style.colorScheme=t;m.setAttribute("content",l?"#f8fbff":"#000000");if(c)c.setAttribute("content",t);if(s)s.content=l?"default":"black-translucent";})();</script>
   <script src="https://telegram.org/js/telegram-web-app.js?63"></script>
   <style>
     :root{
@@ -47,6 +47,7 @@
       --safe-left:0px;
       --safe-right:0px;
       --gap:8px;
+      --bar-side-inset:12px;
       --control-size:clamp(36px,10vw,40px);
       --pill-pad:4px;
       --pill-h:calc(var(--control-size) + 8px);
@@ -62,7 +63,7 @@
       --vv-height:100dvh;
       --bottom:var(--safe-bottom);
       --head-inset:calc(var(--safe-top) + var(--gap) + var(--topbar-h) + var(--editor-top-gap) + var(--gap));
-      --foot-inset:calc(var(--bottom) + var(--gap) + var(--bar-h) + var(--gap));
+      --foot-inset:calc(var(--bottom) + var(--bar-side-inset) + var(--bar-h) + var(--gap));
     }
     html.tg-shell{
       --safe-top:var(--app-tg-content-safe-top);
@@ -267,7 +268,7 @@
     .editor tg-spoiler{background:var(--neutral-4);border-radius:4px}
     .bar-wrap{
       position:fixed;left:50%;right:auto;width:max-content;max-width:calc(100vw - 24px);
-      top:auto;bottom:calc(var(--vv-bottom) + var(--bottom) + var(--gap));z-index:30;
+      top:auto;bottom:calc(var(--vv-bottom) + var(--bottom) + var(--bar-side-inset));z-index:30;
       transform:translate3d(-50%,0,0);backface-visibility:hidden;
       padding:0;background:transparent;pointer-events:none
     }
