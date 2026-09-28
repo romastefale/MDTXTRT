@@ -49,7 +49,8 @@ test('React UX imports the official Glass primitive and follows GlassContextMenu
   assert.match(src,/function GlassContextMenu/);
   assert.match(src,/<Glass[\s\S]*?optics=\{MENU_LENS\}[\s\S]*?className="glass-menu-material"/);
   const barLens=src.slice(src.indexOf('const BAR_LENS = {'),src.indexOf('const MENU_RADIUS'));
-  assert.match(barLens,/light: \{\s*brightness: 0\.34,\s*sheen: 0,\s*glow: 0,\s*\},\s*dark: \{\s*brightness: 0\.2,\s*sheen: 0,\s*glow: 0,\s*\},[\s\S]*?readTheme\(\)[\s\S]*?subscribe\(onStoreChange\)[\s\S]*?serverTheme\(\)/);
+  assert.match(barLens,/const BAR_LENS = \{\s*sheen: 0,\s*glow: 0,\s*\};/);
+  assert.doesNotMatch(barLens,/brightness:/);
   for(const field of [
     'mapSize','clipToShape','softEdge','depth','curvature','dispersion','strength',
     'bend','bendWidth','frost','specular','sheenAngle','glowSpread',
@@ -58,7 +59,8 @@ test('React UX imports the official Glass primitive and follows GlassContextMenu
     assert.equal(barLens.includes(field+':'),false,field+' must come from GlassMaterial defaults');
   }
   assert.doesNotMatch(barLens,/\.\.\.MENU_LENS/);
-  assert.match(src,/function GlassControl[\s\S]*?React\.useSyncExternalStore\([\s\S]*?BAR_LENS\.subscribe,[\s\S]*?BAR_LENS\.readTheme,[\s\S]*?BAR_LENS\.serverTheme,[\s\S]*?<Glass[\s\S]*?optics=\{BAR_LENS\[theme\]\}/);
+  assert.doesNotMatch(src,/React\.useSyncExternalStore/);
+  assert.match(src,/function GlassControl[\s\S]*?<Glass[\s\S]*?optics=\{BAR_LENS\}/);
   assert.match(src,/style=\{\{ display: "flex", alignItems: "center", \.\.\.style \}\}/);
   assert.match(src,/className="glass-menu-material"[\s\S]*?style=\{\{ display: "block", width: "100%" \}\}/);
 });
@@ -226,25 +228,27 @@ test('server exposes every React-referenced local SVG icon and vector app icon',
 
 test('editor content starts below the lowered side pills without bypassing Telegram safe-area tokens',()=>{
   const html=read('index.html');
-  assert.match(html,/html\.tg-shell\{[\s\S]*?--safe-top:max\(var\(--app-tg-safe-top\),var\(--app-tg-content-safe-top\)\)/);
+  assert.match(html,/html\.tg-shell\{[\s\S]*?--safe-top:var\(--app-tg-content-safe-top\)/);
   assert.match(html,/\.topbar\{[\s\S]*?top:calc\(var\(--vv-top\) \+ var\(--safe-top\) \+ var\(--gap\)\)/);
   assert.match(html,/\.top-slot\{[\s\S]*?margin-top:0;transform:translateY\(var\(--top-side-offset\)\)/);
   assert.match(html,/\.seg\.top-pill\{gap:var\(--pill-pad\)\}/);
   assert.match(html,/\.scroll\{[\s\S]*?padding-top:var\(--head-inset\)/);
 });
 
-test('Telegram Mini App safe areas are sourced from WebApp fields and updated by official events',()=>{
+test('Telegram Mini App chrome uses only the Telegram content safe area',()=>{
   const html=read('index.html'),app=read('app.js');
-  assert.match(html,/html\.tg-shell\{[\s\S]*?--safe-top:max\(var\(--app-tg-safe-top\),var\(--app-tg-content-safe-top\)\)/);
-  assert.match(app,/function syncTelegramSafeAreas\(\)/);
-  assert.match(app,/tg\.safeAreaInset/);
+  assert.doesNotMatch(html,/viewport-fit=cover/);
+  assert.match(html,/--safe-top:0px;[\s\S]*?--safe-bottom:0px;[\s\S]*?--safe-left:0px;[\s\S]*?--safe-right:0px;/);
+  assert.match(html,/html\.tg-shell\{[\s\S]*?--safe-top:var\(--app-tg-content-safe-top\);[\s\S]*?--safe-bottom:var\(--app-tg-content-safe-bottom\);[\s\S]*?--safe-left:var\(--app-tg-content-safe-left\);[\s\S]*?--safe-right:var\(--app-tg-content-safe-right\)/);
+  assert.match(app,/function syncTelegramContentSafeArea\(\)/);
+  assert.doesNotMatch(app,/tg\.safeAreaInset/);
   assert.match(app,/tg\.contentSafeAreaInset/);
-  assert.match(app,/root\.style\.setProperty\('--app-tg-safe-'\+field/);
+  assert.doesNotMatch(app,/--app-tg-safe-/);
   assert.match(app,/root\.style\.setProperty\('--app-tg-content-safe-'\+field/);
-  assert.match(app,/tg\.onEvent\('safeAreaChanged',handleTelegramSafeAreaChange\)/);
-  assert.match(app,/tg\.onEvent\('contentSafeAreaChanged',handleTelegramSafeAreaChange\)/);
+  assert.doesNotMatch(app,/tg\.onEvent\('safeAreaChanged'/);
+  assert.match(app,/tg\.onEvent\('contentSafeAreaChanged',handleTelegramContentSafeAreaChange\)/);
   assert.match(app,/tg\.isVersionAtLeast\('8\.0'\)/);
-  assert.match(app,/!syncTelegramSafeAreas\(\)/);
+  assert.match(app,/!syncTelegramContentSafeArea\(\)/);
 });
 
 test('chrome circles share one control diameter and dark icons retain contrast',()=>{
@@ -278,7 +282,7 @@ test('top chrome keeps lateral pills below the centered title and inside Telegra
   assert.match(html,/--editor-top-gap:8px/);
   assert.match(html,/--topbar-h:calc\(var\(--pill-h\) \+ var\(--top-side-offset\)\)/);
   assert.match(html,/--head-inset:calc\(var\(--safe-top\) \+ var\(--gap\) \+ var\(--topbar-h\) \+ var\(--editor-top-gap\) \+ var\(--gap\)\)/);
-  assert.match(html,/html\.tg-shell\{[\s\S]*?--safe-top:max\(var\(--app-tg-safe-top\),var\(--app-tg-content-safe-top\)\)/);
+  assert.match(html,/html\.tg-shell\{[\s\S]*?--safe-top:var\(--app-tg-content-safe-top\)/);
   assert.match(html,/\.topbar\{[\s\S]*?top:calc\(var\(--vv-top\) \+ var\(--safe-top\) \+ var\(--gap\)\)/);
   assert.match(html,/\.top-left\{grid-column:1;justify-self:start\}/);
   assert.match(html,/\.top-right\{grid-column:3;justify-self:end\}/);
