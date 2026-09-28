@@ -2,7 +2,7 @@ import {Schema, DOMParser as PMDOMParser, DOMSerializer, Fragment, Slice} from "
 import {EditorState, TextSelection, Selection} from "prosemirror-state";
 import {EditorView} from "prosemirror-view";
 import {history, undo, redo} from "prosemirror-history";
-import {toggleMark, setBlockType, wrapIn, lift} from "prosemirror-commands";
+import {toggleMark, setBlockType, splitBlock} from "prosemirror-commands";
 import {keymap} from "prosemirror-keymap";
 import {wrapInList, liftListItem} from "prosemirror-schema-list";
 
@@ -434,6 +434,17 @@ export function createEditorCore({element,onChange=()=>{},onSelectionChange=()=>
     return true;
   }
 
+  function exitFormattedBlock(){
+    captureSelection();
+    if(!state.selection.empty)return false;
+    const type=state.selection.$from.parent.type;
+    if(type!==schema.nodes.heading&&type!==schema.nodes.blockquote)return false;
+    if(!splitBlock(state,view.dispatch))return false;
+    setBlockType(schema.nodes.paragraph)(state,view.dispatch);
+    view.focus();
+    return true;
+  }
+
   function listDepth(type){
     const {$from}=state.selection;
     for(let d=$from.depth;d>0;d--)if($from.node(d).type===type)return d;
@@ -582,6 +593,7 @@ export function createEditorCore({element,onChange=()=>{},onSelectionChange=()=>
     linkHref,
     currentBlockKind,
     applyMarkdownBlockRule,
+    exitFormattedBlock,
     toggleList,
     formatBlock,
     insertHTML,
