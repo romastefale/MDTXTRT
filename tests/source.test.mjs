@@ -279,6 +279,11 @@ test('undo and redo use destination mid-tone and export accent while flashing',(
   assert.match(html,/html\.light\{[\s\S]*?--bar-control-accent-bg:color-mix\(in oklab,var\(--accent\) 20%,transparent\)/);
 });
 
+test('destination Telegram and Telegraph icon is 28px',()=>{
+  const html=read('index.html');
+  assert.match(html,/\.seg #destBtn \.ui-icon\{width:28px;height:28px\}/);
+});
+
 test('chrome circles share one control diameter and dark icons retain contrast',()=>{
   const html=read('index.html');
   assert.match(html,/html\.dark \.seg,html\.dark \.bar\{color:#f5f5f7\}/);
