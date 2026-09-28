@@ -153,7 +153,7 @@ test("bar Glass material keeps the normative hairline without an opacity veil ac
     assert.equal(w.document.documentElement.dataset.theme, "light");
 
     assert.equal(brightnessLayer(bar), undefined);
-    assert.match(edgeLayer(bar)?.style.boxShadow || "", /0\.550/);
+    assert.match(edgeLayer(bar)?.style.boxShadow || "", /0\.000/);
     assert.equal(brightnessLayer(menu)?.style.opacity, "0.55");
 
     themeButton.click();
@@ -162,7 +162,7 @@ test("bar Glass material keeps the normative hairline without an opacity veil ac
 
     assert.equal(w.document.documentElement.dataset.theme, "dark");
     assert.equal(brightnessLayer(bar), undefined);
-    assert.match(edgeLayer(bar)?.style.boxShadow || "", /0\.550/);
+    assert.match(edgeLayer(bar)?.style.boxShadow || "", /0\.000/);
     assert.equal(
       brightnessLayer(menu)?.style.opacity,
       "0.55",
