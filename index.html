@@ -37,12 +37,12 @@
       --bar-glass-tint:color-mix(in oklab,var(--accent) 20%,transparent);
       --bar-glass-tint-strong:color-mix(in oklab,var(--accent) 28%,transparent);
       --bar-control-accent-bg:color-mix(in oklab,var(--accent) 26%,transparent);
-      --glass-edge:color-mix(in oklab,var(--accent) 22%,transparent);
-      --glass-inner:rgba(255,255,255,.16);
+      --menu-edge:color-mix(in oklab,var(--accent) 22%,transparent);
+      --menu-inner:rgba(255,255,255,.16);
       --glass-field:color-mix(in oklab,var(--accent) 12%,rgba(255,255,255,.18));
       --glass-field-soft:color-mix(in oklab,var(--accent) 9%,rgba(255,255,255,.13));
-      --glass-shadow:rgba(0,0,0,.30);
-      --glass-shadow-tight:rgba(0,0,0,.18);
+      --menu-shadow:rgba(0,0,0,.30);
+      --menu-shadow-tight:rgba(0,0,0,.18);
       --safe-top:env(safe-area-inset-top,0px);
       --safe-bottom:env(safe-area-inset-bottom,0px);
       --safe-left:env(safe-area-inset-left,0px);
@@ -78,12 +78,12 @@
       --bar-glass-tint:color-mix(in oklab,var(--accent) 16%,transparent);
       --bar-glass-tint-strong:color-mix(in oklab,var(--accent) 23%,transparent);
       --bar-control-accent-bg:color-mix(in oklab,var(--accent) 20%,transparent);
-      --glass-edge:color-mix(in oklab,var(--accent) 15%,transparent);
-      --glass-inner:rgba(255,255,255,.32);
+      --menu-edge:color-mix(in oklab,var(--accent) 15%,transparent);
+      --menu-inner:rgba(255,255,255,.32);
       --glass-field:color-mix(in oklab,var(--accent) 8%,rgba(255,255,255,.24));
       --glass-field-soft:color-mix(in oklab,var(--accent) 6%,rgba(255,255,255,.18));
-      --glass-shadow:rgba(31,57,82,.14);
-      --glass-shadow-tight:rgba(31,57,82,.09);
+      --menu-shadow:rgba(31,57,82,.14);
+      --menu-shadow-tight:rgba(31,57,82,.09);
     }
     html{color-scheme:light dark;-webkit-text-size-adjust:100%;text-size-adjust:100%}
     html.light{color-scheme:light}
@@ -311,7 +311,7 @@
     .glass-menu-content{
       position:relative;z-index:1;max-height:min(55vh,420px);overflow:hidden;
       border-radius:var(--menu-radius);padding:5px 6px;
-      box-shadow:inset 0 0 0 .5px var(--glass-inner),0 0 0 .5px var(--glass-edge),0 14px 34px var(--glass-shadow),0 2px 6px var(--glass-shadow-tight)
+      box-shadow:inset 0 0 0 .5px var(--menu-inner),0 0 0 .5px var(--menu-edge),0 14px 34px var(--menu-shadow),0 2px 6px var(--menu-shadow-tight)
     }
     .menu-list{
       display:flex;flex-direction:column;gap:0;min-height:0;max-height:calc(min(55vh,420px) - 10px);
@@ -327,7 +327,7 @@
     .menu-list > button:hover,.menu-list > button:focus-visible{background:var(--accent);color:#fff}
     .menu-list > button:active{background:color-mix(in srgb,var(--accent) 86%,#000)}
     .menu-divider{height:11px;min-height:11px;position:relative}
-    .menu-divider::after{content:"";position:absolute;left:8px;right:8px;top:5px;height:1px;background:var(--glass-edge)}
+    .menu-divider::after{content:"";position:absolute;left:8px;right:8px;top:5px;height:1px;background:var(--menu-edge)}
     .sheet-ico{width:16px;height:16px;border-radius:4px;flex:none;display:grid;place-items:center;background:transparent;box-shadow:none}
     .sheet-ico .ui-icon,.sheet-ico svg{width:13px;height:13px}
     .menu-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
@@ -394,7 +394,7 @@
   </div>
   <script src="marked.js"></script>
   <script src="turndown.js"></script>
-  <script type="module" src="ui.js?v=a41453f195b3"></script>
+  <script type="module" src="ui.js?v=cbb75b9c8d2d"></script>
   <script>
     document.addEventListener('DOMContentLoaded',()=>{
       const root=document.documentElement;

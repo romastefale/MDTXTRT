@@ -73,7 +73,7 @@ function edgeLayer(material) {
   );
 }
 
-test("bar Glass material changes real optical veil and edge through the app theme control", async () => {
+test("bar Glass material changes the theme veil while inheriting the normative material edge", async () => {
   const dom = new JSDOM(readFileSync(new URL("index.html", root), "utf8"), {
     url: "https://mdtxtrt.example/",
     runScripts: "outside-only",
@@ -153,7 +153,7 @@ test("bar Glass material changes real optical veil and edge through the app them
     assert.equal(w.document.documentElement.dataset.theme, "light");
 
     assert.equal(brightnessLayer(bar)?.style.opacity, "0.34");
-    assert.match(edgeLayer(bar)?.style.boxShadow || "", /0\.374/);
+    assert.match(edgeLayer(bar)?.style.boxShadow || "", /0\.550/);
     assert.equal(brightnessLayer(menu)?.style.opacity, "0.55");
 
     themeButton.click();
@@ -162,7 +162,7 @@ test("bar Glass material changes real optical veil and edge through the app them
 
     assert.equal(w.document.documentElement.dataset.theme, "dark");
     assert.equal(brightnessLayer(bar)?.style.opacity, "0.2");
-    assert.match(edgeLayer(bar)?.style.boxShadow || "", /0\.275/);
+    assert.match(edgeLayer(bar)?.style.boxShadow || "", /0\.550/);
     assert.equal(
       brightnessLayer(menu)?.style.opacity,
       "0.55",
