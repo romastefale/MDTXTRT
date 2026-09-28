@@ -187,6 +187,18 @@ For every cell verify top/bottom chrome reachability, menu reachability, interna
 **Status:** BLOCKING until a post-correction exact-SHA run is green.
 
 
+### G-13 — Pull-request validation did not prove the exact anchor SHA
+
+**Observed:** GitHub Actions checks triggered by `pull_request` use a synthetic merge ref by default. The first successful automated release gate therefore proved that the candidate integrated cleanly with its base, but the checked-out `HEAD` was not guaranteed to be the exact branch commit intended for the immutable Release Anchor.
+
+**Risk:** a release record could cite a branch-head SHA while the automated build, tests and screenshots were actually produced from a different synthetic merge commit.
+
+**Correction:** the release workflow now checks out `${{ github.event.pull_request.head.sha || github.sha }}` explicitly. Pull-request release artifacts are named from the same resolved head SHA. The ordinary regression workflow remains free to validate the merge result as an integration check; the release workflow separately proves the exact candidate configuration.
+
+**Acceptance:** `scripts/verify-release-manifest.mjs`, bundle rebuild, regression suite and visual comparison all execute with Git `HEAD` equal to the candidate branch SHA that will be sealed.
+
+**Status:** CLOSED only after the exact-head release-validation run passes.
+
 ## Additional exception flows added to release acceptance
 
 The following flows were missing as explicit final-release criteria and are now mandatory:
