@@ -154,6 +154,7 @@ function page(setup={}){
   };
 
   for(const [key,value] of Object.entries(setup.local||{}))w.localStorage.setItem(key,value);
+  if(typeof setup.storage==='function')setup.storage(w.localStorage,w);
   w.__requests=[];
   w.fetch=setup.fetch||(async(url,options={})=>{
     w.__requests.push({url:String(url),options});
@@ -440,6 +441,144 @@ test('import bounds document name to persisted draft contract',async()=>{
   assert.equal(d.querySelector('#docName').value.length,120);
   assert.doesNotThrow(()=>w.eval('JSON.stringify(draftState())'));
   w.close();
+});
+
+test('import starts a new document history and undo cannot restore prior identity or attachment',async()=>{
+  const db=memoryIndexedDB();
+  let n=0;
+  const w=page({indexedDB:db,objectURL:()=> 'blob:import-'+(++n)}),d=w.document,e=d.querySelector('#editor');
+  d.querySelector('#docName').value='Documento A';
+  d.querySelector('#docName').dispatchEvent(new w.Event('input',{bubbles:true}));
+  e.innerHTML='<p>conteúdo A</p>';
+  e.dispatchEvent(new w.Event('input',{bubbles:true}));
+  const mediaInput=d.querySelector('#mediaInput');
+  Object.defineProperty(mediaInput,'files',{configurable:true,value:[new w.File([new Uint8Array([1,2,3])],'antigo.png',{type:'image/png'})]});
+  mediaInput.dispatchEvent(new w.Event('change'));
+  await wait(10);
+  w.eval("telegraphPath='pagina-a';saveLocal()");
+  const previous=w.eval('({doc:docId,revision:docRevision})');
+  assert.ok(d.querySelector('[data-media-id]'));
+
+  const input=d.querySelector('#fileInput');
+  Object.defineProperty(input,'files',{configurable:true,value:[{name:'Documento B.txt',text:async()=> 'conteúdo B'}]});
+  input.dispatchEvent(new w.Event('change'));
+  await wait(10);
+  const current=w.eval('({doc:docId,revision:docRevision,path:telegraphPath})');
+  assert.notEqual(current.doc,previous.doc);
+  assert.equal(current.path,'');
+  assert.equal(d.querySelector('#docName').value,'Documento B');
+  assert.equal(e.textContent,'conteúdo B');
+  assert.equal(d.querySelector('[data-media-id]'),null);
+
+  d.querySelector('#undoBtn').click();
+  assert.equal(w.eval('docId'),current.doc);
+  assert.equal(w.eval('telegraphPath'),'');
+  assert.equal(d.querySelector('#docName').value,'Documento B');
+  assert.equal(e.textContent,'conteúdo B');
+  assert.equal(d.querySelector('[data-media-id]'),null);
+  w.close();
+});
+
+test('Telegraph publish response is ignored after another document replaces the originating revision',async()=>{
+  let publishResolve;
+  const fetch=async(url)=>{
+    const target=String(url);
+    if(target.endsWith('/api/telegraph/recover'))return {ok:false,status:404,json:async()=>({})};
+    if(target.endsWith('/api/telegraph/publish'))return await new Promise(resolve=>{publishResolve=resolve;});
+    return {ok:false,status:404,json:async()=>({error:'not found'})};
+  };
+  const w=page({fetch}),d=w.document,e=d.querySelector('#editor');
+  await wait(5);
+  d.querySelector('#destBtn').click();
+  d.querySelector('#docName').value='Documento A';
+  d.querySelector('#docName').dispatchEvent(new w.Event('input',{bubbles:true}));
+  e.innerHTML='<p>A</p>';
+  e.dispatchEvent(new w.Event('input',{bubbles:true}));
+  const request=w.eval('({doc:docId,revision:docRevision})');
+  const pending=w.eval('publishCurrent()');
+  await wait(0);
+  assert.equal(typeof publishResolve,'function');
+
+  const input=d.querySelector('#fileInput');
+  Object.defineProperty(input,'files',{configurable:true,value:[{name:'Documento B.txt',text:async()=> 'B'}]});
+  input.dispatchEvent(new w.Event('change'));
+  await wait(5);
+  assert.notEqual(w.eval('docId'),request.doc);
+
+  publishResolve({ok:true,status:200,json:async()=>({path:'pagina-a',url:'https://telegra.ph/pagina-a',doc:request.doc,revision:request.revision})});
+  await pending;
+  assert.equal(w.eval('telegraphPath'),'');
+  assert.equal(d.querySelector('#docName').value,'Documento B');
+  assert.match(d.querySelector('#toast').textContent,/revisão anterior/);
+  w.close();
+});
+
+test('Telegraph recovery response is ignored after the originating document revision changes',async()=>{
+  let defer=false,recoverResolve;
+  const fetch=async(url)=>{
+    if(String(url).endsWith('/api/telegraph/recover')){
+      if(!defer)return {ok:false,status:404,json:async()=>({})};
+      return await new Promise(resolve=>{recoverResolve=resolve;});
+    }
+    return {ok:false,status:404,json:async()=>({error:'not found'})};
+  };
+  const w=page({fetch}),d=w.document;
+  await wait(5);
+  const request=w.eval('({doc:docId,revision:docRevision})');
+  defer=true;
+  const pending=w.eval('recoverTelegraph()');
+  await wait(0);
+  assert.equal(typeof recoverResolve,'function');
+
+  const input=d.querySelector('#fileInput');
+  Object.defineProperty(input,'files',{configurable:true,value:[{name:'Outro.txt',text:async()=> 'novo'}]});
+  input.dispatchEvent(new w.Event('change'));
+  await wait(5);
+  recoverResolve({ok:true,status:200,json:async()=>({path:'pagina-antiga',url:'https://telegra.ph/pagina-antiga',doc:request.doc,revision:request.revision})});
+  await pending;
+  assert.equal(w.eval('telegraphPath'),'');
+  assert.notEqual(w.eval('docId'),request.doc);
+  w.close();
+});
+
+test('browser Telegraph publication stops before network when identity persistence cannot be confirmed',async()=>{
+  const w=page({storage:(storage,win)=>{
+    const proto=Object.getPrototypeOf(storage),original=proto.setItem;
+    proto.setItem=function(key,value){
+      if(key==='mdtxtrt-browser-owner')throw new Error('blocked');
+      return original.call(this,key,value);
+    };
+  }}),d=w.document;
+  await wait(5);
+  d.querySelector('#destBtn').click();
+  d.querySelector('#docName').value='Sem identidade';
+  d.querySelector('#editor').innerHTML='<p>texto</p>';
+  await w.eval('publishCurrent()');
+  assert.equal(w.__requests.some(item=>item.url.endsWith('/api/telegraph/publish')),false);
+  assert.equal(w.localStorage.getItem('mdtxtrt-browser-owner'),null);
+  assert.match(d.querySelector('#toast').textContent,/persistir a identidade/);
+  w.close();
+});
+
+test('unreadable local drafts remain recoverable for JSON, version and sanitization failures',()=>{
+  const base={version:2,name:'Rascunho',html:'<p>ok</p>',dest:'telegram',telegraphPath:'',docId:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',importedMd:'',importedTxt:'',importedHtml:'',media:null};
+  const raws=[
+    '{"version":',
+    JSON.stringify({...base,version:999}),
+    JSON.stringify({...base,html:'<script>não apagar</script>'})
+  ];
+  for(const raw of raws){
+    const w=page({local:{rmdtxtml:raw}});
+    assert.equal(w.localStorage.getItem('rmdtxtml'),raw);
+    const recovery=[];
+    for(let i=0;i<w.localStorage.length;i++){
+      const key=w.localStorage.key(i);
+      if(key?.startsWith('rmdtxtml-recovery-'))recovery.push(w.localStorage.getItem(key));
+    }
+    assert.ok(recovery.includes(raw));
+    assert.match(w.document.querySelector('#toast').textContent,/preservada/);
+    w.close();
+  }
 });
 
 test('empty export name is handled without an unhandled rejection',async()=>{
