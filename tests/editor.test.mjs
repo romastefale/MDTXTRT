@@ -653,3 +653,133 @@ test('oversized galleries are rejected without changing the document',async()=>{
   assert.match(w.document.querySelector('#toast').textContent,/no máximo 50/);
   w.close();
 });
+
+
+for(const [caseName,raw] of [
+  ['JSON inválido','{"version":2'],
+  ['versão incompatível',JSON.stringify({version:1,name:'Antigo',html:'<p>recuperar</p>',dest:'telegram',telegraphPath:'',docId:'11111111-1111-4111-8111-111111111111',importedMd:'',importedTxt:'',importedHtml:'',media:null})],
+  ['sanitização incompatível',JSON.stringify({version:2,name:'Recuperar',html:'<script>preservar()</script>',dest:'telegram',telegraphPath:'',docId:'22222222-2222-4222-8222-222222222222',importedMd:'',importedTxt:'',importedHtml:'',media:null})]
+]){
+  test('unreadable local draft is preserved after '+caseName,()=>{
+    const w=page({local:{rmdtxtml:raw}});
+    assert.equal(w.localStorage.getItem('rmdtxtml'),raw);
+    w.dispatchEvent(new w.Event('pagehide'));
+    assert.equal(w.localStorage.getItem('rmdtxtml'),raw);
+    assert.match(w.document.querySelector('#toast').textContent,/preservad|recupera/i);
+    w.close();
+  });
+}
+
+test('browser Telegraph publishing stops before the external request when identity cannot persist',async()=>{
+  const w=page(),d=w.document;
+  await wait(10);
+  w.localStorage.removeItem('mdtxtrt-browser-owner');
+  const original=w.Storage.prototype.setItem;
+  w.Storage.prototype.setItem=function(key,value){
+    if(key==='mdtxtrt-browser-owner')throw new Error('storage denied');
+    return original.call(this,key,value);
+  };
+  d.querySelector('#docName').value='Sem identidade';
+  d.querySelector('#editor').innerHTML='<p>texto</p>';
+  w.eval("dest='telegraph'");
+  await w.eval('publishTelegraph()');
+  assert.equal(w.__requests.filter(request=>request.url.endsWith('/api/telegraph/publish')).length,0);
+  assert.match(d.querySelector('#toast').textContent,/persistir a identidade/);
+  w.close();
+});
+
+test('import starts a new document history and undo cannot restore prior identity, page or attachment',async()=>{
+  const db=memoryIndexedDB();
+  const w=page({indexedDB:db,objectURL:()=> 'blob:old-media'}),d=w.document,e=d.querySelector('#editor');
+  d.querySelector('#docName').value='Documento A';
+  e.innerHTML='<p>texto A</p>';
+  w.eval("telegraphPath='pagina-a'");
+  const oldDoc=w.eval('docId');
+  const mediaInput=d.querySelector('#mediaInput');
+  const attachment=new w.File([new Uint8Array([1,2,3])],'a.png',{type:'image/png'});
+  Object.defineProperty(mediaInput,'files',{configurable:true,value:[attachment]});
+  mediaInput.dispatchEvent(new w.Event('change'));
+  await wait(10);
+  assert.ok(d.querySelector('[data-media-id]'));
+  assert.equal(db.rows.size,1);
+
+  const fileInput=d.querySelector('#fileInput');
+  Object.defineProperty(fileInput,'files',{configurable:true,value:[{name:'Documento B.txt',text:async()=> 'texto B'}]});
+  fileInput.dispatchEvent(new w.Event('change'));
+  await wait(10);
+  const newDoc=w.eval('docId');
+  assert.notEqual(newDoc,oldDoc);
+  assert.equal(d.querySelector('#docName').value,'Documento B');
+  assert.equal(e.textContent,'texto B');
+  assert.equal(w.eval('telegraphPath'),'');
+  assert.equal(d.querySelector('[data-media-id]'),null);
+  assert.equal(db.rows.size,0);
+
+  d.querySelector('#undoBtn').click();
+  assert.equal(w.eval('docId'),newDoc);
+  assert.equal(d.querySelector('#docName').value,'Documento B');
+  assert.equal(e.textContent,'texto B');
+  assert.equal(w.eval('telegraphPath'),'');
+  assert.equal(d.querySelector('[data-media-id]'),null);
+  w.close();
+});
+
+test('late Telegraph publish response cannot attach document A page to imported document B',async()=>{
+  let resolvePublish,publishedBody;
+  const fetch=async(url,options={})=>{
+    const target=String(url);
+    if(target.endsWith('/api/telegraph/recover'))return {ok:false,status:404,json:async()=>({error:'Página não encontrada'})};
+    if(target.endsWith('/api/telegraph/publish')){
+      publishedBody=JSON.parse(options.body);
+      return await new Promise(resolve=>{resolvePublish=()=>resolve({ok:true,status:200,json:async()=>({path:'pagina-a',url:'https://telegra.ph/pagina-a',doc:publishedBody.doc,revision:publishedBody.revision})});});
+    }
+    return {ok:false,status:404,json:async()=>({error:'not found'})};
+  };
+  const w=page({fetch}),d=w.document,e=d.querySelector('#editor');
+  await wait(10);
+  d.querySelector('#docName').value='Documento A';
+  e.innerHTML='<p>A</p>';
+  w.eval("dest='telegraph'");
+  const oldDoc=w.eval('docId');
+  const publishing=w.eval('publishTelegraph()');
+  await wait(0);
+  assert.equal(publishedBody.doc,oldDoc);
+
+  const input=d.querySelector('#fileInput');
+  Object.defineProperty(input,'files',{configurable:true,value:[{name:'Documento B.txt',text:async()=> 'B'}]});
+  input.dispatchEvent(new w.Event('change'));
+  await wait(10);
+  const newDoc=w.eval('docId');
+  assert.notEqual(newDoc,oldDoc);
+  resolvePublish();
+  await publishing;
+
+  assert.equal(w.eval('docId'),newDoc);
+  assert.equal(w.eval('telegraphPath'),'');
+  assert.match(d.querySelector('#toast').textContent,/documento mudou/);
+  w.close();
+});
+
+test('late Telegraph recovery response is ignored after the same document advances revision',async()=>{
+  let resolveRecover,recoverBody;
+  const fetch=async(url,options={})=>{
+    const target=String(url);
+    if(target.endsWith('/api/telegraph/recover')){
+      recoverBody=JSON.parse(options.body);
+      return await new Promise(resolve=>{resolveRecover=()=>resolve({ok:true,status:200,json:async()=>({path:'pagina-antiga',url:'https://telegra.ph/pagina-antiga',doc:recoverBody.doc,revision:recoverBody.revision})});});
+    }
+    return {ok:false,status:404,json:async()=>({error:'not found'})};
+  };
+  const w=page({fetch}),d=w.document;
+  await wait(10);
+  assert.ok(recoverBody);
+  const beforeRevision=recoverBody.revision;
+  const name=d.querySelector('#docName');
+  name.value='Revisão nova';
+  name.dispatchEvent(new w.Event('input',{bubbles:true}));
+  assert.ok(w.eval('docRevision')>beforeRevision);
+  resolveRecover();
+  await wait(10);
+  assert.equal(w.eval('telegraphPath'),'');
+  w.close();
+});
