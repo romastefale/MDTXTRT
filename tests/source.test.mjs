@@ -569,3 +569,17 @@ test('architecture provenance records official package use and copied example ow
   assert.match(architecture,/@samasante\/liquid-glass/);
   assert.match(architecture,/no local displacement-map renderer/i);
 });
+
+
+test('step 4 format contract is explicit and conversion code uses the shared portable boundary',()=>{
+  const app=read('app.js'),contract=read('FORMAT_CONTRACT.md');
+  assert.match(app,/const FORMAT_CONTRACT=Object\.freeze/);
+  assert.match(app,/function normalizePortableHTML\(root,label='conteúdo'\)/);
+  assert.match(app,/svc\.addRule\('strikethrough'/);
+  assert.doesNotMatch(app,/if\(importedMd && editor\.innerHTML === importedHtml\) return importedMd/);
+  assert.doesNotMatch(app,/if\(importedTxt && editor\.innerHTML===importedHtml\)return importedTxt/);
+  assert.match(contract,/## File matrix/);
+  assert.match(contract,/## Destination matrix/);
+  assert.match(contract,/Markdown export always serializes the current edited document/);
+  assert.match(contract,/Returning an untouched original file is not sufficient evidence/);
+});
