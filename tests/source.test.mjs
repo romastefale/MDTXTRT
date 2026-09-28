@@ -601,7 +601,7 @@ test('step 5 overlays use the visual viewport without changing the baseline mate
   assert.match(app,/openPanel\('#findMenu',anchor\)/);
   assert.match(app,/const anchor=one\('#plusBtn'\)/);
   assert.match(app,/function setDialogModality\(active\)[\s\S]*?setAttribute\('inert',''\)/);
-  assert.match(app,/one\('#dialogMenu'\)\.addEventListener\('keydown'[\s\S]*?event\.key==='Tab'/);
+  assert.match(app,/one\('#dialogMenu'\)\.addEventListener\('keydown'[\s\S]*?event\.key!=='Tab'/);
   assert.match(app,/if\(dialog\?\.matches\(':popover-open'\)\)placePanel\(dialog\)/);
   assert.match(src,/id="dialogMenu"[\s\S]*?role="dialog"[\s\S]*?aria-modal="true"/);
   assert.match(html,/--menu-w:210px/);
