@@ -15,10 +15,13 @@ test('application controller parses and committed browser bundles are present',(
   assert.equal(existsSync(new URL('../glass.js',import.meta.url)),false);
 });
 
-test('ui.js cache buster follows the committed Git blob SHA',()=>{
-  const html=read('index.html'),ui=readFileSync(new URL('../ui.js',import.meta.url));
-  const sha=createHash('sha1').update(Buffer.from('blob '+ui.length+'\0')).update(ui).digest('hex').slice(0,12);
-  assert.match(html,new RegExp('ui\\.js\\?v='+sha));
+test('browser bundle cache busters follow the committed Git blob SHAs',()=>{
+  const html=read('index.html');
+  for(const file of ['ui.js','editor-core.js']){
+    const bytes=readFileSync(new URL('../'+file,import.meta.url));
+    const sha=createHash('sha1').update(Buffer.from('blob '+bytes.length+'\0')).update(bytes).digest('hex').slice(0,12);
+    assert.match(html,new RegExp(file.replace('.','\\\\.')+'\\\\?v='+sha));
+  }
 });
 
 test('official Liquid Glass React dependencies and deterministic build are pinned',()=>{
