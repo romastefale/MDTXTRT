@@ -188,6 +188,11 @@ function page(setup={}){
   w.eval(readFileSync(new URL('turndown.js',root),'utf8'));
   w.eval(readFileSync(new URL('editor-core.js',root),'utf8'));
   w.eval(readFileSync(new URL('app.js',root),'utf8'));
+  const close=w.close.bind(w);
+  w.close=()=>{
+    try{w.eval('(()=>{const core=currentEditorCore?.();if(core?.view?.docView)core.destroy();})()');}catch{}
+    close();
+  };
   return w;
 }
 
