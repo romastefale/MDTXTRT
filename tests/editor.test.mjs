@@ -182,6 +182,7 @@ function page(setup={}){
   mountReactContract(w.document);
   w.eval(readFileSync(new URL('marked.js',root),'utf8'));
   w.eval(readFileSync(new URL('turndown.js',root),'utf8'));
+  w.eval(readFileSync(new URL('editor-core.js',root),'utf8'));
   w.eval(readFileSync(new URL('app.js',root),'utf8'));
   return w;
 }
