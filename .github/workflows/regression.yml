@@ -29,5 +29,11 @@ jobs:
           name: react-ui-bundle
           path: ui.js
           if-no-files-found: error
+      - name: Emit deterministic UI bundle for draft synchronization
+        run: |
+          echo UI_BUNDLE_BASE64_BEGIN
+          base64 -w 0 ui.js
+          echo
+          echo UI_BUNDLE_BASE64_END
       - run: git diff --exit-code -- ui.js
       - run: npm test
