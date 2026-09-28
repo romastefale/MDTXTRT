@@ -497,3 +497,30 @@ test('handoff attachment survives backend restart and remains session-bound',asy
   assert.equal(res.status,200);
   assert.deepEqual([...new Uint8Array(await res.arrayBuffer())],[1,2,3,4,5]);
 });
+
+
+test('Telegraph publish and recovery responses are bound to the originating document revision',async()=>{
+  const browserKey='ef'.repeat(32);
+  const doc='12121212-1212-4212-8212-121212121212';
+  const created=await jsonPost('/api/telegraph/publish',{
+    title:'Revision-bound page',
+    doc,
+    revision:7,
+    content:[{tag:'p',children:['texto']}],
+    browserKey
+  });
+  assert.equal(created.status,200,created.data.error);
+  assert.equal(created.data.doc,doc);
+  assert.equal(created.data.revision,7);
+  assert.equal(created.data.path,'test-page-regression');
+
+  const recovered=await jsonPost('/api/telegraph/recover',{doc,revision:8,browserKey});
+  assert.equal(recovered.status,200,recovered.data.error);
+  assert.equal(recovered.data.doc,doc);
+  assert.equal(recovered.data.revision,8);
+  assert.equal(recovered.data.path,created.data.path);
+
+  const invalid=await jsonPost('/api/telegraph/recover',{doc,revision:-1,browserKey});
+  assert.equal(invalid.status,400);
+  assert.match(invalid.data.error,/Revisão do documento inválida/);
+});
