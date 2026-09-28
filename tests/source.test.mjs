@@ -246,7 +246,7 @@ test('theme switch is a text-and-icon target with no control background',()=>{
 
 test('top chrome keeps lateral pills below the centered title and inside Telegram safe areas',()=>{
   const html=read('index.html');
-  assert.match(html,/--top-side-offset:12px/);
+  assert.match(html,/--top-side-offset:24px/);
   assert.match(html,/--editor-top-gap:8px/);
   assert.match(html,/--topbar-h:calc\(var\(--pill-h\) \+ var\(--top-side-offset\)\)/);
   assert.match(html,/--head-inset:calc\(var\(--safe-top\) \+ var\(--gap\) \+ var\(--topbar-h\) \+ var\(--editor-top-gap\) \+ var\(--gap\)\)/);
