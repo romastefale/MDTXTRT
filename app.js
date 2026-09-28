@@ -498,7 +498,7 @@ function closeTopLayer(){
   const dialog=one('#dialogMenu');
   if(dialog.matches(':popover-open')){finishDialog(dialogConfirm?false:null);return;}
   const sel=sheets.find(name=>one(name).matches(':popover-open'));
-  if(sel)one(sel).hidePopover();
+  if(sel)closePanel(one(sel),true);
 }
 function clamp(value,min,max){return Math.max(min,Math.min(max,value));}
 const panelAnchors=new WeakMap(),panelOpeners=new WeakMap();
