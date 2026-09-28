@@ -37,6 +37,7 @@ function installBrowserGlobals(window) {
     CustomEvent: window.CustomEvent,
     requestAnimationFrame: window.requestAnimationFrame.bind(window),
     cancelAnimationFrame: window.cancelAnimationFrame.bind(window),
+    matchMedia: window.matchMedia.bind(window),
   })) put(name, value);
 
   return () => {
