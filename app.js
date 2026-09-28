@@ -1159,6 +1159,9 @@ one('#replaceAll').addEventListener('click',()=>{
   const count=term&&editorCore?editorCore.replaceAllLiteral(term,replace):0;
   showToast(count+' substituições');
 });
+function exportDocumentHTML(){
+  return editorCore?editorCore.html():editor.innerHTML;
+}
 function exportName(ext){
   const base=docName.value.trim().replace(/[\\/:*?"<>|]+/g,"-").replace(/^\.+|\.+$/g,"").slice(0,80);
   if(!base)throw new Error('Dê um nome ao documento antes de exportar');
@@ -1170,13 +1173,14 @@ async function exportFile(format) {
     if(!contract?.export)throw new Error('Formato de exportação inválido');
     const warning=conversionWarning(format);
     if(warning&&!await approve(warning))return;
+    const html=exportDocumentHTML();
     let content, type, ext;
     if (format === "md") {
-      content = htmlToMarkdown(editor.innerHTML);
+      content = htmlToMarkdown(html);
       type = "text/markdown";
       ext = "md";
     } else {
-      content = htmlToText(editor.innerHTML);
+      content = htmlToText(html);
       type = "text/plain";
       ext = "txt";
     }
