@@ -53,6 +53,7 @@ const PAGES_FILE = TELEGRAPH_FILE + "-pages.json";
 const HANDOFF_DIR = DATA + "/handoffs";
 const HANDOFF_TTL = 15 * 60 * 1000;
 const SERVER_BOOT_ID = randomUUID();
+const ACTIVE_HANDOFF_SENDS = new Set();
 const BOT_TOKEN=required("TOKEN");
 if(!BOT_TOKEN_RE.test(BOT_TOKEN))throw new Error("Configuração inválida: TOKEN");
 let telegraphToken="";
@@ -362,15 +363,20 @@ function readHandoff(token) {
       changed=true;
     }
     handoffActionValid(meta.action,meta.draft,meta.file||null);
-    if(meta.action?.status==="sending"&&meta.action.serverBootId!==SERVER_BOOT_ID){
+    if(meta.action?.status==="sending"&&(meta.action.serverBootId!==SERVER_BOOT_ID||!ACTIVE_HANDOFF_SENDS.has(token))){
       meta.action.status="uncertain";
-      meta.action.error="O backend foi reiniciado durante o envio. O resultado pode ter sido aceito pelo Telegram.";
+      meta.action.error=meta.action.serverBootId!==SERVER_BOOT_ID
+        ?"O backend foi reiniciado durante o envio. O resultado pode ter sido aceito pelo Telegram."
+        :"O envio foi interrompido antes de registrar um resultado confirmado. Confira o chat antes de iniciar outra publicação.";
       meta.action.finishedAt=Date.now();
       meta.action.serverBootId="";
       meta.expires=Date.now()+HANDOFF_TTL;
       changed=true;
     }
-    if(changed)writeHandoff(token,meta);
+    if(changed){
+      try{writeHandoff(token,meta);}
+      catch(error){console.error("Handoff state repair",token,error);}
+    }
     return meta;
   }catch(error){
     console.error("Discarding invalid handoff",token,error);
@@ -452,34 +458,39 @@ async function publishHandoff(token,state,initData){
   action.finishedAt=0;
   action.serverBootId=SERVER_BOOT_ID;
   state.expires=Date.now()+HANDOFF_TTL;
-  writeHandoff(token,state);
-
-  let file=null;
-  if(state.file){
-    const path=handoffFiles(token).file;
-    if(!existsSync(path))throw new HttpError(409,"Anexo da transferência indisponível");
-    file={...state.file,bytes:readFileSync(path)};
-  }
+  ACTIVE_HANDOFF_SENDS.add(token);
   try{
-    const result=await sendRich(initData,action.request.html,file);
-    action.status="succeeded";
-    action.result=result;
-    action.error="";
-    action.finishedAt=Date.now();
-    action.serverBootId="";
-    state.expires=Date.now()+HANDOFF_TTL;
     writeHandoff(token,state);
-    return {code:200,reused:false,action:handoffActionView(action,state.draft)};
-  }catch(error){
-    const knownFailure=error instanceof HttpError || (error instanceof DeliveryError&&error.outcome==="failed");
-    action.status=knownFailure?"failed":"uncertain";
-    action.result=null;
-    action.error=error instanceof Error?error.message:"Não foi possível confirmar a publicação";
-    action.finishedAt=Date.now();
-    action.serverBootId="";
-    state.expires=Date.now()+HANDOFF_TTL;
-    writeHandoff(token,state);
-    return {code:knownFailure?(error instanceof HttpError?error.status:502):409,reused:false,action:handoffActionView(action,state.draft)};
+
+    let file=null;
+    if(state.file){
+      const path=handoffFiles(token).file;
+      if(!existsSync(path))throw new HttpError(409,"Anexo da transferência indisponível");
+      file={...state.file,bytes:readFileSync(path)};
+    }
+    try{
+      const result=await sendRich(initData,action.request.html,file);
+      action.status="succeeded";
+      action.result=result;
+      action.error="";
+      action.finishedAt=Date.now();
+      action.serverBootId="";
+      state.expires=Date.now()+HANDOFF_TTL;
+      writeHandoff(token,state);
+      return {code:200,reused:false,action:handoffActionView(action,state.draft)};
+    }catch(error){
+      const knownFailure=error instanceof HttpError || (error instanceof DeliveryError&&error.outcome==="failed");
+      action.status=knownFailure?"failed":"uncertain";
+      action.result=null;
+      action.error=error instanceof Error?error.message:"Não foi possível confirmar a publicação";
+      action.finishedAt=Date.now();
+      action.serverBootId="";
+      state.expires=Date.now()+HANDOFF_TTL;
+      writeHandoff(token,state);
+      return {code:knownFailure?(error instanceof HttpError?error.status:502):409,reused:false,action:handoffActionView(action,state.draft)};
+    }
+  }finally{
+    ACTIVE_HANDOFF_SENDS.delete(token);
   }
 }
 
