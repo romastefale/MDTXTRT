@@ -8,9 +8,10 @@ const root=new URL('../',import.meta.url);
 const read=name=>readFileSync(new URL(name,root),'utf8');
 const uiSource=()=>read('src/liquid-glass-ui.jsx');
 
-test('application controller parses and canonical React bundle is committed',()=>{
+test('application controller parses and committed browser bundles are present',()=>{
   assert.doesNotThrow(()=>new vm.Script(read('app.js'),{filename:'app.js'}));
   assert.ok(existsSync(new URL('../ui.js',import.meta.url)));
+  assert.ok(existsSync(new URL('../editor-core.js',import.meta.url)));
   assert.equal(existsSync(new URL('../glass.js',import.meta.url)),false);
 });
 
@@ -27,11 +28,39 @@ test('official Liquid Glass React dependencies and deterministic build are pinne
   assert.equal(pkg.dependencies.react,'19.3.0');
   assert.equal(pkg.dependencies['react-dom'],'19.3.0');
   assert.equal(pkg.devDependencies.esbuild,'0.28.2');
-  assert.match(pkg.scripts.build,/src\/liquid-glass-ui\.jsx/);
-  assert.match(pkg.scripts.build,/--outfile=ui\.js/);
+  assert.equal(pkg.scripts.build,'npm run build:editor && npm run build:ui');
+  assert.match(pkg.scripts['build:ui'],/src\/liquid-glass-ui\.jsx/);
+  assert.match(pkg.scripts['build:ui'],/--outfile=ui\.js/);
+  assert.match(pkg.scripts['build:editor'],/src\/editor-core\.mjs/);
+  assert.match(pkg.scripts['build:editor'],/--outfile=editor-core\.js/);
   assert.equal(lock.packages['node_modules/@samasante/liquid-glass'].version,'0.1.1');
   assert.equal(lock.packages['node_modules/react'].version,'19.3.0');
   assert.equal(lock.packages['node_modules/react-dom'].version,'19.3.0');
+});
+
+
+test('ProseMirror editor dependencies, schema and transaction primitives are pinned',()=>{
+  const pkg=JSON.parse(read('package.json'));
+  const lock=JSON.parse(read('package-lock.json'));
+  const expected={
+    'prosemirror-commands':'1.7.2',
+    'prosemirror-history':'1.5.0',
+    'prosemirror-keymap':'1.2.3',
+    'prosemirror-model':'1.25.12',
+    'prosemirror-schema-list':'1.5.1',
+    'prosemirror-state':'1.4.4',
+    'prosemirror-view':'1.42.3'
+  };
+  for(const [name,version] of Object.entries(expected)){
+    assert.equal(pkg.dependencies[name],version);
+    assert.equal(lock.packages['node_modules/'+name].version,version);
+  }
+  const core=read('src/editor-core.mjs');
+  assert.match(core,/new Schema\(/);
+  assert.match(core,/EditorState\.create/);
+  assert.match(core,/new EditorView/);
+  assert.match(core,/history\(\{/);
+  assert.match(core,/dispatchTransaction/);
 });
 
 test('React UX imports the official Glass primitive and standardizes menu optics with chrome capsules',()=>{
