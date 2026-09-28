@@ -59,6 +59,18 @@ async function jsonPost(path,body){
   const res=await fetch(`http://127.0.0.1:${port}${path}`,{method:'POST',headers:{origin,'content-type':'application/json'},body:JSON.stringify(body)});
   return {status:res.status,data:await res.json()};
 }
+function callCount(method){return calls().filter(call=>call.method===method).length;}
+async function publishHandoffFixture({doc,html='<p>Transferência</p>'}){
+  const draft={version:2,name:'Transferência',html,dest:'telegram',telegraphPath:'',docId:doc,revision:0,importedMd:'',importedTxt:'',importedHtml:'',media:null};
+  const action={type:'publish',html,kind:'',id:''};
+  const form=new FormData();
+  form.set('draft',JSON.stringify(draft));
+  form.set('action',JSON.stringify(action));
+  const res=await fetch(`http://127.0.0.1:${port}/api/handoff`,{method:'POST',headers:{origin},body:form});
+  const data=await res.json();
+  assert.equal(res.status,200,data.error);
+  return {draft,token:data.token,open:data.open};
+}
 async function webhook(update,secret=true){
   const headers={'content-type':'application/json'};
   if(secret)headers['x-telegram-bot-api-secret-token']=createHmac('sha256',token).update('MDTXTRT_WEBHOOK').digest('hex');
@@ -275,6 +287,129 @@ test('handoff persists valid document metadata and attachment',async()=>{
   assert.equal(claimed.status,200);
   assert.equal(claimed.data.draft.name,'Continuidade');
   assert.equal(claimed.data.file.id,id);
+});
+
+
+test('handoff recovery is passive and confirmed publication result survives reopen and backend restart',async()=>{
+  const made=await publishHandoffFixture({doc:'61616161-6161-4616-8616-616161616161'});
+  const before=callCount('sendRichMessage');
+
+  const firstClaim=await jsonPost('/api/handoff/claim',{initData:init(),token:made.token});
+  assert.equal(firstClaim.status,200,firstClaim.data.error);
+  assert.equal(firstClaim.data.draft.action,undefined);
+  assert.equal(firstClaim.data.action.status,'pending');
+  assert.equal(firstClaim.data.action.attempts,0);
+  assert.equal(callCount('sendRichMessage'),before);
+
+  await restart();
+  const reopenedPending=await jsonPost('/api/handoff/claim',{initData:init(),token:made.token});
+  assert.equal(reopenedPending.status,200,reopenedPending.data.error);
+  assert.equal(reopenedPending.data.action.status,'pending');
+  assert.equal(callCount('sendRichMessage'),before);
+
+  const sent=await jsonPost('/api/handoff/publish',{initData:init(),token:made.token});
+  assert.equal(sent.status,200,sent.data.error);
+  assert.equal(sent.data.reused,false);
+  assert.equal(sent.data.action.status,'succeeded');
+  assert.deepEqual(sent.data.result,{via:'sendRichMessage',messageId:42});
+  assert.equal(callCount('sendRichMessage'),before+1);
+
+  const duplicate=await jsonPost('/api/handoff/publish',{initData:init(),token:made.token});
+  assert.equal(duplicate.status,200,duplicate.data.error);
+  assert.equal(duplicate.data.reused,true);
+  assert.equal(duplicate.data.action.status,'succeeded');
+  assert.deepEqual(duplicate.data.result,{via:'sendRichMessage',messageId:42});
+  assert.equal(callCount('sendRichMessage'),before+1);
+
+  await restart();
+  const reopenedDone=await jsonPost('/api/handoff/claim',{initData:init(),token:made.token});
+  assert.equal(reopenedDone.status,200,reopenedDone.data.error);
+  assert.equal(reopenedDone.data.action.status,'succeeded');
+  assert.deepEqual(reopenedDone.data.action.result,{via:'sendRichMessage',messageId:42});
+  assert.equal(callCount('sendRichMessage'),before+1);
+
+  const afterRestart=await jsonPost('/api/handoff/publish',{initData:init(),token:made.token});
+  assert.equal(afterRestart.status,200,afterRestart.data.error);
+  assert.equal(afterRestart.data.reused,true);
+  assert.equal(callCount('sendRichMessage'),before+1);
+});
+
+test('handoff transport failure becomes uncertain and the same handoff cannot silently resend',async()=>{
+  const made=await publishHandoffFixture({doc:'62626262-6262-4626-8626-626262626262',html:'<p>UPSTREAM_TIMEOUT</p>'});
+  const before=callCount('sendRichMessage');
+  const claimed=await jsonPost('/api/handoff/claim',{initData:init(),token:made.token});
+  assert.equal(claimed.status,200);
+  assert.equal(claimed.data.action.status,'pending');
+
+  const attempt=await jsonPost('/api/handoff/publish',{initData:init(),token:made.token});
+  assert.equal(attempt.status,409);
+  assert.equal(attempt.data.action.status,'uncertain');
+  assert.equal(attempt.data.action.attempts,1);
+  assert.match(attempt.data.action.error,/conectar ao Telegram/);
+  assert.equal(callCount('sendRichMessage'),before+1);
+
+  const retry=await jsonPost('/api/handoff/publish',{initData:init(),token:made.token});
+  assert.equal(retry.status,409);
+  assert.equal(retry.data.reused,true);
+  assert.equal(retry.data.action.status,'uncertain');
+  assert.equal(callCount('sendRichMessage'),before+1);
+
+  const status=await jsonPost('/api/handoff/status',{initData:init(),token:made.token});
+  assert.equal(status.status,200);
+  assert.equal(status.data.action.status,'uncertain');
+  assert.equal(callCount('sendRichMessage'),before+1);
+});
+
+test('backend restart during an in-flight handoff marks delivery uncertain instead of retrying',async()=>{
+  const made=await publishHandoffFixture({doc:'63636363-6363-4636-8636-636363636363'});
+  const claimed=await jsonPost('/api/handoff/claim',{initData:init(),token:made.token});
+  assert.equal(claimed.status,200);
+  const path=join(dir,'handoffs',made.token+'.json');
+  const persisted=JSON.parse(readFileSync(path,'utf8'));
+  persisted.action.status='sending';
+  persisted.action.attempts=1;
+  persisted.action.startedAt=Date.now();
+  persisted.action.finishedAt=0;
+  persisted.action.serverBootId='interrupted-backend';
+  persisted.action.error='';
+  persisted.action.result=null;
+  writeFileSync(path,JSON.stringify(persisted),{mode:0o600});
+  const before=callCount('sendRichMessage');
+
+  await restart();
+  const reopened=await jsonPost('/api/handoff/claim',{initData:init(),token:made.token});
+  assert.equal(reopened.status,200,reopened.data.error);
+  assert.equal(reopened.data.action.status,'uncertain');
+  assert.match(reopened.data.action.error,/reiniciado durante o envio/);
+  assert.equal(callCount('sendRichMessage'),before);
+
+  const blocked=await jsonPost('/api/handoff/publish',{initData:init(),token:made.token});
+  assert.equal(blocked.status,409);
+  assert.equal(blocked.data.action.status,'uncertain');
+  assert.equal(callCount('sendRichMessage'),before);
+});
+
+test('confirmed Telegram rejection records failed state and only an explicit new authorization retries',async()=>{
+  const made=await publishHandoffFixture({doc:'64646464-6464-4646-8646-646464646464',html:'<p>UPSTREAM_REJECT</p>'});
+  const before=callCount('sendRichMessage');
+  await jsonPost('/api/handoff/claim',{initData:init(),token:made.token});
+
+  const failed=await jsonPost('/api/handoff/publish',{initData:init(),token:made.token});
+  assert.equal(failed.status,502);
+  assert.equal(failed.data.action.status,'failed');
+  assert.equal(failed.data.action.attempts,1);
+  assert.equal(callCount('sendRichMessage'),before+1);
+
+  const status=await jsonPost('/api/handoff/status',{initData:init(),token:made.token});
+  assert.equal(status.status,200);
+  assert.equal(status.data.action.status,'failed');
+  assert.equal(callCount('sendRichMessage'),before+1);
+
+  const explicitRetry=await jsonPost('/api/handoff/publish',{initData:init(),token:made.token});
+  assert.equal(explicitRetry.status,502);
+  assert.equal(explicitRetry.data.action.status,'failed');
+  assert.equal(explicitRetry.data.action.attempts,2);
+  assert.equal(callCount('sendRichMessage'),before+2);
 });
 
 test('startup fails closed when Telegraph page ownership survives credential loss',async()=>{
