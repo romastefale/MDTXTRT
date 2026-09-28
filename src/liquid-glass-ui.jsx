@@ -44,13 +44,6 @@ const BAR_LENS = {
     bendWidth: 0.07,
     frost: 3,
     brightness: 0.34,
-    specular: 0.68,
-    sheenAngle: 45,
-    glow: 0.04,
-    glowSpread: 1,
-    glowFalloff: 0.8,
-    sheen: 0.3,
-    sheenWidth: 1,
   },
   dark: {
     mapSize: 256,
@@ -64,13 +57,6 @@ const BAR_LENS = {
     bendWidth: 0.07,
     frost: 3,
     brightness: 0.2,
-    specular: 0.5,
-    sheenAngle: 45,
-    glow: 0.025,
-    glowSpread: 1,
-    glowFalloff: 0.8,
-    sheen: 0.22,
-    sheenWidth: 1,
   },
   readTheme() {
     if (typeof document === "undefined") return "dark";
