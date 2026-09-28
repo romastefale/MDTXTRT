@@ -1167,32 +1167,24 @@ function fragmentHasContent(fragment){
   return Boolean(fragment.textContent?.trim()||fragment.querySelector?.('img,video,audio,iframe,input,tg-button,tg-map,hr'));
 }
 function exitFormattedBlockOnParagraph(event){
-  if(composing||event.inputType!=='insertParagraph')return;
-  const sel=window.getSelection(),block=editorTopLevelBlock();
-  if(!sel||!sel.rangeCount||!sel.isCollapsed||!block||!(/H[1-6]/.test(block.tagName)||block.tagName==='BLOCKQUOTE'))return;
-  if(block.tagName==='BLOCKQUOTE'&&block.querySelector(':scope > p,:scope > div,:scope > blockquote'))return;
-  const caret=sel.getRangeAt(0),before=document.createRange();
-  before.selectNodeContents(block);
-  try{before.setEnd(caret.startContainer,caret.startOffset);}catch{return;}
-  event.preventDefault();
-  const p=document.createElement('p');
-  if(!fragmentHasContent(before.cloneContents())){
-    p.append(document.createElement('br'));block.before(p);
-  }else{
-    const tail=document.createRange();tail.selectNodeContents(block);tail.setStart(caret.startContainer,caret.startOffset);
-    const content=tail.extractContents();
-    if(fragmentHasContent(content))p.append(content);else p.append(document.createElement('br'));
-    block.after(p);
+  if(composing||event.inputType!=='insertParagraph'||!editorCore)return;
+  if(editorCore.exitFormattedBlock()){
+    event.preventDefault();
+    syncEditorSelectionUI();
   }
-  markdownCaret(p);
-  if(editorCore)editorCore.syncFromDOM({addToHistory:true});
-  syncEditorSelectionUI();
 }
 function commitEditorInput(event){
-  const transformed=applyMarkdownInputRule();
-  const normalized=normalizeEmptyFormattedBlock(event);
-  if(editorCore)editorCore.syncFromDOM({addToHistory:true});
-  if(transformed||normalized)syncEditorSelectionUI();
+  let blockTransformed=false,inlineTransformed=false,normalized=false;
+  if(editorCore){
+    editorCore.syncFromDOM({addToHistory:true});
+    blockTransformed=editorCore.applyMarkdownBlockRule();
+  }
+  if(!blockTransformed){
+    inlineTransformed=markdownInlineRule();
+    normalized=normalizeEmptyFormattedBlock(event);
+    if((inlineTransformed||normalized)&&editorCore)editorCore.syncFromDOM({addToHistory:true});
+  }
+  if(blockTransformed||inlineTransformed||normalized)syncEditorSelectionUI();
 }
 editor.addEventListener('beforeinput',exitFormattedBlockOnParagraph);
 editor.addEventListener('input', event=>{ if(!composing)commitEditorInput(event); });
