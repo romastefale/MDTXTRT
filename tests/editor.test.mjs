@@ -258,7 +258,7 @@ test('Markdown block markers wait for content, convert in either typing order an
   await apply('<p>3. Item</p>');
   assert.equal(e.querySelector('ol')?.getAttribute('start'),'3');
   await apply('<p>- [x] Tarefa</p>');
-  assert.equal(e.querySelector('li > input[type="checkbox"]')?.checked,true);
+  assert.equal(e.querySelector('li input[type="checkbox"]')?.checked,true);
   await apply('<p>\\# Literal</p>',3);
   assert.equal(e.querySelector('p')?.textContent,'# Literal');
   assert.equal(e.querySelector('h1'),null);
