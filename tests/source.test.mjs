@@ -262,7 +262,8 @@ test('UI preserves compact portrait contract, unified chrome scale and anchored 
   assert.match(html,/:where\(button,input,textarea,\[contenteditable="true"\]\):focus-visible/);
   assert.match(html,/@media \(orientation:landscape\),\(min-width:760px\)/);
   assert.match(html,/\.device-gate\{[\s\S]*?pointer-events:none/);
-  assert.doesNotMatch(html,/\.device-gate\{[\s\S]*?inset:0/);
+  const deviceGateBlock=html.slice(html.indexOf('.device-gate{'),html.indexOf('.device-gate-card{'));
+  assert.doesNotMatch(deviceGateBlock,/inset:0/);
   assert.match(html,/id="deviceGate" role="status" aria-live="polite"/);
   assert.doesNotMatch(html,/id="deviceGate"[^>]*aria-modal=/);
   assert.match(html,/Você pode continuar nesta tela\./);
