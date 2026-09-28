@@ -422,8 +422,11 @@ export function createEditorCore({element,onChange=()=>{},onSelectionChange=()=>
 
     if(quote){
       const markerLength=quote[0].length;
-      let tr=state.tr.delete(contentStart,contentStart+markerLength);
-      tr=tr.setNodeMarkup(blockPos,schema.nodes.blockquote,{expandable:false});
+      const caretOffset=Math.max(0,$from.parentOffset-markerLength);
+      const paragraph=schema.nodes.paragraph.create(node.attrs,node.content.cut(markerLength));
+      const wrapped=schema.nodes.blockquote.create({expandable:false},paragraph);
+      let tr=state.tr.replaceWith(blockPos,blockPos+node.nodeSize,wrapped);
+      tr=tr.setSelection(TextSelection.create(tr.doc,blockPos+2+caretOffset));
       dispatch(tr);view.focus();return true;
     }
 
@@ -469,14 +472,25 @@ export function createEditorCore({element,onChange=()=>{},onSelectionChange=()=>
     if(!String(inputType).startsWith("delete"))return false;
     captureSelection();
     if(!state.selection.empty)return false;
-    const {$from}=state.selection,node=$from.parent;
-    if(node.type!==schema.nodes.heading&&node.type!==schema.nodes.blockquote)return false;
-    const meaningful=node.content.content.some(child=>child.type!==schema.nodes.hard_break&&child.textContent.replace(/\u200b/g,"").trim());
-    if(meaningful)return false;
-    const pos=$from.before($from.depth);
-    let tr=state.tr.setNodeMarkup(pos,schema.nodes.paragraph);
-    tr=tr.setSelection(TextSelection.create(tr.doc,pos+1));
-    dispatch(tr);view.focus();return true;
+    const {$from}=state.selection;
+    for(let depth=$from.depth;depth>0;depth--){
+      const node=$from.node(depth);
+      if(node.type===schema.nodes.heading){
+        if(node.textContent.replace(/\u200b/g,"").trim())return false;
+        const pos=$from.before(depth);
+        let tr=state.tr.setNodeMarkup(pos,schema.nodes.paragraph);
+        tr=tr.setSelection(TextSelection.create(tr.doc,pos+1));
+        dispatch(tr);view.focus();return true;
+      }
+      if(node.type===schema.nodes.blockquote){
+        if(node.textContent.replace(/\u200b/g,"").trim())return false;
+        const pos=$from.before(depth);
+        let tr=state.tr.replaceWith(pos,pos+node.nodeSize,schema.nodes.paragraph.create());
+        tr=tr.setSelection(TextSelection.create(tr.doc,pos+1));
+        dispatch(tr);view.focus();return true;
+      }
+    }
+    return false;
   }
 
   function applyMarkdownInlineRule(){
