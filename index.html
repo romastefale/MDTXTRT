@@ -104,13 +104,18 @@
         var(--bg)
     }
     .device-gate{
-      display:none;position:fixed;inset:0;z-index:100;
-      place-items:center;padding:32px;text-align:center;background:var(--bg);color:var(--text)
+      display:none;position:fixed;
+      top:calc(var(--vv-top) + var(--safe-top) + 8px);left:50%;z-index:35;
+      width:min(360px,calc(100vw - 24px));transform:translateX(-50%);
+      padding:0;text-align:center;color:var(--text);pointer-events:none
     }
-    .device-gate-card{max-width:320px}
-    .device-gate strong{display:block;font-size:20px;line-height:1.2;letter-spacing:-.02em}
-    .device-gate p{margin:10px 0 0;color:var(--muted);font-size:15px;line-height:1.45}
-    html[data-device-gate] .device-gate{display:grid}
+    .device-gate-card{
+      width:100%;padding:10px 14px;border:1px solid var(--line);border-radius:12px;
+      background:color-mix(in oklab,var(--bg) 88%,transparent)
+    }
+    .device-gate strong{display:block;font-size:14px;line-height:1.25;letter-spacing:-.01em}
+    .device-gate p{margin:4px 0 0;color:var(--muted);font-size:12px;line-height:1.35}
+    html[data-device-gate] .device-gate{display:block}
     ::selection{background:color-mix(in srgb,var(--accent) 38%, transparent);color:inherit}
     button,input{font:inherit;color:inherit}
     button{cursor:pointer;-webkit-tap-highlight-color:transparent}
@@ -363,10 +368,10 @@
 </head>
 <body>
   <div class="bg" aria-hidden="true"></div>
-  <div class="device-gate" id="deviceGate" role="dialog" aria-modal="true" aria-labelledby="deviceGateTitle" aria-describedby="deviceGateText">
+  <div class="device-gate" id="deviceGate" role="status" aria-live="polite" aria-labelledby="deviceGateTitle" aria-describedby="deviceGateText">
     <div class="device-gate-card">
-      <strong id="deviceGateTitle">Use no modo retrato</strong>
-      <p id="deviceGateText">Este WebApp funciona apenas em smartphones no modo retrato. Gire o aparelho para continuar.</p>
+      <strong id="deviceGateTitle">Melhor em modo retrato</strong>
+      <p id="deviceGateText">Para uma melhor experiência, use um smartphone no modo retrato. Você pode continuar nesta tela.</p>
     </div>
   </div>
   <div class="fade-top" aria-hidden="true"></div>
