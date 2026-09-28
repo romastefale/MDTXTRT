@@ -42,6 +42,9 @@ permissions:
   issues: read
   pull-requests: read
 
+env:
+  RELEASE_CANDIDATE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+
 concurrency:
   group: release-validation-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -99,7 +102,8 @@ jobs:
         with:
           name: release-visual-baseline-${{ github.event.pull_request.head.sha || github.sha }}
           path: .release-visual/
-          if-no-files-found: ignore
+          include-hidden-files: true
+          if-no-files-found: error
           retention-days: 30
 
   evidence:
@@ -111,6 +115,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          ref: ${{ env.RELEASE_CANDIDATE_SHA }}
+
+      - name: Verify exact candidate checkout
+        run: test "$(git rev-parse HEAD)" = "$RELEASE_CANDIDATE_SHA"
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
