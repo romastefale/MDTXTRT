@@ -1,8 +1,7 @@
 import { createServer } from 'node:http';
-import { readFileSync, writeFileSync, existsSync, mkdirSync, rmSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync, rmSync, mkdtempSync } from 'node:fs';
 import { resolve, join, extname, sep } from 'node:path';
 import { tmpdir } from 'node:os';
-import { mkdtempSync } from 'node:fs';
 import { execFileSync, spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 
@@ -20,10 +19,11 @@ const mime=new Map([
   ['.png','image/png'],['.jpg','image/jpeg'],['.jpeg','image/jpeg'],['.webmanifest','application/manifest+json; charset=utf-8']
 ]);
 
-function deterministicHTML(text){
+function deterministicHTML(text,theme){
+  const boot=`<script id="release-visual-boot">try{localStorage.clear();localStorage.setItem('mdtxtrt-theme',${JSON.stringify(theme)})}catch{}window.fetch=async()=>({ok:false,status:404,json:async()=>({})});window.Telegram=undefined;</script><style id="release-visual-determinism">*,*::before,*::after{animation:none!important;transition:none!important;caret-color:transparent!important}</style>`;
   return text
-    .replace(/<script src="https:\/\/telegram\.org\/js\/telegram-web-app\.js\?[^"]+"><\/script>/,'<!-- Telegram runtime blocked by release visual harness -->')
-    .replace('</head>',`<style id="release-visual-determinism">*,*::before,*::after{animation:none!important;transition:none!important;caret-color:transparent!important}</style><script>window.fetch=async()=>({ok:false,status:404,json:async()=>({})});</script></head>`);
+    .replace('<head>','<head>'+boot)
+    .replace(/<script src="https:\/\/telegram\.org\/js\/telegram-web-app\.js\?[^"]+"><\/script>/,'<!-- Telegram runtime blocked by release visual harness -->');
 }
 
 function staticServer(root){
@@ -36,7 +36,10 @@ function staticServer(root){
       const file=resolve(rootAbs,'.'+pathname);
       if(file!==rootAbs&&!file.startsWith(rootAbs+sep)){res.writeHead(403).end('forbidden');return;}
       let body=readFileSync(file);
-      if(extname(file)==='.html')body=Buffer.from(deterministicHTML(body.toString('utf8')));
+      if(extname(file)==='.html'){
+        const theme=url.searchParams.get('theme')==='dark'?'dark':'light';
+        body=Buffer.from(deterministicHTML(body.toString('utf8'),theme));
+      }
       res.writeHead(200,{'content-type':mime.get(extname(file))||'application/octet-stream','cache-control':'no-store'});
       res.end(body);
     }catch{
@@ -58,14 +61,14 @@ function chromeBinary(){
   return found;
 }
 
-function capture(chrome,url,out){
+function capture(chrome,url,out,profileName){
   const args=[
     '--headless=new','--no-sandbox','--disable-gpu','--hide-scrollbars',
     '--window-size=390,844','--force-device-scale-factor=1',
     '--run-all-compositor-stages-before-draw','--virtual-time-budget=3000',
     '--disable-background-networking','--disable-component-update','--disable-sync',
     '--no-first-run','--no-default-browser-check',
-    `--user-data-dir=${join(tempRoot,'chrome-'+Math.random().toString(16).slice(2))}`,
+    `--user-data-dir=${join(tempRoot,profileName)}`,
     `--screenshot=${out}`,url
   ];
   return new Promise((resolveCapture,reject)=>{
@@ -92,15 +95,26 @@ try{
   await listen(candidateServer,4173);
   await listen(baselineServer,4174);
   const chrome=chromeBinary();
-  const candidatePng=join(outDir,'candidate-shell-390x844.png');
-  const baselinePng=join(outDir,'baseline-shell-390x844.png');
-  await capture(chrome,'http://127.0.0.1:4173/',candidatePng);
-  await capture(chrome,'http://127.0.0.1:4174/',baselinePng);
-  const candidate=readFileSync(candidatePng),baseline=readFileSync(baselinePng);
-  const summary={baselineSha,candidateSha:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),candidateScreenshot:sha(candidatePng),baselineScreenshot:sha(baselinePng),identical:candidate.equals(baseline)};
-  writeFileSync(join(outDir,'summary.json'),JSON.stringify(summary,null,2)+'\n');
-  console.log(JSON.stringify(summary,null,2));
-  if(!summary.identical)throw new Error('A renderização estável do shell divergiu da baseline visual');
+  const summaries=[];
+  for(const theme of ['light','dark']){
+    const candidatePng=join(outDir,`candidate-${theme}-shell-390x844.png`);
+    const baselinePng=join(outDir,`baseline-${theme}-shell-390x844.png`);
+    await capture(chrome,`http://127.0.0.1:4173/?theme=${theme}`,candidatePng,`chrome-candidate-${theme}`);
+    await capture(chrome,`http://127.0.0.1:4174/?theme=${theme}`,baselinePng,`chrome-baseline-${theme}`);
+    const candidate=readFileSync(candidatePng),baseline=readFileSync(baselinePng);
+    summaries.push({
+      theme,
+      baselineSha,
+      candidateSha:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),
+      candidateScreenshot:sha(candidatePng),
+      baselineScreenshot:sha(baselinePng),
+      identical:candidate.equals(baseline)
+    });
+  }
+  writeFileSync(join(outDir,'summary.json'),JSON.stringify({viewport:'390x844@1x',comparisons:summaries},null,2)+'\n');
+  console.log(JSON.stringify(summaries,null,2));
+  const failed=summaries.filter(item=>!item.identical);
+  if(failed.length)throw new Error('A renderização estável do shell divergiu da baseline visual em: '+failed.map(item=>item.theme).join(', '));
 }finally{
   if(candidateServer)await close(candidateServer).catch(()=>{});
   if(baselineServer)await close(baselineServer).catch(()=>{});
