@@ -33,29 +33,9 @@ export const MENU_LENS = {
 
 const BAR_LENS = {
   light: {
-    mapSize: 256,
-    clipToShape: true,
-    softEdge: true,
-    depth: 0.72,
-    curvature: 0.3,
-    dispersion: 0.16,
-    strength: 0.24,
-    bend: 0.65,
-    bendWidth: 0.07,
-    frost: 3,
     brightness: 0.34,
   },
   dark: {
-    mapSize: 256,
-    clipToShape: true,
-    softEdge: true,
-    depth: 0.72,
-    curvature: 0.3,
-    dispersion: 0.16,
-    strength: 0.24,
-    bend: 0.65,
-    bendWidth: 0.07,
-    frost: 3,
     brightness: 0.2,
   },
   readTheme() {

@@ -49,8 +49,12 @@ test('React UX imports the official Glass primitive and follows GlassContextMenu
   assert.match(src,/function GlassContextMenu/);
   assert.match(src,/<Glass[\s\S]*?optics=\{MENU_LENS\}[\s\S]*?className="glass-menu-material"/);
   const barLens=src.slice(src.indexOf('const BAR_LENS = {'),src.indexOf('const MENU_RADIUS'));
-  assert.match(barLens,/light: \{[\s\S]*?frost: 3,[\s\S]*?brightness: 0\.34,[\s\S]*?dark: \{[\s\S]*?frost: 3,[\s\S]*?brightness: 0\.2,[\s\S]*?readTheme\(\)[\s\S]*?subscribe\(onStoreChange\)[\s\S]*?serverTheme\(\)/);
-  for(const field of ['specular','sheenAngle','glow','glowSpread','glowFalloff','sheen','sheenWidth']){
+  assert.match(barLens,/light: \{\s*brightness: 0\.34,\s*\},\s*dark: \{\s*brightness: 0\.2,\s*\},[\s\S]*?readTheme\(\)[\s\S]*?subscribe\(onStoreChange\)[\s\S]*?serverTheme\(\)/);
+  for(const field of [
+    'mapSize','clipToShape','softEdge','depth','curvature','dispersion','strength',
+    'bend','bendWidth','frost','specular','sheenAngle','glow','glowSpread',
+    'glowFalloff','sheen','sheenWidth'
+  ]){
     assert.equal(barLens.includes(field+':'),false,field+' must come from GlassMaterial defaults');
   }
   assert.doesNotMatch(barLens,/\.\.\.MENU_LENS/);
