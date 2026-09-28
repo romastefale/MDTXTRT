@@ -233,6 +233,11 @@ test('UI preserves compact portrait contract, unified chrome scale and anchored 
   assert.match(html,/\*::-webkit-scrollbar\{width:0;height:0;display:none\}/);
   assert.match(html,/:where\(button,input,textarea,\[contenteditable="true"\]\):focus-visible/);
   assert.match(html,/@media \(orientation:landscape\),\(min-width:760px\)/);
+  assert.match(html,/\.device-gate\{[\s\S]*?pointer-events:none/);
+  assert.doesNotMatch(html,/\.device-gate\{[\s\S]*?inset:0/);
+  assert.match(html,/id="deviceGate" role="status" aria-live="polite"/);
+  assert.doesNotMatch(html,/id="deviceGate"[^>]*aria-modal=/);
+  assert.match(html,/Você pode continuar nesta tela\./);
   assert.match(html,/--control-size:clamp\(36px,10vw,40px\)/);
   assert.match(html,/--theme-control-size:clamp\(21\.6px,6vw,24px\)/);
   assert.match(html,/--theme-icon-size:clamp\(10\.8px,3vw,12px\)/);
