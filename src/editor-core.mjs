@@ -78,15 +78,15 @@ const nodes={
   },
   video:{
     group:"block",atom:true,
-    attrs:{...textAttrs("src","data-media-id","data-media-missing","width","height"),...boolAttrs("controls")},
-    parseDOM:[{tag:"video",getAttrs:el=>({...readAttrs(el,["src","data-media-id","data-media-missing","width","height"],["controls"])} )}],
-    toDOM:node=>["video",domAttrs(node.attrs,["src","data-media-id","data-media-missing","width","height"],["controls"])]
+    attrs:{...textAttrs("src","data-media-id","data-media-missing","width","height"),controls:{default:true}},
+    parseDOM:[{tag:"video",getAttrs:el=>({...readAttrs(el,["src","data-media-id","data-media-missing","width","height"]),controls:true})}],
+    toDOM:node=>["video",domAttrs({...node.attrs,controls:true},["src","data-media-id","data-media-missing","width","height"],["controls"])]
   },
   audio:{
     group:"block",atom:true,
-    attrs:{...textAttrs("src","data-media-id","data-media-missing"),...boolAttrs("controls")},
-    parseDOM:[{tag:"audio",getAttrs:el=>readAttrs(el,["src","data-media-id","data-media-missing"],["controls"])}],
-    toDOM:node=>["audio",domAttrs(node.attrs,["src","data-media-id","data-media-missing"],["controls"])]
+    attrs:{...textAttrs("src","data-media-id","data-media-missing"),controls:{default:true}},
+    parseDOM:[{tag:"audio",getAttrs:el=>({...readAttrs(el,["src","data-media-id","data-media-missing"]),controls:true})}],
+    toDOM:node=>["audio",domAttrs({...node.attrs,controls:true},["src","data-media-id","data-media-missing"],["controls"])]
   },
   document:{
     group:"block",atom:true,
@@ -224,10 +224,7 @@ export function createEditorCore({element,onChange=()=>{},onSelectionChange=()=>
   if(!element)throw new Error("Elemento do editor ausente");
   let view;
   const initial=parseDOM(element);
-  let state=EditorState.create({
-    schema,
-    doc:initial,
-    plugins:[
+  const plugins=[
       history({depth:120,newGroupDelay:500}),
       keymap({
         "Mod-b":(s,d)=>toggleMark(schema.marks.strong)(s,d),
@@ -237,8 +234,8 @@ export function createEditorCore({element,onChange=()=>{},onSelectionChange=()=>
         "Mod-Shift-z":redo,
         "Mod-y":redo
       })
-    ]
-  });
+    ];
+  let state=EditorState.create({schema,doc:initial,plugins});
 
   function dispatchTransaction(tr){
     const docChanged=tr.docChanged;
@@ -272,6 +269,13 @@ export function createEditorCore({element,onChange=()=>{},onSelectionChange=()=>
     let tr=state.tr.replaceWith(0,state.doc.content.size,doc.content);
     tr=tr.setSelection(Selection.atEnd(tr.doc));
     dispatch(tr,{silent,addToHistory});
+  }
+  function resetHTML(html,{silent=true}={}){
+    const doc=parseHTML(element,html);
+    state=EditorState.create({schema,doc,plugins});
+    view.updateState(state);
+    if(!silent)onChange({state,transaction:null});
+    onSelectionChange({state,transaction:null});
   }
   function syncFromDOM({silent=false,addToHistory=true}={}){
     const next=parseDOM(element);
@@ -464,6 +468,19 @@ export function createEditorCore({element,onChange=()=>{},onSelectionChange=()=>
     dispatch(tr);
     return all.length;
   }
+  function patchMedia(id,patch){
+    let tr=state.tr,changed=false;
+    state.doc.descendants((node,pos)=>{
+      if(node.attrs?.["data-media-id"]===id){
+        tr=tr.setNodeMarkup(pos,node.type,{...node.attrs,...patch},node.marks);
+        changed=true;
+        return false;
+      }
+      return true;
+    });
+    if(changed)dispatch(tr,{silent:true,addToHistory:false});
+    return changed;
+  }
   function html(){
     const holder=element.ownerDocument.createElement("div");
     holder.appendChild(DOMSerializer.fromSchema(schema).serializeFragment(state.doc.content,{document:element.ownerDocument}));
@@ -476,7 +493,9 @@ export function createEditorCore({element,onChange=()=>{},onSelectionChange=()=>
     schema,
     html,
     setHTML,
+    resetHTML,
     syncFromDOM,
+    patchMedia,
     focus:()=>view.focus(),
     saveSelection:()=>state.selection.getBookmark(),
     restoreSelection:()=>view.focus(),
@@ -495,6 +514,7 @@ export function createEditorCore({element,onChange=()=>{},onSelectionChange=()=>
     findNext,
     selectRange,
     selectedText,
+    selectionEmpty:()=>state.selection.empty,
     selectionMatches,
     replaceSelection,
     replaceAllLiteral,
