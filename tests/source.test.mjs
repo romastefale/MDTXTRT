@@ -77,6 +77,16 @@ test('MDTXTRT contains no bespoke Liquid Glass renderer or implicit browser fall
   assert.match(server,/"ui\.js"/);
 });
 
+test('background keeps a centered organic accent field with solid chrome-colored edges',()=>{
+  const html=read('index.html');
+  const bg=html.match(/\.bg\{([\s\S]*?)\n    \}/)?.[1]||'';
+  assert.equal((bg.match(/radial-gradient\(/g)||[]).length,3);
+  assert.match(bg,/at 43% 44%/);
+  assert.match(bg,/at 59% 53%/);
+  assert.match(bg,/at 51% 61%/);
+  assert.match(bg,/var\(--bg\)\s*$/);
+});
+
 test('theme neutrals are chromatic derivatives of the active accent',()=>{
   const html=read('index.html');
   assert.match(html,/--accent:#2B88D8;/);
