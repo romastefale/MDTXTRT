@@ -782,3 +782,104 @@ test('late Telegraph recovery response is ignored after the same document advanc
   assert.equal(w.eval('draftState().telegraphPath'),'');
   w.close();
 });
+
+
+test('handoff claim restores draft without authorizing publication automatically',async()=>{
+  const token='a1'.repeat(16);
+  const doc='71717171-7171-4717-8717-717171717171';
+  const initData='start_param=h_'+token;
+  const requests=[];
+  const pending={type:'publish',status:'pending',attempts:0,result:null,error:'',startedAt:0,finishedAt:0,doc,revision:0};
+  const succeeded={...pending,status:'succeeded',attempts:1,result:{via:'sendRichMessage',messageId:42},finishedAt:1};
+  const fetch=async(url,options={})=>{
+    const target=String(url);requests.push({url:target,options});
+    if(target.endsWith('/api/telegram/session'))return {ok:true,status:200,json:async()=>({ok:true})};
+    if(target.endsWith('/api/handoff/claim'))return {ok:true,status:200,json:async()=>({draft:{version:2,name:'Transferido',html:'<p>conteúdo</p>',dest:'telegram',telegraphPath:'',docId:doc,revision:0,importedMd:'',importedTxt:'',importedHtml:'',media:null},file:null,action:pending})};
+    if(target.endsWith('/api/handoff/publish'))return {ok:true,status:200,json:async()=>({action:succeeded,result:succeeded.result,reused:false})};
+    return {ok:false,status:404,json:async()=>({error:'not found'})};
+  };
+  const w=page({fetch,tg:{initData}}),d=w.document;
+  await wait(15);
+  assert.equal(d.querySelector('#docName').value,'Transferido');
+  assert.equal(d.querySelector('#editor').textContent,'conteúdo');
+  assert.equal(requests.filter(r=>r.url.endsWith('/api/handoff/claim')).length,1);
+  assert.equal(requests.filter(r=>r.url.endsWith('/api/handoff/publish')).length,0);
+  assert.equal(requests.filter(r=>r.url.endsWith('/api/telegram/send')).length,0);
+  assert.match(d.querySelector('#toast').textContent,/Toque em Publicar/);
+
+  await w.eval('publishCurrent()');
+  assert.equal(requests.filter(r=>r.url.endsWith('/api/handoff/publish')).length,1);
+  assert.equal(requests.filter(r=>r.url.endsWith('/api/telegram/send')).length,0);
+  assert.match(d.querySelector('#toast').textContent,/Mensagem enviada/);
+  w.close();
+});
+
+test('completed handoff reload recovers confirmed result without sending again',async()=>{
+  const token='b2'.repeat(16);
+  const doc='72727272-7272-4727-8727-727272727272';
+  const initData='start_param=h_'+token;
+  const requests=[];
+  const action={type:'publish',status:'succeeded',attempts:1,result:{via:'sendRichMessage',messageId:42},error:'',startedAt:1,finishedAt:2,doc,revision:0};
+  const fetch=async(url,options={})=>{
+    const target=String(url);requests.push({url:target,options});
+    if(target.endsWith('/api/telegram/session'))return {ok:true,status:200,json:async()=>({ok:true})};
+    if(target.endsWith('/api/handoff/claim'))return {ok:true,status:200,json:async()=>({draft:{version:2,name:'Já enviado',html:'<p>confirmado</p>',dest:'telegram',telegraphPath:'',docId:doc,revision:0,importedMd:'',importedTxt:'',importedHtml:'',media:null},file:null,action})};
+    return {ok:false,status:404,json:async()=>({error:'not found'})};
+  };
+  const w=page({fetch,tg:{initData}}),d=w.document;
+  await wait(15);
+  assert.equal(requests.filter(r=>r.url.endsWith('/api/handoff/claim')).length,1);
+  assert.equal(requests.filter(r=>r.url.endsWith('/api/handoff/publish')).length,0);
+  assert.equal(requests.filter(r=>r.url.endsWith('/api/telegram/send')).length,0);
+  assert.match(d.querySelector('#toast').textContent,/já foi publicada/);
+  w.close();
+});
+
+test('handoff publish timeout checks status once and never retries the send silently',async()=>{
+  const token='c3'.repeat(16);
+  const doc='73737373-7373-4737-8737-737373737373';
+  const initData='start_param=h_'+token;
+  const requests=[];
+  const pending={type:'publish',status:'pending',attempts:0,result:null,error:'',startedAt:0,finishedAt:0,doc,revision:0};
+  const uncertain={...pending,status:'uncertain',attempts:1,error:'Resultado potencialmente incerto',finishedAt:2};
+  const fetch=async(url,options={})=>{
+    const target=String(url);requests.push({url:target,options});
+    if(target.endsWith('/api/telegram/session'))return {ok:true,status:200,json:async()=>({ok:true})};
+    if(target.endsWith('/api/handoff/claim'))return {ok:true,status:200,json:async()=>({draft:{version:2,name:'Timeout',html:'<p>texto</p>',dest:'telegram',telegraphPath:'',docId:doc,revision:0,importedMd:'',importedTxt:'',importedHtml:'',media:null},file:null,action:pending})};
+    if(target.endsWith('/api/handoff/publish')){const error=new Error('timeout');error.name='TimeoutError';throw error;}
+    if(target.endsWith('/api/handoff/status'))return {ok:true,status:200,json:async()=>({action:uncertain})};
+    return {ok:false,status:404,json:async()=>({error:'not found'})};
+  };
+  const w=page({fetch,tg:{initData}}),d=w.document;
+  await wait(15);
+  await w.eval('publishCurrent()');
+  assert.equal(requests.filter(r=>r.url.endsWith('/api/handoff/publish')).length,1);
+  assert.equal(requests.filter(r=>r.url.endsWith('/api/handoff/status')).length,1);
+  assert.equal(requests.filter(r=>r.url.endsWith('/api/telegram/send')).length,0);
+  assert.match(d.querySelector('#toast').textContent,/potencialmente incerto/);
+  w.close();
+});
+
+test('editing recovered handoff prevents publishing a stale transferred action',async()=>{
+  const token='d4'.repeat(16);
+  const doc='74747474-7474-4747-8747-747474747474';
+  const initData='start_param=h_'+token;
+  const requests=[];
+  const pending={type:'publish',status:'pending',attempts:0,result:null,error:'',startedAt:0,finishedAt:0,doc,revision:0};
+  const fetch=async(url,options={})=>{
+    const target=String(url);requests.push({url:target,options});
+    if(target.endsWith('/api/telegram/session'))return {ok:true,status:200,json:async()=>({ok:true})};
+    if(target.endsWith('/api/handoff/claim'))return {ok:true,status:200,json:async()=>({draft:{version:2,name:'Original',html:'<p>original</p>',dest:'telegram',telegraphPath:'',docId:doc,revision:0,importedMd:'',importedTxt:'',importedHtml:'',media:null},file:null,action:pending})};
+    return {ok:false,status:404,json:async()=>({error:'not found'})};
+  };
+  const w=page({fetch,tg:{initData}}),d=w.document;
+  await wait(15);
+  const editor=d.querySelector('#editor');
+  editor.innerHTML='<p>editado</p>';
+  editor.dispatchEvent(new w.Event('input',{bubbles:true}));
+  await w.eval('publishCurrent()');
+  assert.equal(requests.filter(r=>r.url.endsWith('/api/handoff/publish')).length,0);
+  assert.equal(requests.filter(r=>r.url.endsWith('/api/telegram/send')).length,0);
+  assert.match(d.querySelector('#toast').textContent,/documento mudou/);
+  w.close();
+});
