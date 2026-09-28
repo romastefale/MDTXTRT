@@ -109,6 +109,10 @@ test("bar and menu Glass materials keep the standardized neutral surface across 
     w.AbortSignal.timeout = () => new w.AbortController().signal;
   }
   w.HTMLElement.prototype.scrollIntoView = function() {};
+  w.Range.prototype.getClientRects = function() { return []; };
+  w.Range.prototype.getBoundingClientRect = function() { return {left:0,right:0,top:0,bottom:0,width:0,height:0}; };
+  w.HTMLElement.prototype.getClientRects = function() { return []; };
+  w.HTMLElement.prototype.getBoundingClientRect = function() { return {left:0,right:0,top:0,bottom:0,width:0,height:0}; };
   w.URL.createObjectURL = () => "blob:test";
   w.URL.revokeObjectURL = () => {};
   w.fetch = async () => ({
@@ -135,6 +139,7 @@ test("bar and menu Glass materials keep the standardized neutral surface across 
   const restore = installBrowserGlobals(w);
 
   try {
+    w.eval(readFileSync(new URL("editor-core.js", root), "utf8"));
     await import(new URL("../ui.js?glass-runtime-theme", import.meta.url).href);
     await wait();
     await wait();
