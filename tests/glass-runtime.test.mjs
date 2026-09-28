@@ -27,6 +27,7 @@ function installBrowserGlobals(window) {
     navigator: window.navigator,
     MutationObserver: window.MutationObserver,
     ResizeObserver,
+    matchMedia: window.matchMedia.bind(window),
     getComputedStyle: window.getComputedStyle.bind(window),
     HTMLElement: window.HTMLElement,
     Element: window.Element,
