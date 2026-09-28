@@ -627,3 +627,34 @@ test('step 5 overlays use the visual viewport without changing the baseline mate
   assert.match(html,/--menu-radius:9px/);
   assert.match(html,/\.glass-menu-material,\.toast-material\{background:var\(--glass-tint\)\}/);
 });
+
+
+test('final release gap analysis and immutable anchor gates are explicit',()=>{
+  for(const file of ['GAP_ANALYSIS.md','RELEASE_VALIDATION.md','RELEASE_EVIDENCE_TEMPLATE.md','RELEASE_ANCHOR.md','RELEASE_MANIFEST.json','.github/workflows/release-validation.yml','scripts/verify-release-manifest.mjs','scripts/verify-visual-baseline.mjs','scripts/validate-release-evidence.mjs']){
+    assert.ok(existsSync(new URL('../'+file,import.meta.url)),file);
+  }
+  const workflow=read('.github/workflows/release-validation.yml');
+  const gap=read('GAP_ANALYSIS.md');
+  const validation=read('RELEASE_VALIDATION.md');
+  const anchor=read('RELEASE_ANCHOR.md');
+  const manifest=JSON.parse(read('RELEASE_MANIFEST.json'));
+  assert.match(workflow,/workflow_dispatch:/);
+  assert.match(workflow,/name: Rebuild all committed bundles[\s\S]*?npm run build/);
+  assert.match(workflow,/git diff --exit-code -- editor-core\.js ui\.js/);
+  assert.match(workflow,/node scripts\/verify-release-manifest\.mjs/);
+  assert.match(workflow,/node scripts\/verify-visual-baseline\.mjs/);
+  assert.match(workflow,/CERTIFICATION_STATUS/);
+  assert.doesNotMatch(workflow,/contents:\s*write|git push/);
+  assert.equal(manifest.visualBaseline,'dde30467ed9b0d108bac2ae7ad9bcac1137c169e');
+  assert.deepEqual(manifest.runtime,{node:'24.21.0',npm:'11.19.0'});
+  assert.equal(manifest.stages.length,6);
+  assert.equal(manifest.stages.at(-1).head,'e20d115b18424ab5c9abfa7e175b5376fe0633fb');
+  assert.equal(manifest.anchorPolicy.authority,'full-git-commit-sha');
+  assert.equal(manifest.anchorPolicy.immutable,true);
+  assert.match(gap,/G-05 — No real Telegraph create\/recover\/edit\/restart evidence/);
+  assert.match(gap,/Status:\*\* BLOCKING until real authorized evidence exists|\*\*Status:\*\* BLOCKING until real authorized evidence exists/);
+  assert.match(validation,/Final status is one of:|Release status is one of:/);
+  assert.match(validation,/RELEASE APPROVED/);
+  assert.match(anchor,/full commit SHA is the canonical authority/i);
+  assert.match(anchor,/superseding Release Anchor/);
+});
