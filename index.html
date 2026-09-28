@@ -306,25 +306,26 @@
     .seg .action-dot{width:var(--control-size);height:var(--control-size)}
     .glass-menu{
       position:fixed;left:50%;top:50%;right:auto;bottom:auto;z-index:40;margin:0;
-      width:min(var(--menu-w),calc(100vw - 16px));height:max-content;
-      max-height:min(55vh,420px);overflow:visible;padding:0;border:0;
+      width:min(var(--menu-w),var(--menu-max-width,calc(100vw - 16px)));height:max-content;
+      max-height:var(--menu-max-height,min(55vh,420px));overflow:visible;padding:0;border:0;
       border-radius:var(--menu-radius);background:transparent;color:var(--text);
       transform:translate(-50%,-50%)
     }
     .glass-menu[data-anchor]{left:var(--menu-left,50%);top:var(--menu-top,50%);transform:none}
-    .glass-menu.wide-menu{width:min(var(--menu-w),calc(100vw - 16px))}
-    .glass-menu.dialog-menu,.glass-menu.find-menu{width:min(280px,calc(100vw - 16px))}
+    .glass-menu.wide-menu{width:min(var(--menu-w),var(--menu-max-width,calc(100vw - 16px)))}
+    .glass-menu.dialog-menu,.glass-menu.find-menu{width:min(280px,var(--menu-max-width,calc(100vw - 16px)))}
     .glass-menu:not(:popover-open){display:none}
     .glass-menu:popover-open{display:block;animation:glass-menu-in .14s cubic-bezier(.2,.75,.25,1)}
+    #dialogMenu:popover-open::backdrop{background:transparent;pointer-events:auto}
     @keyframes glass-menu-in{from{opacity:0}to{opacity:1}}
     .glass-menu-material{border-radius:var(--menu-radius)}
     .glass-menu-content{
-      position:relative;z-index:1;max-height:min(55vh,420px);overflow:hidden;
+      position:relative;z-index:1;display:flex;flex-direction:column;max-height:var(--menu-max-height,min(55vh,420px));overflow:hidden;
       border-radius:var(--menu-radius);padding:5px 6px;
       box-shadow:inset 0 0 0 1px var(--glass-hairline),0 14px 34px var(--menu-shadow),0 2px 6px var(--menu-shadow-tight)
     }
     .menu-list{
-      display:flex;flex-direction:column;gap:0;min-height:0;max-height:calc(min(55vh,420px) - 10px);
+      display:flex;flex:1 1 auto;flex-direction:column;gap:0;min-height:0;max-height:none;
       overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y
     }
     .menu-list > button{
@@ -364,7 +365,7 @@
       min-height:30px;border:0;border-radius:6px;background:color-mix(in srgb,var(--accent) 18%,transparent);
       padding:0 9px;color:inherit;font-size:12px
     }
-    .dialog{display:flex;flex-direction:column;gap:7px;width:100%;padding:3px}
+    .dialog{display:flex;flex-direction:column;gap:7px;width:100%;min-height:0;max-height:100%;overflow-y:auto;overscroll-behavior:contain;padding:3px}
     .dialog-label{font-size:12px;line-height:1.35;color:var(--muted);padding:2px 4px}
     #dialogInput{
       width:100%;min-height:34px;max-height:112px;resize:none;border:0;border-radius:7px;
