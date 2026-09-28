@@ -58,12 +58,12 @@ const nodes={
     toDOM:node=>["ol",{...(node.attrs.order!==1?{start:String(node.attrs.order)}:{}),...(node.attrs.reversed?{reversed:""}:{})},0]
   },
   list_item:{
-    attrs:{value:{default:null}},content:"paragraph block*",defining:true,
+    attrs:{value:{default:null}},content:"task_checkbox? paragraph block*",defining:true,
     parseDOM:[{tag:"li",getAttrs:el=>({value:el.hasAttribute("value")?Number(el.getAttribute("value")):null})}],
     toDOM:node=>["li",node.attrs.value===null?{}:{value:String(node.attrs.value)},0]
   },
   task_checkbox:{
-    attrs:{checked:{default:false},disabled:{default:false}},inline:true,group:"inline",atom:true,selectable:false,
+    attrs:{checked:{default:false},disabled:{default:false}},inline:false,group:"block",atom:true,selectable:false,
     parseDOM:[{tag:"input[type=checkbox]",getAttrs:el=>({checked:el.hasAttribute("checked"),disabled:el.hasAttribute("disabled")})}],
     toDOM:node=>["input",{type:"checkbox",...(node.attrs.checked?{checked:""}:{}),...(node.attrs.disabled?{disabled:""}:{})}]
   },
@@ -439,8 +439,8 @@ export function createEditorCore({element,onChange=()=>{},onSelectionChange=()=>
       const caretOffset=Math.max(0,$from.parentOffset-markerLength);
       const checkbox=schema.nodes.task_checkbox.create({checked:task[1].toLowerCase()==="x",disabled:false});
       const content=Fragment.from(checkbox).append(node.content.cut(markerLength));
-      const paragraph=schema.nodes.paragraph.create(null,content);
-      const item=schema.nodes.list_item.create(null,paragraph);
+      const paragraph=schema.nodes.paragraph.create(null,node.content.cut(markerLength));
+      const item=schema.nodes.list_item.create(null,Fragment.fromArray([checkbox,paragraph]));
       const list=schema.nodes.bullet_list.create(null,item);
       let tr=state.tr.replaceWith(blockPos,blockPos+node.nodeSize,list);
       tr=tr.setSelection(TextSelection.create(tr.doc,blockPos+4+caretOffset));
