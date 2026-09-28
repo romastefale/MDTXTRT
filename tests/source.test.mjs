@@ -80,9 +80,10 @@ test('theme neutrals are chromatic derivatives of the active accent',()=>{
   assert.match(html,/--glass-tint:color-mix\(in oklab,var\(--accent\) 11%,transparent\);/);
   assert.match(html,/html\.light\{[\s\S]*?--glass-tint:color-mix\(in oklab,var\(--accent\) 7%,transparent\);/);
   assert.match(html,/--bar-glass-tint:color-mix\(in oklab,var\(--accent\) 18%,transparent\);/);
-  assert.match(html,/--bar-control-accent-bg:color-mix\(in oklab,var\(--accent\) 10%,rgba\(0,0,0,\.72\)\);/);
+  assert.match(html,/--bar-control-accent-bg:color-mix\(in oklab,var\(--accent\) 24%,transparent\);/);
   assert.match(html,/html\.light\{[\s\S]*?--bar-glass-tint:color-mix\(in oklab,var\(--accent\) 13%,transparent\);/);
-  assert.match(html,/html\.light\{[\s\S]*?--bar-control-accent-bg:color-mix\(in oklab,var\(--accent\) 10%,rgba\(255,255,255,\.72\)\);/);
+  assert.match(html,/html\.light\{[\s\S]*?--bar-control-accent-bg:color-mix\(in oklab,var\(--accent\) 18%,transparent\);/);
+  assert.doesNotMatch(html,/--bar-(?:glass-tint|glass-tint-strong|control-accent-bg):[^;]*rgba\(/);
   assert.match(html,/\.seg,\.bar,\.theme-control\{[^}]*background:var\(--bar-glass-tint\)/);
   assert.match(html,/\.glass-menu-material,\.toast-material\{background:var\(--glass-tint\)\}/);
   assert.match(html,/box-shadow:inset 0 0 0 \.5px var\(--glass-inner\),0 0 0 \.5px var\(--glass-edge\)/);
