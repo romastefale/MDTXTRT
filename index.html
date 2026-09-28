@@ -198,16 +198,18 @@
       background:transparent;display:grid;place-items:center;padding:0
     }
     .seg button.active{background:var(--bar-control-accent-bg);color:var(--accent)}
+    .seg #undoBtn,.seg #redoBtn{background:var(--bar-control-accent-bg);color:var(--accent)}
     .seg #destBtn{position:relative;background:var(--bar-control-accent-bg);color:var(--accent)}
     .seg #destBtn .ui-icon{width:22px;height:22px}
     .seg #destBtn.active{background:var(--bar-glass-tint-strong)}
     .seg button.is-flash{position:relative}
     .seg button.is-flash::before{
       content:"";position:absolute;inset:0;border-radius:50%;
-      background:var(--bar-glass-tint-strong);z-index:0;animation:flash-out 1.4s ease forwards
+      background:var(--accent);z-index:0;animation:flash-out 1.4s ease forwards
     }
-    .seg button.is-flash > *{position:relative;z-index:1}
+    .seg button.is-flash > *{position:relative;z-index:1;animation:flash-icon 1.4s ease forwards}
     @keyframes flash-out{0%,35%{opacity:1}100%{opacity:0}}
+    @keyframes flash-icon{0%,35%{color:#fff}100%{color:var(--accent)}}
     .bar > button{position:relative}
     .bar > button.on{background:transparent;color:var(--accent)}
     .bar > button.on::before{
