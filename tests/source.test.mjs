@@ -64,6 +64,8 @@ test('ProseMirror editor dependencies, schema and transaction primitives are pin
   assert.match(core,/new EditorView/);
   assert.match(core,/history\(\{/);
   assert.match(core,/dispatchTransaction/);
+  assert.match(core,/content:"paragraph block\*"/);
+  assert.match(core,/inline:true,group:"inline",atom:true,selectable:false/);
 });
 
 test('React UX imports the official Glass primitive and standardizes menu optics with chrome capsules',()=>{
