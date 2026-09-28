@@ -174,6 +174,19 @@ For every cell verify top/bottom chrome reachability, menu reachability, interna
 
 **Status:** CLOSED by this branch.
 
+### G-13 — Pull-request validation used the synthetic merge commit
+
+**Observed:** the first green automated release run was associated with the candidate branch head but the default pull-request checkout resolved to GitHub's synthetic merge ref. The visual harness therefore reported a different candidate SHA than the proposed Release Anchor.
+
+**Risk:** integration success at a synthetic merge commit is not proof that the immutable Release Anchor SHA itself was rebuilt, tested and visually compared.
+
+**Correction:** the automated release job explicitly checks out `github.event.pull_request.head.sha` for pull-request runs and `github.sha` for manual runs. Artifact names use the same resolved candidate identity. The manifest verifier and visual harness then operate on that exact checkout.
+
+**Acceptance:** a post-correction release-validation run must be green and its visual summary must report the exact branch head SHA that will be sealed as the Release Anchor.
+
+**Status:** BLOCKING until a post-correction exact-SHA run is green.
+
+
 ## Additional exception flows added to release acceptance
 
 The following flows were missing as explicit final-release criteria and are now mandatory:
