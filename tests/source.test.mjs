@@ -176,23 +176,30 @@ test('editor uses incremental Markdown input rules on the transactional core',()
     'const ordered=text.match(/^(\\d+)\\. (?=\\S)/);',
     'const task=allowTask&&text.match(/^- \\[([ xX])\\] (?=\\S)/)',
     'function exitFormattedBlock()',
-    'tr=tr.wrap(range,[{type:schema.nodes.blockquote',
-    'tr=tr.wrap(range,[{type:listType,attrs},{type:schema.nodes.list_item}])'
+    'function normalizeEmptyFormattedBlock(inputType="")',
+    'function applyMarkdownInlineRule()',
+    '{marker:"**",type:schema.marks.strong}',
+    '{marker:"~~",type:schema.marks.strike}',
+    '{marker:"`",type:schema.marks.code}',
+    '{marker:"*",type:schema.marks.em,single:true}'
   ])assert.ok(core.includes(fragment),fragment);
   for(const fragment of [
     "editorCore.applyMarkdownBlockRule({allowTask:dest==='telegram'})",
+    'editorCore.applyMarkdownInlineRule()',
+    "editorCore.normalizeEmptyFormattedBlock(event?.inputType||'')",
+    'editorCore.exitFormattedBlock()',
     'function exitFormattedBlockOnParagraph(event)',
     "editor.addEventListener('beforeinput',exitFormattedBlockOnParagraph);",
-    'function normalizeEmptyFormattedBlock(event)',
     'function syncEditorSelectionUI()',
-    "btn.setAttribute('aria-pressed',String(on));",
-    "markdownInlineWrap(text,offset,'**','strong')",
-    "markdownInlineWrap(text,offset,'~~','s')",
-    "markdownInlineWrap(text,offset,'`','code')",
-    "markdownInlineWrap(text,offset,'*','em',{single:true})"
+    "btn.setAttribute('aria-pressed',String(on));"
   ])assert.ok(app.includes(fragment),fragment);
+  for(const legacy of [
+    'function markdownBlockRule()',
+    'function markdownInlineRule()',
+    'function markdownInlineWrap(',
+    'function normalizeEmptyFormattedBlock(event)'
+  ])assert.equal(app.includes(legacy),false,legacy);
 });
-
 test('editorial document typography uses the Telegraph serif family without changing app chrome',()=>{
   const html=read('index.html');
   assert.match(html,/\.editor\{[\s\S]*?font-family:Georgia,"Times New Roman",serif;/);
