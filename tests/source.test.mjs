@@ -48,8 +48,12 @@ test('React UX imports the official Glass primitive and follows GlassContextMenu
   ])assert.ok(src.includes(fragment),fragment);
   assert.match(src,/function GlassContextMenu/);
   assert.match(src,/<Glass[\s\S]*?optics=\{MENU_LENS\}[\s\S]*?className="glass-menu-material"/);
-  assert.match(src,/const BAR_LENS = \{[\s\S]*?light: \{[\s\S]*?brightness: 0\.34,[\s\S]*?specular: 0\.68,[\s\S]*?sheen: 0\.3,[\s\S]*?dark: \{[\s\S]*?brightness: 0\.2,[\s\S]*?specular: 0\.5,[\s\S]*?sheen: 0\.22,[\s\S]*?readTheme\(\)[\s\S]*?subscribe\(onStoreChange\)[\s\S]*?serverTheme\(\)/);
-  assert.doesNotMatch(src,/const BAR_LENS = \{[\s\S]*?\.\.\.MENU_LENS/);
+  const barLens=src.slice(src.indexOf('const BAR_LENS = {'),src.indexOf('const MENU_RADIUS'));
+  assert.match(barLens,/light: \{[\s\S]*?frost: 3,[\s\S]*?brightness: 0\.34,[\s\S]*?dark: \{[\s\S]*?frost: 3,[\s\S]*?brightness: 0\.2,[\s\S]*?readTheme\(\)[\s\S]*?subscribe\(onStoreChange\)[\s\S]*?serverTheme\(\)/);
+  for(const field of ['specular','sheenAngle','glow','glowSpread','glowFalloff','sheen','sheenWidth']){
+    assert.equal(barLens.includes(field+':'),false,field+' must come from GlassMaterial defaults');
+  }
+  assert.doesNotMatch(barLens,/\.\.\.MENU_LENS/);
   assert.match(src,/function GlassControl[\s\S]*?React\.useSyncExternalStore\([\s\S]*?BAR_LENS\.subscribe,[\s\S]*?BAR_LENS\.readTheme,[\s\S]*?BAR_LENS\.serverTheme,[\s\S]*?<Glass[\s\S]*?optics=\{BAR_LENS\[theme\]\}/);
   assert.match(src,/style=\{\{ display: "flex", alignItems: "center", \.\.\.style \}\}/);
   assert.match(src,/className="glass-menu-material"[\s\S]*?style=\{\{ display: "block", width: "100%" \}\}/);
@@ -90,12 +94,30 @@ test('theme neutrals are chromatic derivatives of the active accent',()=>{
   assert.match(html,/\.seg,\.bar\{[^}]*background:var\(--bar-glass-tint\)/);
   assert.doesNotMatch(html,/\.theme-switch\{[^}]*background:var\(--bar-glass-tint\)/);
   assert.match(html,/\.glass-menu-material,\.toast-material\{background:var\(--glass-tint\)\}/);
-  assert.match(html,/box-shadow:inset 0 0 0 \.5px var\(--glass-inner\),0 0 0 \.5px var\(--glass-edge\)/);
-  assert.match(html,/\.menu-divider::after\{[^}]*background:var\(--glass-edge\)\}/);
+  assert.match(html,/box-shadow:inset 0 0 0 \.5px var\(--menu-inner\),0 0 0 \.5px var\(--menu-edge\)/);
+  assert.match(html,/\.menu-divider::after\{[^}]*background:var\(--menu-edge\)\}/);
+  assert.doesNotMatch(html,/--glass-edge:/);
+  assert.doesNotMatch(html,/--glass-inner:/);
+  assert.doesNotMatch(html,/--glass-shadow:/);
+  assert.doesNotMatch(html,/--glass-shadow-tight:/);
   assert.match(html,/\.menu-list > button:hover,\.menu-list > button:focus-visible\{background:var\(--accent\);color:#fff\}/);
   assert.match(html,/\.dialog-actions #dialogOk\{background:var\(--accent\);color:#fff\}/);
   assert.match(html,/html\.dark\{--accent:#2B88D8;color-scheme:dark\}/);
   assert.doesNotMatch(html,/html\.dark\{[^}]*--muted:/);
+});
+
+test('bar material finish is owned by the Liquid Glass renderer',()=>{
+  const html=read('index.html');
+  const shared=html.match(/\.seg,\.bar\{([^}]*)\}/)?.[1]||'';
+  const seg=html.match(/\.seg\{([^}]*)\}/)?.[1]||'';
+  const bar=html.match(/\.bar\{([^}]*)\}/)?.[1]||'';
+  for(const block of [shared,seg,bar]){
+    assert.doesNotMatch(block,/(?:^|;)\s*border\s*:/);
+    assert.doesNotMatch(block,/box-shadow|(?:linear|radial|conic)-gradient/);
+  }
+  assert.doesNotMatch(html,/\.(?:seg|bar)::(?:before|after)\{/);
+  assert.match(shared,/background:var\(--bar-glass-tint\)/);
+  assert.match(shared,/border-radius:999px/);
 });
 
 test('editor uses incremental Markdown input rules without replacing the rich-text model',()=>{
