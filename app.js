@@ -13,7 +13,7 @@ let dest = 'telegram';
 let session='browser',busy=false;
 const plusSubmenus=['#plus-file-menu','#plus-format-menu','#plus-structure-menu','#plus-media-menu','#plus-interaction-menu'];
 const sheets=['#plusMenu',...plusSubmenus,'#headingMenu','#quoteMenu','#listMenu','#exportMenu','#findMenu'];
-let savedRange = null, hist = [], histI = -1, histLock = false, composing = false, saveTimer = null, telegraphPath = '', docId = crypto.randomUUID(), docRevision = 0, importedMd = '', importedTxt = '', importedHtml = '', mediaFile = null, mediaChoice = null, draftWriteBlocked = false, draftBlockNoticeShown = false, activeHandoff = '', handoffAction = null;
+let savedRange = null, editorCore = null, composing = false, saveTimer = null, telegraphPath = '', docId = crypto.randomUUID(), docRevision = 0, importedMd = '', importedTxt = '', importedHtml = '', mediaFile = null, mediaChoice = null, draftWriteBlocked = false, draftBlockNoticeShown = false, activeHandoff = '', handoffAction = null;
 function applyAssets(){
   all('[data-icon]').forEach(el => {
     const name = el.getAttribute('data-icon');
@@ -238,7 +238,7 @@ async function claimHandoff(){
   if(!res.ok)throw new Error(data.error||'Não foi possível recuperar o rascunho');
   const d=data.draft;
   if(!d||d.version!==STATE_VERSION||typeof d.html!=='string'||typeof d.name!=='string'||!['telegram','telegraph'].includes(d.dest)||typeof d.telegraphPath!=='string'||!/^[a-f0-9-]{36}$/i.test(d.docId)||(d.revision!==undefined&&(!Number.isSafeInteger(d.revision)||d.revision<0))||typeof d.importedMd!=='string'||typeof d.importedTxt!=='string'||typeof d.importedHtml!=='string')throw new Error('Rascunho transferido incompatível');
-  editor.innerHTML=cleanDraftHTML(d.html);docName.value=d.name;
+  const handoffHTML=cleanDraftHTML(d.html);if(editorCore)editorCore.resetHTML(handoffHTML,{silent:true});else editor.innerHTML=handoffHTML;docName.value=d.name;
   dest=d.dest;telegraphPath=d.telegraphPath;docId=d.docId;docRevision=normalizedRevision(d.revision);
   importedMd=d.importedMd;importedTxt=d.importedTxt;importedHtml=d.importedHtml;
   if(data.file){
@@ -255,7 +255,7 @@ async function claimHandoff(){
   }
   activeHandoff=token;
   handoffAction=normalizedHandoffAction(data.action);
-  decorateSpecials();setDestination(dest,false,false);hist=[];histI=-1;pushHist();saveLocal();
+  decorateSpecials();setDestination(dest,false,false);saveLocal();
   showToast(handoffActionNotice(handoffAction,true));
 }
 async function refreshHandoffAction(){
@@ -583,39 +583,23 @@ for(const sel of sheets){
 }
 document.addEventListener('keydown',event=>{if(event.key==='Escape'&&one('#dialogMenu').matches(':popover-open')){event.preventDefault();finishDialog(dialogConfirm?false:null);}});
 function saveSel(){
-  const sel = window.getSelection();
-  if(!sel || !sel.rangeCount) return;
-  const n = sel.anchorNode;
-  if(n && editor.contains(n)) savedRange = sel.getRangeAt(0).cloneRange();
+  if(editorCore){savedRange=editorCore.saveSelection();return;}
+  const sel=window.getSelection();
+  if(!sel||!sel.rangeCount)return;
+  const n=sel.anchorNode;
+  if(n&&editor.contains(n))savedRange=sel.getRangeAt(0).cloneRange();
 }
 function restoreSel(){
+  if(editorCore){editorCore.restoreSelection();return;}
   editor.focus();
-  const sel = window.getSelection();
-  if(!sel) return;
-  if(savedRange && editor.contains(savedRange.startContainer) && editor.contains(savedRange.endContainer)){ sel.removeAllRanges(); sel.addRange(savedRange); return; }
-  const last = editor.lastElementChild;
-  const range = document.createRange();
-  if(last) range.setStartAfter(last);
-  else range.selectNodeContents(editor);
-  range.collapse(true);
-  sel.removeAllRanges(); sel.addRange(range);
+  const sel=window.getSelection();
+  if(!sel)return;
+  if(savedRange&&savedRange.startContainer&&editor.contains(savedRange.startContainer)&&editor.contains(savedRange.endContainer)){sel.removeAllRanges();sel.addRange(savedRange);return;}
+  const range=document.createRange();range.selectNodeContents(editor);range.collapse(false);sel.removeAllRanges();sel.addRange(range);
 }
-function pushHist(){
-  if(histLock) return;
-  const html = editor.innerHTML;
-  if(hist[histI] === html) return;
-  hist = hist.slice(0, histI + 1);
-  hist.push(html); if(hist.length > 80) hist.shift();
-  histI = hist.length - 1;
-}
-function applyHist(html){
-  histLock=true;editor.innerHTML=html;savedRange=null;
-  const cached=mediaFile&&mediaNode(mediaFile.id);
-  if(cached&&mediaFile.url){cached.setAttribute('src',mediaFile.url);cached.removeAttribute('data-media-missing');}
-  restoreSel();saveSel();histLock=false;markDirty();
-}
-function histUndo(){ if(histI > 0){ histI--; applyHist(hist[histI]); } }
-function histRedo(){ if(histI < hist.length - 1){ histI++; applyHist(hist[histI]); } }
+function pushHist(){if(editorCore)editorCore.syncFromDOM({addToHistory:true});}
+function histUndo(){if(editorCore&&editorCore.undo()){restoreActiveMediaVisual();syncEditorSelectionUI();}}
+function histRedo(){if(editorCore&&editorCore.redo()){restoreActiveMediaVisual();syncEditorSelectionUI();}}
 function expandWord(){
   const sel = window.getSelection();
   if(!sel || !sel.rangeCount || !sel.isCollapsed) return;
@@ -629,44 +613,11 @@ function expandWord(){
   r.setStart(text, a); r.setEnd(text, b); sel.removeAllRanges(); sel.addRange(r);
   savedRange = r.cloneRange();
 }
-function exec(cmd, value=null){
-  if(cmd === 'insertUnorderedList') return toggleList();
-  const tag = {bold:'strong',italic:'em',underline:'u',strike:'s',mark:'mark',sub:'sub',sup:'sup',spoiler:'tg-spoiler',code:'code',math:'tg-math',createLink:'a'}[cmd];
-  if(!tag) throw new Error('Ação de edição indisponível');
-  restoreSel(); expandWord();
-  const sel = window.getSelection();
-  if(!sel || !sel.rangeCount) throw new Error('Selecione o texto para formatar');
-  const range = sel.getRangeAt(0);
-  if(range.collapsed){
-    const mark=document.createElement(tag);if(value)mark.setAttribute('href',value);
-    mark.append(document.createElement('br'));range.insertNode(mark);range.selectNodeContents(mark);range.collapse(false);
-  }else{
-    const start=document.createComment(''),end=document.createComment('');
-    const tail=range.cloneRange();tail.collapse(false);tail.insertNode(end);
-    const head=range.cloneRange();head.collapse(true);head.insertNode(start);
-    range.setStartAfter(start);range.setEndBefore(end);
-    const walk=document.createTreeWalker(editor,NodeFilter.SHOW_TEXT),texts=[];let text;
-    while((text=walk.nextNode()))if(text.length&&range.intersectsNode(text))texts.push(text);
-    const remove=cmd!=='createLink'&&texts.length&&texts.every(text=>text.parentElement.closest(tag));
-    if(remove){
-      for(const [marker,before] of [[start,true],[end,false]]){
-        const mark=marker.parentElement?.closest(tag);if(!mark||!editor.contains(mark))continue;
-        const part=document.createRange();part.selectNodeContents(mark);
-        if(before)part.setEndBefore(marker);else part.setStartAfter(marker);
-        const content=part.extractContents();
-        if(content.textContent||content.querySelector('*')){const copy=mark.cloneNode(false);copy.append(content);if(before)mark.before(copy);else mark.after(copy);}
-      }
-      range.setStartAfter(start);range.setEndBefore(end);
-      for(const mark of [...editor.querySelectorAll(tag)])if(range.intersectsNode(mark))mark.replaceWith(...mark.childNodes);
-    }else{
-      for(const text of texts){const active=text.parentElement.closest(tag);if(active){if(value)active.setAttribute('href',value);continue;}
-        const mark=document.createElement(tag);if(value)mark.setAttribute('href',value);text.replaceWith(mark);mark.append(text);
-      }
-    }
-    range.setStartAfter(start);range.setEndBefore(end);start.remove();end.remove();
-  }
-  sel.removeAllRanges();sel.addRange(range);
-  saveSel(); pushHist(); markDirty();
+function exec(cmd,value=null){
+  if(!editorCore)throw new Error('Núcleo de edição indisponível');
+  if(cmd==='insertUnorderedList')return toggleList();
+  editorCore.exec(cmd,value);
+  syncEditorSelectionUI();
 }
 function normalizeBlocks(){
   const sel=window.getSelection(),range=sel?.rangeCount?sel.getRangeAt(0):null;
@@ -686,123 +637,19 @@ function normalizeBlocks(){
   sel.removeAllRanges();sel.addRange(range);saveSel();
 }
 function toggleList(type='ul'){
-  restoreSel();normalizeBlocks();
-  const sel=window.getSelection(),range=sel?.rangeCount?sel.getRangeAt(0):null;
-  if(!range || !editor.contains(range.commonAncestorContainer))throw new Error('Selecione o trecho da lista');
-  const node=range.startContainer.nodeType===1?range.startContainer:range.startContainer.parentElement;
-  const list=node?.closest('ul,ol');let last;
-  if(list&&editor.contains(list)){
-    if(list.localName===type){
-      const frag=document.createDocumentFragment();
-      for(const li of [...list.children]){last=document.createElement('p');while(li.firstChild)last.append(li.firstChild);frag.append(last);}
-      list.replaceWith(frag);
-    }else{const next=document.createElement(type);while(list.firstChild)next.append(list.firstChild);list.replaceWith(next);last=next.lastElementChild;}
-  }else{
-    const selected=[...editor.children].filter(el=>range.intersectsNode(el));
-    if(selected.some(el=>!['P','DIV','H1','H2','H3','H4','H5','H6','BLOCKQUOTE','FOOTER'].includes(el.tagName)))throw new Error('Selecione parágrafos para criar a lista');
-    const ul=document.createElement(type);
-    if(selected.length){selected[0].before(ul);for(const block of selected){last=document.createElement('li');while(block.firstChild)last.append(block.firstChild);ul.append(last);block.remove();}}
-    else{last=document.createElement('li');last.append(document.createElement('br'));ul.append(last);range.insertNode(ul);}
-  }
-  if(last){range.selectNodeContents(last);range.collapse(false);sel.removeAllRanges();sel.addRange(range);}
-  saveSel();pushHist();markDirty();closePanels();
+  if(!editorCore)throw new Error('Núcleo de edição indisponível');
+  if(!editorCore.toggleList(type))throw new Error('Selecione parágrafos para criar a lista');
+  syncEditorSelectionUI();closePanels();
 }
 function formatBlock(tag){
-  restoreSel();normalizeBlocks();
-  const node = document.getSelection()?.anchorNode;
-  const fromEl = node && (node.nodeType === 1 ? node : node.parentElement);
-  const found = fromEl && fromEl !== editor ? fromEl.closest('p,h1,h2,h3,h4,h5,h6,blockquote,footer,div,li') : null;
-  const block = found && editor.contains(found) ? found : null;
-  const unwrapBold = el => {
-    el.querySelectorAll('strong,b').forEach(n => {
-      while(n.firstChild) n.parentNode.insertBefore(n.firstChild, n);
-      n.remove();
-    });
-  };
-  const placeCaret = el => {
-    const sel = window.getSelection();
-    if(!sel) return;
-    const range = document.createRange();
-    range.selectNodeContents(el);
-    range.collapse(false);
-    sel.removeAllRanges();
-    sel.addRange(range);
-    savedRange = range.cloneRange();
-  };
-  const currentKind = () => {
-    if(!block || block === editor) return 'p';
-    if(block.classList.contains('tg-footer') || block.tagName === 'FOOTER') return 'footer';
-    return block.tagName.toLowerCase();
-  };
-  let nextKind = tag;
-  if(currentKind() === tag) nextKind = 'p';
-  const isFooter = nextKind === 'footer';
-  const nextTag = isFooter ? 'p' : nextKind;
-  const finish = el => {
-    if(isFooter){ el.classList.add('tg-footer'); unwrapBold(el); }
-    else {
-      el.classList.remove('tg-footer');
-      if(/^h[1-6]$/.test(nextKind)) unwrapBold(el);
-    }
-    placeCaret(el);
-  };
-  const replace = src => {
-    const next = document.createElement(nextTag);
-    next.innerHTML = src.innerHTML;
-    src.replaceWith(next);
-    finish(next);
-  };
-  if(!block || block === editor || block.tagName === 'LI'){
-    const next = document.createElement(nextTag);
-    if(block && block.tagName === 'LI'){
-      while(block.firstChild) next.append(block.firstChild);
-      block.append(next);
-    }else if(block && block !== editor){
-      while(block.firstChild) next.append(block.firstChild);
-      block.replaceWith(next);
-    }else{
-      next.append(document.createElement('br'));
-      const range=document.getSelection()?.rangeCount?document.getSelection().getRangeAt(0):null;
-      if(range && editor.contains(range.commonAncestorContainer)) range.insertNode(next); else editor.append(next);
-    }
-    finish(next);
-  } else {
-    replace(block);
-  }
-  saveSel(); pushHist(); markDirty(); closePanels(); syncEditorSelectionUI();
+  if(!editorCore)throw new Error('Núcleo de edição indisponível');
+  if(!editorCore.formatBlock(tag))throw new Error('Não foi possível alterar o bloco');
+  syncEditorSelectionUI();closePanels();
 }
-function insertHTML(html, asBlock=false){
-  restoreSel();
-  const sel=window.getSelection(),range=sel?.rangeCount?sel.getRangeAt(0):null;
-  if(!range || !editor.contains(range.commonAncestorContainer)) throw new Error('Posicione o cursor no texto');
-  const t=document.createElement('template'); t.innerHTML=html;
-  const frag=t.content;
-  if(asBlock){
-    range.deleteContents();
-    let node=range.startContainer.nodeType===1?range.startContainer:range.startContainer.parentElement;
-    let block=node?.closest('p,h1,h2,h3,h4,h5,h6,blockquote,footer,aside,div,li,ul,ol,table,figure,details,tg-map,tg-collage,tg-slideshow,tg-math-block');
-    while(block&&block.parentElement!==editor)block=block.parentElement?.closest('p,h1,h2,h3,h4,h5,h6,blockquote,footer,aside,div,li,ul,ol,table,figure,details,tg-map,tg-collage,tg-slideshow,tg-math-block');
-    if(block?.tagName==='LI')block=block.parentElement;
-    if(block&&block.parentElement===editor&&['P','H1','H2','H3','H4','H5','H6','BLOCKQUOTE','FOOTER','ASIDE','DIV'].includes(block.tagName)){
-      const left=range.cloneRange(),right=range.cloneRange();
-      left.selectNodeContents(block);left.setEnd(range.startContainer,range.startOffset);
-      right.selectNodeContents(block);right.setStart(range.startContainer,range.startOffset);
-      const before=left.cloneContents(),after=right.cloneContents();
-      const meaningful=part=>Boolean(part.textContent||part.querySelector('img,video,audio,iframe,input,tg-button,tg-map,hr'))||[...part.childNodes].some(child=>child.nodeType===1&&child.tagName!=='BR');
-      const a=meaningful(before)?block.cloneNode(false):null,b=meaningful(after)?block.cloneNode(false):null;
-      if(a)a.append(before);if(b)b.append(after);
-      const inserted=frag.lastChild;
-      if(a)block.before(a);block.before(frag);if(b)block.before(b);block.remove();
-      if(inserted){range.setStartAfter(inserted);range.collapse(true);sel.removeAllRanges();sel.addRange(range);}
-      saveSel();pushHist();markDirty();closePanels();return;
-    }
-    if(block&&block.parentElement===editor){range.setStartAfter(block);range.collapse(true);}
-  }
-  range.deleteContents();
-  const last=frag.lastChild;
-  range.insertNode(frag);
-  if(last){range.setStartAfter(last);range.collapse(true);const sel=window.getSelection();sel.removeAllRanges();sel.addRange(range);}
-  saveSel(); pushHist(); markDirty(); closePanels();
+function insertHTML(html,asBlock=false){
+  if(!editorCore)throw new Error('Núcleo de edição indisponível');
+  if(!editorCore.insertHTML(html,asBlock))throw new Error('Não foi possível inserir o conteúdo');
+  closePanels();syncEditorSelectionUI();
 }
 function mediaTag(url){
   const path=new URL(url).pathname.toLowerCase();
@@ -985,17 +832,8 @@ async function insertFeature(kind){
   }
 }
 function insertPlainText(text){
-  const sel=window.getSelection();
-  if(!sel || !sel.rangeCount) throw new Error('Posicione o cursor no texto');
-  const range=sel.getRangeAt(0);
-  if(!editor.contains(range.commonAncestorContainer)) throw new Error('Posicione o cursor no texto');
-  range.deleteContents();
-  const frag=document.createDocumentFragment();
-  const parts=String(text).split(/\r\n|\r|\n/);
-  parts.forEach((part,i)=>{if(i)frag.append(document.createElement('br'));if(part)frag.append(document.createTextNode(part));});
-  const last=frag.lastChild;range.insertNode(frag);
-  if(last){range.setStartAfter(last);range.collapse(true);sel.removeAllRanges();sel.addRange(range);}
-  saveSel();pushHist();markDirty();
+  if(!editorCore)throw new Error('Núcleo de edição indisponível');
+  editorCore.insertText(text);
 }
 function markDirty(){
   bumpDocumentRevision();
