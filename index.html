@@ -34,6 +34,9 @@
       --line:color-mix(in oklab,var(--accent) 22%,var(--bg));
       --glass-tint:color-mix(in oklab,var(--accent) 11%,transparent);
       --glass-tint-strong:color-mix(in oklab,var(--accent) 17%,transparent);
+      --bar-glass-tint:color-mix(in oklab,var(--accent) 18%,rgba(255,255,255,.10));
+      --bar-glass-tint-strong:color-mix(in oklab,var(--accent) 26%,rgba(255,255,255,.14));
+      --bar-control-accent-bg:color-mix(in oklab,var(--accent) 20%,rgba(255,255,255,.18));
       --glass-edge:color-mix(in oklab,var(--accent) 22%,transparent);
       --glass-inner:rgba(255,255,255,.16);
       --glass-field:color-mix(in oklab,var(--accent) 12%,rgba(255,255,255,.18));
@@ -74,6 +77,9 @@
       --bg:#f8fbff; --text:#151515; --accent:#2B88D8;
       --glass-tint:color-mix(in oklab,var(--accent) 7%,transparent);
       --glass-tint-strong:color-mix(in oklab,var(--accent) 12%,transparent);
+      --bar-glass-tint:color-mix(in oklab,var(--accent) 13%,rgba(255,255,255,.18));
+      --bar-glass-tint-strong:color-mix(in oklab,var(--accent) 20%,rgba(255,255,255,.22));
+      --bar-control-accent-bg:color-mix(in oklab,var(--accent) 16%,rgba(255,255,255,.28));
       --glass-edge:color-mix(in oklab,var(--accent) 15%,transparent);
       --glass-inner:rgba(255,255,255,.32);
       --glass-field:color-mix(in oklab,var(--accent) 8%,rgba(255,255,255,.24));
@@ -141,7 +147,7 @@
     .heading-list .h-opt.h6{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
     .heading-list .h-opt.footer{font-size:12px;color:var(--muted)}
     .heading-list button.is-current{color:var(--accent)}
-    .seg,.bar,.theme-control{color:#151515;border-radius:999px;background:var(--glass-tint)}
+    .seg,.bar,.theme-control{color:#151515;border-radius:999px;background:var(--bar-glass-tint)}
     .glass-menu-material,.toast-material{background:var(--glass-tint)}
     .fade-top,.fade-bot{
       position:fixed;left:0;right:0;z-index:20;pointer-events:none;
@@ -150,12 +156,12 @@
     }
     .fade-top{
       top:var(--vv-top);height:calc(var(--head-inset) + 20px);
-      background:linear-gradient(180deg,var(--bg) 0,var(--bg) calc(var(--safe-top) + var(--gap)),color-mix(in srgb,var(--bg) 78%,transparent) 52%,color-mix(in srgb,var(--bg) 42%,transparent) 76%,transparent 100%)
+      background:linear-gradient(180deg,color-mix(in srgb,var(--bg) 86%,transparent) 0,color-mix(in srgb,var(--bg) 86%,transparent) calc(var(--safe-top) + var(--gap)),color-mix(in srgb,var(--bg) 60%,transparent) 52%,color-mix(in srgb,var(--bg) 26%,transparent) 76%,transparent 100%)
     }
     .fade-bot{
       top:auto;bottom:var(--vv-bottom);
       height:calc(var(--foot-inset) + 20px);
-      background:linear-gradient(0deg,var(--bg) 0,var(--bg) calc(var(--bottom) + var(--gap)),color-mix(in srgb,var(--bg) 78%,transparent) 52%,color-mix(in srgb,var(--bg) 42%,transparent) 76%,transparent 100%)
+      background:linear-gradient(0deg,color-mix(in srgb,var(--bg) 86%,transparent) 0,color-mix(in srgb,var(--bg) 86%,transparent) calc(var(--bottom) + var(--gap)),color-mix(in srgb,var(--bg) 60%,transparent) 52%,color-mix(in srgb,var(--bg) 26%,transparent) 76%,transparent 100%)
     }
     .app{display:contents}
     .topbar{
@@ -192,14 +198,14 @@
       width:var(--control-size);height:var(--control-size);border:0;border-radius:50%;
       background:transparent;display:grid;place-items:center;padding:0
     }
-    .seg button.active{background:var(--glass-tint-strong);color:var(--accent)}
-    .seg #destBtn{position:relative;background:var(--glass-tint);color:var(--accent)}
+    .seg button.active{background:var(--bar-control-accent-bg);color:var(--accent)}
+    .seg #destBtn{position:relative;background:var(--bar-control-accent-bg);color:var(--accent)}
     .seg #destBtn .ui-icon{width:22px;height:22px}
-    .seg #destBtn.active{background:var(--glass-tint-strong)}
+    .seg #destBtn.active{background:var(--bar-glass-tint-strong)}
     .seg button.is-flash{position:relative}
     .seg button.is-flash::before{
       content:"";position:absolute;inset:2px;border-radius:50%;
-      background:var(--glass-tint-strong);z-index:0;animation:flash-out 1.4s ease forwards
+      background:var(--bar-glass-tint-strong);z-index:0;animation:flash-out 1.4s ease forwards
     }
     .seg button.is-flash > *{position:relative;z-index:1}
     @keyframes flash-out{0%,35%{opacity:1}100%{opacity:0}}
@@ -207,7 +213,7 @@
     .bar > button.on{background:transparent;color:var(--accent)}
     .bar > button.on::before{
       content:"";position:absolute;inset:2px;border-radius:50%;
-      background:var(--glass-tint-strong);z-index:0
+      background:var(--bar-glass-tint-strong);z-index:0
     }
     .bar > button > *{position:relative;z-index:1}
     .canvas{
@@ -276,8 +282,8 @@
       flex:0 0 var(--control-size);width:var(--control-size);min-width:var(--control-size);height:var(--control-size);
       border:0;background:transparent;color:inherit;display:grid;place-items:center;border-radius:999px;padding:0
     }
-    .bar > button.more{color:var(--accent);background:var(--glass-tint-strong)}
-    .bar > button.more.on{background:var(--glass-tint-strong)}
+    .bar > button.more{color:var(--accent);background:var(--bar-control-accent-bg)}
+    .bar > button.more.on{background:var(--bar-glass-tint-strong)}
     .action-dot{
       width:calc(var(--control-size) - 6px);height:calc(var(--control-size) - 6px);border-radius:50%;display:grid;place-items:center;
       background:var(--accent);color:#fff;
