@@ -567,7 +567,7 @@ test('Markdown conversion retains supported semantic structures',()=>{
   assert.equal(box.querySelector('strong')?.textContent,'forte');
   assert.equal(box.querySelector('a')?.getAttribute('href'),'https://example.com');
   e.innerHTML=html;
-  const out=w.eval('htmlToMarkdown(exportDocumentHTML())');
+  const out=w.eval('htmlToMarkdown(document.querySelector("#editor").innerHTML)');
   assert.match(out,/Nome/);
   assert.match(out,/forte/);
   assert.match(out,/https:\/\/example\.com/);
@@ -642,7 +642,7 @@ test('find advances, wraps and replace-one survives focus moving to controls',()
 test('Markdown round-trip preserves styled rich buttons and footer semantics',()=>{
   const w=page(),e=w.document.querySelector('#editor');
   e.innerHTML='<p class="tg-footer">Rodapé</p><tg-button-row><tg-button type="url" style="danger" url="https://example.com">Abrir</tg-button></tg-button-row>';
-  const md=w.eval('htmlToMarkdown(exportDocumentHTML())');
+  const md=w.eval('htmlToMarkdown(document.querySelector("#editor").innerHTML)');
   const html=w.eval('mdToBasicHTML('+JSON.stringify(md)+')');
   const box=w.document.createElement('div');box.innerHTML=html;
   assert.equal(box.querySelector('tg-button')?.getAttribute('style'),'danger');
@@ -653,7 +653,7 @@ test('Markdown round-trip preserves styled rich buttons and footer semantics',()
 test('local attachments are blocked from lossy file exports',()=>{
   const w=page(),e=w.document.querySelector('#editor');
   e.innerHTML='<figure><img data-media-id="media1" src="blob:https://example.com/local"></figure>';
-  assert.throws(()=>w.eval('htmlToMarkdown(exportDocumentHTML())'),/URL pública/);
+  assert.throws(()=>w.eval('htmlToMarkdown(document.querySelector("#editor").innerHTML)'),/URL pública/);
   assert.throws(()=>w.eval('htmlToText(document.querySelector("#editor").innerHTML)'),/TXT não comporta/);
   w.close();
 });
