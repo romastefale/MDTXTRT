@@ -48,11 +48,9 @@ test('React UX imports the official Glass primitive and follows GlassContextMenu
   ])assert.ok(src.includes(fragment),fragment);
   assert.match(src,/function GlassContextMenu/);
   assert.match(src,/<Glass[\s\S]*?optics=\{MENU_LENS\}[\s\S]*?className="glass-menu-material"/);
-  assert.match(src,/const BAR_LENS_LIGHT = \{[\s\S]*?brightness: 0\.34,[\s\S]*?specular: 0\.68,[\s\S]*?sheen: 0\.3,[\s\S]*?\};/);
-  assert.match(src,/const BAR_LENS_DARK = \{[\s\S]*?brightness: 0\.2,[\s\S]*?specular: 0\.5,[\s\S]*?sheen: 0\.22,[\s\S]*?\};/);
-  assert.doesNotMatch(src,/const BAR_LENS_(?:LIGHT|DARK) = \{[\s\S]*?\.\.\.MENU_LENS/);
-  assert.match(src,/function useBarLens\(\)[\s\S]*?React\.useSyncExternalStore\([\s\S]*?subscribeBarTheme,[\s\S]*?readBarTheme,[\s\S]*?\(\) => "dark",[\s\S]*?BAR_LENS_LIGHT : BAR_LENS_DARK/);
-  assert.match(src,/function GlassControl[\s\S]*?const optics = useBarLens\(\);[\s\S]*?<Glass[\s\S]*?optics=\{optics\}/);
+  assert.match(src,/const BAR_LENS = \{[\s\S]*?light: \{[\s\S]*?brightness: 0\.34,[\s\S]*?specular: 0\.68,[\s\S]*?sheen: 0\.3,[\s\S]*?dark: \{[\s\S]*?brightness: 0\.2,[\s\S]*?specular: 0\.5,[\s\S]*?sheen: 0\.22,[\s\S]*?readTheme\(\)[\s\S]*?subscribe\(onStoreChange\)[\s\S]*?serverTheme\(\)/);
+  assert.doesNotMatch(src,/const BAR_LENS = \{[\s\S]*?\.\.\.MENU_LENS/);
+  assert.match(src,/function GlassControl[\s\S]*?React\.useSyncExternalStore\([\s\S]*?BAR_LENS\.subscribe,[\s\S]*?BAR_LENS\.readTheme,[\s\S]*?BAR_LENS\.serverTheme,[\s\S]*?<Glass[\s\S]*?optics=\{BAR_LENS\[theme\]\}/);
   assert.match(src,/style=\{\{ display: "flex", alignItems: "center", \.\.\.style \}\}/);
   assert.match(src,/className="glass-menu-material"[\s\S]*?style=\{\{ display: "block", width: "100%" \}\}/);
 });
