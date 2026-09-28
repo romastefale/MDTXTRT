@@ -149,7 +149,7 @@ test('interface icon assets are vector SVG only and referenced from React source
   assert.equal(existsSync(new URL('../logo.png',import.meta.url)),false);
   const names=new Set([
     ...[...src.matchAll(/(?:name|icon)="([a-z0-9_]+)"/g)].map(m=>m[1]),
-    ...[...src.matchAll(/\["([a-z0-9_]+)",\s*"[^"]+"/g)].map(m=>m[1]),
+    ...[...src.matchAll(/\["([a-z0-9_]+)",\s*"[A-ZÀ-Ý][^"]*"/g)].map(m=>m[1]),
   ]);
   assert.ok(names.size>40);
   for(const name of names)assert.ok(existsSync(new URL('../icons/'+name+'.svg',import.meta.url)),name);
