@@ -173,7 +173,7 @@
     }
     .top-slot{
       display:flex;align-items:center;align-self:start;
-      margin-top:var(--top-side-offset);pointer-events:auto
+      margin-top:0;transform:translateY(var(--top-side-offset));pointer-events:auto
     }
     .top-left{grid-column:1;justify-self:start}
     .top-right{grid-column:3;justify-self:end}
@@ -193,6 +193,7 @@
     }
     .theme-switch .ui-icon{width:12px;height:12px}
     .seg{display:flex;align-items:center;gap:0;padding:var(--pill-pad);height:var(--pill-h)}
+    .seg.top-pill{gap:var(--pill-pad)}
     .seg button{
       width:var(--control-size);height:var(--control-size);border:0;border-radius:50%;
       background:transparent;display:grid;place-items:center;padding:0
