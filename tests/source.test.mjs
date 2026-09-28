@@ -643,7 +643,11 @@ test('final release gap analysis and immutable anchor gates are explicit',()=>{
   assert.match(workflow,/git diff --exit-code -- editor-core\.js ui\.js/);
   assert.match(workflow,/node scripts\/verify-release-manifest\.mjs/);
   assert.match(workflow,/node scripts\/verify-visual-baseline\.mjs/);
-  assert.match(workflow,/CERTIFICATION_STATUS/);
+  assert.match(workflow,/name: Audit release evidence record[\s\S]*?GITHUB_TOKEN:[\s\S]*?node scripts\/validate-release-evidence\.mjs/);
+  assert.match(read('scripts/verify-visual-baseline.mjs'),/for\(const theme of \['light','dark'\]\)/);
+  assert.match(read('scripts/validate-release-evidence.mjs'),/Final status[\s\S]*?RELEASE APPROVED/);
+  assert.match(read('scripts/validate-release-evidence.mjs'),/iOS Telegram Mini App/);
+  assert.match(read('scripts/validate-release-evidence.mjs'),/Telegram unknown timeout/);
   assert.doesNotMatch(workflow,/contents:\s*write|git push/);
   assert.equal(manifest.visualBaseline,'dde30467ed9b0d108bac2ae7ad9bcac1137c169e');
   assert.deepEqual(manifest.runtime,{node:'24.21.0',npm:'11.19.0'});
