@@ -948,3 +948,93 @@ test('plain-text paste is one transactional history step',()=>{
   assert.equal(d.querySelector('#editor').textContent,'base');
   w.close();
 });
+
+
+test('ProseMirror normalizes accepted bold aliases and removes the semantic mark uniformly',()=>{
+  const doc='81818181-8181-4818-8818-818181818181';
+  const local=JSON.stringify({version:2,name:'Aliases',html:'<p><b>Alias</b> <strong>Strong</strong></p>',dest:'telegram',telegraphPath:'',docId:doc,revision:0,importedMd:'',importedTxt:'',importedHtml:'',media:null});
+  const w=page({local:{rmdtxtml:local}}),d=w.document,e=d.querySelector('#editor');
+  assert.equal(e.querySelectorAll('b').length,0);
+  assert.equal(e.querySelectorAll('strong').length,2);
+
+  w.eval('editorCore.selectRange({from:1,to:6},{focus:true})');
+  d.querySelector('#typebar [data-cmd="bold"]').click();
+  assert.equal(e.innerHTML,'<p>Alias <strong>Strong</strong></p>');
+
+  w.eval('editorCore.selectRange({from:7,to:13},{focus:true})');
+  d.querySelector('#typebar [data-cmd="bold"]').click();
+  assert.equal(e.querySelector('strong'),null);
+  assert.equal(e.textContent,'Alias Strong');
+  w.close();
+});
+
+test('transaction history keeps the editor selection coherent through undo and redo',()=>{
+  const w=page(),d=w.document,e=d.querySelector('#editor');
+  w.eval("editorCore.resetHTML('<p>alpha beta</p>',{silent:true})");
+  w.eval('editorCore.selectRange({from:7,to:11},{focus:true})');
+  d.querySelector('#typebar [data-cmd="bold"]').click();
+  assert.equal(w.eval('editorCore.selectedText()'),'beta');
+  assert.ok(e.querySelector('strong'));
+
+  d.querySelector('#undoBtn').click();
+  assert.equal(e.querySelector('strong'),null);
+  assert.equal(w.eval('editorCore.selectedText()'),'beta');
+
+  d.querySelector('#redoBtn').click();
+  assert.ok(e.querySelector('strong'));
+  assert.equal(w.eval('editorCore.selectedText()'),'beta');
+  w.close();
+});
+
+test('editor shortcuts are scoped to the editor and leave find and name fields with native commands',()=>{
+  const w=page(),d=w.document,e=d.querySelector('#editor');
+  w.eval("editorCore.resetHTML('<p>base</p>',{silent:true})");
+  w.eval('editorCore.selectRange({from:1,to:5},{focus:true})');
+  d.querySelector('#typebar [data-cmd="bold"]').click();
+  const before=e.innerHTML;
+
+  const find=d.querySelector('#findText');
+  find.value='native';
+  find.focus();
+  const undoEvent=new w.KeyboardEvent('keydown',{key:'z',ctrlKey:true,bubbles:true,cancelable:true});
+  find.dispatchEvent(undoEvent);
+  assert.equal(undoEvent.defaultPrevented,false);
+  assert.equal(e.innerHTML,before);
+
+  const name=d.querySelector('#docName');
+  name.focus();
+  const boldEvent=new w.KeyboardEvent('keydown',{key:'b',ctrlKey:true,bubbles:true,cancelable:true});
+  name.dispatchEvent(boldEvent);
+  assert.equal(boldEvent.defaultPrevented,false);
+  assert.equal(e.innerHTML,before);
+  w.close();
+});
+
+test('plain-text paste is a single transactional edit and never interprets pasted markup',()=>{
+  const w=page(),d=w.document,e=d.querySelector('#editor');
+  w.eval("editorCore.resetHTML('<p>x</p>',{silent:true})");
+  w.eval('editorCore.selectRange({from:2,to:2},{focus:true})');
+  const paste=new w.Event('paste',{bubbles:true,cancelable:true});
+  Object.defineProperty(paste,'clipboardData',{value:{getData:type=>type==='text/plain'?'<b>literal</b>\nline':''}});
+  e.dispatchEvent(paste);
+  assert.equal(paste.defaultPrevented,true);
+  assert.match(e.textContent,/x<b>literal<\/b>line/);
+  assert.equal(e.querySelectorAll('b,strong').length,0);
+  assert.ok(e.querySelector('br'));
+
+  d.querySelector('#undoBtn').click();
+  assert.equal(e.textContent,'x');
+  w.close();
+});
+
+test('find treats punctuation and regex metacharacters literally',()=>{
+  const w=page(),d=w.document;
+  w.eval("editorCore.resetHTML('<p>a.b C++ ( [</p>',{silent:true})");
+  const input=d.querySelector('#findText');
+  for(const term of ['a.b','C++','(', '[']){
+    input.value=term;
+    d.querySelector('#findNext').click();
+    assert.equal(w.eval('editorCore.selectedText()'),term);
+  }
+  w.close();
+});
