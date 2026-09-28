@@ -293,8 +293,9 @@ export function createEditorCore({element,onChange=()=>{},onSelectionChange=()=>
   function syncFromDOM({silent=false,addToHistory=true}={}){
     const parsed=parseDOMWithSelection(element),next=parsed.doc,selected=parsed.selection;
     if(next.eq(state.doc)){
-      if(selected){
-        const anchor=clampPos(state.doc,selected.anchor),head=clampPos(state.doc,selected.head);
+      const visual=domSelection()||selected;
+      if(visual){
+        const anchor=clampPos(state.doc,visual.anchor),head=clampPos(state.doc,visual.head);
         try{dispatch(state.tr.setSelection(TextSelection.create(state.doc,anchor,head)),{silent:true,addToHistory:false});}catch{}
       }
       return false;
