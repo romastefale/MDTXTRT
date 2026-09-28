@@ -1,0 +1,129 @@
+name: Release validation
+
+on:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      release_anchor_sha:
+        description: Full immutable Release Anchor commit SHA
+        required: true
+        type: string
+      certification_status:
+        description: Final certification state
+        required: true
+        default: BLOCKED
+        type: choice
+        options:
+          - BLOCKED
+          - RELEASE APPROVED
+      authorization_evidence_ref:
+        description: GitHub issue/comment containing explicit external-test authorization
+        required: true
+        type: string
+      visual_evidence_ref:
+        description: GitHub issue/comment containing manual visual evidence
+        required: true
+        type: string
+      telegraph_evidence_ref:
+        description: GitHub issue/comment containing live Telegraph restart evidence
+        required: true
+        type: string
+      telegram_evidence_ref:
+        description: GitHub issue/comment containing real Rich Message receipt evidence
+        required: true
+        type: string
+      device_matrix_evidence_ref:
+        description: GitHub issue/comment containing physical-device matrix evidence
+        required: true
+        type: string
+      fault_matrix_evidence_ref:
+        description: GitHub issue/comment containing network/storage fault evidence
+        required: true
+        type: string
+      rollback_evidence_ref:
+        description: GitHub issue/comment containing rollback evidence
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+
+concurrency:
+  group: release-validation-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  automated:
+    name: Automated release gates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: package.json
+          cache: npm
+
+      - name: Verify contracted npm
+        run: test "$(npm --version)" = "11.19.0"
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Verify release lineage and runtime manifest
+        run: node scripts/verify-release-manifest.mjs
+
+      - name: Rebuild all committed bundles
+        run: npm run build
+
+      - name: Verify reproducible committed bundles
+        run: git diff --exit-code -- editor-core.js ui.js
+
+      - name: Run complete regression suite
+        run: npm test
+
+      - name: Compare rendered shell with visual baseline
+        env:
+          BASELINE_SHA: dde30467ed9b0d108bac2ae7ad9bcac1137c169e
+        run: node scripts/verify-visual-baseline.mjs
+
+      - name: Preserve visual comparison evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-visual-baseline-${{ github.sha }}
+          path: .release-visual/
+          if-no-files-found: ignore
+          retention-days: 30
+
+  evidence:
+    name: Final external and physical evidence gate
+    if: github.event_name == 'workflow_dispatch'
+    needs: automated
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: package.json
+          cache: npm
+
+      - name: Validate auditable release evidence references
+        env:
+          RELEASE_ANCHOR_SHA: ${{ inputs.release_anchor_sha }}
+          CERTIFICATION_STATUS: ${{ inputs.certification_status }}
+          AUTHORIZATION_EVIDENCE_REF: ${{ inputs.authorization_evidence_ref }}
+          VISUAL_EVIDENCE_REF: ${{ inputs.visual_evidence_ref }}
+          TELEGRAPH_EVIDENCE_REF: ${{ inputs.telegraph_evidence_ref }}
+          TELEGRAM_EVIDENCE_REF: ${{ inputs.telegram_evidence_ref }}
+          DEVICE_MATRIX_EVIDENCE_REF: ${{ inputs.device_matrix_evidence_ref }}
+          FAULT_MATRIX_EVIDENCE_REF: ${{ inputs.fault_matrix_evidence_ref }}
+          ROLLBACK_EVIDENCE_REF: ${{ inputs.rollback_evidence_ref }}
+        run: node scripts/validate-release-evidence.mjs
