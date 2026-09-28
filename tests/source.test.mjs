@@ -587,3 +587,25 @@ test('step 4 format contract is explicit and conversion code uses the shared por
   assert.match(contract,/Markdown export always serializes the current edited document/);
   assert.match(contract,/Returning an untouched original file is not sufficient evidence/);
 });
+
+
+test('step 5 overlays use the visual viewport without changing the baseline material contract',()=>{
+  const html=read('index.html'),app=read('app.js'),src=uiSource();
+  assert.match(html,/max-height:var\(--menu-max-height,min\(55vh,420px\)\)/);
+  assert.match(html,/width:min\(var\(--menu-w\),var\(--menu-max-width,calc\(100vw - 16px\)\)\)/);
+  assert.match(html,/\.menu-list\{[\s\S]*?flex:1 1 auto[\s\S]*?max-height:none[\s\S]*?overflow-y:auto/);
+  assert.match(html,/\.dialog\{[\s\S]*?max-height:100%[\s\S]*?overflow-y:auto/);
+  assert.match(html,/#dialogMenu:popover-open::backdrop\{background:transparent;pointer-events:auto\}/);
+  assert.match(app,/function visualViewportBounds\(\)/);
+  assert.match(app,/function placePanel\(panel,anchorRect=null\)[\s\S]*?--menu-max-height[\s\S]*?--menu-max-width/);
+  assert.match(app,/openPanel\('#findMenu',anchor\)/);
+  assert.match(app,/const anchor=one\('#plusBtn'\)/);
+  assert.match(app,/function setDialogModality\(active\)[\s\S]*?setAttribute\('inert',''\)/);
+  assert.match(app,/one\('#dialogMenu'\)\.addEventListener\('keydown'[\s\S]*?event\.key==='Tab'/);
+  assert.match(app,/if\(dialog\?\.matches\(':popover-open'\)\)placePanel\(dialog\)/);
+  assert.match(src,/id="dialogMenu"[\s\S]*?role="dialog"[\s\S]*?aria-modal="true"/);
+  assert.match(html,/--menu-w:210px/);
+  assert.match(html,/--menu-row-h:24px/);
+  assert.match(html,/--menu-radius:9px/);
+  assert.match(html,/\.glass-menu-material,\.toast-material\{background:var\(--glass-tint\)\}/);
+});
