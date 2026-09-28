@@ -48,7 +48,8 @@ test('React UX imports the official Glass primitive and follows GlassContextMenu
   ])assert.ok(src.includes(fragment),fragment);
   assert.match(src,/function GlassContextMenu/);
   assert.match(src,/<Glass[\s\S]*?optics=\{MENU_LENS\}[\s\S]*?className="glass-menu-material"/);
-  assert.match(src,/const BAR_LENS = \{[\s\S]*?\.\.\.MENU_LENS,[\s\S]*?brightness: 0\.42,[\s\S]*?\};/);
+  assert.match(src,/const BAR_LENS = \{[\s\S]*?mapSize: 256,[\s\S]*?depth: 0\.72,[\s\S]*?brightness: 0\.42,[\s\S]*?sheen: 0\.34,[\s\S]*?\};/);
+  assert.doesNotMatch(src,/const BAR_LENS = \{[\s\S]*?\.\.\.MENU_LENS/);
   assert.match(src,/function GlassControl/);
   assert.match(src,/function GlassControl[\s\S]*?<Glass[\s\S]*?optics=\{BAR_LENS\}/);
   assert.match(src,/style=\{\{ display: "flex", alignItems: "center", \.\.\.style \}\}/);
@@ -78,8 +79,10 @@ test('theme neutrals are chromatic derivatives of the active accent',()=>{
   assert.match(html,/--line:color-mix\(in oklab,var\(--accent\) 22%,var\(--bg\)\);/);
   assert.match(html,/--glass-tint:color-mix\(in oklab,var\(--accent\) 11%,transparent\);/);
   assert.match(html,/html\.light\{[\s\S]*?--glass-tint:color-mix\(in oklab,var\(--accent\) 7%,transparent\);/);
-  assert.match(html,/--bar-glass-tint:color-mix\(in oklab,var\(--accent\) 18%,rgba\(255,255,255,\.10\)\);/);
-  assert.match(html,/html\.light\{[\s\S]*?--bar-glass-tint:color-mix\(in oklab,var\(--accent\) 13%,rgba\(255,255,255,\.18\)\);/);
+  assert.match(html,/--bar-glass-tint:color-mix\(in oklab,var\(--accent\) 18%,transparent\);/);
+  assert.match(html,/--bar-control-accent-bg:color-mix\(in oklab,var\(--accent\) 10%,rgba\(0,0,0,\.72\)\);/);
+  assert.match(html,/html\.light\{[\s\S]*?--bar-glass-tint:color-mix\(in oklab,var\(--accent\) 13%,transparent\);/);
+  assert.match(html,/html\.light\{[\s\S]*?--bar-control-accent-bg:color-mix\(in oklab,var\(--accent\) 10%,rgba\(255,255,255,\.72\)\);/);
   assert.match(html,/\.seg,\.bar,\.theme-control\{[^}]*background:var\(--bar-glass-tint\)/);
   assert.match(html,/\.glass-menu-material,\.toast-material\{background:var\(--glass-tint\)\}/);
   assert.match(html,/box-shadow:inset 0 0 0 \.5px var\(--glass-inner\),0 0 0 \.5px var\(--glass-edge\)/);
@@ -252,6 +255,8 @@ test('UI preserves compact portrait contract, unified chrome scale and anchored 
   assert.match(html,/--theme-icon-size:clamp\(10\.8px,3vw,12px\)/);
   assert.match(html,/--menu-w:210px/);
   assert.match(html,/--menu-row-h:24px/);
+  assert.match(html,/\.fade-top\{[\s\S]*?height:calc\(var\(--head-inset\) \+ 20px\);[\s\S]*?var\(--bg\) 86%,transparent[\s\S]*?var\(--bg\) 60%,transparent\) 52%[\s\S]*?var\(--bg\) 26%,transparent\) 76%[\s\S]*?transparent 100%/);
+  assert.match(html,/\.fade-bot\{[\s\S]*?height:calc\(var\(--foot-inset\) \+ 20px\);[\s\S]*?var\(--bg\) 86%,transparent[\s\S]*?var\(--bg\) 60%,transparent\) 52%[\s\S]*?var\(--bg\) 26%,transparent\) 76%[\s\S]*?transparent 100%/);
   assert.match(html,/\.bar > button\.more\{color:var\(--accent\);background:var\(--bar-control-accent-bg\)\}/);
   assert.match(src,/className="app-title"[^>]*>MDTXTRT<\/span>/);
   assert.match(src,/id="themeBtn"/);
