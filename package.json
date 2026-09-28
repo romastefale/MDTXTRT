@@ -5,7 +5,9 @@
   "scripts": {
     "start": "node server.mjs",
     "test": "node --test tests/*.test.mjs",
-    "build": "esbuild src/liquid-glass-ui.jsx --bundle --format=esm --platform=browser --target=es2022 --minify --legal-comments=eof --outfile=ui.js"
+    "build": "npm run build:editor && npm run build:ui",
+    "build:editor": "esbuild src/editor-core.mjs --bundle --format=iife --global-name=MDTXTRTEditorCore --platform=browser --target=es2022 --minify --legal-comments=eof --outfile=editor-core.js",
+    "build:ui": "esbuild src/liquid-glass-ui.jsx --bundle --format=esm --platform=browser --target=es2022 --minify --legal-comments=eof --outfile=ui.js"
   },
   "engines": {
     "node": "24.21.0"
@@ -17,7 +19,14 @@
     "marked": "^18.0.14",
     "react": "19.3.0",
     "react-dom": "19.3.0",
-    "turndown": "^7.2.2"
+    "turndown": "^7.2.2",
+    "prosemirror-commands": "1.7.2",
+    "prosemirror-history": "1.5.0",
+    "prosemirror-keymap": "1.2.3",
+    "prosemirror-model": "1.25.12",
+    "prosemirror-schema-list": "1.5.1",
+    "prosemirror-state": "1.4.4",
+    "prosemirror-view": "1.42.3"
   },
   "devDependencies": {
     "esbuild": "0.28.2",
