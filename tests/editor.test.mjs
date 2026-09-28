@@ -128,6 +128,10 @@ function page(setup={}){
   },configurable:true});
   if(!w.AbortSignal.timeout)w.AbortSignal.timeout=()=>new w.AbortController().signal;
   w.HTMLElement.prototype.scrollIntoView=function(){};
+  w.Range.prototype.getClientRects=function(){return [];};
+  w.Range.prototype.getBoundingClientRect=function(){return {left:0,right:0,top:0,bottom:0,width:0,height:0};};
+  w.HTMLElement.prototype.getClientRects=function(){return [];};
+  w.HTMLElement.prototype.getBoundingClientRect=function(){return {left:0,right:0,top:0,bottom:0,width:0,height:0};};
   w.URL.createObjectURL=setup.objectURL||(()=> 'blob:test');
   w.URL.revokeObjectURL=()=>{};
   if(setup.indexedDB)Object.defineProperty(w,'indexedDB',{value:setup.indexedDB,configurable:true});
@@ -223,7 +227,7 @@ test('document name stays in export flow and becomes the Telegraph title',async(
 test('Markdown block markers wait for content, convert in either typing order and preserve semantics',()=>{
   const w=page(),d=w.document,e=d.querySelector('#editor');
   const apply=(html,offset=null,inputType='insertText')=>{
-    e.innerHTML=html;
+    w.eval('currentEditorCore().resetHTML('+JSON.stringify(html)+',{silent:true})');
     const block=e.firstElementChild,node=block.firstChild;
     assert.ok(node);
     const range=d.createRange();
@@ -262,7 +266,7 @@ test('Markdown block markers wait for content, convert in either typing order an
 
 test('Markdown block conversion preserves the logical caret while typing',()=>{
   const w=page(),d=w.document,e=d.querySelector('#editor');
-  e.innerHTML='<p># </p>';
+  w.eval("currentEditorCore().resetHTML('<p># </p>',{silent:true})");
   const first=e.querySelector('p').firstChild,initial=d.createRange();
   initial.setStart(first,first.length);initial.collapse(true);
   w.getSelection().removeAllRanges();w.getSelection().addRange(initial);
@@ -304,7 +308,7 @@ test('Markdown block markers accept element-anchored carets and non-breaking spa
 test('Enter exits headings and quotes to body without leaking formatting',()=>{
   const w=page(),d=w.document,e=d.querySelector('#editor');
   const exitAtEnd=html=>{
-    e.innerHTML=html;
+    w.eval('currentEditorCore().resetHTML('+JSON.stringify(html)+',{silent:true})');
     const block=e.firstElementChild,node=block.firstChild,range=d.createRange();
     range.setStart(node,node.length);range.collapse(true);
     w.getSelection().removeAllRanges();w.getSelection().addRange(range);
@@ -362,7 +366,7 @@ test('Markdown inline markers become semantic rich-text marks and support escapi
 
 test('Markdown input rules stay idle during IME composition',()=>{
   const w=page(),d=w.document,e=d.querySelector('#editor');
-  e.innerHTML='<p># Palavra</p>';
+  w.eval("currentEditorCore().resetHTML('<p># Palavra</p>',{silent:true})");
   const node=e.querySelector('p').firstChild,range=d.createRange();
   range.setStart(node,node.length);range.collapse(true);
   w.getSelection().removeAllRanges();w.getSelection().addRange(range);
@@ -376,8 +380,7 @@ test('Markdown input rules stay idle during IME composition',()=>{
 
 test('formatting undo and redo restore semantic document states',()=>{
   const w=page(),d=w.document,e=d.querySelector('#editor');
-  e.innerHTML='<p>texto selecionado</p>';
-  e.dispatchEvent(new w.Event('input',{bubbles:true}));
+  w.eval("currentEditorCore().resetHTML('<p>texto selecionado</p>',{silent:true})");
   const text=e.querySelector('p').firstChild,range=d.createRange();
   range.setStart(text,0);range.setEnd(text,text.length);
   w.getSelection().removeAllRanges();w.getSelection().addRange(range);
@@ -394,7 +397,7 @@ test('formatting undo and redo restore semantic document states',()=>{
 
 test('Unicode-safe replace keeps ranges aligned and semantic formatting intact',()=>{
   const w=page(),d=w.document,e=d.querySelector('#editor');
-  e.innerHTML='<p>İxA <strong>axa</strong></p>';
+  w.eval("currentEditorCore().resetHTML('<p>İxA <strong>axa</strong></p>',{silent:true})");
   d.querySelector('#findText').value='a';
   d.querySelector('#replaceText').value='Z';
   d.querySelector('#replaceAll').click();
@@ -587,17 +590,13 @@ test('pagehide persists the last edit immediately and empty drafts restore ident
 
 test('block insertions respect caret position and ordered list preserves paragraph text',()=>{
   const w=page(),d=w.document,e=d.querySelector('#editor');
-  e.innerHTML='<p>Antes</p><p>Depois</p>';
-  let range=d.createRange();range.setStartAfter(e.firstElementChild);range.collapse(true);
-  w.getSelection().removeAllRanges();w.getSelection().addRange(range);
+  w.eval("currentEditorCore().resetHTML('<p>Antes</p><p>Depois</p>',{silent:true})");
+  w.eval("(()=>{const r=currentEditorCore().findLiteral('Antes')[0];currentEditorCore().selectRange({from:r.to,to:r.to},{focus:true})})()");
   w.eval('saveSel();insertFeature("divider")');
   assert.deepEqual([...e.children].map(el=>el.tagName),['P','HR','P']);
 
-  e.innerHTML='<p>antes depois</p>';
-  const text=e.querySelector('p').firstChild;
-  range=d.createRange();range.setStart(text,6);range.collapse(true);
-  w.getSelection().removeAllRanges();w.getSelection().addRange(range);
-  d.dispatchEvent(new w.Event('selectionchange'));
+  w.eval("currentEditorCore().resetHTML('<p>antes depois</p>',{silent:true})");
+  w.eval("(()=>{const r=currentEditorCore().findLiteral('antes depois')[0];currentEditorCore().selectRange({from:r.from+6,to:r.from+6},{focus:true})})()");
   w.eval('insertFeature("ordered")');
   assert.deepEqual([...e.children].map(node=>node.tagName),['OL']);
   assert.equal(e.querySelector('ol > li')?.textContent,'antes depois');
@@ -607,14 +606,14 @@ test('block insertions respect caret position and ordered list preserves paragra
 
 test('find advances, wraps and replace-one survives focus moving to controls',()=>{
   const w=page(),d=w.document,e=d.querySelector('#editor');
-  e.innerHTML='<p>ação ação ação</p>';
+  w.eval("currentEditorCore().resetHTML('<p>ação ação ação</p>',{silent:true})");
   d.querySelector('#findText').value='ação';
-  const offsets=[];
+  const starts=[];
   for(let i=0;i<4;i++){
     d.querySelector('#findNext').click();
-    offsets.push(w.getSelection().getRangeAt(0).startOffset);
+    starts.push(w.eval('currentEditorCore().state.selection.from'));
   }
-  assert.deepEqual(offsets,[0,5,10,0]);
+  assert.deepEqual(starts,[1,6,11,1]);
   d.querySelector('#replaceText').focus();
   d.querySelector('#replaceText').value='feito';
   d.querySelector('#replaceOne').click();
@@ -888,30 +887,30 @@ test('editing recovered handoff prevents publishing a stale transferred action',
 
 test('ProseMirror normalizes equivalent mark aliases and toggles each semantic mark off',()=>{
   const w=page(),d=w.document;
-  w.eval("editorCore.resetHTML('<p><b>um</b> <strong>dois</strong> <i>x</i> <em>y</em> <ins>u</ins> <u>v</u> <strike>s1</strike> <del>s2</del> <s>s3</s></p>',{silent:true})");
+  w.eval("currentEditorCore().resetHTML('<p><b>um</b> <strong>dois</strong> <i>x</i> <em>y</em> <ins>u</ins> <u>v</u> <strike>s1</strike> <del>s2</del> <s>s3</s></p>',{silent:true})");
   assert.equal(d.querySelectorAll('#editor b,#editor i,#editor ins,#editor strike,#editor del').length,0);
   assert.equal(d.querySelectorAll('#editor strong').length,2);
   assert.equal(d.querySelectorAll('#editor em').length,2);
   assert.equal(d.querySelectorAll('#editor u').length,2);
   assert.equal(d.querySelectorAll('#editor s').length,3);
 
-  w.eval("editorCore.selectRange(editorCore.findLiteral('um dois')[0],{focus:true});exec('bold')");
+  w.eval("currentEditorCore().selectRange(currentEditorCore().findLiteral('um dois')[0],{focus:true});exec('bold')");
   assert.equal(d.querySelectorAll('#editor strong,#editor b').length,0);
 
-  w.eval("editorCore.selectRange(editorCore.findLiteral('x y')[0],{focus:true});exec('italic')");
+  w.eval("currentEditorCore().selectRange(currentEditorCore().findLiteral('x y')[0],{focus:true});exec('italic')");
   assert.equal(d.querySelectorAll('#editor em,#editor i').length,0);
 
-  w.eval("editorCore.selectRange(editorCore.findLiteral('u v')[0],{focus:true});exec('underline')");
+  w.eval("currentEditorCore().selectRange(currentEditorCore().findLiteral('u v')[0],{focus:true});exec('underline')");
   assert.equal(d.querySelectorAll('#editor u,#editor ins').length,0);
 
-  w.eval("editorCore.selectRange(editorCore.findLiteral('s1 s2 s3')[0],{focus:true});exec('strike')");
+  w.eval("currentEditorCore().selectRange(currentEditorCore().findLiteral('s1 s2 s3')[0],{focus:true});exec('strike')");
   assert.equal(d.querySelectorAll('#editor s,#editor strike,#editor del').length,0);
   w.close();
 });
 
 test('editor shortcuts do not hijack document-name or find-field commands',()=>{
   const w=page(),d=w.document;
-  w.eval("editorCore.resetHTML('<p>texto</p>',{silent:true})");
+  w.eval("currentEditorCore().resetHTML('<p>texto</p>',{silent:true})");
   const before=d.querySelector('#editor').innerHTML;
 
   const name=d.querySelector('#docName');
@@ -933,20 +932,20 @@ test('editor shortcuts do not hijack document-name or find-field commands',()=>{
 
 test('find treats punctuation and regex metacharacters literally',()=>{
   const w=page(),d=w.document;
-  w.eval("editorCore.resetHTML('<p>a.b C++ ( [ fim</p>',{silent:true})");
+  w.eval("currentEditorCore().resetHTML('<p>a.b C++ ( [ fim</p>',{silent:true})");
   const find=d.querySelector('#findText');
   for(const term of ['a.b','C++','(','[']){
     find.value=term;
     d.querySelector('#findNext').click();
-    assert.equal(w.eval('editorCore.selectedText()'),term);
+    assert.equal(w.eval('currentEditorCore().selectedText()'),term);
   }
   w.close();
 });
 
 test('plain-text paste is one transactional history step',()=>{
   const w=page(),d=w.document;
-  w.eval("editorCore.resetHTML('<p>base</p>',{silent:true})");
-  w.eval("const r=editorCore.findLiteral('base')[0];editorCore.selectRange({from:r.to,to:r.to},{focus:true})");
+  w.eval("currentEditorCore().resetHTML('<p>base</p>',{silent:true})");
+  w.eval("const r=currentEditorCore().findLiteral('base')[0];currentEditorCore().selectRange({from:r.to,to:r.to},{focus:true})");
   const event=new w.Event('paste',{bubbles:true,cancelable:true});
   Object.defineProperty(event,'clipboardData',{value:{getData:type=>type==='text/plain'?' X\nY':''}});
   d.querySelector('#editor').dispatchEvent(event);
@@ -964,11 +963,11 @@ test('ProseMirror normalizes accepted bold aliases and removes the semantic mark
   assert.equal(e.querySelectorAll('b').length,0);
   assert.equal(e.querySelectorAll('strong').length,2);
 
-  w.eval('editorCore.selectRange({from:1,to:6},{focus:true})');
+  w.eval('currentEditorCore().selectRange({from:1,to:6},{focus:true})');
   d.querySelector('#typebar [data-cmd="bold"]').click();
   assert.equal(e.innerHTML,'<p>Alias <strong>Strong</strong></p>');
 
-  w.eval('editorCore.selectRange({from:7,to:13},{focus:true})');
+  w.eval('currentEditorCore().selectRange({from:7,to:13},{focus:true})');
   d.querySelector('#typebar [data-cmd="bold"]').click();
   assert.equal(e.querySelector('strong'),null);
   assert.equal(e.textContent,'Alias Strong');
@@ -977,26 +976,26 @@ test('ProseMirror normalizes accepted bold aliases and removes the semantic mark
 
 test('transaction history keeps the editor selection coherent through undo and redo',()=>{
   const w=page(),d=w.document,e=d.querySelector('#editor');
-  w.eval("editorCore.resetHTML('<p>alpha beta</p>',{silent:true})");
-  w.eval('editorCore.selectRange({from:7,to:11},{focus:true})');
+  w.eval("currentEditorCore().resetHTML('<p>alpha beta</p>',{silent:true})");
+  w.eval('currentEditorCore().selectRange({from:7,to:11},{focus:true})');
   d.querySelector('#typebar [data-cmd="bold"]').click();
-  assert.equal(w.eval('editorCore.selectedText()'),'beta');
+  assert.equal(w.eval('currentEditorCore().selectedText()'),'beta');
   assert.ok(e.querySelector('strong'));
 
   d.querySelector('#undoBtn').click();
   assert.equal(e.querySelector('strong'),null);
-  assert.equal(w.eval('editorCore.selectedText()'),'beta');
+  assert.equal(w.eval('currentEditorCore().selectedText()'),'beta');
 
   d.querySelector('#redoBtn').click();
   assert.ok(e.querySelector('strong'));
-  assert.equal(w.eval('editorCore.selectedText()'),'beta');
+  assert.equal(w.eval('currentEditorCore().selectedText()'),'beta');
   w.close();
 });
 
 test('editor shortcuts are scoped to the editor and leave find and name fields with native commands',()=>{
   const w=page(),d=w.document,e=d.querySelector('#editor');
-  w.eval("editorCore.resetHTML('<p>base</p>',{silent:true})");
-  w.eval('editorCore.selectRange({from:1,to:5},{focus:true})');
+  w.eval("currentEditorCore().resetHTML('<p>base</p>',{silent:true})");
+  w.eval('currentEditorCore().selectRange({from:1,to:5},{focus:true})');
   d.querySelector('#typebar [data-cmd="bold"]').click();
   const before=e.innerHTML;
 
@@ -1019,8 +1018,8 @@ test('editor shortcuts are scoped to the editor and leave find and name fields w
 
 test('plain-text paste is a single transactional edit and never interprets pasted markup',()=>{
   const w=page(),d=w.document,e=d.querySelector('#editor');
-  w.eval("editorCore.resetHTML('<p>x</p>',{silent:true})");
-  w.eval('editorCore.selectRange({from:2,to:2},{focus:true})');
+  w.eval("currentEditorCore().resetHTML('<p>x</p>',{silent:true})");
+  w.eval('currentEditorCore().selectRange({from:2,to:2},{focus:true})');
   const paste=new w.Event('paste',{bubbles:true,cancelable:true});
   Object.defineProperty(paste,'clipboardData',{value:{getData:type=>type==='text/plain'?'<b>literal</b>\nline':''}});
   e.dispatchEvent(paste);
@@ -1036,12 +1035,12 @@ test('plain-text paste is a single transactional edit and never interprets paste
 
 test('find treats punctuation and regex metacharacters literally',()=>{
   const w=page(),d=w.document;
-  w.eval("editorCore.resetHTML('<p>a.b C++ ( [</p>',{silent:true})");
+  w.eval("currentEditorCore().resetHTML('<p>a.b C++ ( [</p>',{silent:true})");
   const input=d.querySelector('#findText');
   for(const term of ['a.b','C++','(', '[']){
     input.value=term;
     d.querySelector('#findNext').click();
-    assert.equal(w.eval('editorCore.selectedText()'),term);
+    assert.equal(w.eval('currentEditorCore().selectedText()'),term);
   }
   w.close();
 });
