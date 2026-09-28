@@ -8,14 +8,6 @@ on:
         description: Full immutable Release Anchor commit SHA
         required: true
         type: string
-      certification_status:
-        description: Final certification state
-        required: true
-        default: BLOCKED
-        type: choice
-        options:
-          - BLOCKED
-          - RELEASE APPROVED
       authorization_evidence_ref:
         description: GitHub issue/comment containing explicit external-test authorization
         required: true
@@ -113,12 +105,11 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: package.json
-          cache: npm
 
-      - name: Validate auditable release evidence references
+      - name: Audit release evidence record
         env:
+          GITHUB_TOKEN: ${{ github.token }}
           RELEASE_ANCHOR_SHA: ${{ inputs.release_anchor_sha }}
-          CERTIFICATION_STATUS: ${{ inputs.certification_status }}
           AUTHORIZATION_EVIDENCE_REF: ${{ inputs.authorization_evidence_ref }}
           VISUAL_EVIDENCE_REF: ${{ inputs.visual_evidence_ref }}
           TELEGRAPH_EVIDENCE_REF: ${{ inputs.telegraph_evidence_ref }}
