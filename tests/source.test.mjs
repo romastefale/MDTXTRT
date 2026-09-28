@@ -286,9 +286,16 @@ test('chrome circles share one control diameter and dark icons retain contrast',
   assert.match(html,/\.bar > button\{[\s\S]*?flex:0 0 var\(--control-size\);width:var\(--control-size\);min-width:var\(--control-size\);height:var\(--control-size\)/);
   assert.match(html,/\.action-dot\{[\s\S]*?width:var\(--control-size\);height:var\(--control-size\)/);
   assert.match(html,/\.seg \.action-dot\{width:var\(--control-size\);height:var\(--control-size\)\}/);
-  assert.match(html,/\.bar > button\.more\{color:#fff;background:var\(--accent\);box-shadow:0 4px 14px color-mix\(in oklab,var\(--accent\) 45%,transparent\)\}/);
+  assert.match(html,/\.bar > button\.more\{color:#fff;background:var\(--accent\);box-shadow:0 4px 20px color-mix\(in oklab,var\(--accent\) 70%,transparent\)\}/);
   assert.match(html,/\.bar > button\.on::before\{[\s\S]*?inset:0;border-radius:50%/);
   assert.doesNotMatch(html,/\.action-dot\{[\s\S]*?control-size\) - 6px/);
+});
+
+test('export and plus keep a strong accent glow in both themes',()=>{
+  const html=read('index.html');
+  assert.match(html,/\.bar > button\.more\{color:#fff;background:var\(--accent\);box-shadow:0 4px 20px color-mix\(in oklab,var\(--accent\) 70%,transparent\)\}/);
+  assert.match(html,/\.bar > button\.more\.on\{background:var\(--accent\);box-shadow:0 4px 24px color-mix\(in oklab,var\(--accent\) 80%,transparent\)\}/);
+  assert.match(html,/\.action-dot\{[\s\S]*?background:var\(--accent\);color:#fff;[\s\S]*?box-shadow:0 4px 20px color-mix\(in oklab,var\(--accent\) 70%,transparent\)/);
 });
 
 test('theme switch is a text-and-icon target with no control background',()=>{
