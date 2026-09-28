@@ -7,7 +7,7 @@
     "test": "node --test tests/*.test.mjs",
     "build": "npm run build:editor && npm run build:ui",
     "build:editor": "esbuild src/editor-core.mjs --bundle --format=iife --global-name=MDTXTRTEditorCore --platform=browser --target=es2022 --minify --legal-comments=eof --outfile=editor-core.js",
-    "build:ui": "esbuild src/liquid-glass-ui.jsx --bundle --format=esm --platform=browser --target=es2022 --minify --legal-comments=eof --outfile=ui.js"
+    "build:ui": "esbuild src/liquid-glass-ui.jsx --bundle --format=esm --platform=browser --target=es2022 --minify-syntax --minify-whitespace --legal-comments=eof --outfile=ui.js"
   },
   "engines": {
     "node": "24.21.0"
