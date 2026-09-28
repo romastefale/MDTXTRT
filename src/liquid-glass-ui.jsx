@@ -1,4 +1,4 @@
-import React, { useLayoutEffect, useRef, useState } from "react";
+import React from "react";
 import { createRoot } from "react-dom/client";
 import { flushSync } from "react-dom";
 import { Glass } from "@samasante/liquid-glass";
@@ -59,20 +59,6 @@ export function GlassContextMenu({
   placement = "auto",
   ...props
 }) {
-  const contentRef = useRef(null);
-  const [size, setSize] = useState({ width: 0, height: 0 });
-  useLayoutEffect(() => {
-    const content = contentRef.current;
-    if (!content) return;
-    const measure = () => {
-      const { width, height } = content.getBoundingClientRect();
-      setSize(old => old.width === width && old.height === height ? old : { width, height });
-    };
-    const observer = new ResizeObserver(measure);
-    observer.observe(content);
-    measure();
-    return () => observer.disconnect();
-  }, []);
   return (
     <div
       id={id}
@@ -86,12 +72,8 @@ export function GlassContextMenu({
         optics={MENU_LENS}
         className="glass-menu-material"
         style={{ display: "block", width: "100%" }}
-        width={size.width || undefined}
-        height={size.height || undefined}
-        radius={MENU_RADIUS}
-        refract={size.width && size.height ? <div aria-hidden="true" className="glass-menu-wallpaper" /> : undefined}
       >
-        <div ref={contentRef} className="glass-menu-content">{children}</div>
+        <div className="glass-menu-content">{children}</div>
       </Glass>
     </div>
   );
