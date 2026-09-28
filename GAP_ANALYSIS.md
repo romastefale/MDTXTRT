@@ -174,30 +174,29 @@ For every cell verify top/bottom chrome reachability, menu reachability, interna
 
 **Status:** CLOSED by this branch.
 
-### G-13 — Pull-request validation used the synthetic merge commit
+### G-13 — Pull-request validation did not prove the exact anchor SHA
 
-**Observed:** the first green automated release run was associated with the candidate branch head but the default pull-request checkout resolved to GitHub's synthetic merge ref. The visual harness therefore reported a different candidate SHA than the proposed Release Anchor.
+**Observed:** GitHub Actions checks triggered by `pull_request` use a synthetic merge ref by default. An automated release run can therefore be associated with a candidate branch head while actually rebuilding and testing a different synthetic merge commit.
 
 **Risk:** integration success at a synthetic merge commit is not proof that the immutable Release Anchor SHA itself was rebuilt, tested and visually compared.
 
-**Correction:** the automated release job explicitly checks out `github.event.pull_request.head.sha` for pull-request runs and `github.sha` for manual runs. Artifact names use the same resolved candidate identity. The manifest verifier and visual harness then operate on that exact checkout.
+**Correction:** the release workflow resolves `RELEASE_CANDIDATE_SHA` to `github.event.pull_request.head.sha` on pull requests and `github.sha` on manual runs, explicitly checks out that SHA, and verifies `git rev-parse HEAD` before every release gate. Release artifacts use the same resolved SHA in their names.
 
-**Acceptance:** a post-correction release-validation run must be green and its visual summary must report the exact branch head SHA that will be sealed as the Release Anchor.
+**Acceptance:** manifest verification, complete rebuild, regression suite and visual comparison execute with Git `HEAD` equal to the branch SHA that will be sealed.
 
-**Status:** BLOCKING until a post-correction exact-SHA run is green.
+**Status:** implementation CLOSED; sealing is BLOCKED until a post-correction exact-SHA release-validation run is green.
 
+### G-14 — Visual comparison evidence was not retained
 
-### G-13 — Pull-request validation did not prove the exact anchor SHA
+**Observed:** the visual comparison step passed, but its output directory was named `.release-visual/`. `actions/upload-artifact` excludes hidden paths by default, so no screenshot artifact was retained.
 
-**Observed:** GitHub Actions checks triggered by `pull_request` use a synthetic merge ref by default. The first successful automated release gate therefore proved that the candidate integrated cleanly with its base, but the checked-out `HEAD` was not guaranteed to be the exact branch commit intended for the immutable Release Anchor.
+**Risk:** a green visual step without retained screenshots/summary is not independently auditable after the run.
 
-**Risk:** a release record could cite a branch-head SHA while the automated build, tests and screenshots were actually produced from a different synthetic merge commit.
+**Correction:** visual artifact upload now sets `include-hidden-files: true` and `if-no-files-found: error`. A release run cannot pass if the light/dark screenshots and comparison summary are absent.
 
-**Correction:** the release workflow now checks out `${{ github.event.pull_request.head.sha || github.sha }}` explicitly. Pull-request release artifacts are named from the same resolved head SHA. The ordinary regression workflow remains free to validate the merge result as an integration check; the release workflow separately proves the exact candidate configuration.
+**Acceptance:** the exact-SHA release-validation run has a non-empty `release-visual-baseline-<anchor-sha>` artifact containing candidate/baseline screenshots and `summary.json`.
 
-**Acceptance:** `scripts/verify-release-manifest.mjs`, bundle rebuild, regression suite and visual comparison all execute with Git `HEAD` equal to the candidate branch SHA that will be sealed.
-
-**Status:** CLOSED only after the exact-head release-validation run passes.
+**Status:** implementation CLOSED; sealing is BLOCKED until a post-correction run retains the artifact.
 
 ## Additional exception flows added to release acceptance
 
@@ -218,8 +217,8 @@ Each case has an expected fail-closed or recovery behavior in `RELEASE_VALIDATIO
 
 ## Release decision
 
-At the time this analysis is authored, automated/code gaps G-01 through G-04, G-09, G-10 and G-12 are addressed by the release-validation branch.
+At the time this analysis is authored, automated/code gaps G-01 through G-04, G-09, G-10 and G-12 have implementation corrections in the release-validation branch. G-13 and G-14 were discovered by executing that gate and also have corrections in the branch, but the branch must pass a new exact-SHA release-validation run with retained visual evidence before an anchor is sealed.
 
 The product is **not yet approved for release** because G-05, G-06, G-07, G-08 and G-11 require real authorized external/device evidence.
 
-The Release Anchor established from this branch is therefore the canonical configuration from which final validation must be executed. It is not, by itself, a declaration that all release gates have passed.
+After the corrected automated gates pass, the exact candidate SHA may be sealed as the canonical Release Anchor from which final external and physical validation is executed. Sealing the anchor is not, by itself, a declaration that release is approved.
