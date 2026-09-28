@@ -32,15 +32,24 @@ export const MENU_LENS = {
 };
 
 const BAR_LENS = {
-  ...MENU_LENS,
+  mapSize: 256,
+  clipToShape: true,
+  softEdge: true,
   depth: 0.72,
   curvature: 0.3,
+  dispersion: 0.16,
   strength: 0.24,
+  bend: 0.65,
+  bendWidth: 0.07,
   frost: 3,
   brightness: 0.42,
   specular: 0.72,
+  sheenAngle: 45,
   glow: 0.05,
+  glowSpread: 1,
+  glowFalloff: 0.8,
   sheen: 0.34,
+  sheenWidth: 1,
 };
 
 const MENU_RADIUS = 9;
