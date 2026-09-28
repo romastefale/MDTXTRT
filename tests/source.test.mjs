@@ -106,6 +106,7 @@ test('theme neutrals are chromatic derivatives of the active accent',()=>{
   assert.doesNotMatch(html,/html\.dark\{[^}]*--muted:/);
 });
 
+// The package GlassMaterial owns the bright rim; app CSS must not duplicate that material edge.
 test('bar material finish is owned by the Liquid Glass renderer',()=>{
   const html=read('index.html');
   const shared=html.match(/\.seg,\.bar\{([^}]*)\}/)?.[1]||'';
