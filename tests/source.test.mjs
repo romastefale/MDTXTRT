@@ -284,10 +284,10 @@ test('editor content starts below the lowered side pills without bypassing Teleg
   assert.match(html,/\.scroll\{[\s\S]*?padding-top:var\(--head-inset\)/);
 });
 
-test('Telegram Mini App chrome uses only the Telegram content safe area',()=>{
+test('browser PWA uses platform safe areas while Telegram keeps its content safe area',()=>{
   const html=read('index.html'),app=read('app.js');
-  assert.doesNotMatch(html,/viewport-fit=cover/);
-  assert.match(html,/--safe-top:0px;[\s\S]*?--safe-bottom:0px;[\s\S]*?--safe-left:0px;[\s\S]*?--safe-right:0px;/);
+  assert.match(html,/viewport-fit=cover/);
+  assert.match(html,/--safe-top:env\(safe-area-inset-top,0px\);[\s\S]*?--safe-bottom:env\(safe-area-inset-bottom,0px\);[\s\S]*?--safe-left:env\(safe-area-inset-left,0px\);[\s\S]*?--safe-right:env\(safe-area-inset-right,0px\);/);
   assert.match(html,/html\.tg-shell\{[\s\S]*?--safe-top:var\(--app-tg-content-safe-top\);[\s\S]*?--safe-bottom:var\(--app-tg-content-safe-bottom\);[\s\S]*?--safe-left:var\(--app-tg-content-safe-left\);[\s\S]*?--safe-right:var\(--app-tg-content-safe-right\)/);
   assert.match(app,/function syncTelegramContentSafeArea\(\)/);
   assert.doesNotMatch(app,/tg\.safeAreaInset/);

@@ -5,7 +5,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-title" content="MDTXTRT" />
   <meta name="apple-mobile-web-app-status-bar-style" id="statusBarStyle" content="default" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, interactive-widget=resizes-visual" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-visual" />
   <meta name="color-scheme" id="colorScheme" content="light dark" />
   <meta name="theme-color" id="themeColor" content="#f8fbff" />
   <title>MDTXTRT</title>
@@ -43,10 +43,10 @@
       --glass-field-soft:color-mix(in oklab,var(--accent) 9%,rgba(255,255,255,.13));
       --menu-shadow:rgba(0,0,0,.30);
       --menu-shadow-tight:rgba(0,0,0,.18);
-      --safe-top:0px;
-      --safe-bottom:0px;
-      --safe-left:0px;
-      --safe-right:0px;
+      --safe-top:env(safe-area-inset-top,0px);
+      --safe-bottom:env(safe-area-inset-bottom,0px);
+      --safe-left:env(safe-area-inset-left,0px);
+      --safe-right:env(safe-area-inset-right,0px);
       --gap:8px;
       --bar-side-inset:20px;
       --bar-bottom-inset:32px;
