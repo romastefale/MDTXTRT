@@ -166,15 +166,21 @@ test('bars use one uniform shared hairline token across themes',()=>{
   assert.match(shared,/border-radius:999px/);
 });
 
-test('editor uses incremental Markdown input rules without replacing the rich-text model',()=>{
-  const app=read('app.js');
+test('editor uses incremental Markdown input rules on the transactional core',()=>{
+  const app=read('app.js'),core=read('src/editor-core.mjs');
   for(const fragment of [
-    'function markdownBlockRule()',
+    'function applyMarkdownBlockRule({allowTask=true}={})',
     'const heading=text.match(/^(#{1,6}) (?=\\S)/);',
     "const quote=text.match(/^> (?=\\S)/);",
     "const bullet=text.match(/^[-*+] (?=\\S)/);",
     'const ordered=text.match(/^(\\d+)\\. (?=\\S)/);',
-    "dest==='telegram'&&text.match(/^- \\[([ xX])\\] (?=\\S)/)",
+    'const task=allowTask&&text.match(/^- \\[([ xX])\\] (?=\\S)/)',
+    'function exitFormattedBlock()',
+    'tr=tr.wrap(range,[{type:schema.nodes.blockquote',
+    'tr=tr.wrap(range,[{type:listType,attrs},{type:schema.nodes.list_item}])'
+  ])assert.ok(core.includes(fragment),fragment);
+  for(const fragment of [
+    "editorCore.applyMarkdownBlockRule({allowTask:dest==='telegram'})",
     'function exitFormattedBlockOnParagraph(event)',
     "editor.addEventListener('beforeinput',exitFormattedBlockOnParagraph);",
     'function normalizeEmptyFormattedBlock(event)',
