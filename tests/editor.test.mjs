@@ -226,7 +226,7 @@ test('document name stays in export flow and becomes the Telegraph title',async(
 
 test('Markdown block markers wait for content, convert in either typing order and preserve semantics',async()=>{
   const w=page(),d=w.document,e=d.querySelector('#editor');
-  const apply=(html,offset=null,inputType='insertText')=>{
+  const apply=async(html,offset=null,inputType='insertText')=>{
     w.eval('currentEditorCore().resetHTML('+JSON.stringify(html)+',{silent:true})');
     const block=e.firstElementChild,node=block.firstChild;
     assert.ok(node);
@@ -272,7 +272,7 @@ test('Markdown block conversion preserves the logical caret while typing',async(
   initial.setStart(first,first.length);initial.collapse(true);
   w.getSelection().removeAllRanges();w.getSelection().addRange(initial);
 
-  const type=char=>{
+  const type=async char=>{
     const sel=w.getSelection(),range=sel.getRangeAt(0);
     let text=range.startContainer,offset=range.startOffset;
     if(text.nodeType!==3){
@@ -309,7 +309,7 @@ test('Markdown block markers accept element-anchored carets and non-breaking spa
 
 test('Enter exits headings and quotes to body without leaking formatting',async()=>{
   const w=page(),d=w.document,e=d.querySelector('#editor');
-  const exitAtEnd=html=>{
+  const exitAtEnd=async html=>{
     w.eval('currentEditorCore().resetHTML('+JSON.stringify(html)+',{silent:true})');
     const block=e.firstElementChild,node=block.firstChild,range=d.createRange();
     range.setStart(node,node.length);range.collapse(true);
