@@ -269,6 +269,16 @@ test('Telegram Mini App chrome uses only the Telegram content safe area',()=>{
   assert.match(app,/!syncTelegramContentSafeArea\(\)/);
 });
 
+test('undo and redo use destination mid-tone and export accent while flashing',()=>{
+  const html=read('index.html');
+  assert.match(html,/\.seg #undoBtn,\.seg #redoBtn\{background:var\(--bar-control-accent-bg\);color:var\(--accent\)\}/);
+  assert.match(html,/\.seg #destBtn\{position:relative;background:var\(--bar-control-accent-bg\);color:var\(--accent\)\}/);
+  assert.match(html,/\.seg button\.is-flash::before\{[\s\S]*?background:var\(--accent\)/);
+  assert.match(html,/@keyframes flash-icon\{0%,35%\{color:#fff\}100%\{color:var\(--accent\)\}\}/);
+  assert.match(html,/--bar-control-accent-bg:color-mix\(in oklab,var\(--accent\) 26%,transparent\)/);
+  assert.match(html,/html\.light\{[\s\S]*?--bar-control-accent-bg:color-mix\(in oklab,var\(--accent\) 20%,transparent\)/);
+});
+
 test('chrome circles share one control diameter and dark icons retain contrast',()=>{
   const html=read('index.html');
   assert.match(html,/html\.dark \.seg,html\.dark \.bar\{color:#f5f5f7\}/);
