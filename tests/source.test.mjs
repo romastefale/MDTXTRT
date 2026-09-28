@@ -238,6 +238,11 @@ test('UI preserves compact portrait contract, unified chrome scale and anchored 
   assert.match(html,/id="deviceGate" role="status" aria-live="polite"/);
   assert.doesNotMatch(html,/id="deviceGate"[^>]*aria-modal=/);
   assert.match(html,/Você pode continuar nesta tela\./);
+  assert.match(html,/const initialDeviceNotice=matchMedia\('\(orientation:landscape\)'\)\.matches\|\|matchMedia\('\(min-width:760px\)'\)\.matches/);
+  assert.match(html,/root\.setAttribute\('data-device-gate',''\)/);
+  assert.match(html,/setTimeout\(\(\)=>root\.removeAttribute\('data-device-gate'\),4300\)/);
+  assert.match(html,/@keyframes device-gate-out\{to\{opacity:0;visibility:hidden\}\}/);
+  assert.doesNotMatch(html,/@media \(orientation:landscape\),\(min-width:760px\)\{\s*\.device-gate\{display:/);
   assert.match(html,/--control-size:clamp\(36px,10vw,40px\)/);
   assert.match(html,/--theme-control-size:clamp\(21\.6px,6vw,24px\)/);
   assert.match(html,/--theme-icon-size:clamp\(10\.8px,3vw,12px\)/);
