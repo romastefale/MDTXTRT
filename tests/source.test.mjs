@@ -71,6 +71,8 @@ test('theme neutrals are chromatic derivatives of the active accent',()=>{
   const html=read('index.html');
   assert.match(html,/--accent:#2B88D8;/);
   assert.equal((html.match(/--accent:#2B88D8;/g)||[]).length,2);
+  assert.match(html,/html\.light\{[\s\S]*?--accent:#269c65;/);
+  assert.equal((html.match(/--accent:#269c65;/g)||[]).length,1);
   assert.match(html,/--muted:color-mix\(in oklab,var\(--text\) 82%,var\(--accent\)\);/);
   for(const [name,amount] of [['neutral-1','6'],['neutral-2','10'],['neutral-3','16'],['neutral-4','24']]){
     assert.match(html,new RegExp('--'+name+':color-mix\\(in oklab,var\\(--accent\\) '+amount+'%,var\\(--bg\\)\\);'));
@@ -91,8 +93,8 @@ test('theme neutrals are chromatic derivatives of the active accent',()=>{
   assert.match(html,/\.menu-divider::after\{[^}]*background:var\(--glass-edge\)\}/);
   assert.match(html,/\.menu-list > button:hover,\.menu-list > button:focus-visible\{background:var\(--accent\);color:#fff\}/);
   assert.match(html,/\.dialog-actions #dialogOk\{background:var\(--accent\);color:#fff\}/);
-  assert.match(html,/html\.dark\{--accent:#269c65;--muted:#dcf1db;color-scheme:dark\}/);
-  assert.equal((html.match(/--muted:#dcf1db;/g)||[]).length,1);
+  assert.match(html,/html\.dark\{--accent:#2B88D8;color-scheme:dark\}/);
+  assert.doesNotMatch(html,/html\.dark\{[^}]*--muted:/);
 });
 
 test('editor uses incremental Markdown input rules without replacing the rich-text model',()=>{
@@ -214,6 +216,18 @@ test('Telegram Mini App safe areas are sourced from WebApp fields and updated by
   assert.match(app,/tg\.onEvent\('contentSafeAreaChanged',handleTelegramSafeAreaChange\)/);
   assert.match(app,/tg\.isVersionAtLeast\('8\.0'\)/);
   assert.match(app,/!syncTelegramSafeAreas\(\)/);
+});
+
+test('chrome circles share one control diameter and dark icons retain contrast',()=>{
+  const html=read('index.html');
+  assert.match(html,/html\.dark \.seg,html\.dark \.bar,html\.dark \.theme-control\{color:#f5f5f7\}/);
+  assert.match(html,/\.seg button\{[\s\S]*?width:var\(--control-size\);height:var\(--control-size\)/);
+  assert.match(html,/\.bar > button\{[\s\S]*?flex:0 0 var\(--control-size\);width:var\(--control-size\);min-width:var\(--control-size\);height:var\(--control-size\)/);
+  assert.match(html,/\.action-dot\{[\s\S]*?width:var\(--control-size\);height:var\(--control-size\)/);
+  assert.match(html,/\.seg \.action-dot\{width:var\(--control-size\);height:var\(--control-size\)\}/);
+  assert.match(html,/\.bar > button\.more\{color:#fff;background:var\(--accent\);box-shadow:0 4px 14px color-mix\(in oklab,var\(--accent\) 45%,transparent\)\}/);
+  assert.match(html,/\.bar > button\.on::before\{[\s\S]*?inset:0;border-radius:50%/);
+  assert.doesNotMatch(html,/\.action-dot\{[\s\S]*?control-size\) - 6px/);
 });
 
 test('theme switch keeps a deliberate sixty-percent visual scale across access modes',()=>{
