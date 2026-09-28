@@ -567,7 +567,7 @@ test('Markdown conversion retains supported semantic structures',()=>{
   assert.equal(box.querySelector('strong')?.textContent,'forte');
   assert.equal(box.querySelector('a')?.getAttribute('href'),'https://example.com');
   e.innerHTML=html;
-  const out=w.eval('htmlToMarkdown(document.querySelector("#editor").innerHTML)');
+  const out=w.eval('htmlToMarkdown(exportDocumentHTML())');
   assert.match(out,/Nome/);
   assert.match(out,/forte/);
   assert.match(out,/https:\/\/example\.com/);
@@ -642,7 +642,7 @@ test('find advances, wraps and replace-one survives focus moving to controls',()
 test('Markdown round-trip preserves styled rich buttons and footer semantics',()=>{
   const w=page(),e=w.document.querySelector('#editor');
   e.innerHTML='<p class="tg-footer">Rodapé</p><tg-button-row><tg-button type="url" style="danger" url="https://example.com">Abrir</tg-button></tg-button-row>';
-  const md=w.eval('htmlToMarkdown(document.querySelector("#editor").innerHTML)');
+  const md=w.eval('htmlToMarkdown(exportDocumentHTML())');
   const html=w.eval('mdToBasicHTML('+JSON.stringify(md)+')');
   const box=w.document.createElement('div');box.innerHTML=html;
   assert.equal(box.querySelector('tg-button')?.getAttribute('style'),'danger');
@@ -653,7 +653,7 @@ test('Markdown round-trip preserves styled rich buttons and footer semantics',()
 test('local attachments are blocked from lossy file exports',()=>{
   const w=page(),e=w.document.querySelector('#editor');
   e.innerHTML='<figure><img data-media-id="media1" src="blob:https://example.com/local"></figure>';
-  assert.throws(()=>w.eval('htmlToMarkdown(document.querySelector("#editor").innerHTML)'),/URL pública/);
+  assert.throws(()=>w.eval('htmlToMarkdown(exportDocumentHTML())'),/URL pública/);
   assert.throws(()=>w.eval('htmlToText(document.querySelector("#editor").innerHTML)'),/TXT não comporta/);
   w.close();
 });
@@ -1068,12 +1068,12 @@ test('Markdown round-trip preserves strike through edited semantic state',()=>{
   const w=page(),d=w.document,e=d.querySelector('#editor');
   w.eval("currentEditorCore().resetHTML('<p>antes <del>cortado</del> depois</p>',{silent:true})");
   assert.equal(e.querySelector('s')?.textContent,'cortado');
-  const md=w.eval('htmlToMarkdown(document.querySelector("#editor").innerHTML)');
+  const md=w.eval('htmlToMarkdown(exportDocumentHTML())');
   assert.match(md,/~~cortado~~/);
   const imported=w.eval('mdToBasicHTML('+JSON.stringify(md)+')');
   w.eval('currentEditorCore().resetHTML('+JSON.stringify(imported)+',{silent:true})');
   assert.equal(e.querySelector('s')?.textContent,'cortado');
-  const second=w.eval('htmlToMarkdown(document.querySelector("#editor").innerHTML)');
+  const second=w.eval('htmlToMarkdown(exportDocumentHTML())');
   assert.match(second,/~~cortado~~/);
   w.close();
 });
@@ -1084,7 +1084,7 @@ test('Markdown file boundary strips runtime media controls and remains reimporta
   w.eval('currentEditorCore().resetHTML('+JSON.stringify(mediaHtml)+',{silent:true})');
   assert.equal(e.querySelector('video')?.hasAttribute('controls'),true);
   assert.equal(e.querySelector('audio')?.hasAttribute('controls'),true);
-  const md=w.eval('htmlToMarkdown(document.querySelector("#editor").innerHTML)');
+  const md=w.eval('htmlToMarkdown(exportDocumentHTML())');
   assert.doesNotMatch(md,/\scontrols(?:[\s=>]|$)/i);
   const imported=w.eval('mdToBasicHTML('+JSON.stringify(md)+')');
   const box=d.createElement('div');box.innerHTML=imported;
@@ -1092,7 +1092,7 @@ test('Markdown file boundary strips runtime media controls and remains reimporta
   assert.equal(box.querySelector('audio')?.hasAttribute('controls'),false);
   w.eval('currentEditorCore().resetHTML('+JSON.stringify(imported)+',{silent:true})');
   assert.equal(e.querySelector('video')?.hasAttribute('controls'),true);
-  assert.doesNotThrow(()=>w.eval('mdToBasicHTML('+JSON.stringify(w.eval('htmlToMarkdown(document.querySelector("#editor").innerHTML)'))+')'));
+  assert.doesNotThrow(()=>w.eval('mdToBasicHTML('+JSON.stringify(w.eval('htmlToMarkdown(exportDocumentHTML())'))+')'));
   w.close();
 });
 
@@ -1104,7 +1104,7 @@ test('real Markdown import normalizes presentation attributes instead of returni
   await wait(10);
   assert.equal(e.querySelector('video')?.hasAttribute('controls'),true);
   assert.equal(e.querySelector('s')?.textContent,'cortado');
-  const exported=w.eval('htmlToMarkdown(document.querySelector("#editor").innerHTML)');
+  const exported=w.eval('htmlToMarkdown(exportDocumentHTML())');
   assert.notEqual(exported,original);
   assert.doesNotMatch(exported,/\scontrols(?:[\s=>]|$)/i);
   assert.match(exported,/~~cortado~~/);
