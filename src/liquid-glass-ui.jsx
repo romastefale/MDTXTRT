@@ -34,6 +34,7 @@ export const MENU_LENS = {
 const BAR_LENS = {
   sheen: 0,
   glow: 0,
+  specular: 0,
 };
 
 const MENU_RADIUS = 9;

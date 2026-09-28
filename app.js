@@ -36,14 +36,24 @@ function resolvedTheme(){
   if(session==='ready'&&(tg?.colorScheme==='light'||tg?.colorScheme==='dark'))return tg.colorScheme;
   return scheme.matches?'light':'dark';
 }
+function syncBrowserChrome(mode,color){
+  const root=document.documentElement,schemeMeta=one('#colorScheme'),themeMeta=one('#themeColor');
+  root.style.colorScheme=mode;
+  if(schemeMeta)schemeMeta.setAttribute('content',mode);
+  if(themeMeta){
+    const replacement=themeMeta.cloneNode();
+    replacement.setAttribute('content',color);
+    themeMeta.replaceWith(replacement);
+  }
+}
 function applyScheme(mode=resolvedTheme()){
   const next=mode==='light'?'light':'dark',light=next==='light';
   const root=document.documentElement,color=light?'#f8fbff':'#000000';
   root.classList.remove(light?'dark':'light');
   root.classList.add(next);
   root.dataset.theme=next;
-  const themeMeta=one('#themeColor'),statusMeta=one('#statusBarStyle');
-  if(themeMeta)themeMeta.content=color;
+  syncBrowserChrome(next,color);
+  const statusMeta=one('#statusBarStyle');
   if(statusMeta)statusMeta.content=light?'default':'black-translucent';
   const btn=one('#themeBtn');
   if(btn){
@@ -1510,6 +1520,14 @@ function syncBrowserViewport(){
   root.style.setProperty('--vv-top',top+'px');
   root.style.setProperty('--vv-bottom',inset+'px');
   root.style.setProperty('--vv-height',Math.max(0,root.clientHeight-top-inset)+'px');
+  const bar=one('#typebar');
+  if(bar){
+    const rect=bar.getBoundingClientRect();
+    const left=viewport?viewport.offsetLeft:0;
+    const width=viewport?viewport.width:root.clientWidth;
+    const side=Math.max(0,Math.min(rect.left-left,left+width-rect.right));
+    root.style.setProperty('--bar-side-inset',side+'px');
+  }
   for(const sel of sheets){const panel=one(sel);if(panel?.matches(':popover-open'))placePanel(panel);}
 }
 function scheduleBrowserViewport(){
