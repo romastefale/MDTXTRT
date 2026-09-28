@@ -1520,14 +1520,6 @@ function syncBrowserViewport(){
   root.style.setProperty('--vv-top',top+'px');
   root.style.setProperty('--vv-bottom',inset+'px');
   root.style.setProperty('--vv-height',Math.max(0,root.clientHeight-top-inset)+'px');
-  const bar=one('#typebar');
-  if(bar){
-    const rect=bar.getBoundingClientRect();
-    const left=viewport?viewport.offsetLeft:0;
-    const width=viewport?viewport.width:root.clientWidth;
-    const side=Math.max(0,Math.min(rect.left-left,left+width-rect.right));
-    root.style.setProperty('--bar-side-inset',side+'px');
-  }
   for(const sel of sheets){const panel=one(sel);if(panel?.matches(':popover-open'))placePanel(panel);}
 }
 function scheduleBrowserViewport(){
