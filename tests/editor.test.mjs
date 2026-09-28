@@ -224,7 +224,7 @@ test('document name stays in export flow and becomes the Telegraph title',async(
   w.close();
 });
 
-test('Markdown block markers wait for content, convert in either typing order and preserve semantics',()=>{
+test('Markdown block markers wait for content, convert in either typing order and preserve semantics',async()=>{
   const w=page(),d=w.document,e=d.querySelector('#editor');
   const apply=(html,offset=null,inputType='insertText')=>{
     w.eval('currentEditorCore().resetHTML('+JSON.stringify(html)+',{silent:true})');
@@ -236,35 +236,36 @@ test('Markdown block markers wait for content, convert in either typing order an
     d.dispatchEvent(new w.Event('selectionchange'));
     const event=new w.InputEvent('input',{bubbles:true,inputType});
     e.dispatchEvent(event);
+    await wait();
   };
-  apply('<p># </p>');
+  await apply('<p># </p>');
   assert.equal(e.firstElementChild.tagName,'P');
   assert.equal(e.textContent,'# ');
 
-  apply('<p># Palavra</p>');
+  await apply('<p># Palavra</p>');
   assert.equal(e.querySelector('h1')?.textContent,'Palavra');
   assert.equal(d.querySelector('#headingBtn').classList.contains('on'),true);
   assert.equal(d.querySelector('#headingBtn').getAttribute('aria-pressed'),'true');
   assert.equal(d.querySelector('#headingMenu [data-block="h1"]').classList.contains('is-current'),true);
 
-  apply('<p>## Palavra</p>',3);
+  await apply('<p>## Palavra</p>',3);
   assert.equal(e.querySelector('h2')?.textContent,'Palavra');
-  apply('<p>&gt; Citação</p>');
+  await apply('<p>&gt; Citação</p>');
   assert.equal(e.querySelector('blockquote')?.textContent,'Citação');
   assert.equal(d.querySelector('#quoteBtn').classList.contains('on'),true);
-  apply('<p>- Item</p>');
+  await apply('<p>- Item</p>');
   assert.ok(e.querySelector('ul > li'));
-  apply('<p>3. Item</p>');
+  await apply('<p>3. Item</p>');
   assert.equal(e.querySelector('ol')?.getAttribute('start'),'3');
-  apply('<p>- [x] Tarefa</p>');
+  await apply('<p>- [x] Tarefa</p>');
   assert.equal(e.querySelector('li > input[type="checkbox"]')?.checked,true);
-  apply('<p>\\# Literal</p>',3);
+  await apply('<p>\\# Literal</p>',3);
   assert.equal(e.querySelector('p')?.textContent,'# Literal');
   assert.equal(e.querySelector('h1'),null);
   w.close();
 });
 
-test('Markdown block conversion preserves the logical caret while typing',()=>{
+test('Markdown block conversion preserves the logical caret while typing',async()=>{
   const w=page(),d=w.document,e=d.querySelector('#editor');
   w.eval("currentEditorCore().resetHTML('<p># </p>',{silent:true})");
   const first=e.querySelector('p').firstChild,initial=d.createRange();
@@ -282,9 +283,10 @@ test('Markdown block conversion preserves the logical caret while typing',()=>{
     range.setStart(text,offset+char.length);range.collapse(true);
     sel.removeAllRanges();sel.addRange(range);
     e.dispatchEvent(new w.InputEvent('input',{bubbles:true,inputType:'insertText',data:char}));
+    await wait();
   };
 
-  for(const char of 'teste')type(char);
+  for(const char of 'teste')await type(char);
   assert.equal(e.firstElementChild.tagName,'H1');
   assert.equal(e.firstElementChild.textContent,'teste');
   const sel=w.getSelection();
@@ -305,7 +307,7 @@ test('Markdown block markers accept element-anchored carets and non-breaking spa
   w.close();
 });
 
-test('Enter exits headings and quotes to body without leaking formatting',()=>{
+test('Enter exits headings and quotes to body without leaking formatting',async()=>{
   const w=page(),d=w.document,e=d.querySelector('#editor');
   const exitAtEnd=html=>{
     w.eval('currentEditorCore().resetHTML('+JSON.stringify(html)+',{silent:true})');
@@ -315,14 +317,15 @@ test('Enter exits headings and quotes to body without leaking formatting',()=>{
     d.dispatchEvent(new w.Event('selectionchange'));
     const before=new w.InputEvent('beforeinput',{bubbles:true,cancelable:true,inputType:'insertParagraph'});
     e.dispatchEvent(before);
-    return block;
+    await wait();
+    return e.firstElementChild;
   };
-  let block=exitAtEnd('<h1>Título</h1>');
+  let block=await exitAtEnd('<h1>Título</h1>');
   assert.equal(block.nextElementSibling?.tagName,'P');
   assert.equal(d.querySelector('#headingBtn').classList.contains('on'),false);
   assert.equal(d.querySelector('#headingMenu [data-block="p"]').classList.contains('is-current'),true);
 
-  block=exitAtEnd('<blockquote>Citação</blockquote>');
+  block=await exitAtEnd('<blockquote>Citação</blockquote>');
   assert.equal(block.nextElementSibling?.tagName,'P');
   assert.equal(d.querySelector('#quoteBtn').classList.contains('on'),false);
   w.close();
