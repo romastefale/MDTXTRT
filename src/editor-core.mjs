@@ -423,9 +423,7 @@ export function createEditorCore({element,onChange=()=>{},onSelectionChange=()=>
     if(quote){
       const markerLength=quote[0].length;
       let tr=state.tr.delete(contentStart,contentStart+markerLength);
-      const range=tr.selection.$from.blockRange();
-      if(!range)return false;
-      tr=tr.wrap(range,[{type:schema.nodes.blockquote,attrs:{expandable:false}}]);
+      tr=tr.setNodeMarkup(blockPos,schema.nodes.blockquote,{expandable:false});
       dispatch(tr);view.focus();return true;
     }
 
@@ -449,37 +447,67 @@ export function createEditorCore({element,onChange=()=>{},onSelectionChange=()=>
     const {$from}=state.selection;
     for(let depth=$from.depth;depth>0;depth--){
       const node=$from.node(depth);
-      if(node.type===schema.nodes.heading){
-        if($from.parent!==node)return false;
-        const pos=$from.before(depth),offset=$from.parentOffset;
-        let tr=state.tr;
-        if(offset===0){
-          tr=tr.insert(pos,schema.nodes.paragraph.create());
-          tr=tr.setSelection(TextSelection.create(tr.doc,pos+1));
-        }else{
-          const before=node.copy(node.content.cut(0,offset));
-          const after=schema.nodes.paragraph.create(null,node.content.cut(offset));
-          tr=tr.replaceWith(pos,pos+node.nodeSize,Fragment.fromArray([before,after]));
-          tr=tr.setSelection(TextSelection.create(tr.doc,pos+before.nodeSize+1));
-        }
-        dispatch(tr);view.focus();return true;
+      if(node.type!==schema.nodes.heading&&node.type!==schema.nodes.blockquote)continue;
+      if($from.parent!==node)return false;
+      const pos=$from.before(depth),offset=$from.parentOffset;
+      let tr=state.tr;
+      if(offset===0){
+        tr=tr.insert(pos,schema.nodes.paragraph.create());
+        tr=tr.setSelection(TextSelection.create(tr.doc,pos+1));
+      }else{
+        const before=node.copy(node.content.cut(0,offset));
+        const after=schema.nodes.paragraph.create(null,node.content.cut(offset));
+        tr=tr.replaceWith(pos,pos+node.nodeSize,Fragment.fromArray([before,after]));
+        tr=tr.setSelection(TextSelection.create(tr.doc,pos+before.nodeSize+1));
       }
-      if(node.type===schema.nodes.blockquote){
-        if(node.childCount!==1||depth+1!==$from.depth||!$from.parent.isTextblock)return false;
-        const pos=$from.before(depth),offset=$from.parentOffset,inner=$from.parent;
-        let tr=state.tr;
-        if(offset===0){
-          tr=tr.insert(pos,schema.nodes.paragraph.create());
-          tr=tr.setSelection(TextSelection.create(tr.doc,pos+1));
-        }else{
-          const quotedParagraph=inner.copy(inner.content.cut(0,offset));
-          const quoteBefore=node.copy(Fragment.from(quotedParagraph));
-          const bodyAfter=schema.nodes.paragraph.create(null,inner.content.cut(offset));
-          tr=tr.replaceWith(pos,pos+node.nodeSize,Fragment.fromArray([quoteBefore,bodyAfter]));
-          tr=tr.setSelection(TextSelection.create(tr.doc,pos+quoteBefore.nodeSize+1));
-        }
-        dispatch(tr);view.focus();return true;
+      dispatch(tr);view.focus();return true;
+    }
+    return false;
+  }
+
+  function normalizeEmptyFormattedBlock(inputType=""){
+    if(!String(inputType).startsWith("delete"))return false;
+    captureSelection();
+    if(!state.selection.empty)return false;
+    const {$from}=state.selection,node=$from.parent;
+    if(node.type!==schema.nodes.heading&&node.type!==schema.nodes.blockquote)return false;
+    const meaningful=node.content.content.some(child=>child.type!==schema.nodes.hard_break&&child.textContent.replace(/\u200b/g,"").trim());
+    if(meaningful)return false;
+    const pos=$from.before($from.depth);
+    let tr=state.tr.setNodeMarkup(pos,schema.nodes.paragraph);
+    tr=tr.setSelection(TextSelection.create(tr.doc,pos+1));
+    dispatch(tr);view.focus();return true;
+  }
+
+  function applyMarkdownInlineRule(){
+    captureSelection();
+    if(!state.selection.empty)return false;
+    const {$from}=state.selection,parent=$from.parent;
+    if(!parent.isTextblock||parent.type===schema.nodes.pre||parent.type===schema.nodes.math_block)return false;
+    const offset=$from.parentOffset,text=parent.textContent;
+    const candidates=[
+      {marker:"**",type:schema.marks.strong},
+      {marker:"~~",type:schema.marks.strike},
+      {marker:"`",type:schema.marks.code},
+      {marker:"*",type:schema.marks.em,single:true}
+    ];
+    for(const {marker,type,single=false} of candidates){
+      const before=text.slice(0,offset);
+      if(!before.endsWith(marker))continue;
+      const bodyEnd=offset-marker.length,beforeClose=text.slice(0,bodyEnd),open=beforeClose.lastIndexOf(marker);
+      if(open<0)continue;
+      if(single&&(text[open-1]===marker||text[open+1]===marker||text[bodyEnd-1]===marker))continue;
+      const value=text.slice(open+marker.length,bodyEnd);
+      if(!value||value.includes("\n"))continue;
+      const start=$from.start()+open,end=$from.start()+offset;
+      if(text[open-1]==="\\"){
+        dispatch(state.tr.delete(start-1,start));
+        return true;
       }
+      const marked=schema.text(value,[type.create()]);
+      let tr=state.tr.replaceWith(start,end,marked);
+      tr=tr.setSelection(TextSelection.create(tr.doc,start+value.length));
+      dispatch(tr);view.focus();return true;
     }
     return false;
   }
@@ -635,6 +663,8 @@ export function createEditorCore({element,onChange=()=>{},onSelectionChange=()=>
     linkHref,
     currentBlockKind,
     applyMarkdownBlockRule,
+    applyMarkdownInlineRule,
+    normalizeEmptyFormattedBlock,
     exitFormattedBlock,
     toggleList,
     formatBlock,
