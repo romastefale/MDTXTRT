@@ -45,3 +45,11 @@ A atualização deve registrar, no mínimo:
 4. a relação com a baseline anterior.
 
 Até que isso ocorra, `dde30467ed9b0d108bac2ae7ad9bcac1137c169e` permanece sendo a baseline de trabalho documentada.
+
+## Relação com a Release Anchor
+
+Esta baseline continua sendo o contrato visual de referência e não é substituída implicitamente pela validação final de release.
+
+A configuração candidata à liberação usa uma **Release Anchor** separada, definida em [RELEASE_ANCHOR.md](RELEASE_ANCHOR.md). A Release Anchor é identificada por SHA completo e incorpora as seis etapas de evolução mais as correções processuais da Gap Analysis. Seu papel é fixar a configuração técnica da validação final; seu SHA não redefine o design de `dde30467ed9b0d108bac2ae7ad9bcac1137c169e`.
+
+Se uma validação externa revelar defeito após a selagem, a âncora anterior permanece imutável e uma nova âncora substituta deve ser criada e revalidada.
