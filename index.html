@@ -48,6 +48,7 @@
       --safe-right:0px;
       --gap:8px;
       --bar-side-inset:20px;
+      --bar-bottom-inset:32px;
       --control-size:clamp(36px,10vw,40px);
       --pill-pad:4px;
       --pill-h:calc(var(--control-size) + 8px);
@@ -63,7 +64,7 @@
       --vv-height:100dvh;
       --bottom:var(--safe-bottom);
       --head-inset:calc(var(--safe-top) + var(--gap) + var(--topbar-h) + var(--editor-top-gap) + var(--gap));
-      --foot-inset:calc(var(--bottom) + var(--bar-side-inset) + var(--bar-h) + var(--gap));
+      --foot-inset:calc(var(--bottom) + var(--bar-bottom-inset) + var(--bar-h) + var(--gap));
     }
     html.tg-shell{
       --safe-top:var(--app-tg-content-safe-top);
@@ -275,7 +276,7 @@
     .editor tg-spoiler{background:var(--neutral-4);border-radius:4px}
     .bar-wrap{
       position:fixed;left:max(var(--bar-side-inset),var(--safe-left));right:max(var(--bar-side-inset),var(--safe-right));width:auto;
-      top:auto;bottom:calc(var(--vv-bottom) + var(--bottom) + var(--bar-side-inset));z-index:30;
+      top:auto;bottom:calc(var(--vv-bottom) + var(--bottom) + var(--bar-bottom-inset));z-index:30;
       transform:none;backface-visibility:hidden;
       padding:0;background:transparent;pointer-events:none
     }
