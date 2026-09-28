@@ -250,7 +250,8 @@ async function claimHandoff(){
     await installMedia(file,data.file.id,data.file.kind);
   }else{
     if(mediaFile?.url)URL.revokeObjectURL(mediaFile.url);
-    mediaFile=null;await mediaClear();
+    mediaFile=null;
+    try{await mediaClear();}catch(error){console.error('Media cleanup',error);}
   }
   activeHandoff=token;
   handoffAction=normalizedHandoffAction(data.action);
