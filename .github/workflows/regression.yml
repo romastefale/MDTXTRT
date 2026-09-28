@@ -29,5 +29,5 @@ jobs:
           name: react-ui-bundle
           path: ui.js
           if-no-files-found: error
-      - run: git diff --exit-code -- ui.js
       - run: npm test
+      - run: git diff --exit-code -- ui.js
