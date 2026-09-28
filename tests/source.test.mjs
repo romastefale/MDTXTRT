@@ -640,6 +640,13 @@ test('final release gap analysis and immutable anchor gates are explicit',()=>{
   const anchor=read('RELEASE_ANCHOR.md');
   const manifest=JSON.parse(read('RELEASE_MANIFEST.json'));
   assert.match(workflow,/workflow_dispatch:/);
+  assert.match(workflow,/RELEASE_CANDIDATE_SHA: \$\{\{ github\.event_name == 'pull_request' && github\.event\.pull_request\.head\.sha \|\| github\.sha \}\}/);
+  assert.equal((workflow.match(/ref: \$\{\{ env\.RELEASE_CANDIDATE_SHA \}\}/g)||[]).length,2);
+  assert.match(workflow,/name: Verify exact candidate checkout[\s\S]*?git rev-parse HEAD[\s\S]*?RELEASE_CANDIDATE_SHA/);
+  assert.match(workflow,/release-rebuilt-bundles-\$\{\{ env\.RELEASE_CANDIDATE_SHA \}\}/);
+  assert.match(workflow,/release-visual-baseline-\$\{\{ env\.RELEASE_CANDIDATE_SHA \}\}/);
+  assert.match(workflow,/include-hidden-files: true/);
+  assert.match(workflow,/if-no-files-found: error/);
   assert.match(workflow,/ref: \\?\$\{\{ github\.event\.pull_request\.head\.sha \|\| github\.sha \}\}/);
   assert.match(workflow,/name: Rebuild all committed bundles[\s\S]*?npm run build/);
   assert.match(workflow,/git diff --exit-code -- editor-core\.js ui\.js/);
