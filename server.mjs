@@ -20,6 +20,13 @@ class HttpError extends Error{
     this.status=status;
   }
 }
+class DeliveryError extends Error{
+  constructor(message,outcome="uncertain"){
+    super(message);
+    this.name="DeliveryError";
+    this.outcome=outcome;
+  }
+}
 function asHttpError(error,status,fallback){
   if(error instanceof HttpError)return error;
   return new HttpError(status,error instanceof Error&&error.message?error.message:fallback);
@@ -45,6 +52,7 @@ const TELEGRAPH_FILE = DATA + "/telegraph-token";
 const PAGES_FILE = TELEGRAPH_FILE + "-pages.json";
 const HANDOFF_DIR = DATA + "/handoffs";
 const HANDOFF_TTL = 15 * 60 * 1000;
+const SERVER_BOOT_ID = randomUUID();
 const BOT_TOKEN=required("TOKEN");
 if(!BOT_TOKEN_RE.test(BOT_TOKEN))throw new Error("Configuração inválida: TOKEN");
 let telegraphToken="";
@@ -161,13 +169,13 @@ async function telegramCall(method, body) {
     res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/${method}`, options);
   } catch (error) {
     console.error("Telegram", method, error);
-    throw new Error("Não foi possível conectar ao Telegram");
+    throw new DeliveryError("Não foi possível conectar ao Telegram","uncertain");
   }
   let json;
-  try { json = await res.json(); } catch { throw new Error("O Telegram retornou uma resposta inválida"); }
+  try { json = await res.json(); } catch { throw new DeliveryError("O Telegram retornou uma resposta inválida","uncertain"); }
   if (!json.ok) {
     console.error("Telegram", method, json.description || "Falha no envio");
-    throw new Error("O Telegram não aceitou a publicação");
+    throw new DeliveryError("O Telegram não aceitou a publicação","failed");
   }
   return json.result;
 }
@@ -266,11 +274,65 @@ function handoffFiles(token) {
   return { meta: HANDOFF_DIR + "/" + token + ".json", file: HANDOFF_DIR + "/" + token + ".bin" };
 }
 
+function writeHandoff(token,state){
+  const paths=handoffFiles(token);
+  writeFileSync(paths.meta + ".tmp", JSON.stringify(state), { mode: 0o600 });
+  renameSync(paths.meta + ".tmp", paths.meta);
+}
+
 function dropHandoff(token){
   const paths=handoffFiles(token);
   for(const path of [paths.meta,paths.file,paths.meta+".tmp"]){
     try{if(existsSync(path))unlinkSync(path);}catch(error){console.error("Handoff cleanup",path,error);}
   }
+}
+
+function handoffPublishRequestValid(request,draft,file){
+  if(!request||typeof request!=="object"||Array.isArray(request)||request.type!=="publish")throw new Error("Ação da transferência inválida");
+  if(typeof request.html!=="string"||!request.html.trim()||Buffer.byteLength(request.html,"utf8")>180_000)throw new Error("Conteúdo da publicação transferida inválido");
+  try{richValid(request.html);}catch(error){throw new Error(error instanceof Error?error.message:"Conteúdo da publicação transferida inválido");}
+  const kind=typeof request.kind==="string"?request.kind:"";
+  const id=typeof request.id==="string"?request.id:"";
+  if(file){
+    if(!draft.media||draft.media.id!==file.id||draft.media.kind!==file.kind)throw new Error("Anexo da transferência não corresponde ao rascunho");
+    if(kind!==file.kind||id!==file.id)throw new Error("Ação da transferência não corresponde ao anexo");
+  }else if(kind||id){
+    throw new Error("Ação da transferência referencia anexo ausente");
+  }
+  return {type:"publish",html:request.html,kind,id};
+}
+
+function handoffActionValid(action,draft,file){
+  if(action===null)return;
+  if(!action||typeof action!=="object"||Array.isArray(action)||action.type!=="publish")throw new Error("Estado de publicação da transferência inválido");
+  if(!["pending","sending","succeeded","failed","uncertain"].includes(action.status))throw new Error("Estado de publicação da transferência inválido");
+  if(!Number.isInteger(action.attempts)||action.attempts<0)throw new Error("Estado de publicação da transferência inválido");
+  for(const key of ["startedAt","finishedAt"]){
+    if(!Number.isFinite(action[key])||action[key]<0)throw new Error("Estado de publicação da transferência inválido");
+  }
+  if(typeof action.serverBootId!=="string"||typeof action.error!=="string")throw new Error("Estado de publicação da transferência inválido");
+  if(action.request!==null)handoffPublishRequestValid(action.request,draft,file);
+  if(action.status!=="uncertain"&&action.request===null)throw new Error("Estado de publicação da transferência inválido");
+  if(action.status==="succeeded"){
+    if(!action.result||action.result.via!=="sendRichMessage"||!Number.isInteger(action.result.messageId)||action.result.messageId<=0)throw new Error("Resultado da publicação transferida inválido");
+  }else if(action.result!==null){
+    throw new Error("Estado de publicação da transferência inválido");
+  }
+}
+
+function handoffActionView(action,draft){
+  if(!action)return null;
+  return {
+    type:"publish",
+    status:action.status,
+    attempts:action.attempts,
+    result:action.result,
+    error:action.error,
+    startedAt:action.startedAt,
+    finishedAt:action.finishedAt,
+    doc:draft.docId,
+    revision:Number.isSafeInteger(draft.revision)&&draft.revision>=0?draft.revision:0
+  };
 }
 
 function readHandoff(token) {
@@ -288,6 +350,27 @@ function readHandoff(token) {
       if(!file||typeof file!=="object"||!/^[A-Za-z0-9_-]{1,64}$/.test(String(file.id||""))||!["image","video","audio","voice","document"].includes(file.kind)||typeof file.name!=="string"||!file.name||typeof file.mime!=="string"||!file.mime||!Number.isInteger(file.size)||file.size<1||file.size>20_000_000)throw new Error("Transferência persistida inválida");
       if(!existsSync(paths.file)||statSync(paths.file).size!==file.size)throw new Error("Arquivo da transferência inválido");
     }
+    let changed=false;
+    if(meta.action===undefined){
+      const legacyPublish=meta.draft.action==="publish";
+      if(Object.hasOwn(meta.draft,"action")){meta.draft={...meta.draft};delete meta.draft.action;changed=true;}
+      meta.action=legacyPublish?{
+        type:"publish",status:"uncertain",attempts:0,request:null,result:null,
+        error:"Esta transferência foi criada antes do controle idempotente. Confira o chat antes de iniciar outra publicação.",
+        startedAt:0,finishedAt:Date.now(),serverBootId:""
+      }:null;
+      changed=true;
+    }
+    handoffActionValid(meta.action,meta.draft,meta.file||null);
+    if(meta.action?.status==="sending"&&meta.action.serverBootId!==SERVER_BOOT_ID){
+      meta.action.status="uncertain";
+      meta.action.error="O backend foi reiniciado durante o envio. O resultado pode ter sido aceito pelo Telegram.";
+      meta.action.finishedAt=Date.now();
+      meta.action.serverBootId="";
+      meta.expires=Date.now()+HANDOFF_TTL;
+      changed=true;
+    }
+    if(changed)writeHandoff(token,meta);
     return meta;
   }catch(error){
     console.error("Discarding invalid handoff",token,error);
@@ -308,7 +391,7 @@ function sweepHandoffs(){
   }
 }
 
-function saveHandoff(draft, file) {
+function saveHandoff(draft, file, actionRequest=null) {
   sweepHandoffs();
   draftValid(draft);
   const local = draft.html.match(/data-media-id="([A-Za-z0-9_-]{1,64})"/);
@@ -319,22 +402,84 @@ function saveHandoff(draft, file) {
     if(typeof file.mime!=="string"||!file.mime.trim())throw new Error("Tipo de mídia inválido");
     cleanFileName(file.name);
   }
+  const storedDraft={...draft};
+  const legacyPublish=storedDraft.action==="publish";
+  delete storedDraft.action;
+  draftValid(storedDraft);
+  let action=null;
+  if(actionRequest){
+    const request=handoffPublishRequestValid(actionRequest,storedDraft,file?{id:storedDraft.media.id,kind:storedDraft.media.kind}:null);
+    action={type:"publish",status:"pending",attempts:0,request,result:null,error:"",startedAt:0,finishedAt:0,serverBootId:""};
+  }else if(legacyPublish){
+    action={
+      type:"publish",status:"uncertain",attempts:0,request:null,result:null,
+      error:"Esta transferência não contém uma ação idempotente. Confira o chat antes de iniciar outra publicação.",
+      startedAt:0,finishedAt:Date.now(),serverBootId:""
+    };
+  }
   const token = randomUUID().replace(/-/g, "");
   const paths = handoffFiles(token);
   const meta = {
     expires: Date.now() + HANDOFF_TTL,
-    draft,
-    file:file?{id:draft.media.id,kind:draft.media.kind,name:cleanFileName(file.name),mime:file.mime,size:file.bytes.length}:null,
-    claimedBy: ""
+    draft:storedDraft,
+    file:file?{id:storedDraft.media.id,kind:storedDraft.media.kind,name:cleanFileName(file.name),mime:file.mime,size:file.bytes.length}:null,
+    claimedBy: "",
+    action
   };
   try{
     if (file) writeFileSync(paths.file, file.bytes, { mode: 0o600 });
-    writeFileSync(paths.meta + ".tmp", JSON.stringify(meta), { mode: 0o600 });
-    renameSync(paths.meta + ".tmp", paths.meta);
+    writeHandoff(token,meta);
     return token;
   }catch(error){
     dropHandoff(token);
     throw error;
+  }
+}
+
+async function publishHandoff(token,state,initData){
+  const action=state.action;
+  if(!action||action.type!=="publish")throw new HttpError(400,"Esta transferência não possui publicação pendente");
+  if(action.status==="succeeded")return {code:200,reused:true,action:handoffActionView(action,state.draft)};
+  if(action.status==="sending")return {code:202,reused:true,action:handoffActionView(action,state.draft)};
+  if(action.status==="uncertain")return {code:409,reused:true,action:handoffActionView(action,state.draft)};
+  if(!action.request)throw new HttpError(409,"A publicação transferida não pode ser repetida com segurança");
+
+  action.status="sending";
+  action.attempts++;
+  action.result=null;
+  action.error="";
+  action.startedAt=Date.now();
+  action.finishedAt=0;
+  action.serverBootId=SERVER_BOOT_ID;
+  state.expires=Date.now()+HANDOFF_TTL;
+  writeHandoff(token,state);
+
+  let file=null;
+  if(state.file){
+    const path=handoffFiles(token).file;
+    if(!existsSync(path))throw new HttpError(409,"Anexo da transferência indisponível");
+    file={...state.file,bytes:readFileSync(path)};
+  }
+  try{
+    const result=await sendRich(initData,action.request.html,file);
+    action.status="succeeded";
+    action.result=result;
+    action.error="";
+    action.finishedAt=Date.now();
+    action.serverBootId="";
+    state.expires=Date.now()+HANDOFF_TTL;
+    writeHandoff(token,state);
+    return {code:200,reused:false,action:handoffActionView(action,state.draft)};
+  }catch(error){
+    const knownFailure=error instanceof HttpError || (error instanceof DeliveryError&&error.outcome==="failed");
+    action.status=knownFailure?"failed":"uncertain";
+    action.result=null;
+    action.error=error instanceof Error?error.message:"Não foi possível confirmar a publicação";
+    action.finishedAt=Date.now();
+    action.serverBootId="";
+    state.expires=Date.now()+HANDOFF_TTL;
+    writeHandoff(token,state);
+    return {code:knownFailure?(error instanceof HttpError?error.status:502):409,reused:false,action:handoffActionView(action,state.draft)};
   }
 }
 
@@ -992,9 +1137,12 @@ const server = createServer(async (req, res) => {
       }
       try {
         const media = await readMedia(req);
-        let draft;
+        let draft,action=null;
         try { draft = JSON.parse(media.fields.draft || ""); } catch { throw new Error("Rascunho inválido"); }
-        const token = saveHandoff(draft, media.file || null);
+        if(media.fields.action){
+          try{action=JSON.parse(media.fields.action);}catch{throw new Error("Ação da transferência inválida");}
+        }
+        const token = saveHandoff(draft, media.file || null, action);
         res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
         res.end(JSON.stringify({ token, open: WEBHOOK_BASE + "/telegram/open?handoff=" + token }));
       } catch (err) {
@@ -1018,14 +1166,60 @@ const server = createServer(async (req, res) => {
         const { chatId } = userFromInitData(String(body?.initData || ""));
         if (state.claimedBy && state.claimedBy !== chatId) throw new Error("Transferência não pertence a esta sessão");
         state.claimedBy = chatId;
-        const paths = handoffFiles(token);
-        writeFileSync(paths.meta + ".tmp", JSON.stringify(state), { mode: 0o600 });
-        renameSync(paths.meta + ".tmp", paths.meta);
+        writeHandoff(token,state);
         res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
-        res.end(JSON.stringify({ draft: state.draft, file: state.file }));
+        res.end(JSON.stringify({ draft: state.draft, file: state.file, action: handoffActionView(state.action,state.draft) }));
       } catch (err) {
         res.writeHead(400, { "content-type": "application/json; charset=utf-8" });
         res.end(JSON.stringify({ error: err.message || "Não foi possível recuperar o rascunho" }));
+      }
+      return;
+    }
+
+    if (url.pathname === "/api/handoff/status" && req.method === "POST") {
+      if (!setCors(req, res)) {
+        res.writeHead(403, { "content-type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ error: "Acesso não autorizado" }));
+        return;
+      }
+      try {
+        const body=await readJson(req,20000);
+        const token=String(body?.token||"");
+        const state=readHandoff(token);
+        if(!state)throw new HttpError(410,"Transferência expirada ou inválida");
+        const {chatId}=userFromInitData(String(body?.initData||""));
+        if(!state.claimedBy||state.claimedBy!==chatId)throw new HttpError(403,"Transferência não pertence a esta sessão");
+        res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+        res.end(JSON.stringify({ action: handoffActionView(state.action,state.draft) }));
+      } catch (err) {
+        const code=err instanceof HttpError?err.status:400;
+        res.writeHead(code, { "content-type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ error: err instanceof Error?err.message:"Não foi possível consultar a transferência" }));
+      }
+      return;
+    }
+
+    if (url.pathname === "/api/handoff/publish" && req.method === "POST") {
+      if (!setCors(req, res)) {
+        res.writeHead(403, { "content-type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ error: "Acesso não autorizado" }));
+        return;
+      }
+      try {
+        const body=await readJson(req,20000);
+        const token=String(body?.token||"");
+        const initData=String(body?.initData||"");
+        const state=readHandoff(token);
+        if(!state)throw new HttpError(410,"Transferência expirada ou inválida");
+        const {chatId}=userFromInitData(initData);
+        if(!state.claimedBy||state.claimedBy!==chatId)throw new HttpError(403,"Transferência não pertence a esta sessão");
+        const outcome=await publishHandoff(token,state,initData);
+        res.writeHead(outcome.code, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+        res.end(JSON.stringify({ action: outcome.action, reused: outcome.reused, ...(outcome.action?.status==="succeeded"?{result:outcome.action.result}:{}) }));
+      } catch (err) {
+        const code=err instanceof HttpError?err.status:400;
+        res.writeHead(code, { "content-type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ error: err instanceof Error?err.message:"Não foi possível publicar a transferência" }));
       }
       return;
     }
