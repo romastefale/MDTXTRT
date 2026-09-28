@@ -886,19 +886,26 @@ test('editing recovered handoff prevents publishing a stale transferred action',
 });
 
 
-test('ProseMirror normalizes equivalent mark aliases and toggles the semantic mark off',()=>{
+test('ProseMirror normalizes equivalent mark aliases and toggles each semantic mark off',()=>{
   const w=page(),d=w.document;
-  w.eval("editorCore.resetHTML('<p><b>um</b> <strong>dois</strong> <i>x</i> <em>y</em></p>',{silent:true})");
-  assert.equal(d.querySelectorAll('#editor b').length,0);
-  assert.equal(d.querySelectorAll('#editor i').length,0);
+  w.eval("editorCore.resetHTML('<p><b>um</b> <strong>dois</strong> <i>x</i> <em>y</em> <ins>u</ins> <u>v</u> <strike>s1</strike> <del>s2</del> <s>s3</s></p>',{silent:true})");
+  assert.equal(d.querySelectorAll('#editor b,#editor i,#editor ins,#editor strike,#editor del').length,0);
   assert.equal(d.querySelectorAll('#editor strong').length,2);
   assert.equal(d.querySelectorAll('#editor em').length,2);
+  assert.equal(d.querySelectorAll('#editor u').length,2);
+  assert.equal(d.querySelectorAll('#editor s').length,3);
 
   w.eval("editorCore.selectRange(editorCore.findLiteral('um dois')[0],{focus:true});exec('bold')");
   assert.equal(d.querySelectorAll('#editor strong,#editor b').length,0);
 
   w.eval("editorCore.selectRange(editorCore.findLiteral('x y')[0],{focus:true});exec('italic')");
   assert.equal(d.querySelectorAll('#editor em,#editor i').length,0);
+
+  w.eval("editorCore.selectRange(editorCore.findLiteral('u v')[0],{focus:true});exec('underline')");
+  assert.equal(d.querySelectorAll('#editor u,#editor ins').length,0);
+
+  w.eval("editorCore.selectRange(editorCore.findLiteral('s1 s2 s3')[0],{focus:true});exec('strike')");
+  assert.equal(d.querySelectorAll('#editor s,#editor strike,#editor del').length,0);
   w.close();
 });
 
