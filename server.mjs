@@ -144,6 +144,13 @@ function telegraphOwner(body){
   return "browser:"+createHash("sha256").update(browserKey).digest("hex");
 }
 
+function requestRevision(body){
+  const revision=body?.revision;
+  if(revision===undefined)return 0;
+  if(!Number.isSafeInteger(revision)||revision<0)throw new HttpError(400,"Revisão inválida");
+  return revision;
+}
+
 async function telegramCall(method, body) {
   let res;
   try {
@@ -215,6 +222,7 @@ function draftValid(draft) {
   if (typeof draft.name !== "string" || draft.name.length > 120) throw new Error("Nome do rascunho inválido");
   if (!["telegram", "telegraph"].includes(draft.dest)) throw new Error("Destino do rascunho inválido");
   if (draft.action !== undefined && draft.action !== "publish") throw new Error("Ação do rascunho inválida");
+  if (draft.revision !== undefined && (!Number.isSafeInteger(draft.revision) || draft.revision < 0)) throw new Error("Revisão do rascunho inválida");
   if (!/^[a-f0-9-]{36}$/i.test(String(draft.docId || ""))) throw new Error("Documento inválido");
   if (typeof draft.telegraphPath !== "string" || draft.telegraphPath.length > 256) throw new Error("Página do rascunho inválida");
   if (typeof draft.importedMd !== "string" || typeof draft.importedTxt !== "string" || typeof draft.importedHtml !== "string") throw new Error("Origem importada do rascunho inválida");
@@ -1059,6 +1067,7 @@ const server = createServer(async (req, res) => {
         let body;
         try{body=await readJson(req,20000);}catch(error){throw asHttpError(error,400,"Dados de recuperação inválidos");}
         if (!/^[a-f0-9-]{36}$/i.test(String(body?.doc || ""))) throw new HttpError(400,"Documento inválido");
+        const revision=requestRevision(body);
         const owner=telegraphOwner(body);
         const path = readPages()[owner + ":" + body.doc] || "";
         if (!path) {
@@ -1068,7 +1077,7 @@ const server = createServer(async (req, res) => {
         }
         const page = await verifyTelegraphPage(path);
         res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
-        res.end(JSON.stringify({ path: page.path, url: page.url }));
+        res.end(JSON.stringify({ path: page.path, url: page.url, doc: String(body.doc), revision }));
       } catch (err) {
         const code = err instanceof HttpError ? err.status : 502;
         res.writeHead(code, { "content-type": "application/json; charset=utf-8" });
@@ -1154,10 +1163,12 @@ const server = createServer(async (req, res) => {
         let body;
         try{body=await readJson(req,150_000);}catch(error){throw asHttpError(error,400,"Dados da página inválidos");}
         if (!body || typeof body !== "object" || typeof body.title !== "string" || !Array.isArray(body.content) || (body.path !== undefined && typeof body.path !== "string")) throw new HttpError(400,"Os dados da página estão incompletos");
+        const revision=requestRevision(body);
         const owner=telegraphOwner(body);
-        const page = await publishTelegraph(body.title, body.content, body.path || "", owner, body.doc);
+        const doc=String(body.doc||"");
+        const page = await publishTelegraph(body.title, body.content, body.path || "", owner, doc);
         res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
-        res.end(JSON.stringify({ url: page.url, path: page.path }));
+        res.end(JSON.stringify({ url: page.url, path: page.path, doc, revision }));
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Não foi possível publicar no Telegraph";
         const code = err instanceof HttpError ? err.status : 502;
