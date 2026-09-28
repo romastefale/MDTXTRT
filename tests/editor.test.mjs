@@ -310,26 +310,20 @@ test('Markdown block markers accept element-anchored carets and non-breaking spa
 
 test('Enter exits headings and quotes to body without leaking formatting',async()=>{
   const w=page(),d=w.document,e=d.querySelector('#editor');
-  const exitAtEnd=async html=>{
+  const exitAtEnd=async(html,label)=>{
     w.eval('currentEditorCore().resetHTML('+JSON.stringify(html)+',{silent:true})');
-    const block=e.firstElementChild;
-    const node=block.matches('blockquote')?block.querySelector('p')?.firstChild:block.firstChild;
-    assert.ok(node);
-    const range=d.createRange();
-    range.setStart(node,node.length);range.collapse(true);
-    w.getSelection().removeAllRanges();w.getSelection().addRange(range);
-    d.dispatchEvent(new w.Event('selectionchange'));
+    w.eval('(()=>{const core=currentEditorCore(),r=core.findLiteral('+JSON.stringify(label)+')[0];core.selectRange({from:r.to,to:r.to},{focus:true})})()');
     const before=new w.InputEvent('beforeinput',{bubbles:true,cancelable:true,inputType:'insertParagraph'});
     e.dispatchEvent(before);
     await wait();
     return e.firstElementChild;
   };
-  let block=await exitAtEnd('<h1>Título</h1>');
+  let block=await exitAtEnd('<h1>Título</h1>','Título');
   assert.equal(block.nextElementSibling?.tagName,'P');
   assert.equal(d.querySelector('#headingBtn').classList.contains('on'),false);
   assert.equal(d.querySelector('#headingMenu [data-block="p"]').classList.contains('is-current'),true);
 
-  block=await exitAtEnd('<blockquote>Citação</blockquote>');
+  block=await exitAtEnd('<blockquote><p>Citação</p></blockquote>','Citação');
   assert.equal(block.nextElementSibling?.tagName,'P');
   assert.equal(d.querySelector('#quoteBtn').classList.contains('on'),false);
   w.close();
