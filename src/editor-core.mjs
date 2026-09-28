@@ -215,6 +215,19 @@ function parseHTML(element,html){
   return parserFor(element).parse(host,{preserveWhitespace:"full"});
 }
 function parseDOM(element){return parserFor(element).parse(element,{preserveWhitespace:"full"});}
+function parseDOMWithSelection(element){
+  const selection=element.ownerDocument.getSelection?.();
+  const points=[];
+  if(selection?.rangeCount&&selection.anchorNode&&selection.focusNode&&element.contains(selection.anchorNode)&&element.contains(selection.focusNode)){
+    points.push({node:selection.anchorNode,offset:selection.anchorOffset});
+    points.push({node:selection.focusNode,offset:selection.focusOffset});
+  }
+  const doc=parserFor(element).parse(element,{preserveWhitespace:"full",findPositions:points});
+  const mapped=points.length===2&&Number.isFinite(points[0].pos)&&Number.isFinite(points[1].pos)
+    ?{anchor:points[0].pos,head:points[1].pos}
+    :null;
+  return {doc,selection:mapped};
+}
 function markName(command){
   return {bold:"strong",italic:"em",underline:"underline",strike:"strike",mark:"highlight",sub:"sub",sup:"sup",spoiler:"spoiler",code:"code",math:"math",createLink:"link"}[command]||"";
 }
@@ -278,12 +291,11 @@ export function createEditorCore({element,onChange=()=>{},onSelectionChange=()=>
     onSelectionChange({state,transaction:null});
   }
   function syncFromDOM({silent=false,addToHistory=true}={}){
-    const next=parseDOM(element);
-    const selected=domSelection();
+    const parsed=parseDOMWithSelection(element),next=parsed.doc,selected=parsed.selection;
     if(next.eq(state.doc)){
       if(selected){
         const anchor=clampPos(state.doc,selected.anchor),head=clampPos(state.doc,selected.head);
-        try{view.dispatch(state.tr.setSelection(TextSelection.create(state.doc,anchor,head)));}catch{}
+        try{dispatch(state.tr.setSelection(TextSelection.create(state.doc,anchor,head)),{silent:true,addToHistory:false});}catch{}
       }
       return false;
     }
