@@ -103,7 +103,7 @@ test('theme neutrals are chromatic derivatives of the active accent',()=>{
   assert.match(html,/\.seg,\.bar\{[^}]*background:var\(--glass-tint\)/);
   assert.doesNotMatch(html,/\.theme-switch\{[^}]*background:var\(--bar-glass-tint\)/);
   assert.match(html,/\.glass-menu-material,\.toast-material\{background:var\(--glass-tint\)\}/);
-  assert.match(html,/box-shadow:inset 0 0 0 \.5px var\(--menu-inner\),0 0 0 \.5px var\(--menu-edge\)/);
+  assert.match(html,/box-shadow:inset 0 0 0 1px var\(--glass-hairline\)/);
   assert.match(html,/\.menu-divider::after\{[^}]*background:var\(--menu-edge\)\}/);
   assert.doesNotMatch(html,/--glass-edge:/);
   assert.doesNotMatch(html,/--glass-inner:/);
@@ -115,15 +115,16 @@ test('theme neutrals are chromatic derivatives of the active accent',()=>{
   assert.doesNotMatch(html,/html\.dark\{[^}]*--muted:/);
 });
 
-test('bars use one uniform 1px white hairline at 12 percent',()=>{
+test('bars use one uniform shared hairline token across themes',()=>{
   const html=read('index.html');
   const shared=html.match(/\.seg,\.bar\{([^}]*)\}/)?.[1]||'';
   const seg=html.match(/\.seg\{([^}]*)\}/)?.[1]||'';
   const bar=html.match(/\.bar\{([^}]*)\}/)?.[1]||'';
   assert.doesNotMatch(shared,/(?:^|;)\s*border\s*:/);
-  assert.match(shared,/box-shadow:inset 0 0 0 1px rgba\(255,255,255,\.12\)/);
+  assert.match(shared,/box-shadow:inset 0 0 0 1px var\(--glass-hairline\)/);
+  assert.match(html,/--glass-hairline:rgba\(255,255,255,\.05\)/);
+  assert.match(html,/html\.light\{[\s\S]*?--glass-hairline:rgba\(255,255,255,\.12\)/);
   assert.doesNotMatch(shared,/(?:linear|radial|conic)-gradient/);
-  assert.equal((html.match(/box-shadow:inset 0 0 0 1px rgba\(255,255,255,\.12\)/g)||[]).length,1);
   for(const block of [seg,bar]){
     assert.doesNotMatch(block,/(?:^|;)\s*border\s*:/);
     assert.doesNotMatch(block,/(?:linear|radial|conic)-gradient/);
