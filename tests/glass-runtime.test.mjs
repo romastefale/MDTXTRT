@@ -73,7 +73,7 @@ function edgeLayer(material) {
   );
 }
 
-test("bar Glass material keeps the normative hairline without an opacity veil across themes", async () => {
+test("bar and menu Glass materials keep the standardized neutral surface across themes", async () => {
   const dom = new JSDOM(readFileSync(new URL("index.html", root), "utf8"), {
     url: "https://mdtxtrt.example/",
     runScripts: "outside-only",
@@ -154,7 +154,8 @@ test("bar Glass material keeps the normative hairline without an opacity veil ac
 
     assert.equal(brightnessLayer(bar), undefined);
     assert.match(edgeLayer(bar)?.style.boxShadow || "", /0\.000/);
-    assert.equal(brightnessLayer(menu)?.style.opacity, "0.55");
+    assert.equal(brightnessLayer(menu), undefined);
+    assert.match(edgeLayer(menu)?.style.boxShadow || "", /0\.000/);
 
     themeButton.click();
     await wait();
@@ -164,10 +165,11 @@ test("bar Glass material keeps the normative hairline without an opacity veil ac
     assert.equal(w.document.documentElement.dataset.theme, "light");
     assert.equal(brightnessLayer(bar), undefined);
     assert.match(edgeLayer(bar)?.style.boxShadow || "", /0\.000/);
-    assert.equal(
-      brightnessLayer(menu)?.style.opacity,
-      "0.55",
-      "menu optics must remain independent from bar theme tuning",
+    assert.equal(brightnessLayer(menu), undefined);
+    assert.match(
+      edgeLayer(menu)?.style.boxShadow || "",
+      /0\.000/,
+      "menu optics must stay aligned with the neutral chrome material",
     );
   } finally {
     restore();

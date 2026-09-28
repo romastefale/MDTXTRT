@@ -34,31 +34,25 @@ test('official Liquid Glass React dependencies and deterministic build are pinne
   assert.equal(lock.packages['node_modules/react-dom'].version,'19.3.0');
 });
 
-test('React UX imports the official Glass primitive and follows GlassContextMenu optics',()=>{
+test('React UX imports the official Glass primitive and standardizes menu optics with chrome capsules',()=>{
   const src=uiSource();
   assert.match(src,/import \{ Glass \} from "@samasante\/liquid-glass"/);
   assert.match(src,/examples\/GlassContextMenu\.tsx/);
-  assert.match(src,/export const MENU_LENS = \{/);
-  for(const fragment of [
-    'mapSize: 256','clipToShape: true','softEdge: true','depth: 0.65',
-    'curvature: 0.26','dispersion: 0.16','strength: 0.22','bend: 0.65',
-    'bendWidth: 0.07','frost: 3.5','brightness: 0.55','specular: 0.8',
-    'sheenAngle: 45','glow: 0.06','glowSpread: 1','glowFalloff: 0.8',
-    'sheen: 0.4','sheenWidth: 1'
-  ])assert.ok(src.includes(fragment),fragment);
+  const menuLens=src.slice(src.indexOf('export const MENU_LENS = {'),src.indexOf('const BAR_LENS = {'));
+  const barLens=src.slice(src.indexOf('const BAR_LENS = {'),src.indexOf('const MENU_RADIUS'));
+  assert.match(menuLens,/export const MENU_LENS = \{\s*sheen: 0,\s*glow: 0,\s*specular: 0,\s*\};/);
+  assert.match(barLens,/const BAR_LENS = \{\s*sheen: 0,\s*glow: 0,\s*specular: 0,\s*\};/);
+  for(const lens of [menuLens,barLens]){
+    for(const field of [
+      'mapSize','clipToShape','softEdge','depth','curvature','dispersion','strength',
+      'bend','bendWidth','frost','brightness','sheenAngle','glowSpread',
+      'glowFalloff','sheenWidth'
+    ]){
+      assert.equal(lens.includes(field+':'),false,field+' must come from GlassMaterial defaults');
+    }
+  }
   assert.match(src,/function GlassContextMenu/);
   assert.match(src,/<Glass[\s\S]*?optics=\{MENU_LENS\}[\s\S]*?className="glass-menu-material"/);
-  const barLens=src.slice(src.indexOf('const BAR_LENS = {'),src.indexOf('const MENU_RADIUS'));
-  assert.match(barLens,/const BAR_LENS = \{\s*sheen: 0,\s*glow: 0,\s*specular: 0,\s*\};/);
-  assert.doesNotMatch(barLens,/brightness:/);
-  for(const field of [
-    'mapSize','clipToShape','softEdge','depth','curvature','dispersion','strength',
-    'bend','bendWidth','frost','sheenAngle','glowSpread',
-    'glowFalloff','sheenWidth'
-  ]){
-    assert.equal(barLens.includes(field+':'),false,field+' must come from GlassMaterial defaults');
-  }
-  assert.doesNotMatch(barLens,/\.\.\.MENU_LENS/);
   assert.doesNotMatch(src,/React\.useSyncExternalStore/);
   assert.match(src,/function GlassControl[\s\S]*?<Glass[\s\S]*?optics=\{BAR_LENS\}/);
   assert.match(src,/style=\{\{ display: "flex", alignItems: "center", \.\.\.style \}\}/);
@@ -109,7 +103,7 @@ test('theme neutrals are chromatic derivatives of the active accent',()=>{
   assert.match(html,/\.seg,\.bar\{[^}]*background:var\(--glass-tint\)/);
   assert.doesNotMatch(html,/\.theme-switch\{[^}]*background:var\(--bar-glass-tint\)/);
   assert.match(html,/\.glass-menu-material,\.toast-material\{background:var\(--glass-tint\)\}/);
-  assert.match(html,/box-shadow:inset 0 0 0 \.5px var\(--menu-inner\),0 0 0 \.5px var\(--menu-edge\)/);
+  assert.match(html,/box-shadow:inset 0 0 0 1px var\(--glass-hairline\)/);
   assert.match(html,/\.menu-divider::after\{[^}]*background:var\(--menu-edge\)\}/);
   assert.doesNotMatch(html,/--glass-edge:/);
   assert.doesNotMatch(html,/--glass-inner:/);
@@ -121,15 +115,16 @@ test('theme neutrals are chromatic derivatives of the active accent',()=>{
   assert.doesNotMatch(html,/html\.dark\{[^}]*--muted:/);
 });
 
-test('bars use one uniform 1px white hairline at 12 percent',()=>{
+test('bars use one uniform shared hairline token across themes',()=>{
   const html=read('index.html');
   const shared=html.match(/\.seg,\.bar\{([^}]*)\}/)?.[1]||'';
   const seg=html.match(/\.seg\{([^}]*)\}/)?.[1]||'';
   const bar=html.match(/\.bar\{([^}]*)\}/)?.[1]||'';
   assert.doesNotMatch(shared,/(?:^|;)\s*border\s*:/);
-  assert.match(shared,/box-shadow:inset 0 0 0 1px rgba\(255,255,255,\.12\)/);
+  assert.match(shared,/box-shadow:inset 0 0 0 1px var\(--glass-hairline\)/);
+  assert.match(html,/--glass-hairline:rgba\(255,255,255,\.05\)/);
+  assert.match(html,/html\.light\{[\s\S]*?--glass-hairline:rgba\(255,255,255,\.12\)/);
   assert.doesNotMatch(shared,/(?:linear|radial|conic)-gradient/);
-  assert.equal((html.match(/box-shadow:inset 0 0 0 1px rgba\(255,255,255,\.12\)/g)||[]).length,1);
   for(const block of [seg,bar]){
     assert.doesNotMatch(block,/(?:^|;)\s*border\s*:/);
     assert.doesNotMatch(block,/(?:linear|radial|conic)-gradient/);
@@ -319,8 +314,10 @@ test('destination Telegram and Telegraph icon is 28px',()=>{
 
 test('chrome circles share one control diameter and dark icons retain contrast',()=>{
   const html=read('index.html');
-  assert.match(html,/\.seg,\.bar\{[\s\S]*?box-shadow:inset 0 0 0 1px rgba\(255,255,255,\.12\)/);
-  assert.match(html,/html\.dark \.seg,html\.dark \.bar\{color:#f5f5f7;box-shadow:inset 0 0 0 1px rgba\(255,255,255,\.05\)\}/);
+  assert.match(html,/--glass-hairline:rgba\(255,255,255,\.05\)/);
+  assert.match(html,/html\.light\{[\s\S]*?--glass-hairline:rgba\(255,255,255,\.12\)/);
+  assert.match(html,/\.seg,\.bar\{[\s\S]*?box-shadow:inset 0 0 0 1px var\(--glass-hairline\)/);
+  assert.match(html,/html\.dark \.seg,html\.dark \.bar\{color:#f5f5f7\}/);
   assert.match(html,/\.seg button\{[\s\S]*?width:var\(--control-size\);height:var\(--control-size\)/);
   assert.match(html,/\.bar > button\{[\s\S]*?flex:0 0 var\(--control-size\);width:var\(--control-size\);min-width:var\(--control-size\);height:var\(--control-size\)/);
   assert.match(html,/\.action-dot\{[\s\S]*?width:var\(--control-size\);height:var\(--control-size\)/);
@@ -328,6 +325,14 @@ test('chrome circles share one control diameter and dark icons retain contrast',
   assert.match(html,/\.bar > button\.more\{color:#fff;background:var\(--accent\);box-shadow:0 4px 20px color-mix\(in oklab,var\(--accent\) 70%,transparent\)\}/);
   assert.match(html,/\.bar > button\.on::before\{[\s\S]*?inset:0;border-radius:50%/);
   assert.doesNotMatch(html,/\.action-dot\{[\s\S]*?control-size\) - 6px/);
+});
+
+test('menus use the same theme glass fill and uniform hairline as chrome capsules',()=>{
+  const html=read('index.html');
+  assert.match(html,/\.glass-menu-material,\.toast-material\{background:var\(--glass-tint\)\}/);
+  assert.match(html,/\.glass-menu-content\{[\s\S]*?box-shadow:inset 0 0 0 1px var\(--glass-hairline\),0 14px 34px var\(--menu-shadow\),0 2px 6px var\(--menu-shadow-tight\)/);
+  assert.doesNotMatch(html,/--menu-inner:/);
+  assert.doesNotMatch(html,/box-shadow:inset 0 0 0 \.5px var\(--menu-inner\),0 0 0 \.5px var\(--menu-edge\)/);
 });
 
 test('export and plus keep a strong accent glow in both themes',()=>{
