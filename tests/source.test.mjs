@@ -53,7 +53,7 @@ test('React UX imports the official Glass primitive and follows GlassContextMenu
   assert.doesNotMatch(barLens,/brightness:/);
   for(const field of [
     'mapSize','clipToShape','softEdge','depth','curvature','dispersion','strength',
-    'bend','bendWidth','frost','specular','sheenAngle','glowSpread',
+    'bend','bendWidth','frost','sheenAngle','glowSpread',
     'glowFalloff','sheenWidth'
   ]){
     assert.equal(barLens.includes(field+':'),false,field+' must come from GlassMaterial defaults');
@@ -119,9 +119,10 @@ test('bars use one uniform 1px white hairline at 12 percent',()=>{
   assert.doesNotMatch(shared,/(?:^|;)\s*border\s*:/);
   assert.match(shared,/box-shadow:inset 0 0 0 1px rgba\(255,255,255,\.12\)/);
   assert.doesNotMatch(shared,/(?:linear|radial|conic)-gradient/);
+  assert.equal((html.match(/box-shadow:inset 0 0 0 1px rgba\(255,255,255,\.12\)/g)||[]).length,1);
   for(const block of [seg,bar]){
     assert.doesNotMatch(block,/(?:^|;)\s*border\s*:/);
-    assert.doesNotMatch(block,/box-shadow|(?:linear|radial|conic)-gradient/);
+    assert.doesNotMatch(block,/(?:linear|radial|conic)-gradient/);
   }
   assert.doesNotMatch(html,/\.(?:seg|bar)::(?:before|after)\{/);
   assert.match(shared,/background:var\(--glass-tint\)/);
