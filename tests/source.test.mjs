@@ -639,38 +639,43 @@ test('final release gap analysis and immutable anchor gates are explicit',()=>{
   const validation=read('RELEASE_VALIDATION.md');
   const anchor=read('RELEASE_ANCHOR.md');
   const manifest=JSON.parse(read('RELEASE_MANIFEST.json'));
+
   assert.match(workflow,/workflow_dispatch:/);
   assert.match(workflow,/RELEASE_CANDIDATE_SHA: \$\{\{ github\.event_name == 'pull_request' && github\.event\.pull_request\.head\.sha \|\| github\.sha \}\}/);
   assert.equal((workflow.match(/ref: \$\{\{ env\.RELEASE_CANDIDATE_SHA \}\}/g)||[]).length,2);
-  assert.match(workflow,/name: Verify exact candidate checkout[\s\S]*?git rev-parse HEAD[\s\S]*?RELEASE_CANDIDATE_SHA/);
+  assert.equal((workflow.match(/name: Verify exact candidate checkout/g)||[]).length,2);
+  assert.match(workflow,/git rev-parse HEAD[\s\S]*?RELEASE_CANDIDATE_SHA/);
+  assert.match(workflow,/name: Rebuild all committed bundles[\s\S]*?npm run build/);
+  assert.match(workflow,/git diff --exit-code -- editor-core\.js ui\.js/);
+  assert.match(workflow,/node scripts\/verify-release-manifest\.mjs/);
+  assert.match(workflow,/node scripts\/verify-visual-baseline\.mjs/);
   assert.match(workflow,/release-rebuilt-bundles-\$\{\{ env\.RELEASE_CANDIDATE_SHA \}\}/);
   assert.match(workflow,/release-visual-baseline-\$\{\{ env\.RELEASE_CANDIDATE_SHA \}\}/);
   assert.match(workflow,/include-hidden-files: true/);
   assert.match(workflow,/if-no-files-found: error/);
-  assert.match(workflow,/RELEASE_CANDIDATE_SHA: \$\{\{ github\.event_name == 'pull_request' && github\.event\.pull_request\.head\.sha \|\| github\.sha \}\}/);
-  assert.match(workflow,/ref: \$\{\{ env\.RELEASE_CANDIDATE_SHA \}\}[\s\S]*?Verify exact candidate checkout[\s\S]*?git rev-parse HEAD/);
-  assert.match(workflow,/name: Rebuild all committed bundles[\s\S]*?npm run build/);
-  assert.match(workflow,/git diff --exit-code -- editor-core\.js ui\.js/);
-  assert.match(workflow,/node scripts\/verify-release-manifest\.mjs/);
-
-  assert.match(workflow,/node scripts\/verify-visual-baseline\.mjs/);
   assert.match(workflow,/name: Audit release evidence record[\s\S]*?GITHUB_TOKEN:[\s\S]*?node scripts\/validate-release-evidence\.mjs/);
+  assert.doesNotMatch(workflow,/contents:\s*write|git push/);
+
   assert.match(read('scripts/verify-visual-baseline.mjs'),/for\(const theme of \['light','dark'\]\)/);
   assert.match(read('scripts/validate-release-evidence.mjs'),/Final status[\s\S]*?RELEASE APPROVED/);
   assert.match(read('scripts/validate-release-evidence.mjs'),/iOS Telegram Mini App/);
   assert.match(read('scripts/validate-release-evidence.mjs'),/Telegram unknown timeout/);
-  assert.doesNotMatch(workflow,/contents:\s*write|git push/);
+
   assert.equal(manifest.visualBaseline,'dde30467ed9b0d108bac2ae7ad9bcac1137c169e');
   assert.deepEqual(manifest.runtime,{node:'24.21.0',npm:'11.19.0'});
   assert.equal(manifest.stages.length,6);
   assert.equal(manifest.stages.at(-1).head,'e20d115b18424ab5c9abfa7e175b5376fe0633fb');
   assert.equal(manifest.anchorPolicy.authority,'full-git-commit-sha');
   assert.equal(manifest.anchorPolicy.immutable,true);
+
   assert.match(gap,/G-05 — No real Telegraph create\/recover\/edit\/restart evidence/);
-  assert.match(gap,/Status:\*\* BLOCKING until real authorized evidence exists|\*\*Status:\*\* BLOCKING until real authorized evidence exists/);
-  assert.match(validation,/Final status is one of:|Release status is one of:/);
+  assert.match(gap,/G-13 — Pull-request validation did not prove the exact anchor SHA/);
+  assert.match(gap,/G-14 — Visual comparison evidence was not retained/);
+  assert.match(gap,/\*\*Status:\*\* BLOCKING until real authorized evidence exists/);
+  assert.match(validation,/Release status is one of:/);
   assert.match(validation,/RELEASE APPROVED/);
+  assert.match(validation,/synthetic pull-request merge ref/);
+  assert.match(validation,/release-visual-baseline-<anchor-sha>/);
   assert.match(anchor,/full commit SHA is the canonical authority/i);
   assert.match(anchor,/superseding Release Anchor/);
-  assert.match(gap,/G-13 — Pull-request validation used the synthetic merge commit/);
 });
