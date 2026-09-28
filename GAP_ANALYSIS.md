@@ -39,9 +39,13 @@ The release candidate must be a descendant of every head above. The machine-read
 
 **Correction:** release validation executes `npm run build` and requires both `editor-core.js` and `ui.js` to remain byte-identical to the committed artifacts under Node 24.21.0 / npm 11.19.0.
 
-**Acceptance:** clean diff for both bundles after a fresh `npm ci`.
+The first release-gate run exposed a real configuration gap: with source, package manifest and lockfile byte-identical to the inputs that produced the committed UI artifact, current clean runners consistently regenerated a semantically equivalent bundle with different minified identifier names. Two independent release runs produced the same replacement hash, confirming the committed artifact was not reproducible from the contracted inputs.
 
-**Status:** CLOSED by this branch.
+The UI build was therefore changed to retain syntax/whitespace minification while disabling identifier minification. The regenerated bundle is committed and cache-busted. This makes the build contract depend on source/lock/runtime instead of unstable short-symbol allocation.
+
+**Acceptance:** clean diff for both bundles after a fresh `npm ci`, including an unconditional UI rebuild.
+
+**Status:** CLOSED after the identifier-stable bundle correction and a green release-validation run.
 
 ### G-03 — No runtime visual comparison against the pinned baseline
 
