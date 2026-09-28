@@ -389,6 +389,46 @@ test('backend restart during an in-flight handoff marks delivery uncertain inste
   assert.equal(callCount('sendRichMessage'),before);
 });
 
+test('same-process orphaned sending state becomes uncertain without another Telegram call',async()=>{
+  const made=await publishHandoffFixture({doc:'65656565-6565-4656-8656-656565656565',html:'<p>UPSTREAM_DELAY</p>'});
+  await jsonPost('/api/handoff/claim',{initData:init(),token:made.token});
+  const path=join(dir,'handoffs',made.token+'.json');
+  const publishing=jsonPost('/api/handoff/publish',{initData:init(),token:made.token});
+  let sending=null;
+  for(let i=0;i<30;i++){
+    try{
+      const state=JSON.parse(readFileSync(path,'utf8'));
+      if(state.action?.status==='sending'){sending=state;break;}
+    }catch{}
+    await new Promise(resolve=>setTimeout(resolve,10));
+  }
+  assert.ok(sending,'sending state was not persisted before the external call');
+  assert.match(sending.action.serverBootId,/^[a-f0-9-]{36}$/i);
+  const bootId=sending.action.serverBootId;
+  const sent=await publishing;
+  assert.equal(sent.status,200,sent.data.error);
+  const before=callCount('sendRichMessage');
+
+  const orphan=JSON.parse(readFileSync(path,'utf8'));
+  orphan.action.status='sending';
+  orphan.action.result=null;
+  orphan.action.error='';
+  orphan.action.finishedAt=0;
+  orphan.action.serverBootId=bootId;
+  writeFileSync(path,JSON.stringify(orphan),{mode:0o600});
+
+  const reopened=await jsonPost('/api/handoff/claim',{initData:init(),token:made.token});
+  assert.equal(reopened.status,200,reopened.data.error);
+  assert.equal(reopened.data.action.status,'uncertain');
+  assert.match(reopened.data.action.error,/interrompido antes de registrar/);
+  assert.equal(callCount('sendRichMessage'),before);
+
+  const blocked=await jsonPost('/api/handoff/publish',{initData:init(),token:made.token});
+  assert.equal(blocked.status,409);
+  assert.equal(blocked.data.action.status,'uncertain');
+  assert.equal(callCount('sendRichMessage'),before);
+});
+
 test('confirmed Telegram rejection records failed state and only an explicit new authorization retries',async()=>{
   const made=await publishHandoffFixture({doc:'64646464-6464-4646-8646-646464646464',html:'<p>UPSTREAM_REJECT</p>'});
   const before=callCount('sendRichMessage');
