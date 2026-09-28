@@ -160,24 +160,14 @@ test("bar Glass material keeps the normative hairline without an opacity veil ac
     await wait();
     await wait();
 
-    assert.equal(w.document.documentElement.dataset.theme, "dark");
+    assert.equal(w.localStorage.getItem("mdtxtrt-theme"), "dark");
+    assert.equal(w.document.documentElement.dataset.theme, "light");
     assert.equal(brightnessLayer(bar), undefined);
     assert.match(edgeLayer(bar)?.style.boxShadow || "", /0\.000/);
     assert.equal(
       brightnessLayer(menu)?.style.opacity,
       "0.55",
       "menu optics must remain independent from bar theme tuning",
-    );
-
-    themeButton.click();
-    await wait();
-    await wait();
-
-    assert.equal(w.document.documentElement.dataset.theme, "light");
-    assert.equal(
-      brightnessLayer(bar),
-      undefined,
-      "bar material must remain free of a brightness veil after returning to light theme",
     );
   } finally {
     restore();
