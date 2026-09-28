@@ -1407,22 +1407,15 @@ fileInput.addEventListener('change', async ()=>{
     if(mediaFile?.url)URL.revokeObjectURL(mediaFile.url);
     mediaFile=null;
     docName.value=nextName;
-    editor.innerHTML=html;
+    if(!editorCore)throw new Error('Núcleo de edição indisponível');
+    editorCore.resetHTML(html,{silent:true});
     importedMd=/\.md$/i.test(file.name)?normalized:'';
     importedTxt=/\.txt$/i.test(file.name)?normalized:'';
     importedHtml=editor.innerHTML;
     telegraphPath='';docId=crypto.randomUUID();docRevision=0;savedRange=null;
-    hist=[];histI=-1;histLock=false;
-    decorateSpecials();pushHist();saveLocal();closePanels();
+    decorateSpecials();saveLocal();closePanels();syncEditorSelectionUI();
   }catch(err){ showToast(err.message || 'Não foi possível importar o arquivo'); }
   fileInput.value='';
-});
-document.addEventListener('keydown', e => {
-  if(!(e.metaKey || e.ctrlKey)) return;
-  const k = e.key.toLowerCase();
-  if(k==='b'||k==='i'||k==='u'){e.preventDefault();try{exec({b:'bold',i:'italic',u:'underline'}[k]);}catch(err){showToast(err.message);}}
-  if(k==='z' && !e.shiftKey){ e.preventDefault(); histUndo(); flashBtn(one('#undoBtn')); }
-  if(k==='z' && e.shiftKey || k==='y'){ e.preventDefault(); histRedo(); flashBtn(one('#redoBtn')); }
 });
 let viewportFrame=0,inset=0;
 function keyboardTarget(){
@@ -1456,7 +1449,15 @@ syncBrowserViewport();
 function boot(){
   let notice='';
   try{loadLocal();}catch(err){notice=err.message;}
-  decorateSpecials();setDestination(dest,false,false);pushHist();
+  decorateSpecials();
+  const factory=window.MDTXTRTEditorCore?.createEditorCore;
+  if(typeof factory!=='function')throw new Error('Núcleo de edição indisponível');
+  editorCore=factory({
+    element:editor,
+    onChange:()=>{markDirty();restoreActiveMediaVisual();},
+    onSelectionChange:()=>queueMicrotask(syncEditorSelectionUI)
+  });
+  setDestination(dest,false,false);syncEditorSelectionUI();
   if(notice)showToast(notice);
   void restoreMedia().then(()=>verifyTelegram()).catch(err=>showToast(err.message||'Não foi possível restaurar o documento'));
 }
