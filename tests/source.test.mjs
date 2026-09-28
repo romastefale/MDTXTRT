@@ -255,7 +255,7 @@ test('top chrome keeps lateral pills below the centered title and inside Telegra
   assert.match(html,/\.topbar\{[\s\S]*?top:calc\(var\(--vv-top\) \+ var\(--safe-top\) \+ var\(--gap\)\)/);
   assert.match(html,/\.top-left\{grid-column:1;justify-self:start\}/);
   assert.match(html,/\.top-right\{grid-column:3;justify-self:end\}/);
-  assert.match(html,/\.top-slot\{[\s\S]*?margin-top:var\(--top-side-offset\)/);
+  assert.match(html,/\.top-slot\{[\s\S]*?margin-top:0;transform:translateY\(var\(--top-side-offset\)\)/);
   assert.match(html,/\.top-center\{[\s\S]*?top:0;[\s\S]*?height:var\(--pill-h\)/);
 });
 
