@@ -649,7 +649,7 @@ function dialogOrigin(){
   const active=document.activeElement;
   if(active&&active!==document.body&&active!==editor)return panelOrigin(active);
   if(lastInteractionControl?.isConnected)return panelOrigin(lastInteractionControl);
-  return panelOrigin(active)||editor;
+  return editor;
 }
 function finishDialog(value){
   const resolve=dialogResolve,target=dialogReturnFocus;
