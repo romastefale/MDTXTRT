@@ -73,7 +73,7 @@ function edgeLayer(material) {
   );
 }
 
-test("bar Glass material changes the theme veil while inheriting the normative material edge", async () => {
+test("bar Glass material keeps the normative hairline without an opacity veil across themes", async () => {
   const dom = new JSDOM(readFileSync(new URL("index.html", root), "utf8"), {
     url: "https://mdtxtrt.example/",
     runScripts: "outside-only",
@@ -152,7 +152,7 @@ test("bar Glass material changes the theme veil while inheriting the normative m
     assert.ok(themeButton, "the real app theme control must be mounted");
     assert.equal(w.document.documentElement.dataset.theme, "light");
 
-    assert.equal(brightnessLayer(bar)?.style.opacity, "0.34");
+    assert.equal(brightnessLayer(bar), undefined);
     assert.match(edgeLayer(bar)?.style.boxShadow || "", /0\.550/);
     assert.equal(brightnessLayer(menu)?.style.opacity, "0.55");
 
@@ -161,7 +161,7 @@ test("bar Glass material changes the theme veil while inheriting the normative m
     await wait();
 
     assert.equal(w.document.documentElement.dataset.theme, "dark");
-    assert.equal(brightnessLayer(bar)?.style.opacity, "0.2");
+    assert.equal(brightnessLayer(bar), undefined);
     assert.match(edgeLayer(bar)?.style.boxShadow || "", /0\.550/);
     assert.equal(
       brightnessLayer(menu)?.style.opacity,
@@ -175,9 +175,9 @@ test("bar Glass material changes the theme veil while inheriting the normative m
 
     assert.equal(w.document.documentElement.dataset.theme, "light");
     assert.equal(
-      brightnessLayer(bar)?.style.opacity,
-      "0.34",
-      "bar optics must return to the light profile through the running app",
+      brightnessLayer(bar),
+      undefined,
+      "bar material must remain free of a brightness veil after returning to light theme",
     );
   } finally {
     restore();

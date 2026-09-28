@@ -32,37 +32,8 @@ export const MENU_LENS = {
 };
 
 const BAR_LENS = {
-  light: {
-    brightness: 0.34,
-    sheen: 0,
-    glow: 0,
-  },
-  dark: {
-    brightness: 0.2,
-    sheen: 0,
-    glow: 0,
-  },
-  readTheme() {
-    if (typeof document === "undefined") return "dark";
-    const root = document.documentElement;
-    return root.dataset.theme === "light" || root.classList.contains("light")
-      ? "light"
-      : "dark";
-  },
-  subscribe(onStoreChange) {
-    if (typeof document === "undefined" || typeof MutationObserver === "undefined") {
-      return () => {};
-    }
-    const observer = new MutationObserver(onStoreChange);
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ["class", "data-theme"],
-    });
-    return () => observer.disconnect();
-  },
-  serverTheme() {
-    return "dark";
-  },
+  sheen: 0,
+  glow: 0,
 };
 
 const MENU_RADIUS = 9;
@@ -110,14 +81,9 @@ export function GlassContextMenu({
 }
 
 function GlassControl({ className = "", children, style, ...props }) {
-  const theme = React.useSyncExternalStore(
-    BAR_LENS.subscribe,
-    BAR_LENS.readTheme,
-    BAR_LENS.serverTheme,
-  );
   return (
     <Glass
-      optics={BAR_LENS[theme]}
+      optics={BAR_LENS}
       className={className}
       style={{ display: "flex", alignItems: "center", ...style }}
       {...props}

@@ -5,7 +5,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-title" content="MDTXTRT" />
   <meta name="apple-mobile-web-app-status-bar-style" id="statusBarStyle" content="default" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-visual" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, interactive-widget=resizes-visual" />
   <meta name="color-scheme" content="light dark" />
   <meta name="theme-color" id="themeColor" content="#f8fbff" />
   <title>MDTXTRT</title>
@@ -34,7 +34,6 @@
       --line:color-mix(in oklab,var(--accent) 22%,var(--bg));
       --glass-tint:color-mix(in oklab,var(--accent) 11%,transparent);
       --glass-tint-strong:color-mix(in oklab,var(--accent) 17%,transparent);
-      --bar-glass-tint:color-mix(in oklab,var(--accent) 20%,transparent);
       --bar-glass-tint-strong:color-mix(in oklab,var(--accent) 28%,transparent);
       --bar-control-accent-bg:color-mix(in oklab,var(--accent) 26%,transparent);
       --menu-edge:color-mix(in oklab,var(--accent) 22%,transparent);
@@ -43,15 +42,15 @@
       --glass-field-soft:color-mix(in oklab,var(--accent) 9%,rgba(255,255,255,.13));
       --menu-shadow:rgba(0,0,0,.30);
       --menu-shadow-tight:rgba(0,0,0,.18);
-      --safe-top:env(safe-area-inset-top,0px);
-      --safe-bottom:env(safe-area-inset-bottom,0px);
-      --safe-left:env(safe-area-inset-left,0px);
-      --safe-right:env(safe-area-inset-right,0px);
+      --safe-top:0px;
+      --safe-bottom:0px;
+      --safe-left:0px;
+      --safe-right:0px;
       --gap:8px;
       --control-size:clamp(36px,10vw,40px);
       --pill-pad:4px;
       --pill-h:calc(var(--control-size) + 8px);
-      --top-side-offset:24px;
+      --top-side-offset:32px;
       --editor-top-gap:8px;
       --topbar-h:calc(var(--pill-h) + var(--top-side-offset));
       --bar-h:var(--pill-h);
@@ -66,16 +65,15 @@
       --foot-inset:calc(var(--bottom) + var(--gap) + var(--bar-h) + var(--gap));
     }
     html.tg-shell{
-      --safe-top:max(var(--app-tg-safe-top),var(--app-tg-content-safe-top));
-      --safe-bottom:max(var(--app-tg-safe-bottom),var(--app-tg-content-safe-bottom));
-      --safe-left:max(var(--app-tg-safe-left),var(--app-tg-content-safe-left));
-      --safe-right:max(var(--app-tg-safe-right),var(--app-tg-content-safe-right));
+      --safe-top:var(--app-tg-content-safe-top);
+      --safe-bottom:var(--app-tg-content-safe-bottom);
+      --safe-left:var(--app-tg-content-safe-left);
+      --safe-right:var(--app-tg-content-safe-right);
     }
     html.light{
       --bg:#f8fbff; --text:#151515; --accent:#269c65;
       --glass-tint:color-mix(in oklab,var(--accent) 7%,transparent);
       --glass-tint-strong:color-mix(in oklab,var(--accent) 12%,transparent);
-      --bar-glass-tint:color-mix(in oklab,var(--accent) 16%,transparent);
       --bar-glass-tint-strong:color-mix(in oklab,var(--accent) 23%,transparent);
       --bar-control-accent-bg:color-mix(in oklab,var(--accent) 20%,transparent);
       --menu-edge:color-mix(in oklab,var(--accent) 15%,transparent);
@@ -145,7 +143,7 @@
     .heading-list .h-opt.h6{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
     .heading-list .h-opt.footer{font-size:12px;color:var(--muted)}
     .heading-list button.is-current{color:var(--accent)}
-    .seg,.bar{color:#151515;border-radius:999px;background:var(--bar-glass-tint)}
+    .seg,.bar{color:#151515;border-radius:999px;background:var(--glass-tint)}
     html.dark .seg,html.dark .bar{color:#f5f5f7}
     .glass-menu-material,.toast-material{background:var(--glass-tint)}
     .fade-top,.fade-bot{
@@ -394,7 +392,7 @@
   </div>
   <script src="marked.js"></script>
   <script src="turndown.js"></script>
-  <script type="module" src="ui.js?v=784ad598b3fe"></script>
+  <script type="module" src="ui.js?v=c3c1fe9ce9ab"></script>
   <script>
     document.addEventListener('DOMContentLoaded',()=>{
       const root=document.documentElement;
