@@ -29,7 +29,7 @@ Release hardening was integrated by PR #98 and exact-main release validation by 
 
 ### G-03 — incomplete evidence schema
 
-**Status: CLOSED.** Physical PWA rows, Railway draft restart, real import/export and same-message Telegram edit evidence are explicit in the release contract and validator.
+**Status: CLOSED.** Physical PWA rows, Railway draft restart, real import/export and Telegram revision-history evidence are explicit in the release contract and validator.
 
 ### G-04 — exact production deployment
 
@@ -45,9 +45,9 @@ The final documentation-only closure commit must likewise pass the exact-main au
 
 **Status: OWNER ACCEPTANCE.** Contract, ownership and restart behavior are covered in code/tests; authorized real-destination evidence is deferred.
 
-### G-07 — real Telegram send/edit path
+### G-07 — real Telegram send/revision-history path
 
-**Status: OWNER ACCEPTANCE.** Request structure, durable binding, same-message edit and uncertainty/idempotency behavior are covered in code/tests; client receipt/rendering evidence is deferred.
+**Status: OWNER ACCEPTANCE.** Request structure, durable binding, immutable chat-history revision flow and uncertainty/idempotency behavior are covered in code/tests; client receipt/rendering evidence is deferred.
 
 ### G-08 — physical Web/PWA/Mini App matrix
 
