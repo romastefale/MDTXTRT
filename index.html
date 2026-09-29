@@ -309,7 +309,7 @@
       border-radius:var(--menu-radius);background:transparent;color:var(--text);
       transform:translate(-50%,-50%)
     }
-    .glass-menu[data-anchor]{left:var(--menu-left,50%);top:var(--menu-top,50%);transform:none}
+    .glass-menu[data-anchor],.glass-menu[data-runtime-positioned]{left:var(--menu-left,50%);top:var(--menu-top,50%);transform:none}
     .glass-menu.wide-menu{width:min(var(--menu-w),var(--menu-max-width,calc(100vw - 16px)))}
     .glass-menu.dialog-menu,.glass-menu.find-menu{width:min(280px,var(--menu-max-width,calc(100vw - 16px)))}
     .glass-menu:not(:popover-open){display:none}
