@@ -4,9 +4,9 @@
 
 A baseline de trabalho explicitamente adotada por este repositório é o commit:
 
-`dde30467ed9b0d108bac2ae7ad9bcac1137c169e`
+`aac423e012745c7873908ddc4a76371fb8218aa3`
 
-Esse commit corresponde ao merge do PR #53 (`Fix dark-mode menu text contrast`) e constitui o ponto de referência fixo para comparação, validação, regressão e evolução do projeto.
+Esse commit corresponde ao `main` após a etapa 2/6 e fixa o design translúcido consolidado como referência de comparação. A referência anterior do PR #53 permanece documentada em [BASELINE.md](BASELINE.md).
 
 A baseline não representa congelamento do código, versão final imutável nem impedimento a mudanças posteriores. A branch `main` pode avançar normalmente com correções, refinamentos e novas funcionalidades. Alterações posteriores devem ser entendidas como evolução a partir desta referência enquanto ela permanecer documentada como baseline vigente.
 
