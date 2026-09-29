@@ -1,56 +1,66 @@
-# Estado do produto — entrega concluída
+# Estado do produto — engenharia concluída
 
-## Estado de entrega
+## Estado
 
-A implementação, correções, auditoria e automação previstas nas Etapas 1–7 foram concluídas.
+**ENGINEERING DELIVERY COMPLETE**
 
-O último ciclo funcional, PR #101, corrigiu a fidelidade editor → publicação: controles estruturais deixaram de inserir frases artificiais no documento, citações especiais passaram a formatar o conteúdo real do autor, e a representação visual do editor passou a distinguir melhor as estruturas que serão publicadas.
+A implementação, correções, auditoria, hardening e automação sob responsabilidade de engenharia estão concluídas.
 
-No SHA integrado por #101, os gates automatizados registraram:
+A cadeia funcional terminou com:
+- PR #101 — fidelidade editor → publicação;
+- PR #104 — histórico imutável de revisões Telegram, migração de rascunhos e biblioteca de rascunhos/Telegraph;
+- PR #105 — hardening final fail-closed, removendo fallbacks de DOM bruto e ocultação silenciosa de estado persistente corrompido.
 
-- Regression verification #537 — PASS, 165/165;
-- Release validation #115 — PASS;
-- GitHub Pages #605 — PASS;
-- Railway production — deployment `bb0add81-88a4-4c8c-8f33-ce0bf2ea90e9`, SUCCESS;
-- volume persistente mantido e aplicação iniciada com Telegram/Telegraph prontos.
+O fechamento documental posterior a esses PRs não altera semântica de runtime. O SHA exato de `main` continua sendo validado automaticamente em cada push por regressão, release gates e deployment.
 
-O PR de fechamento documental posterior a esse ciclo não altera funcionalidade do produto. Ele existe para registrar corretamente que não há trabalho de implementação pendente da parte da engenharia.
+## Invariantes entregues
 
-## Capacidades entregues e cobertas
+A implementação e a regressão cobrem:
 
-A auditoria estática e a regressão cobrem:
-
-- edição transacional, seleção, undo/redo e entrada formatada;
-- fidelidade semântica editor → publicação sem conteúdo fictício;
+- editor transacional como fonte obrigatória de verdade para serialização, restauração, handoff, busca/substituição e exportação;
+- ausência de fallback para o DOM `contenteditable` bruto nos caminhos canônicos do documento;
+- edição, seleção, undo/redo, composição, paste e entrada formatada;
+- fidelidade semântica editor → publicação sem texto de demonstração serializado;
 - importação/exportação Markdown e TXT na interface;
 - importação/exportação pela conversa privada com o bot;
 - comandos privados `/start`, `/app`, `/novo`, `/rascunhos`, `/telegraph`, `/ajuda`, `/enviar`, `/exportar`, `/importar`;
 - menus, submenus, links, estruturas, interações e mídia declaradas, filtrados por destino;
 - handoff browser/PWA → Mini App sem publicação implícita;
-- publicação Telegram/Telegraph com validação de contrato;
-- persistência de rascunho no Railway volume e recuperação sintética após reinício;
-- vínculo Telegram usuário/documento/chat/messageId, aviso explícito de revisão e nova mensagem para preservar o histórico;
-- biblioteca de rascunhos persistidos e páginas Telegraph editáveis no browser e Mini App;
+- publicação Telegram com histórico de revisões no chat: mensagem anterior preservada, aviso de atualização e nova Rich Message;
+- publicação/edição Telegraph vinculada ao mesmo documento/path;
+- persistência de rascunhos no Railway volume e recuperação após reinício;
+- normalização/migração explícita de artefatos transitórios do ProseMirror sem afrouxar a allow-list semântica;
+- recuperação do volume fail-closed: erro/ambiguidade bloqueia edição e gravação em vez de criar substituto;
+- biblioteca persistente fail-closed: registro corrompido não desaparece silenciosamente da listagem;
+- isolamento de proprietário para rascunhos e Telegraph;
+- biblioteca de rascunhos e páginas Telegraph no Web/PWA e Mini App;
 - PWA standalone;
 - fullscreen/viewport/safe areas oficiais no Mini App e `visualViewport` no browser;
 - posicionamento de menus/diálogos acima da barra inferior;
-- build determinístico, bundles reproduzíveis e baseline visual automatizada;
-- núcleo transacional obrigatório nos caminhos de serialização/restauração/exportação, sem fallback para DOM bruto;
-- recuperação do volume e biblioteca persistente fail-closed quando o estado é incerto ou corrompido;
-- inventário integral Web/PWA/Mini App/bot em `SURFACE_CONTRACT.md`.
+- build determinístico, bundles reproduzíveis, auditoria de superfícies e baseline visual automatizada.
 
-## O que não é trabalho de implementação pendente
+## Persistência e degradação
 
-Testes que exigem aparelho físico, sessão Telegram real, destino Telegraph real ou interrupção operacional controlada foram explicitamente transferidos para a aceitação do proprietário em `OWNER_ACCEPTANCE.md`.
+`/data` é a camada durável operacional em produção. `localStorage` e IndexedDB são cache/recuperação local e não são promovidos silenciosamente a substitutos do volume.
 
-Esses testes não são marcados como PASS sem evidência. Ao mesmo tempo, sua execução posterior não mantém artificialmente a entrega de engenharia aberta.
+Falhas críticas de integridade são fail-closed ou explicitamente incertas:
+- falha de identidade impede operação dependente de identidade;
+- revisão antiga não sobrescreve revisão persistente mais nova;
+- falha/ambiguidade de recuperação do volume não abre um rascunho substituto editável;
+- resultado Telegram incerto não dispara repetição cega;
+- estado persistente corrompido na biblioteca não é omitido como se não existisse;
+- ausência do núcleo transacional interrompe a operação em vez de cair para DOM bruto.
 
-Se a aceitação do proprietário encontrar um defeito, isso inicia um novo ciclo de correção com novo candidato. Não reabre nem altera retroativamente o registro da entrega concluída.
+Compatibilidade histórica de leitura ou endpoints legados explicitamente documentados não é usada como fallback depois de uma falha do caminho persistente atual.
 
-## Estados distintos
+## Pós-entrega
 
-- **ENGINEERING DELIVERY COMPLETE** — implementação, auditoria, CI e deployment sob responsabilidade automatizável concluídos.
-- **OWNER ACCEPTANCE PENDING** — testes físicos/externos deliberadamente deixados para o proprietário.
-- **RELEASE APPROVED** — somente depois que a aceitação externa/física prevista em `RELEASE_VALIDATION.md` também estiver comprovada contra um único SHA.
+`OWNER_ACCEPTANCE.md` descreve verificações físicas/externas que o proprietário pode executar depois da entrega. Elas são evidência pós-entrega e **não constituem trabalho de engenharia pendente nem bloqueiam a conclusão formal da implementação**.
 
-O estado atual da entrega é **ENGINEERING DELIVERY COMPLETE / OWNER ACCEPTANCE PENDING**.
+`RELEASE_VALIDATION.md` e `RELEASE_ANCHOR.md` mantêm, separadamente, um processo opcional de certificação `RELEASE APPROVED`/anchor imutável. Esse selo exige evidência externa real por definição, mas sua ausência não reabre a entrega de engenharia.
+
+Se uma verificação posterior revelar um defeito, isso inicia um novo ciclo de correção contra o SHA então implantado.
+
+## Conclusão
+
+O estado do produto do ponto de vista de implementação é **ENGINEERING DELIVERY COMPLETE**. Não há funcionalidade, correção, merge ou hardening de código conhecido pendente neste ciclo.

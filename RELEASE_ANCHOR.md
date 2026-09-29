@@ -6,9 +6,15 @@ The canonical release identity is a **full 40-character Git commit SHA**. A conv
 
 The approved translucent visual baseline remains `aac423e012745c7873908ddc4a76371fb8218aa3`; it is a visual reference, not the release identity.
 
+## Engineering completion versus release certification
+
+Engineering completion does not require an immutable Release Anchor. A merged implementation whose exact `main` SHA passes the automated gates and reaches production successfully is a completed engineering delivery.
+
+The Release Anchor is an additional certification artifact. External/device/rollback evidence may be collected after engineering delivery; until then the product can remain deployed without falsely labeling that evidence as PASS.
+
 ## Pre-release candidate versus final immutable anchor
 
-During Etapa 7/7, code may have one or more **test candidates**. A test candidate is simply an exact commit SHA used to run automated and external validation. It is not an immutable final product candidate and must not be described as release-approved.
+During release certification, code may have one or more **test candidates**. A test candidate is simply an exact commit SHA used to run automated and external validation. It is not an immutable Release Anchor and must not be described as `RELEASE APPROVED` unless the certification evidence is complete.
 
 The **final immutable Release Anchor is created only after every mandatory criterion in `RELEASE_VALIDATION.md` passes against the same exact SHA**, including:
 - clean regression/build and bundle reproducibility;

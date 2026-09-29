@@ -2,7 +2,7 @@
 
 Date: 2026-09-30
 
-Scope: close the implementation/audit cycle after the six implementation stages, Etapa 7 release hardening, and the editor-publication fidelity correction in PR #101.
+Scope: close the implementation/audit cycle after the six implementation stages, Etapa 7 release hardening, editor-publication fidelity (#101), Telegram/draft/Telegraph integration (#104), and final fail-closed hardening (#105).
 
 ## Implementation chain
 
@@ -15,7 +15,7 @@ Scope: close the implementation/audit cycle after the six implementation stages,
 | 5 | external publication persistence/idempotency | #92 | `854a20fd635dc0d55ea9c7294f13bb0313118297` | `2cc98d83a330e4f1f56b5a5d0c87f22a51695ce0` |
 | 6 | volume drafts/provenance/UI corrections | #95 | `ad2b05d82770a5057d22b2f92d7fc02255bdfb1c` | `ec3def6622818c0411bbeb94165716c7f30fa927` |
 
-Release hardening was integrated by PR #98 and exact-main release validation by PR #100. PR #101 then corrected editor → publication fidelity without weakening any release gate.
+Release hardening was integrated by PR #98 and exact-main release validation by PR #100. PR #101 corrected editor → publication fidelity, PR #104 preserved Telegram revision history and integrated the owner library, and PR #105 removed remaining degraded critical paths through fail-closed hardening.
 
 ## Gap register
 
@@ -33,37 +33,37 @@ Release hardening was integrated by PR #98 and exact-main release validation by 
 
 ### G-04 — exact production deployment
 
-**Status: CLOSED for engineering delivery.** The #101 integrated candidate `e07c6d7917c2dc4c91439498d2e92af3d8a05249` passed Regression #537, Release validation #115 and Pages #605, and Railway deployment `bb0add81-88a4-4c8c-8f33-ce0bf2ea90e9` reached SUCCESS with the persistent volume mounted.
+**Status: CLOSED for engineering delivery.** Exact-main CI and Railway deployment are automated requirements. The authoritative final SHA/deployment evidence is recorded in the closed engineering delivery record (#99), rather than pinning a documentation file to a SHA that changes when the file itself is merged.
 
-The final documentation-only closure commit must likewise pass the exact-main automated gates and deploy successfully; its deployment record supersedes this candidate as the acceptance target without changing product runtime semantics.
+PR #105 added the final runtime hardening: mandatory transactional editor paths, fail-closed volume recovery and fail-closed persistent-library enumeration. It passed the same regression/release/deployment pipeline before the documentation-only closure.
 
 ### G-05 — physical draft persistence/restart evidence
 
-**Status: OWNER ACCEPTANCE.** Implementation and deterministic restart tests are complete. Live device/cache-removal evidence is intentionally deferred to `OWNER_ACCEPTANCE.md`.
+**Status: POST-DELIVERY CERTIFICATION.** Implementation and deterministic restart tests are complete. Optional live device/cache-removal evidence is described in `OWNER_ACCEPTANCE.md`; it is not an engineering gap.
 
 ### G-06 — real Telegraph restart path
 
-**Status: OWNER ACCEPTANCE.** Contract, ownership and restart behavior are covered in code/tests; authorized real-destination evidence is deferred.
+**Status: POST-DELIVERY CERTIFICATION.** Contract, ownership and restart behavior are covered in code/tests; optional authorized real-destination evidence is post-delivery.
 
 ### G-07 — real Telegram send/revision-history path
 
-**Status: OWNER ACCEPTANCE.** Request structure, durable binding, immutable chat-history revision flow and uncertainty/idempotency behavior are covered in code/tests; client receipt/rendering evidence is deferred.
+**Status: POST-DELIVERY CERTIFICATION.** Request structure, durable binding, immutable chat-history revision flow and uncertainty/idempotency behavior are covered in code/tests; client receipt/rendering evidence is post-delivery.
 
 ### G-08 — physical Web/PWA/Mini App matrix
 
-**Status: OWNER ACCEPTANCE.** Automated viewport/focus/baseline tests are complete; physical iOS/Android evidence is deferred.
+**Status: POST-DELIVERY CERTIFICATION.** Automated viewport/focus/baseline tests are complete; physical iOS/Android evidence is post-delivery.
 
 ### G-09 — real import/export matrix
 
-**Status: OWNER ACCEPTANCE.** Contract and round-trip automation are complete; physical file-picker/download/bot acceptance is deferred.
+**Status: POST-DELIVERY CERTIFICATION.** Contract and round-trip automation are complete; physical file-picker/download/bot evidence is post-delivery.
 
 ### G-10 — operational network/storage fault matrix
 
-**Status: OWNER ACCEPTANCE.** Deterministic failure paths are covered; controlled live fault injection is deferred where it requires environment/device disruption.
+**Status: POST-DELIVERY CERTIFICATION.** Deterministic failure paths are covered; controlled live fault injection is post-delivery where it requires environment/device disruption.
 
 ### G-11 — rollback exercise
 
-**Status: OWNER ACCEPTANCE.** Railway reports rollback-capable prior deployments. An actual rollback is deliberately deferred because it changes the live service and must be intentionally scheduled by the owner.
+**Status: POST-DELIVERY CERTIFICATION.** Railway reports rollback-capable prior deployments. An actual rollback is an optional post-delivery operational exercise because it deliberately changes the live service.
 
 ## Closure rule
 
@@ -76,4 +76,4 @@ Engineering delivery is concluded when:
 
 After those four conditions, there are **no open engineering implementation gaps** in this cycle.
 
-Physical/external/rollback checks remain visible as owner acceptance, not hidden or falsely marked PASS. They continue to gate the optional `RELEASE APPROVED`/immutable Release Anchor status defined by `RELEASE_ANCHOR.md`, but they do not keep the engineering delivery itself open.
+Physical/external/rollback checks remain visible as post-delivery certification evidence, not hidden or falsely marked PASS. They gate only the optional `RELEASE APPROVED`/immutable Release Anchor label defined by `RELEASE_ANCHOR.md`; they do not gate engineering completion or product deployment.

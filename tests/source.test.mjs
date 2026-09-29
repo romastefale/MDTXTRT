@@ -794,13 +794,17 @@ test('final release gap analysis, surface audit and final-only anchor gates are 
   assert.match(gap,/G-08 — physical Web\/PWA\/Mini App matrix/);
   assert.match(gap,/G-11 — rollback exercise/);
   assert.match(gap,/there are \*\*no open engineering implementation gaps\*\*/);
-  assert.match(gap,/OWNER ACCEPTANCE/);
+  assert.match(gap,/POST-DELIVERY CERTIFICATION/);
+  const productStatus=read('PRODUCT_POLISH_STATUS.md');
+  assert.match(productStatus,/ENGINEERING DELIVERY COMPLETE/);
+  assert.match(productStatus,/não constituem trabalho de engenharia pendente nem bloqueiam a conclusão formal/);
   const ownerAcceptance=read('OWNER_ACCEPTANCE.md');
   assert.match(ownerAcceptance,/Engineering delivery is complete/);
   assert.match(ownerAcceptance,/Physical-device matrix/);
   assert.match(ownerAcceptance,/Rollback acceptance/);
   assert.match(ownerAcceptance,/RELEASE APPROVED/);
 
+  assert.match(validation,/separate from engineering delivery completion/);
   assert.match(validation,/## Release statuses/);
   assert.match(validation,/CANDIDATE VALIDATED/);
   assert.match(validation,/RELEASE APPROVED/);
@@ -809,6 +813,7 @@ test('final release gap analysis, surface audit and final-only anchor gates are 
   assert.match(validation,/real Telegram Rich Message send and revision history/i);
   assert.match(validation,/Web \/ PWA \/ Mini App and physical-device matrix/);
 
+  assert.match(anchor,/Engineering completion does not require an immutable Release Anchor/);
   assert.match(anchor,/canonical release identity is a \*\*full 40-character Git commit SHA\*\*/);
   assert.match(anchor,/final immutable Release Anchor is created only after every mandatory criterion/i);
   assert.match(anchor,/Only after approval,[\s\S]*optional branch\/tag/i);

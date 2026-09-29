@@ -1,8 +1,10 @@
 # Release validation contract — Etapa 7/7
 
-This is the mandatory final gate for MDTXTRT after the six implementation stages integrated in `main`.
+This document defines the optional **release-certification** gate used to award the `RELEASE APPROVED` label and seal an immutable Release Anchor. It is separate from engineering delivery completion.
 
-A release is approved only when **every** automated, external, physical-device, persistence, fault and rollback criterion below is PASS against the **same exact Git commit SHA**. Automated success is necessary but not sufficient. Mocks and synthetic viewport tests are never recorded as physical or external evidence.
+Engineering work is complete when the implementation is integrated, exact-main automated gates pass and that exact SHA is successfully deployed. The additional external/physical evidence below may be collected post-delivery; its absence does not represent unfinished code.
+
+`RELEASE APPROVED` itself is intentionally stricter: it is awarded only when **every** automated, external, physical-device, persistence, fault and rollback criterion below is PASS against the **same exact Git commit SHA**. Mocks and synthetic viewport tests are never recorded as physical or external evidence.
 
 ## Gate A — exact candidate and complete regression
 
@@ -43,7 +45,7 @@ Any bundle difference is a release failure.
 - browser/PWA → Mini App handoff for Telegram publication;
 - Mini App Telegram/Telegraph publication paths;
 - persistent draft routes;
-- all seven private bot commands;
+- all registered private bot commands;
 - standalone PWA manifest.
 
 Static surface success does not replace live execution required below.
