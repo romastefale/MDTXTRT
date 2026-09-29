@@ -635,6 +635,7 @@ test('step 6 semantics and documentation preserve the pinned visual baseline',()
   assert.match(architecture,/Durable document provenance boundary/);
   assert.match(drafts,/one \*\*active draft slot\*\*/);
   assert.match(drafts,/not a synchronized document database or a durable provenance ledger/);
+  assert.match(baseline,/aac423e012745c7873908ddc4a76371fb8218aa3/);
   assert.match(baseline,/dde30467ed9b0d108bac2ae7ad9bcac1137c169e/);
 });
 
@@ -706,7 +707,7 @@ test('final release gap analysis and immutable anchor gates are explicit',()=>{
   assert.match(read('scripts/validate-release-evidence.mjs'),/iOS Telegram Mini App/);
   assert.match(read('scripts/validate-release-evidence.mjs'),/Telegram unknown timeout/);
 
-  assert.equal(manifest.visualBaseline,'dde30467ed9b0d108bac2ae7ad9bcac1137c169e');
+  assert.equal(manifest.visualBaseline,'aac423e012745c7873908ddc4a76371fb8218aa3');
   assert.deepEqual(manifest.runtime,{node:'24.21.0',npm:'11.19.0'});
   assert.equal(manifest.stages.length,6);
   assert.equal(manifest.stages.at(-1).head,'e20d115b18424ab5c9abfa7e175b5376fe0633fb');
