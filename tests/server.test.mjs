@@ -136,13 +136,30 @@ test('drafts persist on the Railway volume and survive backend restart',async()=
   assert.equal(afterRestart.data.draft.revision,3);
 });
 
-test('Telegram publication provenance is bound to the publisher and later saves edit the same message',async()=>{
+test('draft persistence strips ProseMirror runtime artifacts without rejecting the document',async()=>{
+  const doc=randomUUID();
+  const browserKey='ef'.repeat(32);
+  const draft=draftFixture('<p contenteditable="true" spellcheck="true">Texto<br class="ProseMirror-trailingBreak"></p><blockquote class="ProseMirror-selectednode" draggable="true">Citação</blockquote>',doc,1,'Migrado');
+  const saved=await formPost('/api/drafts/save',{browserKey,draft:JSON.stringify(draft)});
+  assert.equal(saved.status,200,saved.data.error);
+  assert.doesNotMatch(saved.data.draft.html,/ProseMirror-|contenteditable|spellcheck|draggable/);
+  assert.match(saved.data.draft.html,/Texto/);
+  assert.match(saved.data.draft.html,/Citação/);
+
+  const loaded=await jsonPost('/api/drafts/load',{browserKey,doc});
+  assert.equal(loaded.status,200,loaded.data.error);
+  assert.equal(loaded.data.draft.html,saved.data.draft.html);
+});
+
+test('Telegram revisions preserve chat history with an update notice and a new message',async()=>{
   const doc=randomUUID();
   const first=draftFixture('<p>Primeira versão</p>',doc,1,'Publicação');
+  const before=callCount('sendRichMessage');
   const sent=await formPost('/api/telegram/send',{initData:init(7),html:first.html,draft:JSON.stringify(first)});
   assert.equal(sent.status,200,sent.data.error);
   assert.equal(sent.data.via,'sendRichMessage');
   assert.equal(sent.data.messageId,42);
+  assert.equal(callCount('editMessageText'),0);
 
   const persisted=await jsonPost('/api/drafts/load',{initData:init(7),doc});
   assert.equal(persisted.status,200,persisted.data.error);
@@ -151,15 +168,32 @@ test('Telegram publication provenance is bound to the publisher and later saves 
   assert.equal(persisted.data.publication.status,'succeeded');
   assert.equal(persisted.data.publication.telegramUserId,'7');
   assert.equal(persisted.data.publication.messageId,42);
+  assert.equal(persisted.data.publication.history.length,1);
 
   const second={...first,html:'<p>Segunda versão</p>',revision:2};
-  const edited=await formPost('/api/telegram/send',{initData:init(7),html:second.html,draft:JSON.stringify(second)});
-  assert.equal(edited.status,200,edited.data.error);
-  assert.equal(edited.data.via,'editMessageText');
-  assert.equal(edited.data.messageId,42);
-  assert.equal(lastCall('editMessageText').body.chat_id,'7');
-  assert.equal(lastCall('editMessageText').body.message_id,42);
-  assert.match(lastCall('editMessageText').body.rich_message.html,/Segunda versão/);
+  const revised=await formPost('/api/telegram/send',{initData:init(7),html:second.html,draft:JSON.stringify(second)});
+  assert.equal(revised.status,200,revised.data.error);
+  assert.equal(revised.data.via,'sendRichMessage');
+  assert.equal(revised.data.previousMessageId,42);
+  assert.equal(revised.data.noticeMessageId,43);
+  assert.equal(revised.data.messageId,44);
+  assert.equal(callCount('sendRichMessage'),before+3);
+  assert.equal(callCount('editMessageText'),0);
+
+  const revisionCalls=calls().filter(call=>call.method==='sendRichMessage').slice(-2);
+  assert.match(revisionCalls[0].body.rich_message.html,/Atualização de publicação/);
+  assert.match(revisionCalls[0].body.rich_message.html,/versão anterior permanece no histórico/);
+  assert.deepEqual(revisionCalls[0].body.reply_parameters,{message_id:42});
+  assert.match(revisionCalls[1].body.rich_message.html,/Segunda versão/);
+  assert.deepEqual(revisionCalls[1].body.reply_parameters,{message_id:43});
+
+  const afterRevision=await jsonPost('/api/drafts/load',{initData:init(7),doc});
+  assert.equal(afterRevision.status,200,afterRevision.data.error);
+  assert.equal(afterRevision.data.publication.messageId,44);
+  assert.equal(afterRevision.data.publication.revision,2);
+  assert.equal(afterRevision.data.publication.pendingUpdate,null);
+  assert.deepEqual(afterRevision.data.publication.history.map(item=>item.messageId),[42,44]);
+  assert.deepEqual(afterRevision.data.publication.history.map(item=>item.noticeMessageId),[0,43]);
 
   const other={...second,revision:3,html:'<p>Outro usuário</p>'};
   const otherUser=await formPost('/api/telegram/send',{initData:init(8),html:other.html,draft:JSON.stringify(other)});
@@ -597,6 +631,38 @@ test('Telegraph ownership mapping survives create and edit on same document',asy
 });
 
 
+test('library lists owned drafts and Telegraph pages and loads Telegraph content for editing',async()=>{
+  const browserKey='91'.repeat(32);
+  const otherKey='92'.repeat(32);
+  const doc=randomUUID();
+  const otherDoc=randomUUID();
+  const draft=draftFixture('<p>Biblioteca</p>',doc,4,'Biblioteca');
+  draft.dest='telegraph';
+  const saved=await formPost('/api/drafts/save',{browserKey,draft:JSON.stringify(draft)});
+  assert.equal(saved.status,200,saved.data.error);
+  const other=await formPost('/api/drafts/save',{browserKey:otherKey,draft:JSON.stringify(draftFixture('<p>Outro</p>',otherDoc,1,'Outro'))});
+  assert.equal(other.status,200,other.data.error);
+
+  const published=await jsonPost('/api/telegraph/publish',{title:'Página da biblioteca',doc,content:[{tag:'p',children:['Conteúdo']}],browserKey});
+  assert.equal(published.status,200,published.data.error);
+
+  const library=await jsonPost('/api/library/list',{browserKey});
+  assert.equal(library.status,200,library.data.error);
+  assert.ok(library.data.drafts.some(item=>item.docId===doc&&item.name==='Biblioteca'));
+  assert.equal(library.data.drafts.some(item=>item.docId===otherDoc),false);
+  assert.ok(library.data.telegraph.some(item=>item.docId===doc&&item.path===published.data.path));
+
+  const page=await jsonPost('/api/telegraph/load',{browserKey,doc});
+  assert.equal(page.status,200,page.data.error);
+  assert.equal(page.data.doc,doc);
+  assert.equal(page.data.path,published.data.path);
+  assert.equal(page.data.title,'Página Telegraph');
+  assert.match(page.data.html,/Conteúdo Telegraph/);
+
+  const wrong=await jsonPost('/api/telegraph/load',{browserKey:otherKey,doc});
+  assert.equal(wrong.status,404);
+});
+
 test('Telegraph browser capability can create, recover and edit without Telegram initData',async()=>{
   const browserKey='ab'.repeat(32);
   const otherKey='cd'.repeat(32);
@@ -760,16 +826,16 @@ test('bot import reports missing paths, confirmed download failures, network fai
 test('webhook authentication and bot command responses retain their contracts',async()=>{
   assert.equal((await webhook({message:{text:'/start',message_id:1,chat:{id:7,type:'private'}}},false)).status,401);
   const registered=lastCall('setMyCommands')?.body?.commands?.map(item=>item.command)||[];
-  for(const name of ['start','app','novo','ajuda','enviar','exportar','importar'])assert.ok(registered.includes(name),name);
+  for(const name of ['start','app','novo','rascunhos','telegraph','ajuda','enviar','exportar','importar'])assert.ok(registered.includes(name),name);
   assert.deepEqual(lastCall('setMyCommands').body.scope,{type:'all_private_chats'});
   assert.deepEqual(lastCall('deleteMyCommands').body.scope,{type:'default'});
 
-  for(const [text,message_id] of [['/start',11],['/app',12],['/novo',13],['/ajuda',14]]){
+  for(const [text,message_id] of [['/start',11],['/app',12],['/novo',13],['/rascunhos',14],['/telegraph',15],['/ajuda',16]]){
     const res=await webhook({message:{text,message_id,chat:{id:7,type:'private'}}});
     assert.equal(res.status,200,text);
   }
   const richCalls=calls().filter(call=>call.method==='sendRichMessage');
-  const start=parseDocument(richCalls.at(-4).body.rich_message.html);
+  const start=parseDocument(richCalls.at(-6).body.rich_message.html);
   const buttons=find(start,'tg-button');
   assert.equal(buttons.length,2);
   assert.equal(buttons[0].attribs.type,'web_app');
@@ -777,10 +843,10 @@ test('webhook authentication and bot command responses retain their contracts',a
   assert.equal(buttons[1].attribs.type,'url');
   assert.equal(buttons[1].attribs.url,origin+'/');
 
-  const app=parseDocument(richCalls.at(-3).body.rich_message.html);
+  const app=parseDocument(richCalls.at(-5).body.rich_message.html);
   for(const button of find(app,'tg-button'))assert.equal(new URL(button.attribs.url).searchParams.has('new'),false);
 
-  const novo=parseDocument(richCalls.at(-2).body.rich_message.html);
+  const novo=parseDocument(richCalls.at(-4).body.rich_message.html);
   const novoButtons=find(novo,'tg-button');
   assert.equal(novoButtons.length,2);
   assert.equal(novoButtons[0].attribs.type,'web_app');
@@ -790,8 +856,14 @@ test('webhook authentication and bot command responses retain their contracts',a
   assert.equal(browserURL.origin,origin);
   assert.match(miniURL.searchParams.get('new')||'',/^[a-f0-9]{32}$/);
   assert.match(browserURL.searchParams.get('new')||'',/^[a-f0-9]{32}$/);
-  assert.match(richCalls.at(-2).body.rich_message.html,/sem substituir o rascunho local atual/);
+  assert.match(richCalls.at(-4).body.rich_message.html,/sem substituir o rascunho local atual/);
+  const drafts=parseDocument(richCalls.at(-3).body.rich_message.html);
+  for(const button of find(drafts,'tg-button'))assert.equal(new URL(button.attribs.url).searchParams.get('view'),'library');
+  const telegraph=parseDocument(richCalls.at(-2).body.rich_message.html);
+  for(const button of find(telegraph,'tg-button'))assert.equal(new URL(button.attribs.url).searchParams.get('view'),'telegraph');
   assert.match(richCalls.at(-1).body.rich_message.html,/\/novo<\/b> abre outro documento e preserva o rascunho local anterior/);
+  assert.match(richCalls.at(-1).body.rich_message.html,/\/rascunhos/);
+  assert.match(richCalls.at(-1).body.rich_message.html,/\/telegraph/);
   assert.match(richCalls.at(-1).body.rich_message.html,/\/exportar/);
   assert.match(richCalls.at(-1).body.rich_message.html,/\/importar/);
 });
