@@ -35,7 +35,7 @@ Any bundle difference is a release failure, even when an ordinary PR workflow wo
 
 ## Gate C — visual baseline
 
-Normative visual baseline: `dde30467ed9b0d108bac2ae7ad9bcac1137c169e`.
+Normative visual baseline: `aac423e012745c7873908ddc4a76371fb8218aa3` (the approved consolidated translucent shell). `BASELINE.md` records why it supersedes `dde30467ed9b0d108bac2ae7ad9bcac1137c169e`.
 
 Automated component:
 - the release workflow renders candidate and baseline with the same Chrome binary, viewport and host;
