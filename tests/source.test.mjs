@@ -386,6 +386,22 @@ test('menus use the same theme glass fill and uniform hairline as chrome capsule
   assert.doesNotMatch(html,/box-shadow:inset 0 0 0 \.5px var\(--menu-inner\),0 0 0 \.5px var\(--menu-edge\)/);
 });
 
+test('toast uses the shared translucent pill surface and theme-aware text',()=>{
+  const html=read('index.html'),src=uiSource();
+  const toast=html.match(/\.toast\{([^}]*)\}/)?.[1]||'';
+  const material=html.match(/\.toast-material\{([^}]*)\}/)?.[1]||'';
+  const content=html.match(/\.toast-content\{([^}]*)\}/)?.[1]||'';
+  assert.match(src,/function Toast\(\)[\s\S]*?<Glass optics=\{MENU_LENS\} className="toast-material">/);
+  assert.match(toast,/border-radius:999px/);
+  assert.match(toast,/color:var\(--text\)/);
+  assert.doesNotMatch(toast,/color:#151515/);
+  assert.match(material,/border-radius:999px/);
+  assert.match(material,/background:var\(--glass-tint\)/);
+  assert.match(material,/box-shadow:inset 0 0 0 1px var\(--glass-hairline\)/);
+  assert.match(content,/padding:8px 13px/);
+  assert.match(content,/color:inherit/);
+});
+
 test('export and plus keep a strong accent glow in both themes',()=>{
   const html=read('index.html');
   assert.match(html,/\.bar > button\.more\{color:#fff;background:var\(--accent\);box-shadow:0 4px 20px color-mix\(in oklab,var\(--accent\) 70%,transparent\)\}/);
