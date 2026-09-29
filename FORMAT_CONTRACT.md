@@ -1,6 +1,6 @@
-# Format contract — evolution step 4/6
+# Format contract — audited for Etapa 7/7
 
-This document is the executable product contract for import, export and publication introduced in evolution step 4/6 and retained by the architecture alignment in step 6/6. `ARCHITECTURE.md` records the broader system boundaries; this file remains the format-specific contract.
+This document is the executable product contract for import, export and publication. It originated in the earlier format-contract evolution and remains the format-specific boundary of the current product after the six implementation stages. `ARCHITECTURE.md` records the broader system boundaries; Etapa 7/7 changes validation/evidence only, not these serialization semantics.
 
 The current visual contract is commit `aac423e012745c7873908ddc4a76371fb8218aa3`, adopted explicitly after the earlier `dde30467ed9b0d108bac2ae7ad9bcac1137c169e` reference. See `BASELINE.md` for provenance.
 
