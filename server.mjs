@@ -1,6 +1,7 @@
 import { createHash, createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { createReadStream, existsSync, statSync, readFileSync, writeFileSync, renameSync, mkdirSync, unlinkSync, readdirSync } from "node:fs";
 import { DomUtils, parseDocument } from "htmlparser2";
+import { marked } from "marked";
 import Busboy from "busboy";
 import { createServer } from "node:http";
 import { extname, relative, resolve } from "node:path";
@@ -52,6 +53,8 @@ const TELEGRAPH_FILE = DATA + "/telegraph-token";
 const PAGES_FILE = TELEGRAPH_FILE + "-pages.json";
 const HANDOFF_DIR = DATA + "/handoffs";
 const HANDOFF_TTL = 15 * 60 * 1000;
+const BOT_IMPORT_DOWNLOAD_MAX = 20_000_000;
+const BOT_IMPORT_SOURCE_MAX = 240_000;
 const SERVER_BOOT_ID = randomUUID();
 const ACTIVE_HANDOFF_SENDS = new Set();
 const BOT_TOKEN=required("TOKEN");
@@ -71,6 +74,7 @@ const BOT_COMMANDS = [
   { command: "ajuda", description: "Ver os comandos" },
   { command: "enviar", description: "Enviar texto rico" },
   { command: "exportar", description: "Exportar texto como arquivo" },
+  { command: "importar", description: "Importar Markdown ou TXT" },
 ];
 
 const MIME = {
@@ -158,7 +162,7 @@ function telegraphRevision(value){
   return value;
 }
 
-async function telegramCall(method, body) {
+async function telegramCall(method, body, messages={}) {
   let res;
   try {
     const options = { method: "POST", signal: AbortSignal.timeout(15000) };
@@ -170,13 +174,13 @@ async function telegramCall(method, body) {
     res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/${method}`, options);
   } catch (error) {
     console.error("Telegram", method, error);
-    throw new DeliveryError("Não foi possível conectar ao Telegram","uncertain");
+    throw new DeliveryError(messages.connection||"Não foi possível conectar ao Telegram","uncertain");
   }
   let json;
-  try { json = await res.json(); } catch { throw new DeliveryError("O Telegram retornou uma resposta inválida","uncertain"); }
+  try { json = await res.json(); } catch { throw new DeliveryError(messages.invalidResponse||"O Telegram retornou uma resposta inválida","uncertain"); }
   if (!json.ok) {
-    console.error("Telegram", method, json.description || "Falha no envio");
-    throw new DeliveryError("O Telegram não aceitou a publicação","failed");
+    console.error("Telegram", method, json.description || "Falha na chamada");
+    throw new DeliveryError(messages.failed||"O Telegram não aceitou a publicação","failed");
   }
   return json.result;
 }
@@ -218,6 +222,124 @@ function cleanFileName(value){
   const name=value.replace(/[\\/:*?"<>|\u0000-\u001f]/g,"-").replace(/^\.+|\.+$/g,"").trim().slice(0,120);
   if(!name)throw new Error("Nome de arquivo inválido");
   return name;
+}
+
+const PORTABLE_TAGS=new Set("a b strong i em u ins s strike del code mark sub sup tg-spoiler tg-reference tg-emoji tg-time tg-math h1 h2 h3 h4 h5 h6 p pre footer hr ul ol li input blockquote aside cite img video audio tg-document figure figcaption iframe tg-map tg-collage tg-slideshow table caption thead tbody tfoot tr th td details summary tg-math-block tg-button tg-button-row br div".split(" "));
+const PORTABLE_ATTRS=new Set("href name class style src alt tg-spoiler start type reversed value checked disabled controls expandable unix format emoji-id lat long zoom width height bordered striped compact colspan rowspan align valign open url data query text forward-text request-write-access allow-user-chats allow-bot-chats allow-group-chats allow-channel-chats".split(" "));
+
+function importFileName(value){
+  if(typeof value!=="string"||value!==value.trim()||value.length<4||value.length>124||/[\\/\u0000-\u001f]/.test(value))throw new Error("Nome de arquivo inválido");
+  const extension=extname(value).toLowerCase();
+  if(![".md",".txt"].includes(extension))throw new Error("Extensão inválida: envie apenas arquivos .md ou .txt");
+  const name=value.slice(0,-extension.length);
+  if(!name||name.length>120||/^\.+$/.test(name))throw new Error("Nome de arquivo inválido");
+  return {fileName:value,name,extension};
+}
+
+function strictUTF8(bytes){
+  if(!Buffer.isBuffer(bytes))throw new Error("Conteúdo do arquivo inválido");
+  const source=bytes.length>=3&&bytes[0]===0xef&&bytes[1]===0xbb&&bytes[2]===0xbf?bytes.subarray(3):bytes;
+  try{return new TextDecoder("utf-8",{fatal:true}).decode(source);}
+  catch{throw new Error("Conteúdo inválido: o arquivo deve usar UTF-8");}
+}
+
+function normalizedPortableHTML(html,label="Markdown"){
+  const doc=parseDocument(String(html??""));
+  const walk=node=>{
+    if(node.type==="text")return;
+    if(node.type!=="tag")throw new Error("Conteúdo "+label+" não suportado");
+    const tag=node.name;
+    if(!PORTABLE_TAGS.has(tag))throw new Error("Elemento "+label+" não suportado: "+tag);
+    delete node.attribs.contenteditable;
+    delete node.attribs.draggable;
+    if(Object.hasOwn(node.attribs,"class")){
+      const kept=String(node.attribs.class||"").split(/\s+/).filter(Boolean).filter(name=>name!=="ProseMirror-selectednode");
+      if(kept.length)node.attribs.class=kept.join(" ");else delete node.attribs.class;
+    }
+    for(const [key,value] of Object.entries({...node.attribs})){
+      if(key==="controls"&&["video","audio"].includes(tag)){delete node.attribs[key];continue;}
+      if(key==="disabled"&&tag==="input"&&node.attribs.type==="checkbox"){delete node.attribs[key];continue;}
+      if(!PORTABLE_ATTRS.has(key) ||
+        key==="class"&&!((tag==="code"&&/^language-[a-z0-9+-]+$/i.test(value))||(["p","footer"].includes(tag)&&value==="tg-footer")) ||
+        key==="style"&&!(tag==="tg-button"&&["link","primary","success","danger"].includes(value)))throw new Error("Atributo "+label+" não suportado: "+key);
+      if(["src","href","url"].includes(key)&&!/^(https?:|mailto:|tel:|tg:|#)/i.test(value))throw new Error("Link "+label+" inválido");
+    }
+    node.children?.forEach(walk);
+  };
+  doc.children.forEach(walk);
+  return DomUtils.getInnerHTML(doc,{encodeEntities:"utf8"});
+}
+
+function importedDraft(fileName,text){
+  const file=importFileName(fileName);
+  const html=file.extension===".md"
+    ?normalizedPortableHTML(marked.parse(text,{gfm:true,breaks:false}),"Markdown")
+    :"<p>"+htmlEscape(text).replace(/\n/g,"<br>")+"</p>";
+  const draft={
+    version:2,
+    name:file.name,
+    html,
+    dest:"telegram",
+    telegraphPath:"",
+    docId:randomUUID(),
+    revision:0,
+    importedMd:file.extension===".md"?text:"",
+    importedTxt:file.extension===".txt"?text:"",
+    importedHtml:html,
+    media:null
+  };
+  draftValid(draft);
+  return draft;
+}
+
+async function downloadTelegramFile(filePath){
+  if(typeof filePath!=="string"||!filePath)throw new Error("O Telegram não forneceu o caminho do arquivo");
+  let response;
+  try{
+    response=await fetch(`https://api.telegram.org/file/bot${BOT_TOKEN}/${filePath}`,{method:"GET",signal:AbortSignal.timeout(20000)});
+  }catch(error){
+    console.error("Telegram file download",error);
+    throw new DeliveryError("Falha de rede ao baixar o arquivo do Telegram; o resultado do download é incerto","uncertain");
+  }
+  if(!response.ok)throw new DeliveryError("O Telegram confirmou falha no download do arquivo (HTTP "+response.status+")","failed");
+  let bytes;
+  try{bytes=Buffer.from(await response.arrayBuffer());}
+  catch(error){
+    console.error("Telegram file body",error);
+    throw new DeliveryError("A resposta de download do Telegram não pôde ser lida","uncertain");
+  }
+  if(bytes.length>BOT_IMPORT_DOWNLOAD_MAX)throw new Error("Arquivo acima do limite de 20 MB do Telegram Bot API");
+  if(bytes.length>BOT_IMPORT_SOURCE_MAX)throw new Error("Arquivo grande demais para o contrato de importação do MDTXTRT");
+  return bytes;
+}
+
+async function importTelegramDocument(document,chatId){
+  if(!document||typeof document!=="object"||Array.isArray(document))throw new Error("Documento sem arquivo");
+  const file=importFileName(document.file_name);
+  if(typeof document.file_id!=="string"||!document.file_id)throw new Error("Documento sem arquivo identificável");
+  if(document.file_size!==undefined){
+    if(!Number.isSafeInteger(document.file_size)||document.file_size<0)throw new Error("Tamanho de arquivo inválido");
+    if(document.file_size>BOT_IMPORT_DOWNLOAD_MAX)throw new Error("Arquivo acima do limite de 20 MB do Telegram Bot API");
+    if(document.file_size>BOT_IMPORT_SOURCE_MAX)throw new Error("Arquivo grande demais para o contrato de importação do MDTXTRT");
+  }
+  const remote=await telegramCall("getFile",{file_id:document.file_id},{
+    connection:"Falha de rede ao solicitar o arquivo ao Telegram",
+    invalidResponse:"O Telegram retornou metadados de arquivo inválidos",
+    failed:"O Telegram confirmou que o arquivo não está disponível para download"
+  });
+  if(!remote||typeof remote!=="object"||typeof remote.file_path!=="string"||!remote.file_path)throw new Error("O Telegram não forneceu o caminho do arquivo");
+  if(remote.file_size!==undefined){
+    if(!Number.isSafeInteger(remote.file_size)||remote.file_size<0)throw new Error("Tamanho de arquivo retornado pelo Telegram inválido");
+    if(remote.file_size>BOT_IMPORT_DOWNLOAD_MAX)throw new Error("Arquivo acima do limite de 20 MB do Telegram Bot API");
+    if(remote.file_size>BOT_IMPORT_SOURCE_MAX)throw new Error("Arquivo grande demais para o contrato de importação do MDTXTRT");
+  }
+  const bytes=await downloadTelegramFile(remote.file_path);
+  const expected=document.file_size??remote.file_size;
+  if(expected!==undefined&&bytes.length!==expected)throw new Error("Download incompleto: o tamanho recebido não corresponde ao documento");
+  const text=strictUTF8(bytes);
+  const draft=importedDraft(file.fileName,text);
+  const token=saveHandoff(draft,null,null,"import",String(chatId));
+  return {draft,token};
 }
 
 function draftValid(draft) {
@@ -352,6 +474,8 @@ function readHandoff(token) {
       if(!existsSync(paths.file)||statSync(paths.file).size!==file.size)throw new Error("Arquivo da transferência inválido");
     }
     let changed=false;
+    if(meta.purpose===undefined){meta.purpose="transfer";changed=true;}
+    if(!["transfer","import"].includes(meta.purpose))throw new Error("Finalidade da transferência persistida inválida");
     if(meta.action===undefined){
       const legacyPublish=meta.draft.action==="publish";
       if(Object.hasOwn(meta.draft,"action")){meta.draft={...meta.draft};delete meta.draft.action;changed=true;}
@@ -363,6 +487,7 @@ function readHandoff(token) {
       changed=true;
     }
     handoffActionValid(meta.action,meta.draft,meta.file||null);
+    if(meta.purpose==="import"&&(meta.file||meta.action))throw new Error("Importação persistida contém estado incompatível");
     if(meta.action?.status==="sending"&&(meta.action.serverBootId!==SERVER_BOOT_ID||!ACTIVE_HANDOFF_SENDS.has(token))){
       meta.action.status="uncertain";
       meta.action.error=meta.action.serverBootId!==SERVER_BOOT_ID
@@ -397,8 +522,11 @@ function sweepHandoffs(){
   }
 }
 
-function saveHandoff(draft, file, actionRequest=null) {
+function saveHandoff(draft, file, actionRequest=null, purpose="transfer", claimedBy="") {
   sweepHandoffs();
+  if(!["transfer","import"].includes(purpose))throw new Error("Finalidade da transferência inválida");
+  if(typeof claimedBy!=="string")throw new Error("Vínculo da transferência inválido");
+  if(purpose==="import"&&(file||actionRequest||draft?.action==="publish"))throw new Error("Importação não pode conter publicação ou anexo local");
   draftValid(draft);
   const local = draft.html.match(/data-media-id="([A-Za-z0-9_-]{1,64})"/);
   if (local && !file) throw new Error("O anexo local precisa acompanhar o rascunho");
@@ -429,7 +557,8 @@ function saveHandoff(draft, file, actionRequest=null) {
     expires: Date.now() + HANDOFF_TTL,
     draft:storedDraft,
     file:file?{id:storedDraft.media.id,kind:storedDraft.media.kind,name:cleanFileName(file.name),mime:file.mime,size:file.bytes.length}:null,
-    claimedBy: "",
+    claimedBy,
+    purpose,
     action
   };
   try{
@@ -935,6 +1064,25 @@ function appMessage(title,newToken="") {
   return "<h1>MDTXTRT</h1><p>" + title + "</p>" + appButton(newToken);
 }
 
+function importAppButton(token){
+  if(!/^[a-f0-9]{32}$/.test(token))throw new Error("Token de importação inválido");
+  const url=WEBHOOK_BASE+"/telegram/open?handoff="+token;
+  return "<tg-button-row align=\"center\"><tg-button type=\"url\" style=\"success\" url=\"" + htmlEscape(url) + "\">Continuar no Mini App</tg-button></tg-button-row>";
+}
+
+async function replyImportResult(message,document){
+  const chatId=message.chat.id;
+  try{
+    const result=await importTelegramDocument(document,chatId);
+    const source=extname(document.file_name).toLowerCase()===".md"?"Markdown":"TXT";
+    const html="<h1>Arquivo importado</h1><p><b>"+htmlEscape(document.file_name)+"</b> foi validado como "+source+" e preparado como um novo documento.</p><p>Nenhum conteúdo foi publicado. Ao continuar, o Mini App preserva o documento local ativo antes de abrir esta importação.</p>"+importAppButton(result.token);
+    await sendBotRich(chatId,html,message.message_id);
+  }catch(error){
+    const messageText=error instanceof Error?error.message:"Não foi possível importar o arquivo";
+    await sendBotRich(chatId,"<h1>Importação não concluída</h1><p>"+htmlEscape(messageText)+"</p><p>Envie um arquivo UTF-8 com extensão <b>.md</b> ou <b>.txt</b>.</p>",message.message_id);
+  }
+}
+
 async function sendDocument(chatId,name,content,type){
   if(typeof content!=="string"||!content.trim())throw new Error("Não há texto para exportar");
   if(Buffer.byteLength(content,"utf8")>1_500_000)throw new Error("O arquivo excede o limite de exportação");
@@ -962,15 +1110,29 @@ async function handleBotUpdate(update) {
     return;
   }
   const message = update.message;
-  if (!message?.text || !message.chat) return;
-  const match = /^\/([a-z0-9_]+)(?:@[a-z0-9_]+)?(?:\s+[\s\S]*)?$/i.exec(message.text);
-  if (!match) return;
-  const command = match[1].toLowerCase();
+  if (!message || !message.chat) return;
+  const text=typeof message.text==="string"?message.text:"";
+  const caption=typeof message.caption==="string"?message.caption:"";
+  const textMatch = /^\/([a-z0-9_]+)(?:@[a-z0-9_]+)?(?:\s+[\s\S]*)?$/i.exec(text);
+  const captionMatch = /^\/([a-z0-9_]+)(?:@[a-z0-9_]+)?(?:\s+[\s\S]*)?$/i.exec(caption);
+  const command=(textMatch?.[1]||captionMatch?.[1]||"").toLowerCase();
+  const directDocument=message.document&&(!captionMatch||command==="importar");
+  const importIntent=Boolean(directDocument)||command==="importar";
   const chatId = message.chat.id;
   if (message.chat.type !== "private") {
-    await sendBotRich(chatId, "<p>Abra o chat privado do MDTXTRT para usar o Mini App e exportar arquivos.</p>");
+    if(importIntent||textMatch)await sendBotRich(chatId, "<p>Abra o chat privado do MDTXTRT para usar o Mini App, importar e exportar arquivos.</p>");
     return;
   }
+  if(importIntent){
+    const document=message.document||message.reply_to_message?.document;
+    if(!document){
+      await sendBotRich(chatId,"<p>Envie um arquivo <b>.md</b> ou <b>.txt</b>, ou responda a um documento com <b>/importar</b>.</p>",message.message_id);
+      return;
+    }
+    await replyImportResult(message,document);
+    return;
+  }
+  if(!textMatch)return;
   const body = commandBody(message);
   if (command === "start" || command === "app") {
     await sendBotRich(chatId, appMessage("Edite, publique e exporte seus textos do Telegram."), message.message_id);
@@ -982,7 +1144,7 @@ async function handleBotUpdate(update) {
     return;
   }
   if (command === "ajuda") {
-    const html = "<h1>Comandos</h1><p><b>/app</b> abre o documento local ativo no Mini App.</p><p><b>/novo</b> abre outro documento e preserva o rascunho local anterior neste dispositivo.</p><p><b>/enviar texto</b> envia o texto como mensagem rica. Também pode responder a uma mensagem com <b>/enviar</b>.</p><p><b>/exportar [txt|md]</b> exporta o texto da mensagem respondida como arquivo.</p>" + appButton();
+    const html = "<h1>Comandos</h1><p><b>/app</b> abre o documento local ativo no Mini App.</p><p><b>/novo</b> abre outro documento e preserva o rascunho local anterior neste dispositivo.</p><p><b>/enviar texto</b> envia o texto como mensagem rica. Também pode responder a uma mensagem com <b>/enviar</b>.</p><p><b>/exportar [txt|md]</b> exporta o texto da mensagem respondida como arquivo.</p><p><b>/importar</b> importa um documento .md ou .txt anexado ou respondido.</p>" + appButton();
     await sendBotRich(chatId, html, message.message_id);
     return;
   }
@@ -1196,7 +1358,7 @@ const server = createServer(async (req, res) => {
         state.claimedBy = chatId;
         writeHandoff(token,state);
         res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
-        res.end(JSON.stringify({ draft: state.draft, file: state.file, action: handoffActionView(state.action,state.draft) }));
+        res.end(JSON.stringify({ draft: state.draft, file: state.file, purpose: state.purpose, action: handoffActionView(state.action,state.draft) }));
       } catch (err) {
         res.writeHead(400, { "content-type": "application/json; charset=utf-8" });
         res.end(JSON.stringify({ error: err.message || "Não foi possível recuperar o rascunho" }));

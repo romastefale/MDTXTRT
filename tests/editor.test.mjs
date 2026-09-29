@@ -989,6 +989,34 @@ test('late Telegraph recovery response is ignored after the same document advanc
 });
 
 
+test('bot import handoff preserves the active local document before opening the imported document',async()=>{
+  const token='e5'.repeat(16);
+  const oldDoc='75757575-7575-4757-8757-757575757575';
+  const newDoc='76767676-7676-4767-8767-767676767676';
+  const initData='start_param=h_'+token;
+  const previous=JSON.stringify({version:2,name:'Documento local',html:'<p>não substituir</p>',dest:'telegram',telegraphPath:'',docId:oldDoc,revision:4,importedMd:'',importedTxt:'',importedHtml:'',media:null});
+  const requests=[];
+  const imported={version:2,name:'Importado',html:'<p>arquivo do bot</p>',dest:'telegram',telegraphPath:'',docId:newDoc,revision:0,importedMd:'',importedTxt:'arquivo do bot',importedHtml:'<p>arquivo do bot</p>',media:null};
+  const fetch=async(url,options={})=>{
+    const target=String(url);requests.push({url:target,options});
+    if(target.endsWith('/api/telegram/session'))return {ok:true,status:200,json:async()=>({ok:true})};
+    if(target.endsWith('/api/handoff/claim'))return {ok:true,status:200,json:async()=>({draft:imported,file:null,purpose:'import',action:null})};
+    return {ok:false,status:404,json:async()=>({error:'not found'})};
+  };
+  const w=page({fetch,tg:{initData},local:{rmdtxtml:previous}}),d=w.document;
+  await wait(15);
+  assert.equal(w.localStorage.getItem('rmdtxtml-document:'+oldDoc),previous);
+  const active=JSON.parse(w.localStorage.getItem('rmdtxtml'));
+  assert.equal(active.docId,newDoc);
+  assert.equal(active.name,'Importado');
+  assert.equal(d.querySelector('#editor').textContent,'arquivo do bot');
+  assert.equal(requests.filter(r=>r.url.endsWith('/api/handoff/claim')).length,1);
+  assert.equal(requests.filter(r=>r.url.endsWith('/api/handoff/publish')).length,0);
+  assert.equal(requests.filter(r=>r.url.endsWith('/api/telegram/send')).length,0);
+  assert.match(d.querySelector('#toast').textContent,/Arquivo importado aberto/);
+  w.close();
+});
+
 test('handoff claim restores draft without authorizing publication automatically',async()=>{
   const token='a1'.repeat(16);
   const doc='71717171-7171-4717-8717-717171717171';

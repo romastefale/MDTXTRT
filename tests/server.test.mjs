@@ -23,6 +23,15 @@ function calls(){
 }
 function lastCall(method){return calls().filter(call=>call.method===method).at(-1);}
 function find(node,tag,out=[]){for(const item of node.children||[]){if(item.name===tag)out.push(item);find(item,tag,out);}return out;}
+function lastBotHTML(){return lastCall('sendRichMessage')?.body?.rich_message?.html||'';}
+function lastImportToken(){
+  const tree=parseDocument(lastBotHTML());
+  const button=find(tree,'tg-button').find(node=>node.attribs.type==='url'&&String(node.attribs.url||'').includes('/telegram/open?handoff='));
+  assert.ok(button,'bot import continuation button');
+  const token=new URL(button.attribs.url).searchParams.get('handoff')||'';
+  assert.match(token,/^[a-f0-9]{32}$/);
+  return token;
+}
 
 async function start(){
   child=spawn(process.execPath,['--import','./tests/mocks.mjs','server.mjs'],{
@@ -585,10 +594,112 @@ test('invalid Rich Message input is rejected before Telegram is called',async()=
   assert.equal(calls().filter(call=>call.method==='sendRichMessage').length,before);
 });
 
+test('bot imports UTF-8 TXT literally through getFile and binds continuation to the private user',async()=>{
+  const source='linha literal\r\n# continua literal\n';
+  const beforeGet=callCount('getFile');
+  const beforeRich=callCount('sendRichMessage');
+  const res=await webhook({message:{
+    message_id:581,
+    chat:{id:7,type:'private'},
+    document:{file_id:'valid-txt',file_name:'notas.txt',file_size:3+Buffer.byteLength(source)}
+  }});
+  assert.equal(res.status,200);
+  assert.equal(callCount('getFile'),beforeGet+1);
+  assert.equal(lastCall('getFile').body.file_id,'valid-txt');
+  assert.equal(callCount('sendRichMessage'),beforeRich+1);
+  assert.match(lastBotHTML(),/Arquivo importado/);
+  assert.match(lastBotHTML(),/Nenhum conteúdo foi publicado/);
+
+  const token=lastImportToken();
+  const wrong=await jsonPost('/api/handoff/claim',{initData:init(8),token});
+  assert.equal(wrong.status,400);
+  assert.match(wrong.data.error,/não pertence/);
+
+  const claimed=await jsonPost('/api/handoff/claim',{initData:init(7),token});
+  assert.equal(claimed.status,200,claimed.data.error);
+  assert.equal(claimed.data.purpose,'import');
+  assert.equal(claimed.data.action,null);
+  assert.equal(claimed.data.file,null);
+  assert.equal(claimed.data.draft.name,'notas');
+  assert.equal(claimed.data.draft.importedTxt,source);
+  assert.equal(claimed.data.draft.importedMd,'');
+  assert.match(claimed.data.draft.html,/# continua literal/);
+  assert.doesNotMatch(claimed.data.draft.html,/<h1>/);
+});
+
+test('/importar on a replied Markdown document uses the canonical Markdown semantics',async()=>{
+  const source='# Título\n\n**forte** e ~~cortado~~\n\n<video src="https://example.com/video.mp4" controls></video>';
+  const res=await webhook({message:{
+    text:'/importar',
+    message_id:582,
+    chat:{id:7,type:'private'},
+    reply_to_message:{document:{file_id:'valid-md',file_name:'portable.md'}}
+  }});
+  assert.equal(res.status,200);
+  const token=lastImportToken();
+  const claimed=await jsonPost('/api/handoff/claim',{initData:init(7),token});
+  assert.equal(claimed.status,200,claimed.data.error);
+  assert.equal(claimed.data.purpose,'import');
+  assert.equal(claimed.data.draft.importedMd,source);
+  assert.match(claimed.data.draft.html,/<h1>Título<\/h1>/);
+  assert.match(claimed.data.draft.html,/<strong>forte<\/strong>/);
+  assert.match(claimed.data.draft.html,/<(?:del|s)>cortado<\/(?:del|s)>/);
+  assert.match(claimed.data.draft.html,/<video[^>]*src="https:\/\/example\.com\/video\.mp4"[^>]*><\/video>/);
+  assert.doesNotMatch(claimed.data.draft.html,/\scontrols(?:[\s=>]|$)/i);
+});
+
+test('bot import rejects invalid file input before creating a continuation',async()=>{
+  const beforeGet=callCount('getFile');
+
+  let res=await webhook({message:{message_id:583,chat:{id:7,type:'private'},document:{file_id:'pdf-file',file_name:'arquivo.pdf',file_size:10}}});
+  assert.equal(res.status,200);
+  assert.match(lastBotHTML(),/Extensão inválida/);
+  assert.equal(callCount('getFile'),beforeGet);
+
+  res=await webhook({message:{text:'/importar',message_id:584,chat:{id:7,type:'private'}}});
+  assert.equal(res.status,200);
+  assert.match(lastBotHTML(),/Envie um arquivo/);
+  assert.equal(callCount('getFile'),beforeGet);
+
+  res=await webhook({message:{message_id:585,chat:{id:7,type:'private'},document:{file_name:'sem-id.txt',file_size:5}}});
+  assert.equal(res.status,200);
+  assert.match(lastBotHTML(),/sem arquivo identificável/);
+  assert.equal(callCount('getFile'),beforeGet);
+
+  res=await webhook({message:{message_id:586,chat:{id:7,type:'private'},document:{file_id:'too-large',file_name:'grande.txt',file_size:20_000_001}}});
+  assert.equal(res.status,200);
+  assert.match(lastBotHTML(),/20 MB/);
+  assert.equal(callCount('getFile'),beforeGet);
+
+  res=await webhook({message:{message_id:587,chat:{id:7,type:'private'},document:{file_id:'bad-name',file_name:'../notas.txt',file_size:10}}});
+  assert.equal(res.status,200);
+  assert.match(lastBotHTML(),/Nome de arquivo inválido/);
+  assert.equal(callCount('getFile'),beforeGet);
+
+  res=await webhook({message:{message_id:588,chat:{id:7,type:'private'},document:{file_id:'product-too-large',file_name:'origem.txt',file_size:240_001}}});
+  assert.equal(res.status,200);
+  assert.match(lastBotHTML(),/contrato de importação/);
+  assert.equal(callCount('getFile'),beforeGet);
+});
+
+test('bot import reports missing paths, confirmed download failures, network failure and invalid UTF-8 explicitly',async()=>{
+  const cases=[
+    ['missing-path','ausente.txt',/não forneceu o caminho/],
+    ['download-missing','falha.txt',/confirmou falha no download.*HTTP 404/i],
+    ['download-network','rede.txt',/Falha de rede ao baixar/],
+    ['invalid-utf8','codificacao.txt',/deve usar UTF-8/]
+  ];
+  for(const [file_id,file_name,pattern] of cases){
+    const res=await webhook({message:{message_id:590+cases.findIndex(row=>row[0]===file_id),chat:{id:7,type:'private'},document:{file_id,file_name}}});
+    assert.equal(res.status,200,file_id);
+    assert.match(lastBotHTML(),pattern,file_id);
+  }
+});
+
 test('webhook authentication and bot command responses retain their contracts',async()=>{
   assert.equal((await webhook({message:{text:'/start',message_id:1,chat:{id:7,type:'private'}}},false)).status,401);
   const registered=lastCall('setMyCommands')?.body?.commands?.map(item=>item.command)||[];
-  for(const name of ['start','app','novo','ajuda','enviar','exportar'])assert.ok(registered.includes(name),name);
+  for(const name of ['start','app','novo','ajuda','enviar','exportar','importar'])assert.ok(registered.includes(name),name);
 
   for(const [text,message_id] of [['/start',11],['/app',12],['/novo',13],['/ajuda',14]]){
     const res=await webhook({message:{text,message_id,chat:{id:7,type:'private'}}});
@@ -619,6 +730,7 @@ test('webhook authentication and bot command responses retain their contracts',a
   assert.match(richCalls.at(-2).body.rich_message.html,/sem substituir o rascunho local atual/);
   assert.match(richCalls.at(-1).body.rich_message.html,/\/novo<\/b> abre outro documento e preserva o rascunho local anterior/);
   assert.match(richCalls.at(-1).body.rich_message.html,/\/exportar/);
+  assert.match(richCalls.at(-1).body.rich_message.html,/\/importar/);
 });
 
 test('enviar, exportar, callbacks and group commands produce explicit Telegram actions',async()=>{

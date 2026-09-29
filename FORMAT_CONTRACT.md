@@ -13,6 +13,8 @@ The visual contract remains commit `dde30467ed9b0d108bac2ae7ad9bcac1137c169e`.
 
 Markdown export always serializes the current edited document. It does not return the originally imported bytes merely because the document appears unchanged.
 
+Private-chat bot import is another entry point into this same file contract, not a bot-specific document model. It accepts only `.md` and `.txt`, requires a valid filename and strict UTF-8 payload, removes only a leading UTF-8 BOM, and then creates the same canonical document state used by browser import. TXT keeps the decoded source string literally in `importedTxt` and receives no Markdown interpretation. Markdown uses Marked with `gfm:true` and `breaks:false`, followed by the same portable tag/attribute normalization described below.
+
 Markdown strike has one canonical file representation: `~~text~~`. The importer accepts the HTML aliases already supported by the editor (`s`, `strike`, `del`), while the editor core normalizes them to the strike mark.
 
 ## Destination matrix
