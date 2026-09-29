@@ -15,7 +15,9 @@ const requiredIds=[
   'plusBtn','linkBtn','headingBtn','listBtn','quoteBtn','docName','importMdBtn','importTxtBtn','findBtn',
   'mediaBtn','voiceBtn','dialogMenu','findMenu','fileInput','mediaInput'
 ];
-for(const id of requiredIds)requireText(ui,'id="'+id+'"','UI '+id);
+for(const id of requiredIds){
+  if(!ui.includes('id="'+id+'"')&&!ui.includes('id: "'+id+'"'))fail('UI '+id+': caminho funcional ausente');
+}
 
 for(const [id,fragment] of Object.entries({
   undoBtn:"one('#undoBtn').addEventListener",
