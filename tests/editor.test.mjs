@@ -498,23 +498,39 @@ test('Markdown block markers accept element-anchored carets and non-breaking spa
   w.close();
 });
 
-test('Enter exits headings and quotes to body without leaking formatting',async()=>{
+test('Enter preserves heading and quote formatting until the empty formatted line is submitted',async()=>{
   const w=page(),d=w.document,e=d.querySelector('#editor');
-  const exitAtEnd=async(html,label)=>{
+  const startAtEnd=(html,label)=>{
     w.eval('currentEditorCore().resetHTML('+JSON.stringify(html)+',{silent:true})');
     w.eval('(()=>{const core=currentEditorCore(),r=core.findLiteral('+JSON.stringify(label)+')[0];core.selectRange({from:r.to,to:r.to},{focus:true})})()');
+  };
+  const enter=async()=>{
     const before=new w.InputEvent('beforeinput',{bubbles:true,cancelable:true,inputType:'insertParagraph'});
     e.dispatchEvent(before);
     await wait();
-    return e.firstElementChild;
+    assert.equal(before.defaultPrevented,true);
   };
-  let block=await exitAtEnd('<h1>Título</h1>','Título');
-  assert.equal(block.nextElementSibling?.tagName,'P');
+
+  startAtEnd('<h1>Título</h1>','Título');
+  await enter();
+  assert.equal(e.children[0]?.tagName,'H1');
+  assert.equal(e.children[1]?.tagName,'H1');
+  assert.equal(d.querySelector('#headingBtn').classList.contains('on'),true);
+  assert.equal(d.querySelector('#headingMenu [data-block="h1"]').classList.contains('is-current'),true);
+  await enter();
+  assert.equal(e.children[0]?.tagName,'H1');
+  assert.equal(e.children[1]?.tagName,'P');
   assert.equal(d.querySelector('#headingBtn').classList.contains('on'),false);
   assert.equal(d.querySelector('#headingMenu [data-block="p"]').classList.contains('is-current'),true);
 
-  block=await exitAtEnd('<blockquote>Citação</blockquote>','Citação');
-  assert.equal(block.nextElementSibling?.tagName,'P');
+  startAtEnd('<blockquote>Citação</blockquote>','Citação');
+  await enter();
+  assert.equal(e.children[0]?.tagName,'BLOCKQUOTE');
+  assert.equal(e.children[1]?.tagName,'BLOCKQUOTE');
+  assert.equal(d.querySelector('#quoteBtn').classList.contains('on'),true);
+  await enter();
+  assert.equal(e.children[0]?.tagName,'BLOCKQUOTE');
+  assert.equal(e.children[1]?.tagName,'P');
   assert.equal(d.querySelector('#quoteBtn').classList.contains('on'),false);
   w.close();
 });
