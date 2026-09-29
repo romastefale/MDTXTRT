@@ -97,7 +97,7 @@ Required sequence:
 
 Acceptance: same path across restart, exact document binding, no substitute account, URL/timestamps recorded.
 
-## Gate G — real Telegram Rich Message send and later edit
+## Gate G — real Telegram Rich Message send and revision history
 
 Only an explicitly authorized test bot/chat may be used.
 
@@ -107,12 +107,12 @@ Required:
 3. record returned `messageId`, document UUID/revision and publisher identity evidence without exposing raw credentials;
 4. verify receipt/rendering in a real Telegram client;
 5. edit the **same document** and explicitly publish again;
-6. verify the same Telegram message is edited rather than a second message created;
+6. verify the original Telegram message remains unchanged, a revision notice replies to it, and the revised Rich Message is sent as a new message;
 7. exercise one authorized media upload when media is part of the announced capability;
 8. reload/reopen a completed handoff and confirm no duplicate send;
 9. verify a different owner/document cannot reuse the first document's publication binding.
 
-Acceptance: real receipt, no silent downgrade, same message ID for later edit, no duplicate send.
+Acceptance: real receipt, no silent downgrade, previous message preserved, revision notice linked to it, revised content has a new message ID, no unintended duplicate send.
 
 ## Gate H — Web / PWA / Mini App and physical-device matrix
 
@@ -171,7 +171,7 @@ Execute operationally in staging/controlled environments.
 | Railway draft metadata/blob unavailable after restart | explicit recovery failure; do not fabricate default as recovered |
 | offline before request | explicit failure; no claimed success |
 | Telegram transport timeout on first send | uncertain/no automatic duplicate send |
-| Telegram edit transport timeout | retain same publication binding; explicit retry may target the same message, never create a second message |
+| Telegram revision notice/content transport timeout | persist pending/uncertain phase; explicit retry must not blindly duplicate a notice or a possibly accepted revised message |
 | backend restart during handoff sending | recover as uncertain; no duplicate send |
 | response lost after possible acceptance | persisted result or uncertain, never silent new send |
 | Telegraph ownership without credential | fail closed |
