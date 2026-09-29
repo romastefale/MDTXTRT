@@ -1694,3 +1694,51 @@ test('viewport resize repositions an open dialog using the current visual area',
   await prompt;
   w.close();
 });
+
+
+test('special quote controls format the current content instead of inserting sample phrases',async()=>{
+  const w=page(),d=w.document,e=d.querySelector('#editor');
+  w.eval("currentEditorCore().resetHTML('<p>Texto real do autor</p>',{silent:true})");
+  w.eval("(()=>{const r=currentEditorCore().findLiteral('real')[0];currentEditorCore().selectRange({from:r.from,to:r.to},{focus:true});saveSel()})()");
+  await w.eval("insertFeature('expandquote')");
+  assert.equal(e.firstElementChild.tagName,'BLOCKQUOTE');
+  assert.equal(e.firstElementChild.hasAttribute('expandable'),true);
+  assert.equal(e.firstElementChild.textContent,'Texto real do autor');
+  assert.equal(e.textContent.includes('Citação expansível'),false);
+  w.eval("syncEditorSelectionUI()");
+  assert.equal(d.querySelector('#quoteMenu [data-insert="expandquote"]').classList.contains('is-current'),true);
+
+  await w.eval("insertFeature('pullquote')");
+  assert.equal(e.firstElementChild.tagName,'ASIDE');
+  assert.equal(e.firstElementChild.textContent,'Texto real do autor');
+  assert.equal(e.textContent.includes('Citação em destaque'),false);
+  w.eval("syncEditorSelectionUI()");
+  assert.equal(d.querySelector('#quoteMenu [data-insert="pullquote"]').classList.contains('is-current'),true);
+  w.close();
+});
+
+test('empty structural insertions do not become published-looking fixture text',async()=>{
+  const w=page(),e=w.document.querySelector('#editor');
+  w.eval("currentEditorCore().resetHTML('<p></p>',{silent:true})");
+  await w.eval("insertFeature('expandquote')");
+  assert.equal(e.firstElementChild.tagName,'BLOCKQUOTE');
+  assert.equal(e.firstElementChild.hasAttribute('expandable'),true);
+  assert.equal(e.textContent,'');
+
+  w.eval("currentEditorCore().resetHTML('<p></p>',{silent:true})");
+  await w.eval("insertFeature('pullquote')");
+  assert.equal(e.firstElementChild.tagName,'ASIDE');
+  assert.equal(e.textContent,'');
+
+  w.eval("currentEditorCore().resetHTML('<p></p>',{silent:true})");
+  await w.eval("insertFeature('task')");
+  assert.equal(e.querySelector('input[type="checkbox"]')!==null,true);
+  assert.equal(e.textContent,'');
+
+  w.eval("currentEditorCore().resetHTML('<p></p>',{silent:true})");
+  await w.eval("insertFeature('details')");
+  assert.equal(e.querySelector('details summary')?.textContent,'');
+  assert.equal(e.querySelector('details p')?.textContent,'');
+
+  w.close();
+});
