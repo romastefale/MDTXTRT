@@ -4,9 +4,9 @@
 
 A baseline de trabalho explicitamente adotada por este repositório é o commit:
 
-`aac423e012745c7873908ddc4a76371fb8218aa3`
+`1dbbdb2dfaeafbd8ef52cea859611ffa5f6699ad`
 
-Esse commit corresponde ao `main` após a etapa 2/6 e fixa o design translúcido consolidado como referência de comparação. A referência anterior do PR #53 permanece documentada em [BASELINE.md](BASELINE.md).
+Esse commit corresponde ao estado funcional da implementação incremental do menu hambúrguer e da biblioteca integrada de rascunhos/publicações do PR #107. Ele preserva o design Liquid Glass consolidado e incorpora as mudanças visuais deliberadas dessa evolução. As referências anteriores permanecem documentadas em [BASELINE.md](BASELINE.md).
 
 A baseline não representa congelamento do código, versão final imutável nem impedimento a mudanças posteriores. A branch `main` pode avançar normalmente com correções, refinamentos e novas funcionalidades. Alterações posteriores devem ser entendidas como evolução a partir desta referência enquanto ela permanecer documentada como baseline vigente.
 
