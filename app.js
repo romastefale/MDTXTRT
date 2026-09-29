@@ -87,7 +87,7 @@ function setTheme(mode){
   if(mode!=='light'&&mode!=='dark')throw new Error('Tema inválido');
   themePreference=mode;
   try{localStorage.setItem(THEME_KEY,mode);}catch{}
-  applyScheme(mode);
+  window.location.reload();
 }
 function normalizedRevision(value){return Number.isSafeInteger(value)&&value>=0?value:0;}
 function bumpDocumentRevision(){
@@ -546,22 +546,6 @@ function focusControl(element){
   try{element.focus({preventScroll:true});}catch{element.focus();}
   return true;
 }
-function keyboardVisible(){
-  return document.documentElement.hasAttribute('data-keyboard');
-}
-function keyboardFocusUsable(element){
-  if(!element||!element.isConnected||typeof element.focus!=='function'||element.hidden||element.disabled)return false;
-  const panel=element.closest?.('.glass-menu');
-  return !panel||panel.matches(':popover-open');
-}
-function restoreKeyboardFocus(element){
-  if(keyboardFocusUsable(element)){
-    if(element===editor){restoreSel();return true;}
-    return focusControl(element);
-  }
-  restoreSel();
-  return true;
-}
 function usableAnchorRect(rect,bounds){
   return Boolean(rect&&(rect.width>0||rect.height>0)&&rect.right>bounds.left&&rect.left<bounds.right&&rect.bottom>bounds.top&&rect.top<bounds.bottom);
 }
@@ -618,10 +602,8 @@ function openPanel(sel,anchorOverride=null){
 function closePanel(panel,returnFocus=false){
   if(!panel?.matches(':popover-open'))return;
   const target=returnFocus?panelOpeners.get(panel):null;
-  const keyboardFocus=keyboardVisible()?document.activeElement:null;
   panel.hidePopover();
-  if(keyboardFocus)queueMicrotask(()=>restoreKeyboardFocus(keyboardFocus));
-  else if(returnFocus)focusControl(target);
+  if(returnFocus)focusControl(target);
 }
 function openPlusSubmenu(key){
   const sel='#plus-'+key+'-menu';
@@ -638,15 +620,10 @@ function openPlusRoot(){
   openPanel('#plusMenu');
 }
 function closePanels(){
-  const keyboardFocus=keyboardVisible()?document.activeElement:null;
   for(const sel of sheets){
     const panel=one(sel);
     if(panel.matches(':popover-open'))panel.hidePopover();
   }
-  if(keyboardFocus)queueMicrotask(()=>{
-    if(keyboardTarget()&&document.activeElement!==keyboardFocus)return;
-    restoreKeyboardFocus(keyboardFocus);
-  });
 }
 function dialogOutsideBranches(dialog){
   const targets=[],seen=new Set();
@@ -678,41 +655,15 @@ function dialogFocusables(){
   return [...dialog.querySelectorAll('button:not([disabled]):not([hidden]),input:not([disabled]):not([hidden]),textarea:not([disabled]):not([hidden]),select:not([disabled]):not([hidden]),[tabindex]:not([tabindex="-1"])')];
 }
 function focusDialogStart(selectValue=false){
-  if(dialogKeepKeyboard)return false;
   const input=one('#dialogInput');
   const target=!dialogConfirm&&!input.hidden?input:one('#dialogOk');
   if(focusControl(target)&&selectValue&&!dialogConfirm&&input.rows===1)input.select();
 }
-let dialogResolve=null,dialogConfirm=false,lastInteractionControl=null,dialogKeepKeyboard=false,dialogKeyboardFocus=null,keyboardInteraction=null;
+let dialogResolve=null,dialogConfirm=false,lastInteractionControl=null;
 document.addEventListener('click',event=>{
   const control=event.target?.closest?.('button,input,textarea,select,[role="button"],[tabindex]');
   if(control&&!one('#dialogMenu').contains(control))lastInteractionControl=control;
 },true);
-function preserveKeyboardPointer(event){
-  if(!keyboardVisible())return;
-  const target=event.target;
-  if(!target?.closest||target.closest('input,textarea,select,[contenteditable="true"]')||editor.contains(target))return;
-  const control=target.closest('button,[role="button"],[tabindex]');
-  if(!control)return;
-  keyboardInteraction={focus:document.activeElement};
-  saveSel();
-  event.preventDefault();
-}
-function finishKeyboardInteraction(){
-  const state=keyboardInteraction;
-  keyboardInteraction=null;
-  if(!state)return;
-  queueMicrotask(()=>{
-    if(!keyboardVisible())return;
-    if(keyboardTarget()&&document.activeElement!==state.focus)return;
-    restoreKeyboardFocus(state.focus);
-    scheduleBrowserViewport();
-  });
-}
-document.addEventListener('pointerdown',preserveKeyboardPointer,true);
-document.addEventListener('mousedown',preserveKeyboardPointer,true);
-document.addEventListener('click',finishKeyboardInteraction);
-document.addEventListener('pointercancel',()=>{keyboardInteraction=null;},true);
 function dialogOrigin(){
   const active=document.activeElement;
   if(active&&active!==document.body&&active!==editor)return panelOrigin(active);
@@ -721,23 +672,17 @@ function dialogOrigin(){
 }
 function finishDialog(value){
   const resolve=dialogResolve,target=dialogReturnFocus;
-  const keyboardFocus=keyboardVisible()?document.activeElement:dialogKeyboardFocus;
   dialogResolve=null;dialogReturnFocus=null;
   const dialog=one('#dialogMenu');
   if(dialog.matches(':popover-open'))dialog.hidePopover();
   setDialogModality(false);
   syncBackButton();
-  dialogKeepKeyboard=false;dialogKeyboardFocus=null;
-  if(keyboardFocus)restoreKeyboardFocus(keyboardFocus);
-  else focusControl(target);
+  focusControl(target);
   if(resolve)resolve(value);
 }
 function dialogOpen(label,value='',rows=1,confirmMode=false){
   if(dialogResolve)finishDialog(null);
   saveSel();
-  const keepKeyboard=keyboardVisible();
-  dialogKeyboardFocus=keepKeyboard?document.activeElement:null;
-  dialogKeepKeyboard=confirmMode&&keepKeyboard;
   dialogReturnFocus=dialogOrigin();
   closePanels();
   const dialog=one('#dialogMenu');
@@ -749,13 +694,12 @@ function dialogOpen(label,value='',rows=1,confirmMode=false){
   input.rows=Math.max(1,Math.min(5,rows));
   one('#dialogOk').textContent=confirmMode?'Continuar':'OK';
   dialog.showPopover();
-  setDialogModality(!dialogKeepKeyboard);
+  setDialogModality(true);
   placePanel(dialog);
   syncBackButton();
   return new Promise(resolve=>{
     dialogResolve=resolve;
-    if(dialogKeepKeyboard)restoreKeyboardFocus(dialogKeyboardFocus);
-    else focusDialogStart(rows===1);
+    focusDialogStart(rows===1);
   });
 }
 function ask(label,value='',rows=1){return dialogOpen(label,value,rows,false);}
@@ -774,7 +718,7 @@ one('#dialogMenu').addEventListener('keydown',event=>{
 });
 document.addEventListener('focusin',event=>{
   const dialog=one('#dialogMenu');
-  if(dialog.matches(':popover-open')&&!dialogKeepKeyboard&&!dialog.contains(event.target))queueMicrotask(()=>focusDialogStart(false));
+  if(dialog.matches(':popover-open')&&!dialog.contains(event.target))queueMicrotask(()=>focusDialogStart(false));
 });
 for(const sel of sheets){
   one(sel).addEventListener('toggle',event=>{
