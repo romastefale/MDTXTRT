@@ -333,15 +333,15 @@ test('browser PWA uses platform safe areas while Telegram keeps its content safe
   assert.match(html,/--safe-top:env\(safe-area-inset-top,0px\);[\s\S]*?--safe-bottom:env\(safe-area-inset-bottom,0px\);[\s\S]*?--safe-left:env\(safe-area-inset-left,0px\);[\s\S]*?--safe-right:env\(safe-area-inset-right,0px\);[\s\S]*?--safe-bottom-max:env\(safe-area-max-inset-bottom,36px\);/);
   assert.match(html,/html\.tg-shell\{[\s\S]*?--safe-top:var\(--app-tg-content-safe-top\);[\s\S]*?--safe-bottom:var\(--app-tg-content-safe-bottom\);[\s\S]*?--safe-left:var\(--app-tg-content-safe-left\);[\s\S]*?--safe-right:var\(--app-tg-content-safe-right\);[\s\S]*?--safe-bottom-max:0px/);
   assert.match(html,/\.fade-bot\{[\s\S]*?bottom:calc\(var\(--vv-bottom\) \+ var\(--safe-bottom\) - var\(--safe-bottom-max\)\);[\s\S]*?height:calc\(var\(--foot-inset\) \+ 50px \+ var\(--safe-bottom-max\)\)/);
-  assert.match(app,/function syncTelegramContentSafeArea\(\)/);
-  assert.doesNotMatch(app,/tg\.safeAreaInset/);
+  assert.match(app,/function syncTelegramSafeAreas\(\)/);
+  assert.match(app,/tg\?\.safeAreaInset/);
   assert.match(app,/tg\.contentSafeAreaInset/);
-  assert.doesNotMatch(app,/--app-tg-safe-/);
+  assert.match(app,/--app-tg-safe-/);
   assert.match(app,/root\.style\.setProperty\('--app-tg-content-safe-'\+field/);
-  assert.doesNotMatch(app,/tg\.onEvent\('safeAreaChanged'/);
-  assert.match(app,/tg\.onEvent\('contentSafeAreaChanged',handleTelegramContentSafeAreaChange\)/);
+  assert.match(app,/tg\.onEvent\('safeAreaChanged',syncTelegramSafeAreas\)/);
+  assert.match(app,/tg\.onEvent\('contentSafeAreaChanged',syncTelegramSafeAreas\)/);
   assert.match(app,/tg\.isVersionAtLeast\('8\.0'\)/);
-  assert.match(app,/!syncTelegramContentSafeArea\(\)/);
+  assert.doesNotMatch(app,/setDeviceGate\(/);
 });
 
 test('undo and redo use destination mid-tone and export accent while flashing',()=>{
@@ -544,21 +544,17 @@ test('Glass wrappers keep chrome controls horizontal instead of package inline-b
   assert.equal((html.match(/--accent:#2B88D8;/g)||[]).length,2);
 });
 
-test('Telegram Mini App waits for stable viewport before validating and locking portrait',()=>{
+test('Telegram Mini App uses official fullscreen, viewport and safe-area state without orientation inference',()=>{
   const app=read('app.js');
-  assert.match(app,/telegramPhonePlatforms=new Set\(\['android','ios'\]\)/);
-  assert.match(app,/function telegramViewportIsStable\(tg=getTg\(\)\)/);
-  assert.match(app,/tg\?\.viewportHeight/);
-  assert.match(app,/tg\?\.viewportStableHeight/);
-  assert.match(app,/telegramViewportEventSeen=true/);
-  assert.match(app,/event\?\.isStateStable!==true/);
+  assert.match(app,/tg\.isFullscreen/);
+  assert.match(app,/tg\.requestFullscreen\(\)/);
+  assert.match(app,/tg\.onEvent\('fullscreenChanged'/);
+  assert.match(app,/tg\.onEvent\('fullscreenFailed'/);
   assert.match(app,/tg\.onEvent\('viewportChanged',handleTelegramViewportChange\)/);
-  assert.match(app,/!telegramViewportEventSeen&&telegramViewportIsStable\(tg\)/);
-  assert.match(app,/portraitQuery\.addEventListener\('change',handleTelegramOrientationChange\)/);
-  assert.match(app,/if\(!telegramViewportStable\)[\s\S]*?setDeviceGate\(\);return;/);
-  assert.match(app,/if\(!portraitQuery\.matches\)\{setDeviceGate\('portrait'\);return;\}/);
-  assert.match(app,/if\(!tg\.isOrientationLocked\)tg\.lockOrientation\(\)/);
-  assert.ok(app.indexOf("if(!portraitQuery.matches)")<app.indexOf("tg.lockOrientation()"));
+  assert.match(app,/getTg\(\)\?\.viewportStableHeight/);
+  assert.match(app,/tg\.onEvent\('safeAreaChanged',syncTelegramSafeAreas\)/);
+  assert.match(app,/tg\.onEvent\('contentSafeAreaChanged',syncTelegramSafeAreas\)/);
+  assert.doesNotMatch(app,/portraitQuery|telegramStableViewportIsPortrait|lockOrientation\(|setDeviceGate\(/);
 });
 
 test('Telegraph supports explicit Telegram or browser capability ownership without identity fallback',()=>{
