@@ -161,6 +161,10 @@ test('Telegram request errors are typed independently from upstream failures',as
   assert.equal(invalid.status,400);
   const upstream=await formPost('/api/telegram/send',{initData:init(),html:'<p>UPSTREAM_REJECT</p>'});
   assert.equal(upstream.status,502);
+  assert.equal(upstream.data.outcome,'failed');
+  const timeout=await formPost('/api/telegram/send',{initData:init(),html:'<p>UPSTREAM_TIMEOUT</p>'});
+  assert.equal(timeout.status,409);
+  assert.equal(timeout.data.outcome,'uncertain');
 });
 
 test('local attachment is represented as attach upload and stale tg media is rejected',async()=>{
@@ -789,6 +793,40 @@ test('Telegraph request errors are typed independently from upstream failures',a
   assert.equal(invalid.status,400);
   const upstream=await jsonPost('/api/telegraph/publish',{title:'UPSTREAM_REJECT',doc,content:[{tag:'p',children:['x']}],initData:init()});
   assert.equal(upstream.status,502);
+  const retry=await jsonPost('/api/telegraph/publish',{title:'Confirmed retry',doc,content:[{tag:'p',children:['x']}],initData:init()});
+  assert.equal(retry.status,200,retry.data.error);
+});
+
+test('Telegraph storage failure before create prevents the external call',async()=>{
+  const tmp=join(dir,'telegraph-token-pages.json.tmp');
+  const before=callCount('createPage');
+  mkdirSync(tmp);
+  try {
+    const result=await jsonPost('/api/telegraph/publish',{title:'Preflight storage',doc:'a1111111-1111-4111-8111-111111111111',content:[{tag:'p',children:['texto']}],initData:init()});
+    assert.equal(result.status,502);
+    assert.equal(callCount('createPage'),before);
+  } finally {rmSync(tmp,{recursive:true,force:true});}
+});
+
+test('Telegraph uncertain create and failed mapping survive restart without duplicate create',async()=>{
+  const base={doc:'b1111111-1111-4111-8111-111111111111',content:[{tag:'p',children:['texto']}],initData:init()};
+  const timeout=await jsonPost('/api/telegraph/publish',{...base,title:'UPSTREAM_TIMEOUT'});
+  assert.equal(timeout.status,409);
+  assert.equal(timeout.data.outcome,'uncertain');
+  const afterTimeout=callCount('createPage');
+  assert.equal((await jsonPost('/api/telegraph/publish',{...base,title:'Try again'})).status,409);
+  assert.equal(callCount('createPage'),afterTimeout);
+
+  const doc='c1111111-1111-4111-8111-111111111111';
+  const failed=await jsonPost('/api/telegraph/publish',{...base,doc,title:'STORAGE_AFTER_CREATE'});
+  assert.equal(failed.status,409);
+  assert.equal(failed.data.outcome,'uncertain');
+  rmSync(join(dir,'telegraph-token-pages.json.tmp'),{recursive:true,force:true});
+  const beforeRestart=callCount('createPage');
+  await restart();
+  assert.equal((await jsonPost('/api/telegraph/publish',{...base,doc,title:'Try again'})).status,409);
+  assert.equal((await jsonPost('/api/telegraph/recover',{doc,initData:init()})).status,409);
+  assert.equal(callCount('createPage'),beforeRestart);
 });
 
 test('Telegraph path ownership is scoped to the authenticated user and document',async()=>{

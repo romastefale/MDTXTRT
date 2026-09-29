@@ -1203,10 +1203,10 @@ async function telegraphCall(method, body) {
     });
   } catch (error) {
     console.error("Telegraph", method, error);
-    throw new Error("Não foi possível conectar ao Telegraph");
+    throw new DeliveryError("Resultado incerto no Telegraph após falha de conexão; confira a página antes de tentar novamente");
   }
   let json;
-  try { json = await res.json(); } catch { throw new Error("O Telegraph retornou uma resposta inválida"); }
+  try { json = await res.json(); } catch { throw new DeliveryError("Resultado incerto no Telegraph: resposta inválida; confira a página antes de tentar novamente"); }
   if (!res.ok || !json.ok) {
     console.error("Telegraph", method, json.error || "Falha na publicação");
     throw new Error("O Telegraph não aceitou a publicação");
@@ -1269,6 +1269,10 @@ async function publishTelegraphOne(title, content, path = "", owner = "", doc = 
   const pages = readPages();
   const key = owner + ":" + doc;
   const known = pages[key] || "";
+  if (known && typeof known !== "string") {
+    if (known.status === "pending") throw new HttpError(409,"Resultado anterior incerto no Telegraph; confira a página antes de criar outra");
+    throw new Error("Mapeamento de páginas do Telegraph inválido");
+  }
   if (path && known !== path) throw new HttpError(400,"Esta página não pertence a este documento");
   const target = String(path || known).trim();
   const token = await ensureTelegraphToken();
@@ -1284,9 +1288,24 @@ async function publishTelegraphOne(title, content, path = "", owner = "", doc = 
     body.path = target;
     page = await telegraphCall("editPage", body);
   } else {
-    page = await telegraphCall("createPage", body);
-    pages[key] = page.path;
+    pages[key] = {status:"pending"};
     writePages(pages);
+    try {
+      page = await telegraphCall("createPage", body);
+    } catch (error) {
+      if (!(error instanceof DeliveryError)) {
+        delete pages[key];
+        writePages(pages);
+      }
+      throw error;
+    }
+    if (!page?.path || typeof page.path !== "string") throw new DeliveryError("Resultado incerto no Telegraph: página criada sem caminho confirmado");
+    pages[key] = page.path;
+    try { writePages(pages); }
+    catch (error) {
+      console.error("Telegraph page mapping",error);
+      throw new DeliveryError("Página criada, mas seu vínculo não pôde ser persistido; confira o Telegraph antes de tentar novamente");
+    }
   }
   const verified = await verifyTelegraphPage(page.path);
   return { ...page, url: verified.url, path: verified.path };
@@ -1459,6 +1478,7 @@ const server = createServer(async (req, res) => {
         const revision=telegraphRevision(body?.revision);
         const owner=telegraphOwner(body);
         const path = readPages()[owner + ":" + doc] || "";
+        if (path && typeof path !== "string") throw new HttpError(409,"Resultado anterior incerto no Telegraph; confira a página antes de criar outra");
         if (!path) {
           res.writeHead(404, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
           res.end(JSON.stringify({ error: "Página não encontrada" }));
@@ -1519,9 +1539,9 @@ const server = createServer(async (req, res) => {
         res.end(JSON.stringify(result));
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Não foi possível publicar no Telegram";
-        const code = err instanceof HttpError ? err.status : 502;
+        const code = err instanceof HttpError ? err.status : err instanceof DeliveryError && err.outcome === "uncertain" ? 409 : 502;
         res.writeHead(code, { "content-type": "application/json; charset=utf-8" });
-        res.end(JSON.stringify({ error: msg }));
+        res.end(JSON.stringify({ error: msg, ...(err instanceof DeliveryError ? {outcome:err.outcome} : {}) }));
       }
       return;
     }
@@ -1561,9 +1581,9 @@ const server = createServer(async (req, res) => {
         res.end(JSON.stringify({ url: page.url, path: page.path, doc, revision }));
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Não foi possível publicar no Telegraph";
-        const code = err instanceof HttpError ? err.status : 502;
+        const code = err instanceof HttpError ? err.status : err instanceof DeliveryError ? 409 : 502;
         res.writeHead(code, { "content-type": "application/json; charset=utf-8" });
-        res.end(JSON.stringify({ error: msg }));
+        res.end(JSON.stringify({ error: msg, ...(err instanceof DeliveryError ? {outcome:err.outcome} : {}) }));
       }
       return;
     }
