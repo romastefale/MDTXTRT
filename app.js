@@ -267,6 +267,9 @@ async function claimHandoff(){
   if(!res.ok)throw new Error(data.error||'Não foi possível recuperar o rascunho');
   const d=data.draft;
   if(!d||d.version!==STATE_VERSION||typeof d.html!=='string'||typeof d.name!=='string'||!['telegram','telegraph'].includes(d.dest)||typeof d.telegraphPath!=='string'||!/^[a-f0-9-]{36}$/i.test(d.docId)||(d.revision!==undefined&&(!Number.isSafeInteger(d.revision)||d.revision<0))||typeof d.importedMd!=='string'||typeof d.importedTxt!=='string'||typeof d.importedHtml!=='string')throw new Error('Rascunho transferido incompatível');
+  const purpose=data.purpose===undefined?'transfer':data.purpose;
+  if(!['transfer','import'].includes(purpose))throw new Error('Finalidade da transferência incompatível');
+  if(purpose==='import')archiveStoredDraftForNew(token);
   const handoffHTML=cleanDraftHTML(d.html);if(editorCore)editorCore.resetHTML(handoffHTML,{silent:true});else editor.innerHTML=handoffHTML;docName.value=d.name;
   dest=d.dest;telegraphPath=d.telegraphPath;docId=d.docId;docRevision=normalizedRevision(d.revision);
   importedMd=d.importedMd;importedTxt=d.importedTxt;importedHtml=d.importedHtml;
@@ -286,7 +289,7 @@ async function claimHandoff(){
   activeHandoff=token;
   handoffAction=normalizedHandoffAction(data.action);
   decorateSpecials();setDestination(dest,false,false);saveLocal();
-  showToast(handoffActionNotice(handoffAction,true));
+  showToast(purpose==='import'?'Arquivo importado aberto como novo documento':handoffActionNotice(handoffAction,true));
 }
 async function refreshHandoffAction(){
   if(!activeHandoff||session!=='ready')return null;
