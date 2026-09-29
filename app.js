@@ -1762,7 +1762,7 @@ fileInput.addEventListener('change', async ()=>{
     editorCore.resetHTML(html,{silent:true});
     importedMd=/\.md$/i.test(file.name)?normalized:'';
     importedTxt=/\.txt$/i.test(file.name)?normalized:'';
-    importedHtml=editor.innerHTML;
+    importedHtml=requireEditorCore().html();
     telegraphPath='';docId=crypto.randomUUID();docRevision=0;savedRange=null;
     decorateSpecials();saveLocal();closePanels();syncEditorSelectionUI();
   }catch(err){ showToast(err.message || 'Não foi possível importar o arquivo'); }
