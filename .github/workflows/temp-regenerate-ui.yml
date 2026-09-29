@@ -30,7 +30,7 @@ jobs:
             import fs from "node:fs";
             const file = "index.html";
             const html = fs.readFileSync(file, "utf8");
-            const next = html.replace(/ui\\.js\\?v=[a-f0-9]+/, "ui.js?v=" + process.env.SHORT_SHA);
+            const next = html.replace(/ui\.js\?v=[a-f0-9]+/, "ui.js?v=" + process.env.SHORT_SHA);
             if (next === html) throw new Error("ui.js cache buster not found");
             fs.writeFileSync(file, next);
           '
