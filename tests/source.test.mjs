@@ -251,7 +251,8 @@ test('editor emits Bot API 10.3 RichText-compatible expandable quotes',()=>{
 test('editor keeps target-specific publishing validation and code metadata',()=>{
   const app=read('app.js');
   assert.match(app,/a:\['href','name'\],code:\['class'\]/);
-  assert.match(app,/dest==='telegraph'\?\['http:','https:'\]/);
+  assert.match(app,/\['http:','https:'\]/);
+  assert.match(app,/\['http:','https:','mailto:','tel:','tg:'\]/);
   assert.match(app,/slice\(0,64\)/);
   assert.match(app,/Formato de data inválido/);
   assert.match(app,/function activeMedia\(\)/);
