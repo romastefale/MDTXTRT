@@ -313,7 +313,7 @@ async function downloadTelegramFile(filePath){
   return bytes;
 }
 
-async function importTelegramDocument(document){
+async function importTelegramDocument(document,chatId){
   if(!document||typeof document!=="object"||Array.isArray(document))throw new Error("Documento sem arquivo");
   const file=importFileName(document.file_name);
   if(typeof document.file_id!=="string"||!document.file_id)throw new Error("Documento sem arquivo identificável");
@@ -338,7 +338,7 @@ async function importTelegramDocument(document){
   if(expected!==undefined&&bytes.length!==expected)throw new Error("Download incompleto: o tamanho recebido não corresponde ao documento");
   const text=strictUTF8(bytes);
   const draft=importedDraft(file.fileName,text);
-  const token=saveHandoff(draft,null,null,"import");
+  const token=saveHandoff(draft,null,null,"import",String(chatId));
   return {draft,token};
 }
 
@@ -522,9 +522,10 @@ function sweepHandoffs(){
   }
 }
 
-function saveHandoff(draft, file, actionRequest=null, purpose="transfer") {
+function saveHandoff(draft, file, actionRequest=null, purpose="transfer", claimedBy="") {
   sweepHandoffs();
   if(!["transfer","import"].includes(purpose))throw new Error("Finalidade da transferência inválida");
+  if(typeof claimedBy!=="string")throw new Error("Vínculo da transferência inválido");
   if(purpose==="import"&&(file||actionRequest||draft?.action==="publish"))throw new Error("Importação não pode conter publicação ou anexo local");
   draftValid(draft);
   const local = draft.html.match(/data-media-id="([A-Za-z0-9_-]{1,64})"/);
@@ -556,7 +557,7 @@ function saveHandoff(draft, file, actionRequest=null, purpose="transfer") {
     expires: Date.now() + HANDOFF_TTL,
     draft:storedDraft,
     file:file?{id:storedDraft.media.id,kind:storedDraft.media.kind,name:cleanFileName(file.name),mime:file.mime,size:file.bytes.length}:null,
-    claimedBy: "",
+    claimedBy,
     purpose,
     action
   };
@@ -1072,7 +1073,7 @@ function importAppButton(token){
 async function replyImportResult(message,document){
   const chatId=message.chat.id;
   try{
-    const result=await importTelegramDocument(document);
+    const result=await importTelegramDocument(document,chatId);
     const source=result.draft.importedMd?"Markdown":"TXT";
     const html="<h1>Arquivo importado</h1><p><b>"+htmlEscape(document.file_name)+"</b> foi validado como "+source+" e preparado como um novo documento.</p><p>Nenhum conteúdo foi publicado. Ao continuar, o Mini App preserva o documento local ativo antes de abrir esta importação.</p>"+importAppButton(result.token);
     await sendBotRich(chatId,html,message.message_id);
