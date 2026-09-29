@@ -18,7 +18,7 @@ Consulte [BASELINE.md](BASELINE.md) para a definição operacional, regras de ev
 
 - [ARCHITECTURE.md](ARCHITECTURE.md): fronteiras arquiteturais e decisões deliberadas da evolução.
 - [FORMAT_CONTRACT.md](FORMAT_CONTRACT.md): matriz de importação, exportação e publicação.
-- [LOCAL_DRAFTS.md](LOCAL_DRAFTS.md): alcance exato, preservação e limites dos rascunhos locais.
+- [LOCAL_DRAFTS.md](LOCAL_DRAFTS.md): camadas local/volume, identidade, recuperação e proveniência de publicação dos rascunhos.
 
 ## Validação final de release
 
