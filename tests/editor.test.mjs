@@ -1684,11 +1684,11 @@ test('viewport resize repositions an open dialog using the current visual area',
   dialog.getBoundingClientRect=()=>({left:0,top:0,width:280,height:100,right:280,bottom:100});
   const prompt=w.eval("ask('Teste','valor')");
   await wait(0);
-  assert.equal(parseFloat(dialog.style.getPropertyValue('--menu-top')),370);
+  assert.equal(parseFloat(dialog.style.getPropertyValue('--menu-top')),320);
   w.visualViewport.offsetTop=80;
   w.visualViewport.height=280;
   w.eval('syncBrowserViewport()');
-  assert.equal(parseFloat(dialog.style.getPropertyValue('--menu-top')),220);
+  assert.equal(parseFloat(dialog.style.getPropertyValue('--menu-top')),170);
   assert.equal(parseFloat(dialog.style.getPropertyValue('--menu-max-height')),154);
   d.querySelector('#dialogCancel').click();
   await prompt;
