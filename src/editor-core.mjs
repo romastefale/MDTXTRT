@@ -465,12 +465,12 @@ export function createEditorCore({element,onChange=()=>{},onSelectionChange=()=>
       if($from.parent!==node)return false;
       const pos=$from.before(depth),offset=$from.parentOffset;
       let tr=state.tr;
-      if(offset===0){
-        tr=tr.insert(pos,schema.nodes.paragraph.create());
+      if(node.content.size===0){
+        tr=tr.replaceWith(pos,pos+node.nodeSize,schema.nodes.paragraph.create());
         tr=tr.setSelection(TextSelection.create(tr.doc,pos+1));
       }else{
         const before=node.copy(node.content.cut(0,offset));
-        const after=schema.nodes.paragraph.create(null,node.content.cut(offset));
+        const after=node.copy(node.content.cut(offset));
         tr=tr.replaceWith(pos,pos+node.nodeSize,Fragment.fromArray([before,after]));
         tr=tr.setSelection(TextSelection.create(tr.doc,pos+before.nodeSize+1));
       }
