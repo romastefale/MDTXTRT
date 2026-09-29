@@ -856,13 +856,13 @@ async function askInlineLink(label,value='https://',{destination=dest,protocols=
 async function insertHyperlink(){
   const destination=dest;
   restoreSel();
-  if(editorCore?.selectionEmpty())editorCore.expandWord();
-  if(editorCore?.selectionEmpty())return showToast('Selecione um texto para criar o hyperlink');
-  const current=editorCore?.linkHref()||'https://';
+  if(requireEditorCore().selectionEmpty())editorCore.expandWord();
+  if(requireEditorCore().selectionEmpty())return showToast('Selecione um texto para criar o hyperlink');
+  const current=requireEditorCore().linkHref()||'https://';
   const link=await askInlineLink('URL do hyperlink',current,{destination,anchor:linkBtn});
   if(!link)return;
   restoreSel();
-  if(editorCore?.selectionEmpty())return showToast('Selecione um texto para criar o hyperlink');
+  if(requireEditorCore().selectionEmpty())return showToast('Selecione um texto para criar o hyperlink');
   exec('createLink',link.href);
 }
 async function insertVisibleLink(){
@@ -1532,7 +1532,7 @@ function commitEditorInput(event){
 }
 editor.addEventListener('beforeinput',exitFormattedBlockOnParagraph);
 editor.addEventListener('input', event=>{ if(!composing)commitEditorInput(event); });
-editor.addEventListener('change',e=>{if(e.target.matches('input[type=checkbox]')){e.target.toggleAttribute('checked',e.target.checked);editorCore?.syncFromDOM({addToHistory:true});syncEditorSelectionUI();}});
+editor.addEventListener('change',e=>{if(e.target.matches('input[type=checkbox]')){e.target.toggleAttribute('checked',e.target.checked);requireEditorCore().syncFromDOM({addToHistory:true});syncEditorSelectionUI();}});
 editor.addEventListener('compositionstart', ()=> composing = true);
 editor.addEventListener('compositionend', event=>{ composing = false; commitEditorInput(event); });
 editor.addEventListener('keyup', saveSel);
@@ -1548,13 +1548,14 @@ function toggleToolbarState(btn,on){
   btn.setAttribute('aria-pressed',String(on));
 }
 function syncEditorSelectionUI(){
+  const core=requireEditorCore();
   saveSel();
-  const kind=editorCore?editorCore.currentBlockKind():editorBlockKind();
-  all('#typebar [data-cmd]').forEach(btn=>toggleToolbarState(btn,Boolean(editorCore&&editorCore.activeMark(btn.dataset.cmd))));
-  toggleToolbarState(one('#listBtn'),Boolean(editorCore?.inBlock('li'))||one('#listMenu').matches(':popover-open'));
-  toggleToolbarState(one('#quoteBtn'),Boolean(editorCore?.inBlock('blockquote')||editorCore?.inBlock('aside'))||one('#quoteMenu')?.matches(':popover-open'));
+  const kind=core.currentBlockKind();
+  all('#typebar [data-cmd]').forEach(btn=>toggleToolbarState(btn,Boolean(core.activeMark(btn.dataset.cmd))));
+  toggleToolbarState(one('#listBtn'),Boolean(core.inBlock('li'))||one('#listMenu').matches(':popover-open'));
+  toggleToolbarState(one('#quoteBtn'),Boolean(core.inBlock('blockquote')||core.inBlock('aside'))||one('#quoteMenu')?.matches(':popover-open'));
   toggleToolbarState(one('#headingBtn'),/^(h[1-6]|footer)$/.test(kind)||one('#headingMenu')?.matches(':popover-open'));
-  toggleToolbarState(one('#linkBtn'),Boolean(editorCore?.linkHref())||Boolean(one('#linkMenu')?.matches(':popover-open')));
+  toggleToolbarState(one('#linkBtn'),Boolean(core.linkHref())||Boolean(one('#linkMenu')?.matches(':popover-open')));
   one('#plusBtn')?.classList.toggle('on',one('#plusMenu')?.matches(':popover-open')||plusSubmenus.some(sel=>one(sel).matches(':popover-open')));
   all('#headingMenu [data-block]').forEach(btn=>btn.classList.toggle('is-current',btn.dataset.block===kind));
   all('#quoteMenu [data-block],#quoteMenu [data-insert]').forEach(btn=>{
@@ -1634,21 +1635,22 @@ one('#libraryBtn')?.addEventListener('click',()=>openLibrary());
 one('#libraryClose')?.addEventListener('click',closeLibrary);
 one('#libraryScreen')?.addEventListener('toggle',()=>syncBackButton());
 one('#findBtn').addEventListener('click', ()=>{saveSel();const anchor=one('#plusBtn');closePanels();openPanel('#findMenu',anchor);one('#findText').focus({preventScroll:true});});
-function literalMatches(term){return editorCore?editorCore.findLiteral(term):[];}
+function literalMatches(term){return requireEditorCore().findLiteral(term);}
 one('#findNext').addEventListener('click',()=>{
   const term=one('#findText').value;
-  if(!term||!editorCore?.findNext(term))showToast('Nenhuma ocorrência');
+  if(!term||!requireEditorCore().findNext(term))showToast('Nenhuma ocorrência');
 });
 one('#replaceOne').addEventListener('click',()=>{
-  const term=one('#findText').value;if(!term||!editorCore)return;
-  if(!editorCore.selectionMatches(term)&&!editorCore.findNext(term))return showToast('Nenhuma ocorrência');
-  if(!editorCore.selectionMatches(term))return;
-  editorCore.replaceSelection(one('#replaceText').value);
-  editorCore.findNext(term);
+  const term=one('#findText').value;if(!term)return;
+  const core=requireEditorCore();
+  if(!core.selectionMatches(term)&&!core.findNext(term))return showToast('Nenhuma ocorrência');
+  if(!core.selectionMatches(term))return;
+  core.replaceSelection(one('#replaceText').value);
+  core.findNext(term);
 });
 one('#replaceAll').addEventListener('click',()=>{
   const term=one('#findText').value,replace=one('#replaceText').value;
-  const count=term&&editorCore?editorCore.replaceAllLiteral(term,replace):0;
+  const count=term?requireEditorCore().replaceAllLiteral(term,replace):0;
   showToast(count+' substituições');
 });
 function exportDocumentHTML(){
