@@ -303,6 +303,11 @@ test('Telegram Main Mini App waits for a stable portrait viewport before locking
   assert.equal(locks,0);
   assert.equal(typeof handlers.get('viewportChanged'),'function');
 
+  handlers.get('viewportChanged')({isStateStable:false});
+  await wait(0);
+  assert.equal(root.hasAttribute('data-device-gate'),false);
+  assert.equal(locks,0);
+
   portrait=true;
   w.Telegram.WebApp.viewportHeight=800;
   handlers.get('viewportChanged')({isStateStable:true});
