@@ -1,224 +1,138 @@
-# Final Gap Analysis — release readiness
+# Final Gap Analysis — Etapa 7/7
 
-Date: 2026-09-29
+Date: 2026-09-30
 
-Scope of the original analysis: complete evolution chain from the historical visual baseline `dde30467ed9b0d108bac2ae7ad9bcac1137c169e` through evolution step 6/6, plus the controls required before final release. The current approved translucent visual reference is `aac423e012745c7873908ddc4a76371fb8218aa3`; see `BASELINE.md` for the explicit replacement record. Historical findings below retain their original context.
+Scope: audit of the `main` produced by the six implementation stages, followed by only the corrections/documentation required to make final release validation accurate. No product feature is added in this stage.
 
-This analysis is normative for release readiness. A criterion marked **BLOCKING** prevents release. A criterion marked **CLOSED** has a concrete implementation or automated gate in this branch. An external/manual criterion cannot be converted to CLOSED without real evidence from an explicitly authorized test destination or physical device.
+## Current six-stage chain
 
-## Reference chain
+| Stage | Scope | PR | Validated head | Integrated `main` |
+| --- | --- | ---: | --- | --- |
+| 1 | bot import | #84 | `8b6686eda179f8bed4c1e16ce9115a602b17fdf6` | `099c7c6e7c15e9881305843d4c3749c1e7e860cf` |
+| 2 | bot consolidation | #86 | `508bdcdbe97d98805ffc4f243326b67daa81319a` | `aac423e012745c7873908ddc4a76371fb8218aa3` |
+| 3 | Telegram fullscreen/viewport state | #88 | `e42701b002f86dffa44905eae3da18d2e4262d60` | `b6a253a2807a02952522b0f2a606ab409ed74c91` |
+| 4 | mobile keyboard/focus | #90 | `dd8b9da6273548af98dacec548c0b0cab2855139` | `9714da772a5e63f39e93a170ea075f0d7bf69a78` |
+| 5 | external publication persistence/idempotency | #92 | `854a20fd635dc0d55ea9c7294f13bb0313118297` | `2cc98d83a330e4f1f56b5a5d0c87f22a51695ce0` |
+| 6 | volume drafts/provenance/UI corrections | #95 | `ad2b05d82770a5057d22b2f92d7fc02255bdfb1c` | `ec3def6622818c0411bbeb94165716c7f30fa927` |
 
-| Stage | PR | Validated head |
-| --- | ---: | --- |
-| Integrity | #56 | `2e4754729eb0c4ff8de9fe3e5334291535a0947c` |
-| Transfer/publication | #58 | `e975e80e355d25a671c8343619cf90a4719e9379` |
-| Transactional editor | #61 | `1f8a7658f210f9f8c68874b8559537fcc4645562` |
-| Import/export contract | #63 | `1049fed8a388c8458f3e3a57a3ebc6081b35a613` |
-| Mobile interaction | #66 | `63a9477305b8a507117b54d9941b8b47c8a2bf97` |
-| Semantics/documentation | #68 | `e20d115b18424ab5c9abfa7e175b5376fe0633fb` |
-
-The release candidate must be a descendant of every head above. The machine-readable copy is `RELEASE_MANIFEST.json`.
+The theme reload correction in PR #94 is also present in the resulting `main`, but it is not one of the six stage PRs.
 
 ## Gap register
 
-### G-01 — No dedicated release gate
+### G-01 — release manifest referenced an obsolete evolution chain
 
-**Observed:** the repository had one regression workflow. It validated pull requests but did not distinguish ordinary regression from release readiness.
+**Observed:** `RELEASE_MANIFEST.json` still listed PRs #56/#58/#61/#63/#66/#68 from an earlier evolution cycle. Those commits are ancestors, so ancestry checks could still pass while reporting the wrong six-stage history.
 
-**Risk:** a green PR could be mistaken for release approval even when external and physical-device evidence was absent.
+**Correction in Etapa 7/7:** manifest now records #84/#86/#88/#90/#92/#95 and their validated heads.
 
-**Correction:** add `.github/workflows/release-validation.yml`. It runs automated release checks on pull requests and requires evidence references when manually invoked for final release certification.
+**Status:** CLOSED when final release validation passes on the updated manifest.
 
-**Status:** CLOSED by this branch.
+### G-02 — no explicit machine audit that every announced surface has a path
 
-### G-02 — Release build did not rebuild every committed bundle unconditionally
+**Observed:** individual tests covered controls and commands, but the release workflow had no single gate proving the current Web/PWA/Mini App/bot inventory was still wired.
 
-**Observed:** ordinary regression always rebuilt `editor-core.js`, but rebuilt `ui.js` only when React bundle inputs changed.
+**Correction:** `SURFACE_CONTRACT.md`, `scripts/verify-surface-contract.mjs` and a regression test enumerate/wire the declared controls, insertion/command vocabulary, PWA manifest, bot commands and backend routes.
 
-**Risk:** that optimization is correct for ordinary PRs, but it is insufficient as a release reproducibility proof.
+**Status:** CLOSED when regression/release workflow passes.
 
-**Correction:** release validation executes `npm run build` and requires both `editor-core.js` and `ui.js` to remain byte-identical to the committed artifacts under Node 24.21.0 / npm 11.19.0.
+### G-03 — release evidence did not separately require PWA, draft-volume restart or real import/export
 
-The first release-gate run exposed a real configuration gap: source, package manifest and lockfile were unchanged, but the committed `ui.js` had been produced by an earlier runner state and did not match the output regenerated by the current contracted GitHub Actions runtime. Independent clean release runs regenerated the same replacement artifact, so the candidate was not released and the difference was not dismissed as cosmetic churn.
+**Observed:** the previous evidence contract covered mobile browser and Mini App, Telegraph, Telegram and a fault matrix, but:
+- installed PWA had no separate physical row;
+- Railway draft persistence/restart was not a first-class external gate;
+- real import/export had no explicit matrix;
+- Telegram evidence did not require proving a later edit of the same persisted `messageId`.
 
-The existing contracted build command was kept intact. A one-shot synchronization job on the same contracted Actions runtime regenerated the production `ui.js`; that exact runner output was committed, the temporary synchronization mechanism was removed, and the permanent release workflow remains read-only.
+**Correction:** release contract, template, workflow inputs and evidence validator are expanded accordingly.
 
-**Acceptance:** a subsequent clean release-validation run must rebuild both bundles from the lockfile and produce zero diff. Any future runner/toolchain drift reopens this gap and blocks a new Release Anchor until explicitly reconciled.
+**Status:** CLOSED as a gate-definition defect; the evidence itself remains blocking until executed.
 
-**Status:** CLOSED only when the post-synchronization release-validation run is green.
+### G-04 — production Railway deployment is behind current `main`
 
-### G-03 — No runtime visual comparison against the pinned baseline
+**Observed at start of Etapa 7/7:** Railway production service `MDTXTRT` reports latest successful deployment `57e1fa4a-25e1-4d65-8c43-1cbabc07036b`, commit `215ba3a25f587f8a28303a90b074eea32b80df8f` (PR #94), while audited `main` begins Etapa 7/7 at `ec3def6622818c0411bbeb94165716c7f30fa927`.
 
-**Observed:** source-level guards protected dimensions/material tokens, but there was no browser-rendered comparison against `dde30467…`.
+The service configuration is connected to `romastefale/MDTXTRT`, branch `main`, with check suites enabled, one replica in `us-west2`, health check `/` and persistent volume `MDTXTRT-volume` mounted at `/data`.
 
-**Risk:** a visually observable regression could pass source assertions.
+**Risk:** real tests against the existing production URL would exercise stale code and cannot certify the current candidate.
 
-**Correction:** add `scripts/verify-visual-baseline.mjs`. On the same GitHub runner it serves the candidate and the pinned baseline, renders the nominal 390×844 browser shell in the same Chrome binary, and requires byte-identical screenshots for the baseline-preserved shell.
+**Acceptance:** deploy the exact final candidate SHA (or a staging service with the same candidate and an explicitly authorized external-test configuration), record deployment ID/SHA, then run real evidence. Branch name alone is insufficient.
 
-**Boundary:** intentional semantic text changes inside conditional menus are not treated as pixel regressions. Overlay/mobile states remain part of the physical-device matrix because their geometry depends on actual visual viewport, keyboard and Telegram safe-area behavior.
+**Status:** BLOCKING until deployment evidence identifies the exact candidate SHA.
 
-**Status:** CLOSED for the stable shell; physical overlay verification remains covered by G-07.
+### G-05 — real Railway draft persistence/restart not yet evidenced
 
-### G-04 — Evolution lineage was documented but not machine-gated
+Synthetic tests prove file-layout/restart logic, not the live mounted volume.
 
-**Observed:** stage PRs are stacked in the required order, but release validation did not prove ancestry.
+**Required:** persist unique draft + optional attachment, remove local active cache, recover, restart/deploy with volume retained, recover again, and prove cross-owner isolation.
 
-**Risk:** a later release branch could omit a stage or be cut from the wrong base.
+**Status:** BLOCKING until evidence exists.
 
-**Correction:** `RELEASE_MANIFEST.json` records every validated stage head and `scripts/verify-release-manifest.mjs` requires each head to be an ancestor of the candidate.
+### G-06 — real Telegraph restart path not yet evidenced
 
-**Status:** CLOSED by this branch.
+Mocks and server tests do not prove create/recover/edit/restart against an authorized Telegraph account/page.
 
-### G-05 — No real Telegraph create/recover/edit/restart evidence
+**Required:** same document/page path before and after backend restart, no replacement account, authorized destination and timestamps.
 
-**Observed:** automated tests exercise Telegraph contracts with controlled test doubles and durable-state logic, but do not prove the complete flow against a real authorized Telegraph test destination after a backend restart.
+**Status:** BLOCKING until evidence exists.
 
-**Required operational flow:**
-1. use a dedicated test deployment with durable storage;
-2. create a page containing a unique release marker;
-3. record path, document UUID and revision;
-4. recover the same page through the product;
-5. edit and verify the same Telegraph path is updated;
-6. restart the backend process/service without replacing its durable volume;
-7. recover the same page again;
-8. edit it again and verify the path remains unchanged;
-9. record the final public test URL and timestamps;
-10. confirm no production page/account was used unintentionally.
+### G-07 — real Telegram send/edit path not yet evidenced
 
-**Acceptance:** same Telegraph page path before and after restart, content/revision association preserved, no substitute account created, evidence linked from the release record.
+Mocks prove Bot API request structure and durable binding logic, not receipt/rendering.
 
-**Status:** BLOCKING until real authorized evidence exists.
+**Required:** real Mini App session, authorized bot/chat, first Rich Message receipt, recorded `messageId`, later edit of the same document observed on the same message, media fixture when applicable, no duplicate on reopen.
 
-### G-06 — No real Rich Message receipt evidence
+**Status:** BLOCKING until evidence exists.
 
-**Observed:** server regressions validate the Rich Message contract and API calls, but a mocked API response is not proof of real receipt.
+### G-08 — physical Web/PWA/Mini App matrix not yet evidenced
 
-**Required operational flow:** send the release Rich Message fixture to a dedicated authorized Telegram test chat using the release candidate/staging bot. Record returned `messageId`, timestamp and visual evidence from the receiving client.
+Automated `visualViewport`, focus and baseline tests are not physical-device proof.
 
-**Minimum semantic fixture:** headings/paragraphs, strong/emphasis/underline/strike, spoiler, inline/preformatted code, list, quote, table or supported structured block, one declared interactive button, and any other feature the release notes explicitly advertise. Media features are tested separately with an authorized disposable asset.
+Required minimum rows:
+- iOS browser;
+- iOS installed PWA;
+- iOS Telegram Mini App;
+- Android browser;
+- Android installed PWA;
+- Android Telegram Mini App;
 
-**Acceptance:** Telegram accepts the message, the authorized test client actually receives/renders it, and unsupported behavior is not silently downgraded.
+with keyboard closed/open for every row.
 
-**Status:** BLOCKING until real authorized evidence exists.
+**Status:** BLOCKING until evidence exists.
 
-### G-07 — Physical-device matrix not executed
+### G-09 — real import/export matrix not yet evidenced
 
-**Observed:** JSDOM and simulated `visualViewport` tests validate logic, but they are not physical-device evidence.
+Automated round-trip tests exist, but final release requires real file selection/download and bot document flows on the declared surfaces.
 
-**Required minimum matrix:**
+**Status:** BLOCKING until evidence exists.
 
-| Surface | Platform | Keyboard closed | Keyboard open |
-| --- | --- | ---: | ---: |
-| Mobile browser | iOS/Safari | required | required |
-| Telegram Mini App | iOS | required | required |
-| Mobile browser | Android/Chrome | required | required |
-| Telegram Mini App | Android | required | required |
+### G-10 — network/storage operational matrix not yet evidenced
 
-For every cell verify top/bottom chrome reachability, menu reachability, internal scrolling, Find anchor, dialog positioning, modal focus trapping, focus return and preservation of editor selection.
+Regression tests cover many deterministic failure cases, but release requires controlled operational observations, including Railway volume failures and Telegram edit-time uncertainty.
 
-**Acceptance:** no required control is covered, unreachable or unexpectedly displaced; evidence includes device model, OS version, browser/Telegram version, orientation and screenshots/video.
+**Status:** BLOCKING until evidence exists.
 
-**Status:** BLOCKING until physical evidence exists.
+### G-11 — rollback not yet exercised against the candidate
 
-### G-08 — Network/storage failure matrix was not an explicit release artifact
+Railway reports prior deployments that are rollback-capable, and the release contract forbids deleting the volume, but the exact final-candidate rollback + forward-redeploy sequence has not been evidenced.
 
-**Observed:** many individual failure modes are regression-tested, but there was no operational matrix tying fault timing to expected behavior.
+**Status:** BLOCKING until exercised and recorded.
 
-**Required cases:**
-- localStorage read denied/unavailable at boot;
-- localStorage write/read-back failure during browser identity creation;
-- localStorage quota/storage failure during `/novo` preservation;
-- IndexedDB unavailable while restoring a real attachment;
-- network unavailable before Telegram/Telegraph request;
-- transport timeout while Telegram result is unknown;
-- backend interruption while a handoff is `sending`;
-- network loss after an external service may have accepted a request;
-- Telegraph durable state present but token missing;
-- page reload after handoff `succeeded`, `uncertain` and `failed`.
+## Automated state at audit start
 
-**Acceptance:** no recoverable draft is overwritten; uncertain delivery never silently retries; failed-known operations require explicit retry; errors remain actionable; no cross-document state contamination occurs.
-
-**Status:** BLOCKING for the physical/staging execution record. Automated regressions remain necessary but are not sufficient.
-
-### G-09 — Rollback/abort criteria were absent
-
-**Risk:** release could continue after partial external validation or after discovering incompatible persisted state.
-
-**Correction:** `RELEASE_VALIDATION.md` defines release abort and rollback rules. No destructive migration is permitted without a tested rollback path. If any blocking gate fails, the candidate is not released; the sealed anchor is not mutated.
-
-**Status:** CLOSED by this branch.
-
-### G-10 — Evidence provenance and retention were informal
-
-**Risk:** “tested” could not be audited later.
-
-**Correction:** `RELEASE_EVIDENCE_TEMPLATE.md` defines the evidence record. Final manual workflow invocation requires GitHub evidence references for authorization, Telegraph, Telegram, device/fault matrix and rollback confirmation.
-
-**Status:** CLOSED as a process control; the actual evidence remains BLOCKING under G-05 through G-08.
-
-### G-11 — Authorized external test environment is not encoded in the repository
-
-**Observed:** the repository does not contain or expose a dedicated test Telegram chat, test bot credentials, Telegraph account or staging restart control. Secrets must not be committed.
-
-**Required:** authorization and target identity must be recorded in a private/appropriate operational record and referenced from the release evidence issue. The test destination must be clearly separated from production. Credentials remain in GitHub/Railway secret storage.
-
-**Acceptance:** an auditor can identify who authorized the destination and which staging deployment/chat/page was used without exposing credentials.
-
-**Status:** BLOCKING until the release operator supplies the authorized environment.
-
-### G-12 — Release anchor semantics were undefined
-
-**Risk:** a mutable branch name could be mistaken for a canonical immutable configuration.
-
-**Correction:** `RELEASE_ANCHOR.md` defines the full Git commit SHA as the authority. A convenience branch may point to it, but moving that branch never changes the historical anchor. Any correction after sealing creates a new superseding anchor; the prior SHA remains immutable.
-
-**Status:** CLOSED by this branch.
-
-### G-13 — Pull-request validation did not prove the exact anchor SHA
-
-**Observed:** GitHub Actions checks triggered by `pull_request` use a synthetic merge ref by default. An automated release run can therefore be associated with a candidate branch head while actually rebuilding and testing a different synthetic merge commit.
-
-**Risk:** integration success at a synthetic merge commit is not proof that the immutable Release Anchor SHA itself was rebuilt, tested and visually compared.
-
-**Correction:** the release workflow resolves `RELEASE_CANDIDATE_SHA` to `github.event.pull_request.head.sha` on pull requests and `github.sha` on manual runs, explicitly checks out that SHA, and verifies `git rev-parse HEAD` before every release gate. Release artifacts use the same resolved SHA in their names.
-
-**Acceptance:** manifest verification, complete rebuild, regression suite and visual comparison execute with Git `HEAD` equal to the branch SHA that will be sealed.
-
-**Status:** implementation CLOSED; sealing is BLOCKED until a post-correction exact-SHA release-validation run is green.
-
-### G-14 — Visual comparison evidence was not retained
-
-**Observed:** the visual comparison step passed, but its output directory was named `.release-visual/`. `actions/upload-artifact` excludes hidden paths by default, so no screenshot artifact was retained.
-
-**Risk:** a green visual step without retained screenshots/summary is not independently auditable after the run.
-
-**Correction:** visual artifact upload now sets `include-hidden-files: true` and `if-no-files-found: error`. A release run cannot pass if the light/dark screenshots and comparison summary are absent.
-
-**Acceptance:** the exact-SHA release-validation run has a non-empty `release-visual-baseline-<anchor-sha>` artifact containing candidate/baseline screenshots and `summary.json`.
-
-**Status:** implementation CLOSED; sealing is BLOCKED until a post-correction run retains the artifact.
-
-## Additional exception flows added to release acceptance
-
-The following flows were missing as explicit final-release criteria and are now mandatory:
-
-- user opens the one-shot `/novo` URL twice or reloads it;
-- storage becomes unavailable between archive write and read-back;
-- a handoff succeeds externally but the HTTP response is lost;
-- backend restarts while a handoff is `sending`;
-- Telegraph ownership map survives restart but its credential file does not;
-- local attachment Blob is evicted while draft metadata remains;
-- device rotates or visual viewport changes while an overlay is open;
-- focus origin disappears before a modal closes;
-- release candidate is rebuilt on a clean runner and produces different committed bundles;
-- external test accidentally targets a non-test destination.
-
-Each case has an expected fail-closed or recovery behavior in `RELEASE_VALIDATION.md`.
-
-## Release decision
-
-At the time this analysis is authored, automated/code gaps G-01 through G-04, G-09, G-10 and G-12 have implementation corrections in the release-validation branch. G-13 and G-14 were discovered by executing that gate and also have corrections in the branch, but the branch must pass a new exact-SHA release-validation run with retained visual evidence before an anchor is sealed.
-
-The product is **not yet approved for release** because G-05, G-06, G-07, G-08 and G-11 require real authorized external/device evidence.
-
-After the corrected automated gates pass, the exact candidate SHA may be sealed as the canonical Release Anchor from which final external and physical validation is executed. Sealing the anchor is not, by itself, a declaration that release is approved.
+- `main` `ec3def6622818c0411bbeb94165716c7f30fa927`: Regression verification #522 — success.
+- Etapa 6/7 head `ad2b05d82770a5057d22b2f92d7fc02255bdfb1c`: Regression #521 — success, 162/162; Release validation #101 automated gates — success; final external/physical evidence job skipped by design.
+- Visual baseline remains `aac423e012745c7873908ddc4a76371fb8218aa3`.
+
+These results establish a clean automated starting point only.
+
+## Release rule
+
+The final immutable SHA may be declared only after:
+1. the Etapa 7/7 correction PR is merged;
+2. clean automated release validation passes on the exact candidate;
+3. exact candidate deployment is recorded;
+4. G-05 through G-11 have real evidence;
+5. the evidence validator reports `RELEASE APPROVED`;
+6. rollback state and known limitations are consolidated in the final issue.
+
+Until then the product is **BLOCKED** for final release, even when code/regression is green.

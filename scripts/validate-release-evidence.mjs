@@ -9,8 +9,8 @@ if(head!==anchor)fail(`Workflow executado em ${head}, mas o Release Anchor infor
 if(!token)fail('GITHUB_TOKEN ausente; não é possível auditar o registro de evidências');
 
 const fields=[
-  'AUTHORIZATION_EVIDENCE_REF','VISUAL_EVIDENCE_REF','TELEGRAPH_EVIDENCE_REF','TELEGRAM_EVIDENCE_REF',
-  'DEVICE_MATRIX_EVIDENCE_REF','FAULT_MATRIX_EVIDENCE_REF','ROLLBACK_EVIDENCE_REF'
+  'AUTHORIZATION_EVIDENCE_REF','VISUAL_EVIDENCE_REF','DRAFT_PERSISTENCE_EVIDENCE_REF','IMPORT_EXPORT_EVIDENCE_REF',
+  'TELEGRAPH_EVIDENCE_REF','TELEGRAM_EVIDENCE_REF','DEVICE_MATRIX_EVIDENCE_REF','FAULT_MATRIX_EVIDENCE_REF','ROLLBACK_EVIDENCE_REF'
 ];
 const pattern=/^https:\/\/github\.com\/romastefale\/MDTXTRT\/(?:issues|pull)\/(\d+)(?:#issuecomment-(\d+))?$/;
 const refs={};
@@ -52,6 +52,10 @@ function requirePass(label){
   const value=requireValue(label).toUpperCase();
   if(value!=='PASS')fail(`${label} deve ser PASS, recebido: ${value}`);
 }
+function requireYes(label){
+  const value=requireValue(label);
+  if(!/^(yes|sim|true|pass)$/i.test(value))fail(`${label} deve confirmar YES/SIM/TRUE/PASS`);
+}
 function tableRow(label){
   const line=body.split(/\r?\n/).find(item=>item.trim().startsWith('| '+label+' |'));
   if(!line)fail(`Linha obrigatória ausente na matriz: ${label}`);
@@ -61,30 +65,81 @@ function tableRow(label){
 if(!body.includes(anchor))fail('O registro de evidências não referencia o Release Anchor SHA exato');
 if(requireValue('Final status').toUpperCase()!=='RELEASE APPROVED')fail('Registro de evidências não está em RELEASE APPROVED');
 
-for(const label of ['Regression/build','Visual','Telegraph','Telegram Rich Message','Physical devices','Fault matrix','Authorization/config','Rollback','Evidence completeness'])requirePass(label);
+for(const label of [
+  'Regression/build','Surface contract','Visual','Draft persistence','Telegraph','Telegram Rich Message',
+  'Physical devices','Import/export','Fault matrix','Authorization/config','Rollback','Evidence completeness'
+])requirePass(label);
 
 for(const label of [
-  'Authorization evidence reference','Authorized staging deployment','Authorized Telegraph test destination/account reference',
-  'Authorized Telegram test bot/chat reference','Authorizer','Authorization timestamp','Confirmation that no production destination is used',
-  'Telegraph test path/URL','Backend restart timestamp','Evidence reference','Returned messageId','Delivery timestamp',
-  'Receiving device/client','Light mode evidence','Dark mode evidence','Menus/dialogs evidence',
-  'Last known-good immutable SHA','Rollback deployment procedure exercised','Persistent volume retained'
+  'Authorization evidence reference','Authorized candidate deployment','Authorized Telegraph test destination/account reference',
+  'Authorized Telegram test bot/chat reference','Authorizer','Authorization timestamp','Environment classification (staging/production)',
+  'Confirmation that every external destination used is intentionally authorized',
+  'Draft document UUID','Draft revision before restart','Owner type (browser/Telegram)','Recovery with local active slot absent',
+  'Backend restart/deploy timestamp','Draft persistent volume retained','Recovery result after restart','Cross-owner isolation result',
+  'Final document/revision unchanged as expected','Draft evidence reference',
+  'Telegraph initial revision','Telegraph test path/URL','Backend restart timestamp','Durable volume retained','Telegraph evidence reference',
+  'Document UUID','Telegram initial revision','Returned messageId','Delivery timestamp','Receiving device/client','Rendering result',
+  'Later edited revision','Edit returned/observed same messageId','Second-message duplicate check','Reload/reopen duplicate check',
+  'Cross-owner/document binding isolation','Telegram evidence reference',
+  'Light mode evidence','Dark mode evidence','Menus/dialogs evidence','Title-label evidence',
+  'Last known-good immutable SHA','Candidate deployment ID/SHA','Rollback deployment procedure exercised',
+  'Rolled-back deployment ID/SHA','Persistent volume retained','Persistent draft still recoverable after rollback',
+  'Forward redeploy procedure exercised','Rollback evidence reference'
 ])requireValue(label);
 
 if(!/^[1-9]\d*$/.test(requireValue('Returned messageId')))fail('Returned messageId deve ser inteiro positivo');
-if(!/^(yes|sim|true|pass)$/i.test(requireValue('Final path unchanged')))fail('Final path unchanged deve confirmar preservação do mesmo path');
+if(!/^[0-9]+$/.test(requireValue('Draft revision before restart')))fail('Draft revision before restart deve ser inteiro não negativo');
+if(!/^[0-9]+$/.test(requireValue('Telegraph initial revision')))fail('Telegraph initial revision deve ser inteiro não negativo');
+if(!/^[0-9]+$/.test(requireValue('Telegram initial revision')))fail('Telegram initial revision deve ser inteiro não negativo');
+if(!/^[0-9]+$/.test(requireValue('Later edited revision')))fail('Later edited revision deve ser inteiro não negativo');
 
-for(const label of ['iOS browser','iOS Telegram Mini App','Android browser','Android Telegram Mini App']){
+requireYes('Confirmation that every external destination used is intentionally authorized');
+requireYes('Draft persistent volume retained');
+requireYes('Final document/revision unchanged as expected');
+requireYes('Durable volume retained');
+requireYes('Final path unchanged');
+requireYes('Edit returned/observed same messageId');
+requireYes('Second-message duplicate check');
+requireYes('Reload/reopen duplicate check');
+requireYes('Cross-owner/document binding isolation');
+requireYes('Persistent volume retained');
+requireYes('Persistent draft still recoverable after rollback');
+if(!requireValue('Candidate deployment ID/SHA').includes(anchor))fail('Candidate deployment ID/SHA deve conter o Release Anchor SHA exato');
+
+for(const label of [
+  'iOS browser','iOS PWA','iOS Telegram Mini App',
+  'Android browser','Android PWA','Android Telegram Mini App'
+]){
   const cells=tableRow(label);
   if(cells.length!==7)fail(`Matriz física inválida para ${label}`);
   for(const [index,name] of [[1,'device'],[2,'OS'],[3,'version'],[6,'evidence']])if(!cells[index])fail(`${label}: ${name} ausente`);
   if(cells[4].toUpperCase()!=='PASS'||cells[5].toUpperCase()!=='PASS')fail(`${label}: teclado fechado/aberto deve ser PASS`);
 }
 
+const importRows=[
+  'Web/PWA import','Web/PWA export','Mini App import','Mini App export','Bot /importar','Bot /exportar',
+  'Edited Markdown round-trip','Structured document → TXT warning'
+];
+for(const label of importRows){
+  const cells=tableRow(label);
+  if(cells.length!==5)fail(`Matriz de importação/exportação inválida para ${label}`);
+  if(!cells[4])fail(`${label}: evidência ausente`);
+  if(cells[3].toUpperCase()!=='PASS')fail(`${label}: resultado deve ser PASS`);
+  if(label==='Edited Markdown round-trip'){
+    if(cells[1].toUpperCase()!=='PASS')fail(`${label}: Markdown deve ser PASS`);
+  }else if(label==='Structured document → TXT warning'){
+    if(cells[2].toUpperCase()!=='PASS')fail(`${label}: TXT deve ser PASS`);
+  }else if(cells[1].toUpperCase()!=='PASS'||cells[2].toUpperCase()!=='PASS'){
+    fail(`${label}: Markdown e TXT devem ser PASS`);
+  }
+}
+
 const faultLabels=[
   'localStorage read failure','identity write/read-back failure','/novo archive storage failure','IndexedDB unavailable with attachment',
-  'offline before request','Telegram unknown timeout','backend restart during sending','response lost after possible acceptance',
-  'Telegraph ownership without credential','reload succeeded handoff','reload uncertain handoff','explicit Telegram rejection'
+  'Railway draft-volume write failure','Railway draft unavailable after restart','offline before request',
+  'Telegram unknown timeout on first send','Telegram edit timeout','backend restart during sending',
+  'response lost after possible acceptance','Telegraph ownership without credential','reload succeeded handoff',
+  'reload uncertain handoff','explicit Telegram rejection','stale persistent draft revision'
 ];
 for(const label of faultLabels){
   const cells=tableRow(label);
@@ -93,4 +148,12 @@ for(const label of faultLabels){
   if(cells[4].toUpperCase()!=='PASS')fail(`${label}: resultado deve ser PASS`);
 }
 
-console.log(JSON.stringify({ok:true,releaseAnchor:anchor,certification:'RELEASE APPROVED',auditedReferences:[...new Set(Object.values(refs))]},null,2));
+console.log(JSON.stringify({
+  ok:true,
+  releaseAnchor:anchor,
+  certification:'RELEASE APPROVED',
+  auditedReferences:[...new Set(Object.values(refs))],
+  physicalRows:6,
+  importExportRows:importRows.length,
+  faultRows:faultLabels.length
+},null,2));
