@@ -1243,6 +1243,7 @@ test('visual viewport constrains overlays and Find stays anchored to a visible c
 
 test('shell keyboard policy preserves an open virtual keyboard across in-app controls and respects system dismissal',async()=>{
   const w=page(),d=w.document;
+  d.dispatchEvent(new w.Event('DOMContentLoaded'));
   await wait(0);
   const editor=d.querySelector('#editor'),root=d.documentElement;
   w.eval("currentEditorCore().resetHTML('<p>texto</p>',{silent:true});currentEditorCore().selectRange({from:2,to:2},{focus:true})");
@@ -1287,6 +1288,7 @@ test('shell keyboard policy preserves an open virtual keyboard across in-app con
 
 test('destination switch moves keyboard focus from a hidden Telegraph title back to the editor',async()=>{
   const w=page(),d=w.document;
+  d.dispatchEvent(new w.Event('DOMContentLoaded'));
   await wait(0);
   const root=d.documentElement,editor=d.querySelector('#editor'),name=d.querySelector('#docName');
   d.querySelector('#destBtn').click();
@@ -1308,6 +1310,7 @@ test('destination switch moves keyboard focus from a hidden Telegraph title back
 
 test('confirmation dialogs keep an already-open virtual keyboard on its text entry',async()=>{
   const w=page(),d=w.document;
+  d.dispatchEvent(new w.Event('DOMContentLoaded'));
   await wait(0);
   const editor=d.querySelector('#editor'),root=d.documentElement;
   w.eval("currentEditorCore().resetHTML('<p>texto</p>',{silent:true});currentEditorCore().selectRange({from:2,to:2},{focus:true})");
