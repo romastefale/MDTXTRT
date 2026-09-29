@@ -1835,15 +1835,20 @@ const server = createServer(async (req, res) => {
         let media;
         try{media=await readMedia(req);}catch(error){throw asHttpError(error,400,"Mídia inválida");}
         const body=media.fields;
-        if (typeof body.initData !== "string" || typeof body.html !== "string" || typeof body.draft !== "string") throw new HttpError(400,"Os dados do envio estão incompletos");
-        let draft;
-        try{draft=JSON.parse(body.draft);}catch{throw new HttpError(400,"Rascunho de publicação inválido");}
-        let file=null;
-        if(media.file){
-          if(!draft?.media)throw new HttpError(400,"Anexo sem metadados de rascunho");
-          file={...media.file,kind:draft.media.kind,id:draft.media.id};
+        if (typeof body.initData !== "string" || typeof body.html !== "string") throw new HttpError(400,"Os dados do envio estão incompletos");
+        let result;
+        if(typeof body.draft==="string"&&body.draft.trim()){
+          let draft;
+          try{draft=JSON.parse(body.draft);}catch{throw new HttpError(400,"Rascunho de publicação inválido");}
+          let file=null;
+          if(media.file){
+            if(!draft?.media)throw new HttpError(400,"Anexo sem metadados de rascunho");
+            file={...media.file,kind:draft.media.kind,id:draft.media.id};
+          }
+          result=await publishTelegramPersistent(body.initData,draft,body.html,file);
+        }else{
+          result=await sendRich(body.initData,body.html,media.file?{...media.file,kind:body.kind,id:body.id}:null);
         }
-        const result=await publishTelegramPersistent(body.initData,draft,body.html,file);
         res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
         res.end(JSON.stringify(result));
       } catch (err) {
