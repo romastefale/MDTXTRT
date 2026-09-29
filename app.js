@@ -875,7 +875,7 @@ async function insertLinkButton(){
   const link=await askInlineLink('Link do botão','https://',['http:','https:','tg:']);
   if(!link)return;
   restoreSel();
-  insertHTML('<tg-button-row align="center"><tg-button type="url" style="primary" url="'+escapeHTML(link.href)+'">'+escapeHTML(label)+'</tg-button></tg-button-row>',true);
+  insertHTML('<tg-button-row align="center"><tg-button type="url" url="'+escapeHTML(link.href)+'">'+escapeHTML(label)+'</tg-button></tg-button-row>',true);
 }
 async function mediaUrl(){
   return askUrl('Link da mídia','https://',['http:','https:']);
