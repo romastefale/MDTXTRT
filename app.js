@@ -170,7 +170,7 @@ function sanitizeDraftRuntimeDOM(box){
 }
 function draftHTML(){
   const box=document.createElement('div');
-  box.innerHTML=editorCore?editorCore.html():editor.innerHTML;
+  box.innerHTML=requireEditorCore().html();
   sanitizeDraftRuntimeDOM(box);
   box.querySelectorAll('[data-media-id]').forEach(node=>{if(/^blob:/i.test(node.getAttribute('src')||''))node.removeAttribute('src');});
   return box.innerHTML;
@@ -212,9 +212,7 @@ function cleanDraftHTML(html){
 function mediaNode(id){return [...editor.querySelectorAll('[data-media-id]')].find(node=>node.getAttribute('data-media-id')===id)||null;}
 function restoreActiveMediaVisual(){
   if(!mediaFile?.id||!mediaFile.url)return false;
-  if(editorCore)return editorCore.patchMedia(mediaFile.id,{src:mediaFile.url,'data-media-missing':''});
-  const node=mediaNode(mediaFile.id);if(!node)return false;
-  node.setAttribute('src',mediaFile.url);node.removeAttribute('data-media-missing');return true;
+  return requireEditorCore().patchMedia(mediaFile.id,{src:mediaFile.url,'data-media-missing':''});
 }
 async function restoreMedia(){
   const node=editor.querySelector('[data-media-id]');
@@ -231,8 +229,7 @@ async function restoreMedia(){
     decorateSpecials();
   }catch(err){
     try{await mediaDelete(id);}catch(cleanupError){console.error('Media cleanup',cleanupError);}
-    if(editorCore)editorCore.patchMedia(id,{src:'','data-media-missing':'true'});
-    else{node.removeAttribute('src');node.setAttribute('data-media-missing','true');}
+    requireEditorCore().patchMedia(id,{src:'','data-media-missing':'true'});
     showToast(err.message||'Não foi possível recuperar o anexo');
   }
 }
@@ -247,8 +244,7 @@ async function installMedia(file,id,kind){
   decorateSpecials();
 }
 function decorateSpecials(){
-  if(editorCore)return;
-  editor.querySelectorAll('video,audio').forEach(node=>node.setAttribute('controls',''));
+  requireEditorCore();
 }
 function handoffToken(){
   const initData=getTg()?.initData;
@@ -285,7 +281,7 @@ async function claimHandoff(){
   const purpose=data.purpose===undefined?'transfer':data.purpose;
   if(!['transfer','import'].includes(purpose))throw new Error('Finalidade da transferência incompatível');
   if(purpose==='import')archiveStoredDraftForNew(token);
-  const handoffHTML=cleanDraftHTML(d.html);if(editorCore)editorCore.resetHTML(handoffHTML,{silent:true});else editor.innerHTML=handoffHTML;docName.value=d.name;
+  const handoffHTML=cleanDraftHTML(d.html);requireEditorCore().resetHTML(handoffHTML,{silent:true});docName.value=d.name;
   dest=d.dest;telegraphPath=d.telegraphPath;docId=d.docId;docRevision=normalizedRevision(d.revision);
   importedMd=d.importedMd;importedTxt=d.importedTxt;importedHtml=d.importedHtml;
   if(data.file){
@@ -764,25 +760,16 @@ document.addEventListener('keydown',event=>{
   const sel=sheets.find(name=>one(name).matches(':popover-open'));
   if(sel){event.preventDefault();closePanel(one(sel),true);}
 });
-function currentEditorCore(){return editorCore;}
-function saveSel(){
-  if(editorCore){savedRange=editorCore.saveSelection();return;}
-  const sel=window.getSelection();
-  if(!sel||!sel.rangeCount)return;
-  const n=sel.anchorNode;
-  if(n&&editor.contains(n))savedRange=sel.getRangeAt(0).cloneRange();
+function requireEditorCore(){
+  if(!editorCore)throw new Error('Núcleo de edição indisponível');
+  return editorCore;
 }
-function restoreSel(){
-  if(editorCore){editorCore.restoreSelection();return;}
-  editor.focus();
-  const sel=window.getSelection();
-  if(!sel)return;
-  if(savedRange&&savedRange.startContainer&&editor.contains(savedRange.startContainer)&&editor.contains(savedRange.endContainer)){sel.removeAllRanges();sel.addRange(savedRange);return;}
-  const range=document.createRange();range.selectNodeContents(editor);range.collapse(false);sel.removeAllRanges();sel.addRange(range);
-}
-function pushHist(){if(editorCore)editorCore.syncFromDOM({addToHistory:true});}
-function histUndo(){if(editorCore&&editorCore.undo()){restoreActiveMediaVisual();syncEditorSelectionUI();}}
-function histRedo(){if(editorCore&&editorCore.redo()){restoreActiveMediaVisual();syncEditorSelectionUI();}}
+function currentEditorCore(){return requireEditorCore();}
+function saveSel(){savedRange=requireEditorCore().saveSelection();}
+function restoreSel(){requireEditorCore().restoreSelection();}
+function pushHist(){requireEditorCore().syncFromDOM({addToHistory:true});}
+function histUndo(){if(requireEditorCore().undo()){restoreActiveMediaVisual();syncEditorSelectionUI();}}
+function histRedo(){if(requireEditorCore().redo()){restoreActiveMediaVisual();syncEditorSelectionUI();}}
 function expandWord(){
   const sel = window.getSelection();
   if(!sel || !sel.rangeCount || !sel.isCollapsed) return;
@@ -1074,7 +1061,7 @@ function markDirty(){
 window.addEventListener('pagehide',()=>{
   saveLocal();
   clearTimeout(remoteSaveTimer);
-  void persistRemoteDraft(true).catch(()=>{});
+  void persistRemoteDraft(true).catch(error=>console.error('Persistent draft pagehide',error));
 });
 function saveLocal(){
   clearTimeout(saveTimer);
@@ -1142,8 +1129,7 @@ async function applyPersistentDraftData(data,identity){
   const html=cleanDraftHTML(d.html);
   if(mediaFile?.url)URL.revokeObjectURL(mediaFile.url);
   mediaFile=null;
-  if(editorCore)editorCore.resetHTML(html,{silent:true});
-  else editor.innerHTML=html;
+  requireEditorCore().resetHTML(html,{silent:true});
   docName.value=d.name;
   telegraphPath=d.telegraphPath;
   docId=d.docId;
@@ -1177,7 +1163,7 @@ async function applyPersistentDraftData(data,identity){
   }
   setDestination(dest,false,false);
   syncEditorSelectionUI();
-  try{localStorage.setItem(DRAFT_KEY,JSON.stringify({...d,html}));}catch{}
+  try{localStorage.setItem(DRAFT_KEY,JSON.stringify({...d,html}));}catch(error){console.error('Local draft cache',error);}
   return true;
 }
 async function loadRemoteDraft(doc=''){
@@ -1360,7 +1346,7 @@ function archiveStoredDraftForNew(token){
 function resetToNewDocument(){
   if(mediaFile?.url)URL.revokeObjectURL(mediaFile.url);
   mediaFile=null;mediaChoice=null;savedRange=null;activeHandoff='';handoffAction=null;
-  editor.innerHTML='';docName.value='Ideia';dest='telegram';telegraphPath='';
+  requireEditorCore().resetHTML('',{silent:true});docName.value='Ideia';dest='telegram';telegraphPath='';
   docId=crypto.randomUUID();docRevision=0;importedMd='';importedTxt='';importedHtml='';
   draftWriteBlocked=false;draftBlockNoticeShown=false;
 }
@@ -1385,7 +1371,7 @@ function loadLocal(){
   let html;
   try{html=cleanDraftHTML(d.html);}
   catch(error){draftWriteBlocked=true;throw new Error((error.message||'Rascunho local inválido')+'. A cópia local foi preservada para recuperação');}
-  editor.innerHTML=html;docName.value=d.name;telegraphPath=d.telegraphPath;docId=d.docId;docRevision=normalizedRevision(d.revision);importedMd=d.importedMd;importedTxt=d.importedTxt;importedHtml=d.importedHtml;dest=d.dest;
+  requireEditorCore().resetHTML(html,{silent:true});docName.value=d.name;telegraphPath=d.telegraphPath;docId=d.docId;docRevision=normalizedRevision(d.revision);importedMd=d.importedMd;importedTxt=d.importedTxt;importedHtml=d.importedHtml;dest=d.dest;
   draftWriteBlocked=false;
   return true;
 }
@@ -1666,7 +1652,7 @@ one('#replaceAll').addEventListener('click',()=>{
   showToast(count+' substituições');
 });
 function exportDocumentHTML(){
-  return editorCore?editorCore.html():editor.innerHTML;
+  return requireEditorCore().html();
 }
 function exportName(ext){
   const base=docName.value.trim().replace(/[\\/:*?"<>|]+/g,"-").replace(/^\.+|\.+$/g,"").slice(0,80);
