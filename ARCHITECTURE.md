@@ -36,7 +36,7 @@ This document records the implementation boundaries that are authoritative for M
 - Telegram publication state is stored with the same owner/document record. The first Rich Message records `pending` before the network call and stores verified publisher id, chat id, Telegram message id and revision on success. Ambiguous transport/storage outcomes become `uncertain` and block blind duplication.
 - A later explicit publication of the same document by the same verified Telegram user preserves the previous Rich Message. The server sends a revision notice replying to the previous publication, then sends the new content as a new Rich Message and appends both message provenance and revision metadata to the durable record. No current publication path calls `editMessageText`.
 - Draft persistence serializes the canonical ProseMirror document, not transient rendering DOM. Runtime-only ProseMirror helper nodes/classes and editing attributes are stripped both client-side and server-side so older contaminated snapshots can migrate through the strict semantic allow-list.
-- The owner-scoped library lists volume-backed drafts and Telegraph page bindings. It is reachable from Web/PWA and the Telegram Mini App; private bot commands `/rascunhos` and `/telegraph` deep-link to the corresponding library view. Telegram publications themselves remain a private-chat history, not an in-app editable-message list.
+- The owner-scoped library lists volume-backed drafts, Telegram publication summaries derived from the existing persisted provenance, and Telegraph page bindings. It is reachable from Web/PWA and the Telegram Mini App; private bot commands `/rascunhos` and `/telegraph` deep-link to the corresponding library view. A Telegram publication card reopens the current linked document for editing; it does not mutate or reconstruct an earlier Telegram message. The private chat remains the human-readable Telegram message history.
 - Library enumeration is fail-closed: a malformed persistent draft or invalid Telegraph mapping aborts the response instead of being silently omitted.
 - Browser-local `rmdtxtml-document:...` archives created by `/novo` remain local recovery snapshots; persisted server documents are the library source.
 
@@ -82,7 +82,7 @@ This document records the implementation boundaries that are authoritative for M
 - There is no local displacement-map renderer, SVG-filter implementation, browser-engine detector, or compatibility renderer in MDTXTRT. `glass.js` was deleted rather than retained as a compatibility layer.
 - Browser rendering behavior belongs to `@samasante/liquid-glass` and follows its README/BROWSERS contract. MDTXTRT does not inspect the engine and does not substitute blur, screenshots, canvas copies, or a second visual implementation when browser capabilities differ.
 - When a component requires cross-browser bending rather than the package's material-mode behavior, it must migrate to the package's documented `refract`, in-place, or media-surface mode. A custom fallback is not an accepted migration path.
-- The top chrome has one safe-area-aware row: undo/redo in the left pill, the application title plus theme switch centered independently of the side controls, and destination/publication controls in the right pill. The title is not an interaction trigger.
+- The top chrome has one safe-area-aware row: undo/redo in the left pill, the application title plus theme switch centered independently of the side controls, and destination/application-menu controls in the right pill. The application menu uses the accent circular control and opens publication, export and library actions; the title is not an interaction trigger.
 - The functional top pills and the bottom formatting bar share one responsive control-size token. The theme switch is intentionally more discreet: its visible control and icon are fixed at 60% of the corresponding primary-control scale. This reduced scale is identical in Telegram, Railway, and GitHub Pages access modes. The bottom bar keeps the most frequent formatting actions in-line and places the accent-tinted “more” control at the far right.
 - Context menus preserve the `GlassContextMenu.tsx` compact scale (`210px` base width, `24px` rows, `9px` radius) and declare their invoking control as an anchor. Placement is clamped against the visual viewport and safe edges rather than expanding into full-screen sheets.
 - The light/dark preference is explicit and persisted. HTML/body background, browser `theme-color`, standalone status-bar metadata, and Telegram header/background/bottom-bar colors are updated from the same selected mode so system chrome cannot retain the opposite theme.
@@ -96,7 +96,7 @@ This document records the implementation boundaries that are authoritative for M
 
 ## Action semantics
 
-- The top export/publication control opens the publication/export menu whenever the session is usable; it is not a direct-send shortcut inside the Mini App.
+- The top hamburger application control opens the publication/export/library menu whenever the session is usable; it is not a direct-send shortcut inside the Mini App.
 - In a standalone browser with Telegram selected, the menu action is labeled and behaves as “open the Mini App”; the handoff is recovered there and publication still requires explicit authorization.
 - Inside the Mini App, the same action is labeled and behaves as “publish to Telegram”. Markdown and TXT download actions remain available in that menu.
 - With Telegraph selected, the menu action publishes to Telegraph in either access mode under the Telegraph identity contract.
@@ -110,7 +110,7 @@ This document records the implementation boundaries that are authoritative for M
 - A persistent draft record contains the canonical draft snapshot, optional attachment metadata/blob and the operational Telegram publication binding for that document.
 - The first confirmed Telegram publication records verified publisher ID, private-chat ID, message ID, document revision and publication state. A later explicit publish preserves the previous message, replies with a revision notice, then sends the revised content as a new Rich Message.
 - Publication transport ambiguity is durable state: `pending` or `uncertain` blocks an automatic duplicate send. A confirmed rejection requires another explicit action.
-- Telegram provenance retains a bounded history of published revision/message IDs and notice IDs so the private chat remains the visible revision trail.
+- Telegram provenance retains a bounded history of published revision/message IDs and notice IDs so the private chat remains the visible revision trail. The library exposes a summary of that provenance next to the current linked document without introducing immutable content snapshots.
 
 ## Execution and hosting boundary
 
