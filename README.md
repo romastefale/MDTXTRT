@@ -28,3 +28,4 @@ Consulte [BASELINE.md](BASELINE.md) para a definição operacional, regras de ev
 - [RELEASE_EVIDENCE_TEMPLATE.md](RELEASE_EVIDENCE_TEMPLATE.md): registro auditável das evidências.
 - [RELEASE_ANCHOR.md](RELEASE_ANCHOR.md): política da âncora canônica imutável por SHA.
 - [RELEASE_MANIFEST.json](RELEASE_MANIFEST.json): linhagem executável das seis etapas de implementação e requisitos da Etapa 7/7.
+- [OWNER_ACCEPTANCE.md](OWNER_ACCEPTANCE.md): testes físicos/externos pós-entrega reservados ao proprietário.
