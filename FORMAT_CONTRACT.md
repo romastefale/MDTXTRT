@@ -2,7 +2,7 @@
 
 This document is the executable product contract for import, export and publication introduced in evolution step 4/6 and retained by the architecture alignment in step 6/6. `ARCHITECTURE.md` records the broader system boundaries; this file remains the format-specific contract.
 
-The visual contract remains commit `dde30467ed9b0d108bac2ae7ad9bcac1137c169e`.
+The current visual contract is commit `aac423e012745c7873908ddc4a76371fb8218aa3`, adopted explicitly after the earlier `dde30467ed9b0d108bac2ae7ad9bcac1137c169e` reference. See `BASELINE.md` for provenance.
 
 ## File matrix
 
