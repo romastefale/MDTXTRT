@@ -15,7 +15,7 @@ globalThis.fetch = async (url,options={}) => {
       return new Response(new TextEncoder().encode('arquivo de teste'),{status:200});
     }
     const method=parsed.pathname.split('/').at(-1);
-    if(process.env.TEST_CALLS&&['getFile','sendRichMessage','sendDocument','answerCallbackQuery','setMyCommands','deleteMyCommands','setChatMenuButton','setWebhook'].includes(method)){
+    if(process.env.TEST_CALLS&&['getFile','sendRichMessage','editMessageText','sendDocument','answerCallbackQuery','setMyCommands','deleteMyCommands','setChatMenuButton','setWebhook'].includes(method)){
       let body=options.body;
       if(body instanceof FormData){
         body={};
@@ -30,7 +30,7 @@ globalThis.fetch = async (url,options={}) => {
       if(probe.file_id==='missing-path')return Response.json({ok:true,result:{file_id:probe.file_id,file_unique_id:'u-'+probe.file_id}});
       return Response.json({ok:true,result:{file_id:probe.file_id,file_unique_id:'u-'+probe.file_id,file_path:'documents/'+probe.file_id}});
     }
-    if(method==='sendRichMessage'&&typeof options.body==='string'){
+    if(['sendRichMessage','editMessageText'].includes(method)&&typeof options.body==='string'){
       const probe=JSON.parse(options.body);
       if(probe.rich_message?.html?.includes('UPSTREAM_TIMEOUT'))throw new TypeError('simulated transport timeout');
       if(probe.rich_message?.html?.includes('UPSTREAM_DELAY'))await new Promise(resolve=>setTimeout(resolve,150));
