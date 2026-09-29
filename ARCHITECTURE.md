@@ -26,6 +26,16 @@ This document records the implementation boundaries that are authoritative for M
 - Composition and paste are committed through the transactional core. Literal Find/Replace walks document text and does not construct a regular expression from user input.
 - Import/export/publication semantics are governed by [FORMAT_CONTRACT.md](FORMAT_CONTRACT.md). Portable export begins from serialized editor state, not transient rendering DOM.
 
+## Persistent draft and Telegram provenance boundary
+
+- The browser active slot remains the low-latency working copy, but every ordinary active-draft save also schedules a durable copy under the Railway volume at `$RAILWAY_VOLUME_MOUNT_PATH/drafts` (production: `/data/drafts`).
+- Persisted records are partitioned by a SHA-256 fingerprint of the owner. Telegram ownership comes only from verified Mini App `initData`; standalone browser ownership comes from the existing 256-bit browser capability. The raw browser capability is never written to the server record.
+- Draft metadata, active-document pointers and attachment bytes use volume-backed files. Metadata/pointers are replaced atomically by rename, and a lower revision cannot overwrite a newer persisted revision.
+- When the local active slot is absent, startup may recover the owner's active volume-backed draft. The transactional editor is created before asynchronous recovery; editing is temporarily disabled until that recovery decision completes, and recovered HTML is applied through the editor core rather than by mutating the live DOM behind ProseMirror.
+- Telegram publication state is stored with the same owner/document record. The first Rich Message records `pending` before the network call and stores verified publisher id, chat id, Telegram message id and revision on success. Ambiguous transport/storage outcomes become `uncertain` and block blind duplication.
+- A later explicit publication of the same document by the same verified Telegram user edits the stored Rich Message through `editMessageText` instead of creating another message. The browser → Mini App handoff publication path delegates to the same durable function.
+- Browser-local `rmdtxtml-document:...` archives created by `/novo` remain local recovery snapshots. The volume layer does not pretend to be a version-history UI or synchronized document picker.
+
 ## Browser → Mini App handoff
 
 - Recovering a handoff and authorizing publication are separate operations. Claiming a handoff only restores the document, attachment and persisted action state.
@@ -36,7 +46,7 @@ This document records the implementation boundaries that are authoritative for M
 ## Telegram
 
 - The protocol baseline is Telegram Bot API 10.3, released on 2026-08-24.
-- Rich content is sent through `sendRichMessage` and `InputRichMessage`.
+- New rich content is sent through `sendRichMessage` and `InputRichMessage`. A previously bound publication is updated through the Bot API `editMessageText` `rich_message` parameter using the stored message ID.
 - Rich-message HTML is validated against the documented tag, nesting, media, table, and `RichMessageButton` contracts before Telegram is called.
 - The 32,768-character preflight counts Unicode text and custom-emoji alternative text, and RichText-only containers reject nested block markup locally rather than relying on Telegram to reject it.
 - There is no `sendMessage` downgrade path for rich content. Unsupported rich input fails explicitly instead of being silently translated to a legacy message.
@@ -74,7 +84,7 @@ This document records the implementation boundaries that are authoritative for M
 - The light/dark preference is explicit and persisted. HTML/body background, browser `theme-color`, standalone status-bar metadata, and Telegram header/background/bottom-bar colors are updated from the same selected mode so system chrome cannot retain the opposite theme.
 - The vertical chrome composition is uniform across Telegram, Railway, and GitHub Pages. Browser access starts from CSS environment safe-area insets; Telegram Mini App geometry replaces that origin with the official WebApp 8.0+ `safeAreaInset` and `contentSafeAreaInset` runtime values when they are larger. All four Telegram sides are validated, mirrored to local CSS tokens, and refreshed on `safeAreaChanged` and `contentSafeAreaChanged`; unsupported Telegram clients are gated instead of receiving an implicit Telegram compatibility fallback.
 - Menus and interaction chrome are compact, content-sized surfaces. Scrollbar chrome is hidden, and browser zoom/pinch zoom remains disabled by the explicit viewport/touch contract requested for this product.
-- Overlay placement uses the visible viewport as the runtime geometry authority. Menus keep their baseline width/row/radius/material values when space exists; constrained space reduces their maximum size and enables internal scrolling instead of changing the normal composition.
+- Overlay placement starts from the visible viewport and then reserves the live bottom formatting bar as a non-overlay region. Menus, link dialogs and media/interaction sheets are clamped above the bar (including keyboard-driven bar movement); constrained space reduces maximum size and enables internal scrolling instead of placing controls underneath the bar or changing baseline material geometry.
 - Find is anchored to a control that remains visible while Find is open. Dialogs use the same visible-area contract, inert the background, trap keyboard focus, handle Escape and return focus to the visible origin control. Moving focus through overlays does not replace the transactional editor selection.
 - These interaction corrections do not restore superseded geometry or menu behavior. Commit `aac423e012745c7873908ddc4a76371fb8218aa3` is the explicitly adopted translucent visual design reference; `BASELINE.md` records its relationship to the earlier SHA.
 - `ui.js` is committed so GitHub Pages and Railway serve the same canonical artifact. Read-only CI rebuilds it, uploads the generated bundle as a verification artifact, and fails on any diff; ordinary verification never writes a corrective commit to `main`.
@@ -86,13 +96,17 @@ This document records the implementation boundaries that are authoritative for M
 - In a standalone browser with Telegram selected, the menu action is labeled and behaves as “open the Mini App”; the handoff is recovered there and publication still requires explicit authorization.
 - Inside the Mini App, the same action is labeled and behaves as “publish to Telegram”. Markdown and TXT download actions remain available in that menu.
 - With Telegraph selected, the menu action publishes to Telegraph in either access mode under the Telegraph identity contract.
-- Destination controls expose their actual toggle behavior in accessibility text, while the document-name control changes its accessible label to Telegraph title when that destination owns the title field.
+- Destination controls expose their actual toggle behavior in accessibility text. The document-title control is visibly labeled as “Título do documento” in the publication/export flow and changes to “Título da página no Telegraph” when Telegraph owns the title field.
 
-## Durable document provenance boundary
+## Durable draft and publication boundary
 
-- The current document UUID and local revision are integrity coordinates, not durable provenance. Local draft archives and handoff records are recovery/idempotency mechanisms, not an audit history.
-- If product scope later requires traceable revisions/publications, add durable server-side records keyed by document and revision and bind each publication to the exact serialized content/revision that produced it.
-- That expansion comes after the basic integrity guarantees above and must not be simulated by treating browser storage, a revision counter or a Telegraph path as an audit log.
+- Document UUID and revision remain integrity coordinates rather than a complete immutable revision history.
+- The active draft is durably mirrored to the Railway volume under an owner namespace. Browser-local storage remains a fast recovery/cache layer rather than the only copy.
+- Telegram owner namespaces are derived only from verified Mini App `initData`; standalone browser namespaces are derived from the existing 256-bit local capability and only a SHA-256-derived namespace is used server-side.
+- A persistent draft record contains the canonical draft snapshot, optional attachment metadata/blob and the operational Telegram publication binding for that document.
+- The first confirmed Telegram publication records verified publisher ID, private-chat ID, message ID, document revision and publication state. A later explicit publish of the same document by the same owner edits that message through `editMessageText` + `rich_message` instead of silently creating another message.
+- Publication transport ambiguity is durable state: `pending` or `uncertain` blocks an automatic duplicate send. A confirmed rejection clears the pending first-send binding and requires another explicit action.
+- This is operational provenance needed to recover and edit a publication. It is not an append-only audit ledger; historical revisions are not retained as immutable events.
 
 ## Execution and hosting boundary
 
@@ -100,7 +114,7 @@ This document records the implementation boundaries that are authoritative for M
 - GitHub Actions dependencies are pinned by immutable commit SHA, with the corresponding release tag recorded as a comment.
 - npm dependency installation uses the committed lockfile through `npm ci`. CI and Railpack both verify the npm bundled with Node 24.21.0 is `11.19.0` before installation; the project does not provision a second npm through Corepack.
 - Railway's Railpack configuration makes the deterministic install command explicit. A build must fail rather than silently fall back to `npm install` or a different npm version.
-- The current server requires a durable absolute path through `RAILWAY_VOLUME_MOUNT_PATH` for handoffs, Telegraph credentials, and Telegraph page ownership state. Any move to a serverless or ephemeral-filesystem platform must first replace that storage contract with a durable store and preserve the same ownership and restart guarantees. Deployment portability must not be simulated with an in-memory or temporary-filesystem fallback.
+- The current server requires a durable absolute path through `RAILWAY_VOLUME_MOUNT_PATH` for active drafts and attachments, Telegram publication provenance, handoffs, Telegraph credentials, and Telegraph page ownership state. Production mounts the MDTXTRT Railway volume at `/data`. Any move to a serverless or ephemeral-filesystem platform must first replace that storage contract with a durable store and preserve the same ownership and restart guarantees. Deployment portability must not be simulated with an in-memory or temporary-filesystem fallback.
 
 ## Provenance rule
 

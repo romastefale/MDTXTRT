@@ -520,10 +520,15 @@ test('editorial pointer retention has one owner and never restores focus after s
   assert.match(app,/function setTheme\(mode\)[\s\S]*?window\.location\.reload\(\)/);
 });
 
-test('document name lives in export flow and becomes the Telegraph editorial title',()=>{
+test('document title is explicit in export flow and becomes the Telegraph page title',()=>{
   const html=read('index.html'),src=uiSource(),app=read('app.js');
   assert.match(html,/class="telegraph-title" id="telegraphTitleSlot" hidden/);
   assert.match(html,/\.telegraph-title \.document-tools input\{[\s\S]*?Georgia,"Times New Roman",serif/);
+  assert.match(html,/\.document-tools::before\{content:attr\(data-field-label\)/);
+  assert.match(html,/tools\.setAttribute\('data-field-label','Título do documento'\)/);
+  assert.match(html,/input\.setAttribute\('aria-label','Título do documento'\)/);
+  assert.match(html,/tools\.setAttribute\('data-field-label','Título da página no Telegraph'\)/);
+  assert.match(html,/input\.setAttribute\('aria-label','Título da página no Telegraph'\)/);
   assert.match(html,/slot\.append\(tools\)/);
   assert.match(html,/exportHost\.insertBefore\(tools,exportAnchor\)/);
   assert.match(html,/#exportMenu \.glass-menu-content/);
@@ -575,6 +580,7 @@ test('server follows Bot API 10.3 Rich Message contracts without message downgra
   assert.match(server,/"mailto:","tel:"/);
   assert.match(server,/allowedByType=\{/);
   assert.match(server,/URL de botão deve usar HTTP, HTTPS ou tg:\/\//);
+  assert.match(server,/messageId>0\?"editMessageText":"sendRichMessage"/);
   assert.doesNotMatch(server,/telegramCall\("sendMessage"/);
 });
 
@@ -618,21 +624,24 @@ test('architecture provenance records official package use and copied example ow
 });
 
 
-test('step 6 semantics and documentation preserve the pinned visual baseline',()=>{
+test('stage 6/7 persists active drafts and Telegram provenance without changing the pinned visual baseline',()=>{
   const app=read('app.js'),server=read('server.mjs'),architecture=read('ARCHITECTURE.md'),drafts=read('LOCAL_DRAFTS.md'),baseline=read('BASELINE.md');
-  assert.match(app,/const DRAFT_ARCHIVE_PREFIX='rmdtxtml-document:'/);
-  assert.match(app,/function archiveStoredDraftForNew\(token\)/);
-  assert.match(app,/openPanel\('#exportMenu'\)/);
-  assert.doesNotMatch(app,/if\(session==='ready'\)return publishCurrent\(\)/);
-  assert.match(app,/Abrir opções de publicação e exportação/);
-  assert.match(app,/Alternar destino\. Atual:/);
-  assert.match(server,/function documentLaunchURL\(base,newToken=""\)/);
-  assert.match(server,/command === "novo"[\s\S]*?randomUUID\(\)\.replace\(\/-\/g,""\)/);
-  assert.match(architecture,/Transactional editor boundary/);
-  assert.match(architecture,/Browser → Mini App handoff/);
-  assert.match(architecture,/Durable document provenance boundary/);
-  assert.match(drafts,/one \*\*active draft slot\*\*/);
-  assert.match(drafts,/not a synchronized document database or a durable provenance ledger/);
+  assert.match(server,/const DRAFT_DIR = DATA \+ "\/drafts"/);
+  assert.match(server,/url\.pathname === "\/api\/drafts\/save"/);
+  assert.match(server,/url\.pathname === "\/api\/drafts\/load"/);
+  assert.match(server,/url\.pathname === "\/api\/drafts\/file"/);
+  assert.match(server,/function savePersistentDraft\(owner,draft,file=null\)/);
+  assert.match(server,/status:"pending"[\s\S]*?telegramUserId:owner\.telegramUserId/);
+  assert.match(server,/async function publishTelegramPersistent/);
+  assert.match(server,/editMessageText/);
+  assert.match(app,/function persistRemoteDraft\(pagehide=false\)/);
+  assert.match(app,/function loadRemoteDraft\(\)/);
+  assert.match(app,/form\.set\('draft',JSON\.stringify\(draftState\(\)\)\)/);
+  assert.match(architecture,/Persistent draft and Telegram provenance boundary/);
+  assert.match(architecture,/Railway volume/);
+  assert.match(drafts,/mounted Railway volume/);
+  assert.match(drafts,/verified Telegram user identifier/);
+  assert.match(drafts,/edit that existing Rich Message/);
   assert.match(baseline,/aac423e012745c7873908ddc4a76371fb8218aa3/);
   assert.match(baseline,/dde30467ed9b0d108bac2ae7ad9bcac1137c169e/);
 });
@@ -652,6 +661,28 @@ test('step 4 format contract is explicit and conversion code uses the shared por
 });
 
 
+test('step 6 persists drafts on the Railway volume, binds Telegram publication provenance and labels the document title explicitly',()=>{
+  const html=read('index.html'),app=read('app.js'),server=read('server.mjs');
+  assert.match(server,/const DRAFT_DIR = DATA \+ "\/drafts"/);
+  assert.match(server,/function savePersistentDraft\(owner,draft,file=null\)/);
+  assert.match(server,/url\.pathname === "\/api\/drafts\/save"/);
+  assert.match(server,/url\.pathname === "\/api\/drafts\/load"/);
+  assert.match(server,/url\.pathname === "\/api\/drafts\/file"/);
+  assert.match(server,/telegramUserId/);
+  assert.match(server,/editMessageText/);
+  assert.match(server,/publishTelegramPersistent/);
+  assert.match(app,/function persistRemoteDraft\(pagehide=false\)/);
+  assert.match(app,/function loadRemoteDraft\(\)/);
+  assert.match(app,/form\.set\('draft',JSON\.stringify\(draftState\(\)\)\)/);
+  assert.match(app,/function panelViewportBounds\(base=visualViewportBounds\(\)\)/);
+  assert.match(app,/bar\?\.getBoundingClientRect/);
+  assert.match(app,/panel\.setAttribute\('data-runtime-positioned',''\)/);
+  assert.match(html,/\.glass-menu\[data-anchor\],\.glass-menu\[data-runtime-positioned\]/);
+  assert.match(html,/\.document-tools::before\{content:attr\(data-field-label\)/);
+  assert.match(html,/Título do documento/);
+  assert.match(html,/Título da página no Telegraph/);
+});
+
 test('step 5 overlays use the visual viewport without changing the baseline material contract',()=>{
   const html=read('index.html'),app=read('app.js'),src=uiSource();
   assert.match(html,/max-height:var\(--menu-max-height,min\(55vh,420px\)\)/);
@@ -660,7 +691,8 @@ test('step 5 overlays use the visual viewport without changing the baseline mate
   assert.match(html,/\.dialog\{[\s\S]*?max-height:100%[\s\S]*?overflow-y:auto/);
   assert.match(html,/#dialogMenu:popover-open::backdrop\{background:transparent;pointer-events:auto\}/);
   assert.match(app,/function visualViewportBounds\(\)/);
-  assert.match(app,/function placePanel\(panel,anchorRect=null\)[\s\S]*?--menu-max-height[\s\S]*?--menu-max-width/);
+  assert.match(app,/function panelViewportBounds\(base=visualViewportBounds\(\)\)[\s\S]*?\.bar-wrap/);
+  assert.match(app,/function placePanel\(panel,anchorRect=null\)[\s\S]*?panelViewportBounds\(viewport\)[\s\S]*?--menu-max-height[\s\S]*?--menu-max-width/);
   assert.match(app,/openPanel\('#findMenu',anchor\)/);
   assert.match(app,/const anchor=one\('#plusBtn'\)/);
   assert.match(app,/function setDialogModality\(active\)[\s\S]*?setAttribute\('inert',''\)/);

@@ -24,7 +24,7 @@ let dest = 'telegram';
 let session='browser',busy=false;
 const plusSubmenus=['#plus-file-menu','#plus-format-menu','#plus-structure-menu','#plus-media-menu','#plus-interaction-menu'];
 const sheets=['#plusMenu',...plusSubmenus,'#linkMenu','#headingMenu','#quoteMenu','#listMenu','#exportMenu','#findMenu'];
-let savedRange = null, editorCore = null, composing = false, saveTimer = null, telegraphPath = '', docId = crypto.randomUUID(), docRevision = 0, importedMd = '', importedTxt = '', importedHtml = '', mediaFile = null, mediaChoice = null, draftWriteBlocked = false, draftBlockNoticeShown = false, activeHandoff = '', handoffAction = null;
+let savedRange = null, editorCore = null, composing = false, saveTimer = null, remoteSaveTimer = null, remoteSaveQueue = Promise.resolve(), remoteMediaSyncedId = '', remoteSaveNoticeShown = false, telegraphPath = '', docId = crypto.randomUUID(), docRevision = 0, importedMd = '', importedTxt = '', importedHtml = '', mediaFile = null, mediaChoice = null, draftWriteBlocked = false, draftBlockNoticeShown = false, activeHandoff = '', handoffAction = null;
 function applyAssets(){
   all('[data-icon]').forEach(el => {
     const name = el.getAttribute('data-icon');
@@ -246,7 +246,7 @@ function handoffToken(){
 function normalizedHandoffAction(value){
   if(value===null)return null;
   if(!value||typeof value!=='object'||value.type!=='publish'||!['pending','sending','succeeded','failed','uncertain'].includes(value.status)||!Number.isInteger(value.attempts)||value.attempts<0||typeof value.error!=='string'||!/^[a-f0-9-]{36}$/i.test(String(value.doc||''))||!Number.isSafeInteger(value.revision)||value.revision<0)throw new Error('Estado da publicação transferida inválido');
-  if(value.status==='succeeded'&&(!value.result||value.result.via!=='sendRichMessage'||!Number.isInteger(value.result.messageId)||value.result.messageId<=0))throw new Error('Resultado da publicação transferida inválido');
+  if(value.status==='succeeded'&&(!value.result||!['sendRichMessage','editMessageText'].includes(value.result.via)||!Number.isInteger(value.result.messageId)||value.result.messageId<=0))throw new Error('Resultado da publicação transferida inválido');
   return value;
 }
 function handoffActionNotice(action,recovered=false){
@@ -524,6 +524,12 @@ function visualViewportBounds(){
   const height=viewport&&Number.isFinite(viewport.height)&&viewport.height>0?viewport.height:(root.clientHeight||window.innerHeight);
   return {left,top,width,height,right:left+width,bottom:top+height};
 }
+function panelViewportBounds(base=visualViewportBounds()){
+  const bar=one('.bar-wrap');
+  const rect=bar?.getBoundingClientRect?.();
+  const bottom=rect&&Number.isFinite(rect.top)&&rect.top>base.top&&rect.top<base.bottom?Math.max(base.top,rect.top-8):base.bottom;
+  return {...base,height:Math.max(0,bottom-base.top),bottom};
+}
 function panelAnchor(panel){
   const override=panelAnchors.get(panel);
   if(override?.isConnected)return override;
@@ -545,7 +551,8 @@ function usableAnchorRect(rect,bounds){
 }
 function placePanel(panel,anchorRect=null){
   if(!panel)return;
-  const bounds=visualViewportBounds(),edge=8,gap=8;
+  panel.setAttribute('data-runtime-positioned','');
+  const viewport=visualViewportBounds(),bounds=panelViewportBounds(viewport),edge=8,gap=8;
   const fullHeight=Math.max(0,bounds.height-edge*2);
   const baseMax=Math.max(0,Math.min(420,bounds.height*.55,fullHeight));
   const maxWidth=Math.max(0,bounds.width-edge*2);
@@ -554,14 +561,11 @@ function placePanel(panel,anchorRect=null){
   const anchor=panelAnchor(panel);
   const rect=anchorRect||anchor?.getBoundingClientRect()||null;
   let box=panel.getBoundingClientRect();
-  if(!usableAnchorRect(rect,bounds)){
-    if(panel.dataset.anchor){
-      panel.style.setProperty('--menu-left',clamp(bounds.left+(bounds.width-box.width)/2,bounds.left+edge,Math.max(bounds.left+edge,bounds.right-edge-box.width))+'px');
-      panel.style.setProperty('--menu-top',clamp(bounds.top+(bounds.height-box.height)/2,bounds.top+edge,Math.max(bounds.top+edge,bounds.bottom-edge-box.height))+'px');
-    }else{
-      panel.style.setProperty('--menu-left',(bounds.left+bounds.width/2)+'px');
-      panel.style.setProperty('--menu-top',(bounds.top+bounds.height/2)+'px');
-    }
+  if(!usableAnchorRect(rect,viewport)){
+    const minLeft=bounds.left+edge,maxLeft=Math.max(minLeft,bounds.right-edge-box.width);
+    const minTop=bounds.top+edge,maxTop=Math.max(minTop,bounds.bottom-edge-box.height);
+    panel.style.setProperty('--menu-left',clamp(bounds.left+(bounds.width-box.width)/2,minLeft,maxLeft)+'px');
+    panel.style.setProperty('--menu-top',clamp(bounds.top+(bounds.height-box.height)/2,minTop,maxTop)+'px');
     return;
   }
   const aboveSpace=Math.max(0,rect.top-gap-(bounds.top+edge));
@@ -1048,16 +1052,120 @@ function markDirty(){
   clearTimeout(saveTimer);
   saveTimer = setTimeout(saveLocal, 400);
 }
-window.addEventListener('pagehide',saveLocal);
+window.addEventListener('pagehide',()=>{
+  saveLocal();
+  clearTimeout(remoteSaveTimer);
+  void persistRemoteDraft(true).catch(()=>{});
+});
 function saveLocal(){
   clearTimeout(saveTimer);
   if(draftWriteBlocked){
     if(!draftBlockNoticeShown){draftBlockNoticeShown=true;showToast('O rascunho recuperável foi preservado; alterações desta sessão não substituirão essa cópia');}
     return false;
   }
-  try{localStorage.setItem(DRAFT_KEY,JSON.stringify(draftState()));return true;}
-  catch{showToast('Não foi possível salvar neste dispositivo');return false;}
+  try{
+    localStorage.setItem(DRAFT_KEY,JSON.stringify(draftState()));
+    scheduleRemoteDraftSave();
+    return true;
+  }catch{
+    showToast('Não foi possível salvar neste dispositivo');
+    scheduleRemoteDraftSave();
+    return false;
+  }
 }
+
+function remoteDraftIdentity(){
+  const initData=getTg()?.initData;
+  if(typeof initData==='string'&&initData)return {initData};
+  return {browserKey:browserOwnerKey()};
+}
+function appendRemoteIdentity(target,identity=remoteDraftIdentity()){
+  for(const [key,value] of Object.entries(identity))target.set(key,value);
+  return identity;
+}
+function reportRemoteSaveFailure(error){
+  console.error('Persistent draft',error);
+  if(!remoteSaveNoticeShown){
+    remoteSaveNoticeShown=true;
+    showToast('A cópia no volume não pôde ser atualizada; o rascunho local foi mantido');
+  }
+}
+async function persistRemoteDraft(pagehide=false){
+  if(draftWriteBlocked)return false;
+  const snapshot=draftState();
+  const form=new FormData();
+  appendRemoteIdentity(form);
+  form.set('draft',JSON.stringify(snapshot));
+  const active=activeMedia();
+  const includeMedia=Boolean(active&&remoteMediaSyncedId!==active.id);
+  if(includeMedia)form.set('upload',active.file,active.file.name);
+  const options={method:'POST',body:form};
+  if(!pagehide)options.signal=AbortSignal.timeout(15000);
+  else if(!includeMedia&&JSON.stringify(snapshot).length<60000)options.keepalive=true;
+  const res=await fetch(API+'/api/drafts/save',options);
+  const data=await readResponse(res);
+  if(!res.ok)throw new Error(data.error||'Não foi possível persistir o rascunho no volume');
+  if(data?.draft?.docId!==snapshot.docId||data?.draft?.revision!==snapshot.revision)throw new Error('Confirmação de persistência inválida');
+  if(includeMedia)remoteMediaSyncedId=active.id;
+  if(!active)remoteMediaSyncedId='';
+  remoteSaveNoticeShown=false;
+  return true;
+}
+function scheduleRemoteDraftSave(delay=650){
+  clearTimeout(remoteSaveTimer);
+  remoteSaveTimer=setTimeout(()=>{
+    remoteSaveQueue=remoteSaveQueue.then(()=>persistRemoteDraft(false)).catch(error=>{reportRemoteSaveFailure(error);});
+  },delay);
+}
+async function loadRemoteDraft(){
+  const identity=remoteDraftIdentity();
+  const res=await fetch(API+'/api/drafts/load',{
+    method:'POST',
+    signal:AbortSignal.timeout(5000),
+    headers:{'content-type':'application/json'},
+    body:JSON.stringify(identity)
+  });
+  if(res.status===404)return false;
+  const data=await readResponse(res);
+  if(!res.ok)throw new Error(data.error||'Não foi possível recuperar o rascunho do volume');
+  const d=data.draft;
+  if(!d||d.version!==STATE_VERSION||typeof d.html!=='string'||typeof d.name!=='string'||d.name.length>120||!['telegram','telegraph'].includes(d.dest)||typeof d.telegraphPath!=='string'||!/^[a-f0-9-]{36}$/i.test(d.docId)||(d.revision!==undefined&&(!Number.isSafeInteger(d.revision)||d.revision<0))||typeof d.importedMd!=='string'||typeof d.importedTxt!=='string'||typeof d.importedHtml!=='string')throw new Error('Rascunho persistido incompatível');
+  const html=cleanDraftHTML(d.html);
+  if(editorCore)editorCore.resetHTML(html,{silent:true});
+  else editor.innerHTML=html;
+  docName.value=d.name;
+  telegraphPath=d.telegraphPath;
+  docId=d.docId;
+  docRevision=normalizedRevision(d.revision);
+  importedMd=d.importedMd;
+  importedTxt=d.importedTxt;
+  importedHtml=d.importedHtml;
+  dest=d.dest;
+  draftWriteBlocked=false;
+  if(data.media){
+    if(!data.media||data.media.id!==d.media?.id||data.media.kind!==d.media?.kind||typeof data.media.name!=='string'||typeof data.media.mime!=='string')throw new Error('Anexo persistido incompatível');
+    const fileRes=await fetch(API+'/api/drafts/file',{
+      method:'POST',
+      signal:AbortSignal.timeout(15000),
+      headers:{'content-type':'application/json'},
+      body:JSON.stringify({...identity,doc:d.docId,id:data.media.id})
+    });
+    if(!fileRes.ok){
+      let msg='Não foi possível recuperar o anexo persistido';
+      try{msg=(await fileRes.json()).error||msg;}catch{}
+      throw new Error(msg);
+    }
+    const blob=await fileRes.blob();
+    const file=new File([blob],data.media.name,{type:data.media.mime,lastModified:0});
+    await mediaStore({id:data.media.id,file,kind:data.media.kind,name:file.name,type:file.type,lastModified:file.lastModified});
+    remoteMediaSyncedId=data.media.id;
+  }else{
+    remoteMediaSyncedId='';
+  }
+  try{localStorage.setItem(DRAFT_KEY,JSON.stringify(d));}catch{}
+  return true;
+}
+
 function newDocumentToken(){
   let token='';
   try{token=new URL(location.href).searchParams.get(NEW_DOCUMENT_PARAM)||'';}catch{}
@@ -1107,7 +1215,7 @@ function loadLocal(){
   let raw;
   try{raw=localStorage.getItem(DRAFT_KEY);}
   catch{draftWriteBlocked=true;throw new Error('Não foi possível acessar o rascunho local; nenhuma cópia foi alterada');}
-  if(raw===null)return;
+  if(raw===null)return false;
   let d;
   try{d=JSON.parse(raw);}
   catch{draftWriteBlocked=true;throw new Error('Rascunho local inválido preservado para recuperação');}
@@ -1120,6 +1228,7 @@ function loadLocal(){
   catch(error){draftWriteBlocked=true;throw new Error((error.message||'Rascunho local inválido')+'. A cópia local foi preservada para recuperação');}
   editor.innerHTML=html;docName.value=d.name;telegraphPath=d.telegraphPath;docId=d.docId;docRevision=normalizedRevision(d.revision);importedMd=d.importedMd;importedTxt=d.importedTxt;importedHtml=d.importedHtml;dest=d.dest;
   draftWriteBlocked=false;
+  return true;
 }
 function escapeHTML(s){ return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function htmlToText(html){
@@ -1446,12 +1555,14 @@ async function publishTelegram(){
     const form=new FormData();
     form.set('initData',initData);
     form.set('html',p.rich_message.html);
+    form.set('draft',JSON.stringify(draftState()));
     if(data){form.set('kind',data.kind);form.set('id',data.id);form.set('upload',data.file,data.file.name);}
     const res=await fetch(API+'/api/telegram/send',{method:'POST',signal:AbortSignal.timeout(60000),body:form});
     const json=await readResponse(res);
     if(!res.ok)throw new Error(json.error||'Não foi possível enviar a mensagem');
-    if(json.via!=='sendRichMessage'||!Number.isInteger(json.messageId)||json.messageId<=0)throw new Error('Resposta do Telegram inválida');
-    showToast('Mensagem enviada no chat do bot');
+    if(!['sendRichMessage','editMessageText'].includes(json.via)||!Number.isInteger(json.messageId)||json.messageId<=0)throw new Error('Resposta do Telegram inválida');
+    if(data)remoteMediaSyncedId=data.id;
+    showToast(json.via==='editMessageText'?'Publicação atualizada no chat do bot':'Mensagem enviada no chat do bot');
   }catch(err){
     showToast(err.name==='TimeoutError'?'Tempo de envio esgotado. Confira o chat antes de tentar novamente.':err instanceof TypeError?'Não foi possível conectar ao Telegram':err.message || 'Não foi possível enviar a mensagem');
   }
@@ -1544,16 +1655,16 @@ document.addEventListener('focusin',scheduleBrowserViewport);
 document.addEventListener('focusout',scheduleBrowserViewport);
 syncBrowserViewport();
 function boot(){
-  let notice='',createdNew=false,preservedPrevious=false;
+  let notice='',createdNew=false,preservedPrevious=false,loadedLocal=false;
   const newToken=consumeNewDocumentToken();
   if(newToken){
     try{preservedPrevious=startRequestedNewDocument(newToken);createdNew=true;}
     catch(err){
       notice=err.message;
-      try{loadLocal();}catch(loadError){notice=notice+' '+(loadError.message||'');}
+      try{loadedLocal=loadLocal();}catch(loadError){notice=notice+' '+(loadError.message||'');}
     }
   }else{
-    try{loadLocal();}catch(err){notice=err.message;}
+    try{loadedLocal=loadLocal();}catch(err){notice=err.message;}
   }
   decorateSpecials();
   const factory=window.MDTXTRTEditorCore?.createEditorCore;
@@ -1571,6 +1682,28 @@ function boot(){
       :'Novo documento criado, mas não foi possível persistir o novo rascunho neste dispositivo.';
   }
   if(notice)showToast(notice);
-  void restoreMedia().then(()=>verifyTelegram()).catch(err=>showToast(err.message||'Não foi possível restaurar o documento'));
+  const recoverVolume=!createdNew&&!loadedLocal&&!handoffToken();
+  if(recoverVolume)editor.setAttribute('contenteditable','false');
+  void (async()=>{
+    try{
+      if(recoverVolume){
+        try{
+          const loaded=await loadRemoteDraft();
+          if(loaded){
+            setDestination(dest,false,false);
+            syncEditorSelectionUI();
+            showToast('Rascunho recuperado do volume persistente');
+          }
+        }catch(error){
+          console.error('Persistent draft recovery',error);
+          showToast('Não foi possível recuperar a cópia persistente; um novo rascunho local foi aberto');
+        }finally{
+          editor.setAttribute('contenteditable','true');
+        }
+      }
+      await restoreMedia();
+      await verifyTelegram();
+    }catch(err){showToast(err.message||'Não foi possível restaurar o documento');}
+  })();
 }
 boot();

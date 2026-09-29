@@ -208,7 +208,7 @@ function page(setup={}){
     for(const id of intervals)nativeClearInterval(id);
     for(const id of frames)nativeCancelAnimationFrame(id);
     timeouts.clear();intervals.clear();frames.clear();
-    try{w.eval('(()=>{clearTimeout(saveTimer);const core=currentEditorCore?.();if(core?.view?.docView)core.destroy();})()');}catch{}
+    try{w.eval('(()=>{clearTimeout(saveTimer);clearTimeout(remoteSaveTimer);const core=currentEditorCore?.();if(core?.view?.docView)core.destroy();})()');}catch{}
     // Keep the JSDOM realm alive until the runner releases it so already-queued
     // MutationObserver/promise callbacks cannot dereference a closed document.
   };
@@ -263,6 +263,84 @@ test('novo preserves archived attachment records when the new document stores an
   assert.equal(db.rows.has(oldMedia),true);
   assert.equal(db.rows.size,2);
   assert.equal(w.localStorage.getItem('rmdtxtml-document:'+oldDoc),raw);
+  w.close();
+});
+
+
+test('volume recovery restores a missing local draft by persistent browser identity',async()=>{
+  const doc='90909090-9090-4090-8090-909090909090';
+  const browserKey='ab'.repeat(32);
+  const remote={version:2,name:'Do volume',html:'<p>recuperado</p>',dest:'telegram',telegraphPath:'',docId:doc,revision:4,importedMd:'',importedTxt:'',importedHtml:'',media:null};
+  const requests=[];
+  const fetch=async(url,options={})=>{
+    const target=String(url);requests.push({url:target,options});
+    if(target.endsWith('/api/drafts/load')){
+      const body=JSON.parse(options.body);
+      assert.equal(body.browserKey,browserKey);
+      return {ok:true,status:200,json:async()=>({draft:remote,media:null,publication:null,updatedAt:1,owner:{kind:'browser'}})};
+    }
+    if(target.endsWith('/api/telegraph/recover'))return {ok:false,status:404,json:async()=>({error:'Página não encontrada'})};
+    return {ok:false,status:404,json:async()=>({error:'not found'})};
+  };
+  const w=page({fetch,local:{'mdtxtrt-browser-owner':browserKey}}),d=w.document;
+  await wait(25);
+  assert.equal(d.querySelector('#docName').value,'Do volume');
+  assert.equal(d.querySelector('#editor').textContent,'recuperado');
+  assert.equal(w.eval('draftState().docId'),doc);
+  assert.equal(w.eval('draftState().revision'),4);
+  assert.equal(JSON.parse(w.localStorage.getItem('rmdtxtml')).docId,doc);
+  assert.equal(requests.filter(r=>r.url.endsWith('/api/drafts/load')).length,1);
+  w.close();
+});
+
+test('remote draft save sends the active canonical document and stable browser identity',async()=>{
+  const doc='91919191-9191-4191-8191-919191919191';
+  const browserKey='cd'.repeat(32);
+  const local=JSON.stringify({version:2,name:'Persistir',html:'<p>estado</p>',dest:'telegram',telegraphPath:'',docId:doc,revision:2,importedMd:'',importedTxt:'',importedHtml:'',media:null});
+  let saved=null;
+  const fetch=async(url,options={})=>{
+    const target=String(url);
+    if(target.endsWith('/api/drafts/save')){
+      const draft=JSON.parse(options.body.get('draft'));
+      saved={draft,browserKey:options.body.get('browserKey')};
+      return {ok:true,status:200,json:async()=>({draft,media:null,publication:null,owner:{kind:'browser'}})};
+    }
+    if(target.endsWith('/api/telegraph/recover'))return {ok:false,status:404,json:async()=>({error:'Página não encontrada'})};
+    return {ok:false,status:404,json:async()=>({error:'not found'})};
+  };
+  const w=page({fetch,local:{rmdtxtml:local,'mdtxtrt-browser-owner':browserKey}});
+  await w.eval('persistRemoteDraft(false)');
+  assert.equal(saved.browserKey,browserKey);
+  assert.equal(saved.draft.docId,doc);
+  assert.equal(saved.draft.revision,2);
+  assert.equal(saved.draft.name,'Persistir');
+  w.close();
+});
+
+test('Telegram publish sends document identity and accepts editing the previously linked message',async()=>{
+  const doc='92929292-9292-4292-8292-929292929292';
+  const local=JSON.stringify({version:2,name:'Publicável',html:'<p>versão nova</p>',dest:'telegram',telegraphPath:'',docId:doc,revision:5,importedMd:'',importedTxt:'',importedHtml:'',media:null});
+  let publishForm=null;
+  const fetch=async(url,options={})=>{
+    const target=String(url);
+    if(target.endsWith('/api/telegram/session'))return {ok:true,status:200,json:async()=>({ok:true})};
+    if(target.endsWith('/api/telegraph/recover'))return {ok:false,status:404,json:async()=>({error:'Página não encontrada'})};
+    if(target.endsWith('/api/telegram/send')){
+      publishForm=options.body;
+      return {ok:true,status:200,json:async()=>({via:'editMessageText',messageId:42,edited:true})};
+    }
+    return {ok:false,status:404,json:async()=>({error:'not found'})};
+  };
+  const w=page({fetch,tg:{initData:'signed-payload'},local:{rmdtxtml:local}}),d=w.document;
+  await wait(20);
+  await w.eval('publishTelegram()');
+  assert.ok(publishForm);
+  assert.equal(publishForm.get('initData'),'signed-payload');
+  const sentDraft=JSON.parse(publishForm.get('draft'));
+  assert.equal(sentDraft.docId,doc);
+  assert.equal(sentDraft.revision,5);
+  assert.equal(sentDraft.name,'Publicável');
+  assert.match(d.querySelector('#toast').textContent,/atualizada/i);
   w.close();
 });
 
@@ -434,8 +512,9 @@ test('document name stays in export flow and becomes the Telegraph title',async(
   await wait(0);
   assert.equal(slot.hidden,false);
   assert.equal(tools.parentElement,slot);
-  assert.equal(input.getAttribute('placeholder'),'Título');
-  assert.equal(input.getAttribute('aria-label'),'Título da página Telegraph');
+  assert.equal(tools.getAttribute('data-field-label'),'Título da página no Telegraph');
+  assert.equal(input.getAttribute('placeholder'),'Título da página no Telegraph');
+  assert.equal(input.getAttribute('aria-label'),'Título da página no Telegraph');
   input.value='Minha página';
   input.dispatchEvent(new w.Event('input',{bubbles:true}));
   assert.equal(w.eval('buildTelegraph().title'),'Minha página');
@@ -443,7 +522,9 @@ test('document name stays in export flow and becomes the Telegraph title',async(
   await wait(0);
   assert.equal(slot.hidden,true);
   assert.equal(tools.parentElement,exportMenu);
-  assert.equal(input.hasAttribute('placeholder'),false);
+  assert.equal(tools.getAttribute('data-field-label'),'Título do documento');
+  assert.equal(input.getAttribute('placeholder'),'Título do documento');
+  assert.equal(input.getAttribute('aria-label'),'Título do documento');
   w.close();
 });
 
@@ -1371,9 +1452,53 @@ test('lossy TXT conversion exposes a warning only when rich semantics would be d
 });
 
 
+test('volume-backed draft recovery restores an active draft when local storage is empty',async()=>{
+  const remote={version:2,name:'Do volume',html:'<p>persistido</p>',dest:'telegram',telegraphPath:'',docId:'91919191-9191-4919-8919-919191919191',revision:4,importedMd:'',importedTxt:'',importedHtml:'',media:null};
+  const requests=[];
+  const fetch=async(url,options={})=>{
+    const target=String(url);requests.push({url:target,options});
+    if(target.endsWith('/api/drafts/load'))return {ok:true,status:200,json:async()=>({draft:remote,media:null,publication:null,owner:{kind:'browser'}})};
+    if(target.endsWith('/api/telegraph/recover'))return {ok:false,status:404,json:async()=>({error:'Página não encontrada'})};
+    return {ok:false,status:404,json:async()=>({error:'not found'})};
+  };
+  const w=page({fetch}),d=w.document;
+  await wait(15);
+  assert.equal(d.querySelector('#docName').value,'Do volume');
+  assert.equal(d.querySelector('#editor').textContent,'persistido');
+  assert.equal(JSON.parse(w.localStorage.getItem('rmdtxtml')).docId,remote.docId);
+  assert.ok(requests.some(row=>row.url.endsWith('/api/drafts/load')));
+  w.close();
+});
+
+test('pagehide writes the active draft to the volume contract as well as local storage',async()=>{
+  const doc='92929292-9292-4929-8929-929292929292';
+  const raw=JSON.stringify({version:2,name:'Local',html:'<p>local</p>',dest:'telegram',telegraphPath:'',docId:doc,revision:2,importedMd:'',importedTxt:'',importedHtml:'',media:null});
+  const saved=[];
+  const fetch=async(url,options={})=>{
+    const target=String(url);
+    if(target.endsWith('/api/drafts/save')){
+      const draft=JSON.parse(options.body.get('draft'));
+      saved.push({draft,browserKey:options.body.get('browserKey')});
+      return {ok:true,status:200,json:async()=>({draft})};
+    }
+    if(target.endsWith('/api/telegraph/recover'))return {ok:false,status:404,json:async()=>({error:'Página não encontrada'})};
+    return {ok:false,status:404,json:async()=>({error:'not found'})};
+  };
+  const w=page({fetch,local:{rmdtxtml:raw}});
+  await wait(5);
+  w.dispatchEvent(new w.Event('pagehide'));
+  await wait(10);
+  assert.ok(saved.length>=1);
+  assert.equal(saved.at(-1).draft.docId,doc);
+  assert.match(saved.at(-1).browserKey,/^[a-f0-9]{64}$/);
+  assert.equal(JSON.parse(w.localStorage.getItem('rmdtxtml')).docId,doc);
+  w.close();
+});
+
 test('visual viewport constrains overlays and Find stays anchored to a visible control',async()=>{
   const w=page({visualViewport:{offsetLeft:0,offsetTop:100,width:390,height:300}}),d=w.document;
-  const plus=d.querySelector('#plusBtn'),find=d.querySelector('#findMenu'),dialog=d.querySelector('#dialogMenu');
+  const plus=d.querySelector('#plusBtn'),find=d.querySelector('#findMenu'),dialog=d.querySelector('#dialogMenu'),bar=d.querySelector('.bar-wrap');
+  bar.getBoundingClientRect=()=>({left:20,top:310,width:350,height:58,right:370,bottom:368});
   plus.getBoundingClientRect=()=>({left:18,top:332,width:40,height:40,right:58,bottom:372});
   find.getBoundingClientRect=()=>{
     const limit=parseFloat(find.style.getPropertyValue('--menu-max-height'))||240;
@@ -1393,13 +1518,16 @@ test('visual viewport constrains overlays and Find stays anchored to a visible c
   const findTop=parseFloat(find.style.getPropertyValue('--menu-top'));
   assert.ok(findLimit>0&&findLimit<=165);
   assert.ok(findTop>=108);
-  assert.ok(findTop+Math.min(240,findLimit)<=392);
+  assert.ok(findTop+Math.min(240,findLimit)<=302);
 
   const prompt=w.eval("ask('Teste','valor')");
   await wait(0);
-  assert.equal(parseFloat(dialog.style.getPropertyValue('--menu-max-height')),165);
-  assert.equal(parseFloat(dialog.style.getPropertyValue('--menu-left')),195);
-  assert.equal(parseFloat(dialog.style.getPropertyValue('--menu-top')),250);
+  const dialogLimit=parseFloat(dialog.style.getPropertyValue('--menu-max-height'));
+  const dialogLeft=parseFloat(dialog.style.getPropertyValue('--menu-left'));
+  const dialogTop=parseFloat(dialog.style.getPropertyValue('--menu-top'));
+  assert.ok(dialogLimit<=112);
+  assert.ok(dialogLeft>=8&&dialogLeft+280<=382);
+  assert.ok(dialogTop>=108&&dialogTop+Math.min(120,dialogLimit)<=294);
   d.querySelector('#dialogCancel').click();
   assert.equal(await prompt,null);
   w.close();
@@ -1407,7 +1535,8 @@ test('visual viewport constrains overlays and Find stays anchored to a visible c
 
 test('link interactions stay above the bottom trigger and expose only destination-supported actions',async()=>{
   const w=page({visualViewport:{offsetLeft:0,offsetTop:100,width:390,height:300}}),d=w.document;
-  const linkBtn=d.querySelector('#linkBtn'),linkMenu=d.querySelector('#linkMenu'),dialog=d.querySelector('#dialogMenu');
+  const linkBtn=d.querySelector('#linkBtn'),linkMenu=d.querySelector('#linkMenu'),dialog=d.querySelector('#dialogMenu'),barWrap=d.querySelector('.bar-wrap');
+  barWrap.getBoundingClientRect=()=>({left:8,top:320,width:374,height:56,right:382,bottom:376});
   linkBtn.getBoundingClientRect=()=>({left:130,top:340,width:40,height:40,right:170,bottom:380});
   linkMenu.getBoundingClientRect=()=>{
     const limit=parseFloat(linkMenu.style.getPropertyValue('--menu-max-height'))||72;
@@ -1423,7 +1552,10 @@ test('link interactions stay above the bottom trigger and expose only destinatio
   linkBtn.click();
   assert.equal(linkMenu.matches(':popover-open'),true);
   assert.equal(w.eval("panelAnchor(document.querySelector('#linkMenu'))===document.querySelector('#linkBtn')"),true);
-  assert.ok(parseFloat(linkMenu.style.getPropertyValue('--menu-top'))<340);
+  const linkTop=parseFloat(linkMenu.style.getPropertyValue('--menu-top'));
+  const linkHeight=Math.min(72,parseFloat(linkMenu.style.getPropertyValue('--menu-max-height'))||72);
+  assert.ok(linkTop<320);
+  assert.ok(linkTop+linkHeight<=312);
 
   const buttonChoice=linkMenu.querySelector('[data-link-kind="button"]');
   const urlChoice=linkMenu.querySelector('[data-link-kind="url"]');
@@ -1435,7 +1567,10 @@ test('link interactions stay above the bottom trigger and expose only destinatio
   for(let i=0;i<10&&d.querySelector('#dialogLabel').textContent!=='Link';i++)await wait(0);
   assert.equal(d.querySelector('#dialogLabel').textContent,'Link');
   assert.equal(w.eval("panelAnchor(document.querySelector('#dialogMenu'))===document.querySelector('#linkBtn')"),true);
-  assert.ok(parseFloat(dialog.style.getPropertyValue('--menu-top'))<340);
+  const dialogTop=parseFloat(dialog.style.getPropertyValue('--menu-top'));
+  const dialogHeight=Math.min(100,parseFloat(dialog.style.getPropertyValue('--menu-max-height'))||100);
+  assert.ok(dialogTop<320);
+  assert.ok(dialogTop+dialogHeight<=312);
   d.querySelector('#dialogInput').value='tg://resolve?domain=example';
   d.querySelector('#dialogOk').click();
   for(let i=0;i<10&&!/Telegraph exige link HTTP ou HTTPS/.test(d.querySelector('#toast').textContent);i++)await wait(0);
@@ -1549,11 +1684,11 @@ test('viewport resize repositions an open dialog using the current visual area',
   dialog.getBoundingClientRect=()=>({left:0,top:0,width:280,height:100,right:280,bottom:100});
   const prompt=w.eval("ask('Teste','valor')");
   await wait(0);
-  assert.equal(parseFloat(dialog.style.getPropertyValue('--menu-top')),370);
+  assert.equal(parseFloat(dialog.style.getPropertyValue('--menu-top')),320);
   w.visualViewport.offsetTop=80;
   w.visualViewport.height=280;
   w.eval('syncBrowserViewport()');
-  assert.equal(parseFloat(dialog.style.getPropertyValue('--menu-top')),220);
+  assert.equal(parseFloat(dialog.style.getPropertyValue('--menu-top')),170);
   assert.equal(parseFloat(dialog.style.getPropertyValue('--menu-max-height')),154);
   d.querySelector('#dialogCancel').click();
   await prompt;
