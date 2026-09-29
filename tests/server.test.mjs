@@ -789,6 +789,8 @@ test('Telegraph request errors are typed independently from upstream failures',a
   assert.equal(invalid.status,400);
   const upstream=await jsonPost('/api/telegraph/publish',{title:'UPSTREAM_REJECT',doc,content:[{tag:'p',children:['x']}],initData:init()});
   assert.equal(upstream.status,502);
+  const retry=await jsonPost('/api/telegraph/publish',{title:'Confirmed retry',doc,content:[{tag:'p',children:['x']}],initData:init()});
+  assert.equal(retry.status,200,retry.data.error);
 });
 
 test('Telegraph storage failure before create prevents the external call',async()=>{
