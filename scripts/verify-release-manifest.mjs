@@ -32,7 +32,12 @@ for(const [index,stage] of manifest.stages.entries()){
   previous=stage.head;
 }
 
-if(manifest.anchorPolicy?.authority!=='full-git-commit-sha'||manifest.anchorPolicy?.immutable!==true||manifest.anchorPolicy?.supersedeInsteadOfMove!==true){
+if(
+  manifest.anchorPolicy?.authority!=='full-git-commit-sha'||
+  manifest.anchorPolicy?.immutable!==true||
+  manifest.anchorPolicy?.supersedeInsteadOfMove!==true||
+  manifest.anchorPolicy?.sealAfter!=='release-approved'
+){
   fail('Política de Release Anchor incompleta');
 }
 
