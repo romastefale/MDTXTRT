@@ -1,84 +1,86 @@
 # Draft persistence contract
 
-MDTXTRT keeps the fast local recovery layer, but the active draft is no longer local-only. The application also writes the canonical active draft snapshot to the Railway persistent volume mounted at `RAILWAY_VOLUME_MOUNT_PATH` (production: `/data`).
+This document defines the draft persistence model used by MDTXTRT. The active document has two recovery layers: a fast browser-local working copy and a durable server copy on the Railway volume. Local archives created by `/novo` remain a separate browser-local recovery mechanism; they are not presented as a synchronized document library.
 
 ## Storage layers
 
-### Browser-local recovery
+### Browser working copy
 
-- `localStorage["rmdtxtml"]` is the active local recovery slot. It contains draft version, document title/name, sanitized editor HTML, selected destination, Telegraph path, document UUID, revision, import-origin snapshots and local-media metadata.
-- `localStorage["rmdtxtml-document:<document-uuid>"]` stores a byte-for-byte snapshot when `/novo` deliberately starts another document.
-- If the active slot cannot be parsed well enough to recover a UUID, `/novo` preserves the bytes under `rmdtxtml-document:unreadable-<new-token>`.
-- `IndexedDB("mdtxtrt").objectStore("media")` remains the local media cache by media identifier.
+- `localStorage["rmdtxtml"]` is the active browser slot. It contains draft version, document title, sanitized editor HTML, destination, Telegraph path, document UUID, revision, import-origin snapshots and local-media metadata.
+- `localStorage["rmdtxtml-document:<document-uuid>"]` is a byte-for-byte archive created before `/novo` replaces the active slot.
+- If the previous active slot cannot be parsed far enough to recover a UUID, `/novo` archives it as `rmdtxtml-document:unreadable-<new-token>`.
+- `IndexedDB("mdtxtrt").objectStore("media")` stores browser attachment blobs by media identifier.
+- Theme preference and the standalone-browser capability key are separate from document state.
 
-The local layer is still useful for immediate recovery and offline/transient-failure tolerance. It is not the only persistence layer.
+### Railway volume copy
 
-### Railway volume
+The backend persists active drafts below `$RAILWAY_VOLUME_MOUNT_PATH/drafts`. In production this path is the mounted Railway volume `/data`.
 
-The backend stores active draft state below `<RAILWAY_VOLUME_MOUNT_PATH>/drafts/`.
+Each owner receives an isolated directory derived from a SHA-256 fingerprint of the verified owner identity. A persisted document contains:
 
-Each owner gets a server-side namespace derived from a one-way SHA-256 fingerprint. Within that namespace, the backend stores:
+- the full canonical draft and revision;
+- owner kind (`telegram` or `browser`);
+- for Telegram owners, the verified Telegram user identifier;
+- update time;
+- optional attachment metadata and attachment bytes;
+- Telegram publication provenance when a document has been published.
 
-- the active document pointer;
-- one JSON record per document UUID;
-- the referenced attachment blob when the active draft contains a local attachment;
-- Telegram publication provenance for that document when applicable.
+Metadata and the active-document pointer are written through a temporary file followed by rename. A stale revision cannot replace a newer persisted revision.
 
-Writes use a temporary file followed by rename so a completed record is not replaced by a partially written JSON file.
+The volume copy is updated after ordinary draft saves. Local storage remains the immediate working copy so editing does not depend on a network round trip. If a volume write fails, the failure is surfaced and the local working copy remains available when browser storage is usable.
 
 ## Owner identity
 
-The persistent draft namespace is never selected from an arbitrary user ID supplied by the client.
+A Telegram Mini App draft is keyed from cryptographically verified Telegram `initData`. The client cannot supply a replacement user identifier. Because the identity comes from the Telegram account, the same account can recover its persisted active draft on another Mini App session after local browser state is absent.
 
-- In a Telegram Mini App session, identity is derived from cryptographically verified Telegram `initData`. The persisted provenance retains the verified Telegram user ID needed to associate later edits with the original publisher.
-- In standalone Web/PWA mode, identity is derived from the existing 256-bit browser capability and the backend stores only its SHA-256-derived namespace. The raw browser capability is not stored server-side.
+Standalone browser drafts use the existing 256-bit browser capability stored under `mdtxtrt-browser-owner`; the server stores only a SHA-256-derived owner fingerprint. Clearing that capability breaks the association to the old browser-owned server copy. This is intentional: there is no account login for standalone browser mode.
 
-A different Telegram user receives a different persistent namespace and cannot use another user's stored publication binding.
+Different owners are isolated even if they somehow present the same document UUID.
 
-## Active draft lifecycle
+## Startup and recovery
 
-Document changes still save locally with the existing debounce. The same save path also schedules a write to the Railway volume. `pagehide` requests both the local write and a final volume write.
+Startup follows these rules:
 
-When local storage is empty, startup attempts to recover the active draft from the persistent volume. The recovered draft is validated and sanitized before it is applied, and it is copied back into the local active slot. If the draft references a stored attachment, the blob is retrieved from the volume and rehydrated into IndexedDB before normal media restoration.
+1. a deliberate `?new=<token>` launch creates the requested new document and does not replace it with a server copy;
+2. an existing valid local active slot is restored immediately;
+3. when no local active slot exists and no handoff/new-document transition is in progress, the client asks the backend for the owner's persisted active document;
+4. a recovered server draft is validated and sanitized before it is applied, then written back to the local active slot best-effort;
+5. persisted attachment bytes are downloaded through the authenticated draft endpoint and restored into IndexedDB before normal media recovery completes.
 
-A failure to update the volume does not silently destroy the local copy. The UI reports that the persistent copy could not be updated and keeps the local recovery state available.
+The editor core is created synchronously. During a server recovery with no local draft the editor is temporarily non-editable so user input cannot race the recovered state.
 
-## `/novo`
+## Attachments
 
-The Telegram `/novo` command still creates a distinct document UUID and preserves the previous local active slot before replacement. The local archive is retained because it is an explicit recovery boundary and does not depend on network availability.
+A draft may reference at most one local attachment. Its bytes are persisted next to the server draft on the Railway volume. The metadata identifier and kind must match the draft. A document that references a local attachment cannot be accepted as durably persisted unless the corresponding bytes are already present for that document or accompany the save.
 
-The new active document then participates in normal Railway-volume persistence under its new UUID.
+Installing a new local attachment does not clear unrelated IndexedDB records, so a browser-local `/novo` archive can continue to reference its previous blob.
 
-## Import
+## `/novo` and import boundaries
 
-Importing Markdown or TXT creates a new document and resets editor history, selection, UUID, revision and Telegraph binding. The resulting active document is persisted through the same local + Railway save contract.
+`/novo` preserves the previous local active slot before creating a new UUID/revision-0 document. The archived `rmdtxtml-document:...` snapshot is local recovery data and is not automatically turned into a server-side document library entry.
 
-Import remains distinct from `/novo`: it does not create a local previous-document archive as an undo mechanism.
+Importing Markdown or TXT is a different boundary: it creates another canonical document, resets editor history/selection/revision/page binding and replaces the active attachment. Import is intentionally not a partial undo operation.
 
 ## Telegram publication provenance and later editing
 
-When a Mini App publication includes the canonical draft snapshot, the backend first persists that draft under the verified Telegram owner.
+For Telegram Mini App publication, the server binds the document to the verified publisher before treating the operation as reusable state. The durable record contains:
 
-For the first confirmed publication of a document, the durable record stores:
+- Telegram user id;
+- private-chat id;
+- document id and published revision;
+- Telegram message id;
+- status and update time.
 
-- verified Telegram user ID;
-- target private-chat ID;
-- Telegram message ID;
-- document revision;
-- publication timestamp/state.
+The first publication persists a `pending` record before calling Telegram. A confirmed success stores the returned message id before the HTTP success is returned. A transport-ambiguous result becomes `uncertain` and blocks blind resending.
 
-A later explicit publication of the same document by the same verified Telegram owner uses the stored message ID and Telegram `editMessageText` with `rich_message` instead of creating a new message. A different document UUID has no inherited publication binding.
+When the same verified Telegram user later publishes the same document after editing it, MDTXTRT uses the stored chat/message linkage to edit that existing Rich Message instead of creating a second publication. Another Telegram user with the same document UUID is a different owner and cannot reuse that linkage.
 
-Before the first send, a `pending` provenance state is persisted. Transport ambiguity is recorded as `uncertain` and blocks silent duplicate creation. A confirmed rejection clears the pending binding so another explicit attempt is allowed. After a confirmed send or edit, the `succeeded` record is written before the backend reports a stable success.
+The handoff publication path uses the same durable publication function, so browser → Mini App publication does not bypass publisher provenance.
 
-This record is operational provenance required to find and edit the published Telegram message. It is not a general audit log of every historical revision.
+## Durability limits
 
-## Handoffs
+The Railway volume is the durable application copy for active saved drafts, but it is not an unlimited version history or a substitute for external backup. The current product keeps the current persisted state for a document and the publication linkage needed for safe continuation.
 
-Browser-to-Mini-App handoffs retain their existing durable state machine in `/data/handoffs`. Claiming a handoff restores state but does not authorize publication. When an explicit handoff publication is performed, it now passes through the same persistent Telegram publication layer, so the verified publisher/message binding is kept with the document.
+Browser-local `/novo` archives are still local-only snapshots. Standalone browser server recovery also depends on retaining the browser capability key. Telegram-owned recovery does not depend on that browser key.
 
-## Limits
-
-The current server-side draft store is intentionally small and document-oriented. It is not a collaborative database, conflict-resolution engine, document picker, or immutable history. Concurrent multi-device editing is not advertised.
-
-The final release gate must still verify real restart persistence, storage failure behavior, Telegram send/edit behavior, and rollback against the deployed Railway volume.
+No physical-device, Telegram delivery, Telegraph delivery or disaster-recovery claim follows merely from the existence of these files; those behaviors are validated separately by the release evidence gates.
