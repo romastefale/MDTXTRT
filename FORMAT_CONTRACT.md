@@ -24,6 +24,14 @@ Markdown strike has one canonical file representation: `~~text~~`. The importer 
 | Telegram Rich Message | The rich-message HTML contract validated by `toRichHTML()` on the client and by the server Rich Message validator. Local media is uploaded separately and bound to its media placeholder. | Rejected before/at publication; no silent semantic downgrade. |
 | Telegraph | Telegraph's explicit tag/attribute subset validated by `telegraphNodes()` on the client and `telegraphValid()` on the server. | Rejected with an error; no silent conversion to a weaker representation. |
 
+## Editor-to-publication fidelity
+
+The editor is a semantic preview of the selected publication target. A one-click structural control must not inject instructional/sample phrases into the document. Pull quotes and expandable quotes format the author's current block/selection while preserving its text; empty structures remain empty until the author types content. Checklist, table and expandable-content skeletons likewise contain no hidden example copy.
+
+Presentation-only cues may distinguish structures in the editor, but they are CSS/runtime affordances rather than serialized content. In particular, normal quotes, expandable quotes and pull quotes have distinct editor treatments that track their distinct publication semantics without adding labels to the exported or published payload.
+
+This is intentionally a semantic, not pixel-identical, WYSIWYG contract: native Telegram/Telegraph clients control final typography and spacing, while MDTXTRT must preserve structure, emphasis and authored text closely enough that publication does not reveal unexpected content.
+
 ## Shared normalization boundary
 
 The portable Markdown boundary and the Markdown importer use the same allow-list for tags and attributes. Before validation, only known runtime/presentation state is removed:
