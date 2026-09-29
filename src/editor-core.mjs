@@ -558,11 +558,14 @@ export function createEditorCore({element,onChange=()=>{},onSelectionChange=()=>
     view.focus();
     return ok;
   }
-  function insertHTML(html){
+  function insertHTML(html,asBlock=false){
     captureSelection();
     const host=element.ownerDocument.createElement("div");
     host.innerHTML=String(html||"");
-    const slice=parserFor(element).parseSlice(host,{preserveWhitespace:"full"});
+    const parser=parserFor(element);
+    const slice=asBlock
+      ?new Slice(parser.parse(host,{preserveWhitespace:"full"}).content,0,0)
+      :parser.parseSlice(host,{preserveWhitespace:"full"});
     if(!slice.content.size)return false;
     dispatch(state.tr.replaceSelection(slice).scrollIntoView());
     view.focus();
