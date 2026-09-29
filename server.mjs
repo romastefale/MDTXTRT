@@ -1092,7 +1092,7 @@ async function publishTelegramPersistent(initData,draft,html,file=null){
     console.error("Telegram publication provenance",error);
     throw new DeliveryError("Mensagem enviada, mas o vínculo com o publicador não pôde ser persistido; não repita o envio","uncertain");
   }
-  return {...result,revision:draft.revision};
+  return result;
 }
 
 function webhookSecret(){
