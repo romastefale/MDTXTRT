@@ -648,7 +648,7 @@ test('stage 6/7 persists active drafts and Telegram provenance without changing 
   assert.match(app,/function sanitizeDraftRuntimeDOM\(box\)/);
   assert.match(app,/editorCore\?editorCore\.html\(\):editor\.innerHTML/);
   assert.match(app,/function persistRemoteDraft\(pagehide=false\)/);
-  assert.match(app,/function loadRemoteDraft\(\)/);
+  assert.match(app,/function loadRemoteDraft\(doc=''\)/);
   assert.match(app,/form\.set\('draft',JSON\.stringify\(draftState\(\)\)\)/);
   assert.match(architecture,/Persistent draft and Telegram provenance boundary/);
   assert.match(architecture,/Railway volume/);
@@ -690,7 +690,7 @@ test('step 6 persists drafts on the Railway volume, binds Telegram publication p
   assert.match(app,/function openLibrary\(preferred=''\)/);
   assert.match(app,/API\+'\/api\/telegraph\/load'/);
   assert.match(app,/function persistRemoteDraft\(pagehide=false\)/);
-  assert.match(app,/function loadRemoteDraft\(\)/);
+  assert.match(app,/function loadRemoteDraft\(doc=''\)/);
   assert.match(app,/form\.set\('draft',JSON\.stringify\(draftState\(\)\)\)/);
   assert.match(app,/function panelViewportBounds\(base=visualViewportBounds\(\)\)/);
   assert.match(app,/bar\?\.getBoundingClientRect/);
