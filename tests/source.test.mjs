@@ -389,7 +389,7 @@ test('menus use the same theme glass fill and uniform hairline as chrome capsule
 test('toast uses the shared translucent pill surface and theme-aware text',()=>{
   const html=read('index.html'),src=uiSource();
   const toast=html.match(/\.toast\{([^}]*)\}/)?.[1]||'';
-  const material=html.match(/\.toast-material\{([^}]*)\}/)?.[1]||'';
+  const material=html.match(/(?:^|\n)\s*\.toast-material\{([^}]*)\}/m)?.[1]||'';
   const content=html.match(/\.toast-content\{([^}]*)\}/)?.[1]||'';
   assert.match(src,/function Toast\(\)[\s\S]*?<Glass optics=\{MENU_LENS\} className="toast-material">/);
   assert.match(toast,/border-radius:999px/);
@@ -488,6 +488,7 @@ test('link control exposes destination-aware choices and anchors follow-up dialo
   assert.match(app,/async function insertHyperlink\(\)/);
   assert.match(app,/async function insertVisibleLink\(\)/);
   assert.match(app,/async function insertLinkButton\(\)[\s\S]*?dest!=='telegram'/);
+  assert.match(read('src/editor-core.mjs'),/textAttrs\("type","style","url","data","query","text","forward-text"\)/);
   assert.match(app,/one\('#linkBtn'\)\.addEventListener\('click',\(\)=>openPanel\('#linkMenu'\)\)/);
   assert.match(app,/panelAnchors\.set\(dialog,anchor\)/);
   assert.match(app,/placePanel\(dialog,anchorRect\)/);
