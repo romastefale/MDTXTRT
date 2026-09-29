@@ -569,7 +569,6 @@ function listPersistentDrafts(owner){
 }
 function listTelegramPublications(owner,drafts=[]){
   const items=[];
-  const byDoc=new Map(drafts.map(item=>[item.docId,item]));
   for(const draft of drafts){
     const record=readPersistentDraft(owner,draft.docId);
     if(!record)throw new Error("Índice de publicação Telegram inconsistente");
