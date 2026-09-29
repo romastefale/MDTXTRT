@@ -1377,6 +1377,7 @@ function openLibrary(preferred=''){
   closePanels();
   const library=one('#libraryScreen');
   if(!library.matches(':popover-open'))library.showPopover();
+  setPublicationsExpanded(true);
   setLibraryModality(true);
   const shell=library.querySelector('.library-shell');
   if(shell)shell.scrollTop=0;
@@ -1726,6 +1727,7 @@ one('#mediaInput').addEventListener('change',async()=>{
 one('#libraryBtn')?.addEventListener('click',()=>openLibrary());
 one('#libraryClose')?.addEventListener('click',closeLibrary);
 one('#libraryDismiss')?.addEventListener('click',closeLibrary);
+one('#libraryScreen')?.addEventListener('click',event=>{if(event.target===event.currentTarget)closeLibrary();});
 one('#libraryNew')?.addEventListener('click',createNewDocumentLaunch);
 one('#publicationToggle')?.addEventListener('click',event=>setPublicationsExpanded(event.currentTarget.getAttribute('aria-expanded')!=='true'));
 one('#libraryScreen')?.addEventListener('keydown',event=>{
