@@ -6,7 +6,7 @@ on:
     branches: [main]
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: regression-${{ github.workflow }}-${{ github.ref }}
@@ -19,7 +19,6 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-          ref: fix/keep-keyboard-open
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: package.json
@@ -39,7 +38,7 @@ jobs:
           else
             base="HEAD^"
           fi
-          if git diff --quiet "$base" HEAD -- src/liquid-glass-ui.jsx app.js package.json package-lock.json; then
+          if git diff --quiet "$base" HEAD -- src/liquid-glass-ui.jsx package.json package-lock.json; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
           else
             echo "changed=true" >> "$GITHUB_OUTPUT"
@@ -47,26 +46,6 @@ jobs:
       - name: Rebuild React UI bundle
         if: steps.ui_inputs.outputs.changed == 'true'
         run: npm run build:ui
-      - name: Commit rebuilt React UI bundle
-        if: steps.ui_inputs.outputs.changed == 'true'
-        shell: bash
-        run: |
-          short_sha="$(git hash-object ui.js | cut -c1-12)"
-          SHORT_SHA="$short_sha" node --input-type=module -e '
-            import fs from "node:fs";
-            const file = "index.html";
-            const html = fs.readFileSync(file, "utf8");
-            const next = html.replace(/ui\.js\?v=[a-f0-9]+/, "ui.js?v=" + process.env.SHORT_SHA);
-            if (next === html) throw new Error("ui.js cache buster not found");
-            fs.writeFileSync(file, next);
-          '
-          if ! git diff --quiet -- ui.js index.html; then
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add ui.js index.html
-            git commit -m "chore: commit rebuilt UI bundle"
-            git push origin HEAD:fix/keep-keyboard-open
-          fi
       - name: Verify React UI bundle
         if: steps.ui_inputs.outputs.changed == 'true'
         run: git diff --exit-code -- ui.js
