@@ -46,7 +46,7 @@ This document records the implementation boundaries that are authoritative for M
 ## Telegram
 
 - The protocol baseline is Telegram Bot API 10.3, released on 2026-08-24.
-- Rich content is sent through `sendRichMessage` and `InputRichMessage`.
+- New rich content is sent through `sendRichMessage` and `InputRichMessage`. A previously bound publication is updated through the Bot API `editMessageText` `rich_message` parameter using the stored message ID.
 - Rich-message HTML is validated against the documented tag, nesting, media, table, and `RichMessageButton` contracts before Telegram is called.
 - The 32,768-character preflight counts Unicode text and custom-emoji alternative text, and RichText-only containers reject nested block markup locally rather than relying on Telegram to reject it.
 - There is no `sendMessage` downgrade path for rich content. Unsupported rich input fails explicitly instead of being silently translated to a legacy message.
@@ -96,14 +96,17 @@ This document records the implementation boundaries that are authoritative for M
 - In a standalone browser with Telegram selected, the menu action is labeled and behaves as “open the Mini App”; the handoff is recovered there and publication still requires explicit authorization.
 - Inside the Mini App, the same action is labeled and behaves as “publish to Telegram”. Markdown and TXT download actions remain available in that menu.
 - With Telegraph selected, the menu action publishes to Telegraph in either access mode under the Telegraph identity contract.
-- Destination controls expose their actual toggle behavior in accessibility text, while the document-name control changes its accessible label to Telegraph title when that destination owns the title field.
+- Destination controls expose their actual toggle behavior in accessibility text. The document-title control is visibly labeled as “Título do documento” in the publication/export flow and changes to “Título da página no Telegraph” when Telegraph owns the title field.
 
-## Durable document provenance boundary
+## Durable draft and publication boundary
 
 - Document UUID and revision remain integrity coordinates rather than a complete immutable revision history.
-- The current server record now provides the narrower durable provenance required for Telegram continuation: verified owner, document, current revision, publication state, chat id and message id. It is sufficient to prevent another owner from reusing the linkage and to edit the same published Rich Message later.
-- This record is not an append-only audit ledger. Historical revisions are not retained as immutable events, and a Telegraph path or browser revision counter must not be presented as such a ledger.
-- Any future requirement for full traceable revision history would need a separate append-only model; that capability is outside the current product contract.
+- The active draft is durably mirrored to the Railway volume under an owner namespace. Browser-local storage remains a fast recovery/cache layer rather than the only copy.
+- Telegram owner namespaces are derived only from verified Mini App `initData`; standalone browser namespaces are derived from the existing 256-bit local capability and only a SHA-256-derived namespace is used server-side.
+- A persistent draft record contains the canonical draft snapshot, optional attachment metadata/blob and the operational Telegram publication binding for that document.
+- The first confirmed Telegram publication records verified publisher ID, private-chat ID, message ID, document revision and publication state. A later explicit publish of the same document by the same owner edits that message through `editMessageText` + `rich_message` instead of silently creating another message.
+- Publication transport ambiguity is durable state: `pending` or `uncertain` blocks an automatic duplicate send. A confirmed rejection clears the pending first-send binding and requires another explicit action.
+- This is operational provenance needed to recover and edit a publication. It is not an append-only audit ledger; historical revisions are not retained as immutable events.
 
 ## Execution and hosting boundary
 
@@ -111,7 +114,7 @@ This document records the implementation boundaries that are authoritative for M
 - GitHub Actions dependencies are pinned by immutable commit SHA, with the corresponding release tag recorded as a comment.
 - npm dependency installation uses the committed lockfile through `npm ci`. CI and Railpack both verify the npm bundled with Node 24.21.0 is `11.19.0` before installation; the project does not provision a second npm through Corepack.
 - Railway's Railpack configuration makes the deterministic install command explicit. A build must fail rather than silently fall back to `npm install` or a different npm version.
-- The current server requires a durable absolute path through `RAILWAY_VOLUME_MOUNT_PATH` for handoffs, Telegraph credentials, and Telegraph page ownership state. Any move to a serverless or ephemeral-filesystem platform must first replace that storage contract with a durable store and preserve the same ownership and restart guarantees. Deployment portability must not be simulated with an in-memory or temporary-filesystem fallback.
+- The current server requires a durable absolute path through `RAILWAY_VOLUME_MOUNT_PATH` for active drafts and attachments, Telegram publication provenance, handoffs, Telegraph credentials, and Telegraph page ownership state. Production mounts the MDTXTRT Railway volume at `/data`. Any move to a serverless or ephemeral-filesystem platform must first replace that storage contract with a durable store and preserve the same ownership and restart guarantees. Deployment portability must not be simulated with an in-memory or temporary-filesystem fallback.
 
 ## Provenance rule
 
