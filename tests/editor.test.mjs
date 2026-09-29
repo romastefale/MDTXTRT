@@ -512,8 +512,9 @@ test('document name stays in export flow and becomes the Telegraph title',async(
   await wait(0);
   assert.equal(slot.hidden,false);
   assert.equal(tools.parentElement,slot);
-  assert.equal(input.getAttribute('placeholder'),'Título');
-  assert.equal(input.getAttribute('aria-label'),'Título da página Telegraph');
+  assert.equal(tools.getAttribute('data-field-label'),'Título da página no Telegraph');
+  assert.equal(input.getAttribute('placeholder'),'Título da página no Telegraph');
+  assert.equal(input.getAttribute('aria-label'),'Título da página no Telegraph');
   input.value='Minha página';
   input.dispatchEvent(new w.Event('input',{bubbles:true}));
   assert.equal(w.eval('buildTelegraph().title'),'Minha página');
@@ -521,7 +522,9 @@ test('document name stays in export flow and becomes the Telegraph title',async(
   await wait(0);
   assert.equal(slot.hidden,true);
   assert.equal(tools.parentElement,exportMenu);
-  assert.equal(input.hasAttribute('placeholder'),false);
+  assert.equal(tools.getAttribute('data-field-label'),'Título do documento');
+  assert.equal(input.getAttribute('placeholder'),'Título do documento');
+  assert.equal(input.getAttribute('aria-label'),'Título do documento');
   w.close();
 });
 
@@ -1449,9 +1452,53 @@ test('lossy TXT conversion exposes a warning only when rich semantics would be d
 });
 
 
+test('volume-backed draft recovery restores an active draft when local storage is empty',async()=>{
+  const remote={version:2,name:'Do volume',html:'<p>persistido</p>',dest:'telegram',telegraphPath:'',docId:'91919191-9191-4919-8919-919191919191',revision:4,importedMd:'',importedTxt:'',importedHtml:'',media:null};
+  const requests=[];
+  const fetch=async(url,options={})=>{
+    const target=String(url);requests.push({url:target,options});
+    if(target.endsWith('/api/drafts/load'))return {ok:true,status:200,json:async()=>({draft:remote,media:null,publication:null,owner:{kind:'browser'}})};
+    if(target.endsWith('/api/telegraph/recover'))return {ok:false,status:404,json:async()=>({error:'Página não encontrada'})};
+    return {ok:false,status:404,json:async()=>({error:'not found'})};
+  };
+  const w=page({fetch}),d=w.document;
+  await wait(15);
+  assert.equal(d.querySelector('#docName').value,'Do volume');
+  assert.equal(d.querySelector('#editor').textContent,'persistido');
+  assert.equal(JSON.parse(w.localStorage.getItem('rmdtxtml')).docId,remote.docId);
+  assert.ok(requests.some(row=>row.url.endsWith('/api/drafts/load')));
+  w.close();
+});
+
+test('pagehide writes the active draft to the volume contract as well as local storage',async()=>{
+  const doc='92929292-9292-4929-8929-929292929292';
+  const raw=JSON.stringify({version:2,name:'Local',html:'<p>local</p>',dest:'telegram',telegraphPath:'',docId:doc,revision:2,importedMd:'',importedTxt:'',importedHtml:'',media:null});
+  const saved=[];
+  const fetch=async(url,options={})=>{
+    const target=String(url);
+    if(target.endsWith('/api/drafts/save')){
+      const draft=JSON.parse(options.body.get('draft'));
+      saved.push({draft,browserKey:options.body.get('browserKey')});
+      return {ok:true,status:200,json:async()=>({draft})};
+    }
+    if(target.endsWith('/api/telegraph/recover'))return {ok:false,status:404,json:async()=>({error:'Página não encontrada'})};
+    return {ok:false,status:404,json:async()=>({error:'not found'})};
+  };
+  const w=page({fetch,local:{rmdtxtml:raw}});
+  await wait(5);
+  w.dispatchEvent(new w.Event('pagehide'));
+  await wait(10);
+  assert.ok(saved.length>=1);
+  assert.equal(saved.at(-1).draft.docId,doc);
+  assert.match(saved.at(-1).browserKey,/^[a-f0-9]{64}$/);
+  assert.equal(JSON.parse(w.localStorage.getItem('rmdtxtml')).docId,doc);
+  w.close();
+});
+
 test('visual viewport constrains overlays and Find stays anchored to a visible control',async()=>{
   const w=page({visualViewport:{offsetLeft:0,offsetTop:100,width:390,height:300}}),d=w.document;
-  const plus=d.querySelector('#plusBtn'),find=d.querySelector('#findMenu'),dialog=d.querySelector('#dialogMenu');
+  const plus=d.querySelector('#plusBtn'),find=d.querySelector('#findMenu'),dialog=d.querySelector('#dialogMenu'),bar=d.querySelector('.bar-wrap');
+  bar.getBoundingClientRect=()=>({left:20,top:310,width:350,height:58,right:370,bottom:368});
   plus.getBoundingClientRect=()=>({left:18,top:332,width:40,height:40,right:58,bottom:372});
   find.getBoundingClientRect=()=>{
     const limit=parseFloat(find.style.getPropertyValue('--menu-max-height'))||240;
@@ -1471,13 +1518,13 @@ test('visual viewport constrains overlays and Find stays anchored to a visible c
   const findTop=parseFloat(find.style.getPropertyValue('--menu-top'));
   assert.ok(findLimit>0&&findLimit<=165);
   assert.ok(findTop>=108);
-  assert.ok(findTop+Math.min(240,findLimit)<=392);
+  assert.ok(findTop+Math.min(240,findLimit)<=302);
 
   const prompt=w.eval("ask('Teste','valor')");
   await wait(0);
-  assert.equal(parseFloat(dialog.style.getPropertyValue('--menu-max-height')),165);
+  assert.ok(parseFloat(dialog.style.getPropertyValue('--menu-max-height'))<=105);
   assert.equal(parseFloat(dialog.style.getPropertyValue('--menu-left')),195);
-  assert.equal(parseFloat(dialog.style.getPropertyValue('--menu-top')),250);
+  assert.ok(parseFloat(dialog.style.getPropertyValue('--menu-top'))+Math.min(120,parseFloat(dialog.style.getPropertyValue('--menu-max-height')))<=302);
   d.querySelector('#dialogCancel').click();
   assert.equal(await prompt,null);
   w.close();
