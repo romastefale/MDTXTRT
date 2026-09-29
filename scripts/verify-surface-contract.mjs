@@ -30,8 +30,8 @@ for(const [id,fragment] of Object.entries({
   exportTxtBtn:"one('#exportTxtBtn').addEventListener",
   importMdBtn:"one('#importMdBtn').addEventListener",
   importTxtBtn:"one('#importTxtBtn').addEventListener",
-  libraryBtn:"one('#libraryBtn').addEventListener",
-  libraryClose:"one('#libraryClose').addEventListener",
+  libraryBtn:"one('#libraryBtn')?.addEventListener",
+  libraryClose:"one('#libraryClose')?.addEventListener",
   findBtn:"one('#findBtn').addEventListener",
   mediaBtn:"one('#mediaBtn').addEventListener",
   voiceBtn:"one('#voiceBtn').addEventListener"
