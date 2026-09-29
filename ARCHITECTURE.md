@@ -26,6 +26,16 @@ This document records the implementation boundaries that are authoritative for M
 - Composition and paste are committed through the transactional core. Literal Find/Replace walks document text and does not construct a regular expression from user input.
 - Import/export/publication semantics are governed by [FORMAT_CONTRACT.md](FORMAT_CONTRACT.md). Portable export begins from serialized editor state, not transient rendering DOM.
 
+## Persistent draft and Telegram provenance boundary
+
+- The browser active slot remains the low-latency working copy, but every ordinary active-draft save also schedules a durable copy under the Railway volume at `$RAILWAY_VOLUME_MOUNT_PATH/drafts` (production: `/data/drafts`).
+- Persisted records are partitioned by a SHA-256 fingerprint of the owner. Telegram ownership comes only from verified Mini App `initData`; standalone browser ownership comes from the existing 256-bit browser capability. The raw browser capability is never written to the server record.
+- Draft metadata, active-document pointers and attachment bytes use volume-backed files. Metadata/pointers are replaced atomically by rename, and a lower revision cannot overwrite a newer persisted revision.
+- When the local active slot is absent, startup may recover the owner's active volume-backed draft. The transactional editor is created before asynchronous recovery; editing is temporarily disabled until that recovery decision completes, and recovered HTML is applied through the editor core rather than by mutating the live DOM behind ProseMirror.
+- Telegram publication state is stored with the same owner/document record. The first Rich Message records `pending` before the network call and stores verified publisher id, chat id, Telegram message id and revision on success. Ambiguous transport/storage outcomes become `uncertain` and block blind duplication.
+- A later explicit publication of the same document by the same verified Telegram user edits the stored Rich Message through `editMessageText` instead of creating another message. The browser → Mini App handoff publication path delegates to the same durable function.
+- Browser-local `rmdtxtml-document:...` archives created by `/novo` remain local recovery snapshots. The volume layer does not pretend to be a version-history UI or synchronized document picker.
+
 ## Browser → Mini App handoff
 
 - Recovering a handoff and authorizing publication are separate operations. Claiming a handoff only restores the document, attachment and persisted action state.
@@ -74,7 +84,7 @@ This document records the implementation boundaries that are authoritative for M
 - The light/dark preference is explicit and persisted. HTML/body background, browser `theme-color`, standalone status-bar metadata, and Telegram header/background/bottom-bar colors are updated from the same selected mode so system chrome cannot retain the opposite theme.
 - The vertical chrome composition is uniform across Telegram, Railway, and GitHub Pages. Browser access starts from CSS environment safe-area insets; Telegram Mini App geometry replaces that origin with the official WebApp 8.0+ `safeAreaInset` and `contentSafeAreaInset` runtime values when they are larger. All four Telegram sides are validated, mirrored to local CSS tokens, and refreshed on `safeAreaChanged` and `contentSafeAreaChanged`; unsupported Telegram clients are gated instead of receiving an implicit Telegram compatibility fallback.
 - Menus and interaction chrome are compact, content-sized surfaces. Scrollbar chrome is hidden, and browser zoom/pinch zoom remains disabled by the explicit viewport/touch contract requested for this product.
-- Overlay placement uses the visible viewport as the runtime geometry authority. Menus keep their baseline width/row/radius/material values when space exists; constrained space reduces their maximum size and enables internal scrolling instead of changing the normal composition.
+- Overlay placement starts from the visible viewport and then reserves the live bottom formatting bar as a non-overlay region. Menus, link dialogs and media/interaction sheets are clamped above the bar (including keyboard-driven bar movement); constrained space reduces maximum size and enables internal scrolling instead of placing controls underneath the bar or changing baseline material geometry.
 - Find is anchored to a control that remains visible while Find is open. Dialogs use the same visible-area contract, inert the background, trap keyboard focus, handle Escape and return focus to the visible origin control. Moving focus through overlays does not replace the transactional editor selection.
 - These interaction corrections do not restore superseded geometry or menu behavior. Commit `aac423e012745c7873908ddc4a76371fb8218aa3` is the explicitly adopted translucent visual design reference; `BASELINE.md` records its relationship to the earlier SHA.
 - `ui.js` is committed so GitHub Pages and Railway serve the same canonical artifact. Read-only CI rebuilds it, uploads the generated bundle as a verification artifact, and fails on any diff; ordinary verification never writes a corrective commit to `main`.
@@ -90,9 +100,10 @@ This document records the implementation boundaries that are authoritative for M
 
 ## Durable document provenance boundary
 
-- The current document UUID and local revision are integrity coordinates, not durable provenance. Local draft archives and handoff records are recovery/idempotency mechanisms, not an audit history.
-- If product scope later requires traceable revisions/publications, add durable server-side records keyed by document and revision and bind each publication to the exact serialized content/revision that produced it.
-- That expansion comes after the basic integrity guarantees above and must not be simulated by treating browser storage, a revision counter or a Telegraph path as an audit log.
+- Document UUID and revision remain integrity coordinates rather than a complete immutable revision history.
+- The current server record now provides the narrower durable provenance required for Telegram continuation: verified owner, document, current revision, publication state, chat id and message id. It is sufficient to prevent another owner from reusing the linkage and to edit the same published Rich Message later.
+- This record is not an append-only audit ledger. Historical revisions are not retained as immutable events, and a Telegraph path or browser revision counter must not be presented as such a ledger.
+- Any future requirement for full traceable revision history would need a separate append-only model; that capability is outside the current product contract.
 
 ## Execution and hosting boundary
 
