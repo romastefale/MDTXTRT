@@ -53,7 +53,9 @@ The transactional editor core is created before any draft is applied. Draft seri
 
 ## Fail-closed library behavior
 
-The owner library does not silently skip corrupt persistent documents or invalid Telegraph mappings. If one record cannot satisfy the persistence contract, the library request fails explicitly so a damaged record cannot disappear from the user's view as if it never existed. Repair/migration must be explicit.
+The owner library does not silently skip corrupt persistent documents, Telegram publication provenance or invalid Telegraph mappings. If one record cannot satisfy the persistence contract, the library request fails explicitly so a damaged record cannot disappear from the user's view as if it never existed. Repair/migration must be explicit.
+
+Library cards are summaries of the same durable owner/document records. Draft cards expose a bounded plain-text preview plus creation/last-modification metadata. Telegram publication cards are derived from the persisted Telegram binding and its bounded provenance history; Telegraph cards are derived from the persisted page mapping plus the linked draft metadata. No second library database or parallel publication store is introduced.
 
 ## Attachments
 
@@ -83,9 +85,11 @@ When the same verified Telegram user later publishes the same document after edi
 
 The handoff publication path uses the same durable publication function, so browser → Mini App publication does not bypass publisher provenance.
 
+The in-app library may reopen a Telegram publication's linked current document for editing. This is not an editor for an immutable historical Telegram message: the private bot chat remains the human-readable message history, while the card points to the current persisted document associated with that publication. A later explicit publish still follows the revision-notice + new Rich Message contract above.
+
 ## Durability limits
 
-The Railway volume is the durable application copy for saved drafts, but it is not an unlimited content-version backup. The library can enumerate the owner's persisted draft records and the Telegraph pages linked to them. Telegram publication history is intentionally surfaced in the private bot conversation instead of as a separate in-app Telegram-publication editor.
+The Railway volume is the durable application copy for saved drafts, but it is not an unlimited content-version backup. The library can enumerate the owner's persisted draft records, Telegram publication summaries/provenance and Telegraph pages linked to them. Telegram cards reopen the current linked document; they do not reconstruct historical revision content. The private bot conversation remains the authoritative human-readable Telegram message trail.
 
 Browser-local `/novo` archives are still local-only snapshots. Standalone browser server recovery also depends on retaining the browser capability key. Telegram-owned recovery does not depend on that browser key.
 

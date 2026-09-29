@@ -19,8 +19,9 @@ MDTXTRT keeps implementation provenance explicit so architectural references are
 - Protocol reference: https://core.telegram.org/bots/api
 - Changelog reference: https://core.telegram.org/bots/api-changelog
 - Protocol baseline for Rich Messages: Bot API 10.3 (2026-08-24).
-- MDTXTRT uses the official Rich Messages architecture (`sendRichMessage`, `InputRichMessage`, rich-message media references and rich buttons) rather than emulating unsupported markup through legacy message fallbacks.
-- Bot API 10.1 added the `rich_message` parameter to `editMessageText`; MDTXTRT uses that documented path to update a previously bound rich publication by its persisted chat/message identity. Telegram documentation is the interoperability specification; no Telegram source is incorporated.
+- Bot API 10.1 introduced Rich Messages, `InputRichMessage`, `sendRichMessage`, `sendRichMessageDraft` and rich-message editing support; Bot API 10.2 expanded the input/media/block model and Bot API 10.3 added further rich-message buttons, blocks and document support. MDTXTRT uses the official Rich Messages architecture rather than emulating unsupported markup through legacy message fallbacks.
+- Although the Bot API exposes editing capabilities for messages, MDTXTRT deliberately preserves a previously published Rich Message when a document is revised: it sends a reply notice and then a new `sendRichMessage`. The in-app publication library surfaces the existing persisted message/document provenance and does not introduce a separate Telegram-side publication store.
+- Mini App protocol reference: https://core.telegram.org/bots/webapps. The library overlay reuses the existing verified `initData` owner contract and official BackButton/safe-area integration already used by the shell.
 - Telegram documentation is used as an interoperability specification; Telegram source code is not incorporated into this repository.
 
 ## Telegra.ph API

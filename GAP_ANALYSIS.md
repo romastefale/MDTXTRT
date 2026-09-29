@@ -17,6 +17,14 @@ Scope: close the implementation/audit cycle after the six implementation stages,
 
 Release hardening was integrated by PR #98 and exact-main release validation by PR #100. PR #101 corrected editor → publication fidelity, PR #104 preserved Telegram revision history and integrated the owner library, and PR #105 removed remaining degraded critical paths through fail-closed hardening.
 
+## Incremental delivery — application menu and publication library
+
+PR #107 extends the completed architecture incrementally rather than replacing it. It moves the owner library into the top application menu, changes the top action icon to a hamburger, exposes Telegram publication summaries from the provenance already stored with each durable draft, preserves Telegraph page recovery/editing, and renders responsive draft/publication cards with creation/modification metadata.
+
+This increment does not introduce a second datastore, does not rewrite historical Telegram messages, and does not change the persistent Railway volume contract. Telegram publication cards reopen the current linked document; subsequent publication preserves the existing revision-notice + new Rich Message behavior.
+
+For this increment, engineering delivery is formally concluded only after the exact merged `main` SHA passes regression and automated release gates and the same SHA reaches Railway production with the existing `/data` volume retained. The PR conversation records the exact merged SHA and deployment ID after those conditions are met.
+
 ## Gap register
 
 ### G-01 — obsolete release manifest

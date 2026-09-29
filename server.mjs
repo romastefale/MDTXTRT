@@ -102,7 +102,7 @@ const PUBLIC = new Set([
   "manifest.webmanifest",
   "og.jpg",
   "x-banner.jpg",
-  ...["arrow_back","bold","buttons","chevron_right","dark_mode","details","export","file","footer","h1","h2","h3","h4","h5","h6","heading","italic","light_mode","link","list","paragraph","plus","quote","redo","table","task","telegram","telegraph","underline","undo"].map(name=>`icons/${name}.svg`),
+  ...["arrow_back","bold","buttons","chevron_right","dark_mode","details","export","file","footer","h1","h2","h3","h4","h5","h6","heading","italic","light_mode","link","list","menu","paragraph","plus","quote","redo","table","task","telegram","telegraph","underline","undo"].map(name=>`icons/${name}.svg`),
   ...["anchor","attach_file","calculate","code","expandquote","format_list_numbered","functions","horizontal_rule","image","ink_highlighter","location_on","markdown","mood","movie","music_note","pullquote","schedule","search","slideshow","sticky_note_2","strikethrough_s","subscript","superscript","text_fields","view_comfy","visibility_off","web"].map(name=>`icons/${name}.svg`),
 ]);
 
@@ -488,6 +488,7 @@ function persistentRecordValid(record,owner,doc){
   if(!record.owner||record.owner.kind!==owner.kind)throw new HttpError(403,"Este rascunho pertence a outra identidade");
   if(owner.kind==="telegram"&&record.owner.telegramUserId!==owner.telegramUserId)throw new HttpError(403,"Este rascunho pertence a outro usuário Telegram");
   if(!Number.isFinite(record.updatedAt)||record.updatedAt<0)throw new Error("Rascunho persistido inválido");
+  if(record.createdAt!==undefined&&(!Number.isFinite(record.createdAt)||record.createdAt<0||record.createdAt>record.updatedAt))throw new Error("Data de criação do rascunho inválida");
   draftValid(record.draft);
   if(doc&&record.draft.docId!==doc)throw new Error("Documento persistido incompatível");
   if(!record.publication||typeof record.publication!=="object"||Array.isArray(record.publication))throw new Error("Proveniência persistida inválida");
@@ -528,12 +529,20 @@ function persistentDraftView(record){
     draft:record.draft,
     media:record.media,
     publication:record.publication.telegram,
+    createdAt:Number.isFinite(record.createdAt)?record.createdAt:record.updatedAt,
     updatedAt:record.updatedAt,
     owner:{
       kind:record.owner.kind,
       ...(record.owner.kind==="telegram"?{telegramUserId:record.owner.telegramUserId}:{})
     }
   };
+}
+function draftPreview(draft){
+  const text=DomUtils.textContent(parseDocument(String(draft?.html||""))).replace(/\s+/g," ").trim();
+  return Array.from(text).slice(0,280).join("");
+}
+function recordCreatedAt(record){
+  return Number.isFinite(record?.createdAt)?record.createdAt:record.updatedAt;
 }
 function listPersistentDrafts(owner){
   const dir=DRAFT_DIR+"/"+ownerFingerprint(owner);
@@ -550,11 +559,37 @@ function listPersistentDrafts(owner){
       dest:record.draft.dest,
       revision:record.draft.revision,
       telegraphPath:record.draft.telegraphPath,
+      preview:draftPreview(record.draft),
+      createdAt:recordCreatedAt(record),
       updatedAt:record.updatedAt,
       hasMedia:Boolean(record.media)
     });
   }
   return items.sort((a,b)=>b.updatedAt-a.updatedAt||a.name.localeCompare(b.name));
+}
+function listTelegramPublications(owner,drafts=[]){
+  const items=[];
+  for(const draft of drafts){
+    const record=readPersistentDraft(owner,draft.docId);
+    if(!record)throw new Error("Índice de publicação Telegram inconsistente");
+    const publication=record.publication.telegram;
+    if(!publication)continue;
+    const history=Array.isArray(publication.history)?publication.history:[];
+    const latest=history.at(-1)||null;
+    items.push({
+      docId:draft.docId,
+      name:draft.name,
+      status:publication.status,
+      revision:publication.revision,
+      messageId:publication.messageId,
+      historyCount:history.length,
+      publishedAt:latest?.publishedAt||publication.updatedAt,
+      preview:draft.preview,
+      createdAt:draft.createdAt,
+      updatedAt:record.updatedAt
+    });
+  }
+  return items.sort((a,b)=>b.publishedAt-a.publishedAt||b.updatedAt-a.updatedAt||a.name.localeCompare(b.name));
 }
 function telegraphOwnerFromDraftOwner(owner){
   return owner.kind==="telegram"?owner.chatId:owner.key;
@@ -578,6 +613,8 @@ function listTelegraphPages(owner,drafts=[]){
       status,
       name:draft?.name||path||"Página Telegraph",
       revision:draft?.revision||0,
+      preview:draft?.preview||"",
+      createdAt:draft?.createdAt||draft?.updatedAt||0,
       updatedAt:draft?.updatedAt||0
     });
   }
@@ -607,11 +644,13 @@ function savePersistentDraft(owner,draft,file=null){
   }else{
     try{if(existsSync(paths.file))unlinkSync(paths.file);}catch(error){console.error("Persistent media cleanup",error);}
   }
+  const now=Date.now();
   const record={
     schema:1,
     ownerFingerprint:ownerFingerprint(owner),
     owner:{kind:owner.kind,telegramUserId:owner.kind==="telegram"?owner.telegramUserId:""},
-    updatedAt:Date.now(),
+    createdAt:Number.isFinite(existing?.createdAt)?existing.createdAt:(existing?.updatedAt||now),
+    updatedAt:now,
     draft:{...draft},
     media,
     publication:existing?.publication||{telegram:null}
@@ -1561,7 +1600,7 @@ async function handleBotUpdate(update) {
     return;
   }
   if (command === "rascunhos") {
-    await sendBotRich(chatId, appMessage("Abra seus rascunhos persistidos. Publicações Telegram continuam no histórico desta conversa.","","library"), message.message_id);
+    await sendBotRich(chatId, appMessage("Abra seus rascunhos e publicações vinculadas no MDTXTRT.","","library"), message.message_id);
     return;
   }
   if (command === "telegraph") {
@@ -1775,9 +1814,10 @@ const server = createServer(async (req, res) => {
         const body=await readJson(req,20000);
         const owner=draftOwner(body);
         const drafts=listPersistentDrafts(owner);
+        const telegram=listTelegramPublications(owner,drafts);
         const telegraph=listTelegraphPages(owner,drafts);
         res.writeHead(200,{"content-type":"application/json; charset=utf-8","cache-control":"no-store"});
-        res.end(JSON.stringify({drafts,telegraph}));
+        res.end(JSON.stringify({drafts,telegram,telegraph}));
       }catch(err){
         const code=err instanceof HttpError?err.status:500;
         res.writeHead(code,{"content-type":"application/json; charset=utf-8","cache-control":"no-store"});
