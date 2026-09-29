@@ -4,7 +4,7 @@
 
 The canonical release identity is a **full 40-character Git commit SHA**. A convenience branch or tag may point to it, but never replaces the SHA as authority.
 
-The approved translucent visual baseline remains `aac423e012745c7873908ddc4a76371fb8218aa3`; it is a visual reference, not the release identity.
+The approved visual baseline is `1dbbdb2dfaeafbd8ef52cea859611ffa5f6699ad`; it preserves the Liquid Glass shell while incorporating the incremental application-menu/publication-library surface. It is a visual reference, not the release identity.
 
 ## Engineering completion versus release certification
 
