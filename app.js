@@ -1644,9 +1644,9 @@ one('#mediaInput').addEventListener('change',async()=>{
     showToast(err.message||'Não foi possível salvar o anexo');
   }
 });
-one('#libraryBtn').addEventListener('click',()=>openLibrary());
-one('#libraryClose').addEventListener('click',closeLibrary);
-one('#libraryScreen').addEventListener('toggle',()=>syncBackButton());
+one('#libraryBtn')?.addEventListener('click',()=>openLibrary());
+one('#libraryClose')?.addEventListener('click',closeLibrary);
+one('#libraryScreen')?.addEventListener('toggle',()=>syncBackButton());
 one('#findBtn').addEventListener('click', ()=>{saveSel();const anchor=one('#plusBtn');closePanels();openPanel('#findMenu',anchor);one('#findText').focus({preventScroll:true});});
 function literalMatches(term){return editorCore?editorCore.findLiteral(term):[];}
 one('#findNext').addEventListener('click',()=>{
