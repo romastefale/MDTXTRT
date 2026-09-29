@@ -1023,8 +1023,9 @@ function commandBody(message) {
 function repliedBody(message) {
   const reply = message.reply_to_message;
   if (!reply) return { text: "", entities: [] };
-  const text = String(reply.text || reply.caption || "").trim();
-  return { text, entities: reply.entities || reply.caption_entities || [] };
+  const source = typeof reply.text === "string" ? reply.text : String(reply.caption || "");
+  const sourceEntities = typeof reply.text === "string" ? reply.entities : reply.caption_entities;
+  return { text: source, entities: sourceEntities || [] };
 }
 
 function cutBody(body, length) {
@@ -1132,6 +1133,10 @@ async function handleBotUpdate(update) {
     await replyImportResult(message,document);
     return;
   }
+  if(message.document&&captionMatch){
+    await sendBotRich(chatId,"<p>O documento anexado só pode ser usado com <b>/importar</b>. Para <b>/enviar</b> ou <b>/exportar</b>, responda a uma mensagem de texto.</p>",message.message_id);
+    return;
+  }
   if(!textMatch)return;
   const body = commandBody(message);
   if (command === "start" || command === "app") {
@@ -1150,7 +1155,7 @@ async function handleBotUpdate(update) {
   }
   if (command === "enviar") {
     const content = body.text ? body : repliedBody(message);
-    if (!content.text) {
+    if (!content.text.trim()) {
       await sendBotRich(chatId, "<p>Use <b>/enviar texto</b> ou responda a uma mensagem com <b>/enviar</b>.</p>" + appButton(), message.message_id);
       return;
     }
@@ -1166,7 +1171,7 @@ async function handleBotUpdate(update) {
       content = cutBody(body, choice[0].length);
     }
     if (!content.text) content = repliedBody(message);
-    if (!content.text) {
+    if (!content.text.trim()) {
       await sendBotRich(chatId, "<p>Responda a uma mensagem com <b>/exportar</b> ou envie <b>/exportar txt texto</b> ou <b>/exportar md texto</b>.</p>" + appButton(), message.message_id);
       return;
     }
@@ -1180,7 +1185,8 @@ async function configureBot(){
   if(!/^[A-Za-z0-9_]{5,32}$/.test(bot.username||""))throw new Error("Bot sem nome de usuário");
   botLink="https://t.me/"+bot.username;
   const secret=webhookSecret();
-  await telegramCall("setMyCommands",{commands:BOT_COMMANDS});
+  await telegramCall("setMyCommands",{commands:BOT_COMMANDS,scope:{type:"all_private_chats"}});
+  await telegramCall("deleteMyCommands",{scope:{type:"default"}});
   await telegramCall("setChatMenuButton",{menu_button:{type:"web_app",text:"Mini App MDTXTRT",web_app:{url:MINI_APP_URL}}});
   await telegramCall("setWebhook",{url:WEBHOOK_BASE+"/telegram/webhook",secret_token:secret,allowed_updates:["message","callback_query"]});
   console.log("Telegram ready");
