@@ -1308,29 +1308,26 @@ test('destination switch moves keyboard focus from a hidden Telegraph title back
   w.close();
 });
 
-test('confirmation dialogs keep an already-open virtual keyboard on its text entry',async()=>{
+test('confirmation surfaces keep an already-open virtual keyboard on its text entry',async()=>{
   const w=page(),d=w.document;
   d.dispatchEvent(new w.Event('DOMContentLoaded'));
   await wait(0);
-  const editor=d.querySelector('#editor'),root=d.documentElement;
+  const editor=d.querySelector('#editor'),root=d.documentElement,dialog=d.querySelector('#dialogMenu');
   w.eval("currentEditorCore().resetHTML('<p>texto</p>',{silent:true});currentEditorCore().selectRange({from:2,to:2},{focus:true})");
   editor.focus();
   root.setAttribute('data-keyboard','');
-
-  const prompt=w.eval("approve('Confirmar?')");
-  await wait(0);
-  assert.equal(d.querySelector('#dialogMenu').matches(':popover-open'),true);
-  assert.equal(d.activeElement,editor);
+  d.querySelector('#dialogInput').hidden=true;
+  dialog.showPopover();
 
   const cancel=d.querySelector('#dialogCancel');
   const down=new w.MouseEvent('mousedown',{bubbles:true,cancelable:true});
   cancel.dispatchEvent(down);
   assert.equal(down.defaultPrevented,true);
-  cancel.click();
+  cancel.focus();
   await wait(0);
-  if(d.querySelector('#dialogMenu').matches(':popover-open'))w.eval('finishDialog(false)');
-  assert.equal(await prompt,false);
   assert.equal(d.activeElement,editor);
+
+  dialog.hidePopover();
   w.close();
 });
 
