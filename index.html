@@ -447,6 +447,8 @@
   <script>
     document.addEventListener('DOMContentLoaded',()=>{
       const root=document.documentElement;
+      if(root.dataset.keyboardPolicyReady==='true')return;
+      root.dataset.keyboardPolicyReady='true';
       const editor=document.querySelector('#editor');
       const dialog=document.querySelector('#dialogMenu');
       const dialogInput=document.querySelector('#dialogInput');
