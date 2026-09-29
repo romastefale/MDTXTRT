@@ -485,8 +485,8 @@ function setDestination(value, notify=true, persist=true){
   open.setAttribute('aria-label',actionLabel);
   open.title=actionLabel;
   const exportControl=one('#exportBtn');
-  exportControl.setAttribute('aria-label','Abrir opções de publicação e exportação');
-  exportControl.title='Abrir opções de publicação e exportação';
+  exportControl.setAttribute('aria-label','Abrir menu de publicação, exportação e biblioteca');
+  exportControl.title='Abrir menu de publicação, exportação e biblioteca';
   btn.setAttribute('aria-label', 'Alternar destino. Atual: ' + name);
   btn.setAttribute('aria-pressed', String(dest === 'telegraph'));
   btn.classList.toggle('active', dest === 'telegraph');
@@ -1205,19 +1205,40 @@ function emptyLibraryItem(text){
   item.textContent=text;
   return item;
 }
-function libraryEntry({title,meta,action,label='Editar',disabled=false}){
-  const row=document.createElement('div');
-  row.className='library-entry';
+function libraryEntry({title,preview='',meta='',createdAt=0,updatedAt=0,action,label='Editar',disabled=false,platform=''}){
+  const card=document.createElement('article');
+  card.className='library-entry';
   const text=document.createElement('div');
   text.className='library-entry-text';
+  const head=document.createElement('div');
+  head.className='library-entry-head';
   const strong=document.createElement('strong');strong.textContent=title||'Sem título';
-  const small=document.createElement('span');small.textContent=meta||'';
-  text.append(strong,small);
+  head.append(strong);
+  if(platform){
+    const badge=document.createElement('span');
+    badge.className='library-badge';
+    badge.textContent=platform;
+    head.append(badge);
+  }
+  const excerpt=document.createElement('p');
+  excerpt.className='library-preview';
+  excerpt.textContent=preview||'Sem conteúdo para pré-visualização.';
+  const details=document.createElement('span');
+  details.className='library-meta';
+  details.textContent=meta||'';
+  const dates=document.createElement('div');
+  dates.className='library-dates';
+  const created=document.createElement('span');
+  created.textContent='Criado: '+(libraryTime(createdAt)||'—');
+  const modified=document.createElement('span');
+  modified.textContent='Modificado: '+(libraryTime(updatedAt)||'—');
+  dates.append(created,modified);
+  text.append(head,excerpt,details,dates);
   const button=document.createElement('button');
   button.type='button';button.textContent=label;button.disabled=disabled;
   if(action)button.addEventListener('click',action);
-  row.append(text,button);
-  return row;
+  card.append(text,button);
+  return card;
 }
 async function fetchLibrary(){
   const identity=remoteDraftIdentity();
@@ -1227,7 +1248,7 @@ async function fetchLibrary(){
   });
   const data=await readResponse(res);
   if(!res.ok)throw new Error(data.error||'Não foi possível carregar a biblioteca');
-  if(!Array.isArray(data.drafts)||!Array.isArray(data.telegraph))throw new Error('Resposta da biblioteca inválida');
+  if(!Array.isArray(data.drafts)||!Array.isArray(data.telegram)||!Array.isArray(data.telegraph))throw new Error('Resposta da biblioteca inválida');
   return data;
 }
 async function openLibraryDraft(doc){
@@ -1272,29 +1293,47 @@ async function openTelegraphDocument(doc){
   }catch(error){status.textContent=error.message||'Não foi possível abrir a página';}
 }
 async function renderLibrary(preferred=''){
-  const draftList=one('#draftList'),telegraphList=one('#telegraphList'),status=one('#libraryStatus');
-  draftList.replaceChildren();telegraphList.replaceChildren();
+  const draftList=one('#draftList'),telegramList=one('#telegramList'),telegraphList=one('#telegraphList'),status=one('#libraryStatus');
+  draftList.replaceChildren();telegramList.replaceChildren();telegraphList.replaceChildren();
   status.textContent='Carregando…';
   try{
     const data=await fetchLibrary();
     if(data.drafts.length){
       for(const item of data.drafts){
-        const meta=['rev. '+item.revision,item.dest==='telegraph'?'Telegraph':'Telegram',libraryTime(item.updatedAt)].filter(Boolean).join(' · ');
-        draftList.append(libraryEntry({title:item.name,meta,action:()=>void openLibraryDraft(item.docId)}));
+        const meta=['rev. '+item.revision,item.hasMedia?'com anexo':''].filter(Boolean).join(' · ');
+        draftList.append(libraryEntry({
+          title:item.name,preview:item.preview,meta,createdAt:item.createdAt,updatedAt:item.updatedAt,
+          platform:item.dest==='telegraph'?'Telegraph':'Telegram',action:()=>void openLibraryDraft(item.docId),label:'Editar'
+        }));
       }
     }else draftList.append(emptyLibraryItem('Nenhum rascunho persistido.'));
+    if(data.telegram.length){
+      for(const item of data.telegram){
+        const state=item.status==='succeeded'?'publicada':item.status==='pending'?'pendente':'confirmação necessária';
+        const meta=['rev. '+item.revision,item.messageId?'mensagem #'+item.messageId:'',item.historyCount>1?item.historyCount+' versões':'',state].filter(Boolean).join(' · ');
+        telegramList.append(libraryEntry({
+          title:item.name,preview:item.preview,meta,createdAt:item.createdAt,updatedAt:item.updatedAt,
+          platform:'Telegram',action:()=>void openLibraryDraft(item.docId),label:'Editar texto'
+        }));
+      }
+    }else telegramList.append(emptyLibraryItem('Nenhuma publicação Telegram vinculada.'));
     if(data.telegraph.length){
       for(const item of data.telegraph){
         const pending=item.status!=='succeeded';
-        const meta=pending?'Publicação pendente de confirmação':['rev. '+item.revision,item.path,libraryTime(item.updatedAt)].filter(Boolean).join(' · ');
-        telegraphList.append(libraryEntry({title:item.name,meta,disabled:pending,action:()=>void openTelegraphDocument(item.docId)}));
+        const meta=pending?'Publicação pendente de confirmação':['rev. '+item.revision,item.path].filter(Boolean).join(' · ');
+        telegraphList.append(libraryEntry({
+          title:item.name,preview:item.preview,meta,createdAt:item.createdAt,updatedAt:item.updatedAt,
+          platform:'Telegraph',disabled:pending,action:()=>void openTelegraphDocument(item.docId),label:'Editar página'
+        }));
       }
     }else telegraphList.append(emptyLibraryItem('Nenhuma publicação Telegraph vinculada.'));
-    status.textContent=data.drafts.length+' rascunho(s) · '+data.telegraph.length+' página(s) Telegraph';
+    status.textContent=data.drafts.length+' rascunho(s) · '+data.telegram.length+' publicação(ões) Telegram · '+data.telegraph.length+' página(s) Telegraph';
+    if(preferred==='telegram')one('#telegramLibrarySection')?.scrollIntoView({block:'start'});
     if(preferred==='telegraph')one('#telegraphLibrarySection')?.scrollIntoView({block:'start'});
   }catch(error){
     status.textContent=error.message||'Não foi possível carregar a biblioteca';
     draftList.append(emptyLibraryItem('Biblioteca indisponível.'));
+    telegramList.append(emptyLibraryItem('Biblioteca indisponível.'));
     telegraphList.append(emptyLibraryItem('Biblioteca indisponível.'));
   }
 }
@@ -1311,6 +1350,14 @@ function closeLibrary(){
   syncBackButton();
 }
 
+function createNewDocumentLaunch(){
+  const bytes=crypto.getRandomValues(new Uint8Array(16));
+  const token=Array.from(bytes,byte=>byte.toString(16).padStart(2,'0')).join('');
+  const url=new URL(location.href);
+  url.searchParams.set(NEW_DOCUMENT_PARAM,token);
+  url.searchParams.delete('view');
+  location.assign(url.href);
+}
 function newDocumentToken(){
   let token='';
   try{token=new URL(location.href).searchParams.get(NEW_DOCUMENT_PARAM)||'';}catch{}
@@ -1633,6 +1680,8 @@ one('#mediaInput').addEventListener('change',async()=>{
 });
 one('#libraryBtn')?.addEventListener('click',()=>openLibrary());
 one('#libraryClose')?.addEventListener('click',closeLibrary);
+one('#libraryRefresh')?.addEventListener('click',()=>void renderLibrary());
+one('#libraryNew')?.addEventListener('click',createNewDocumentLaunch);
 one('#libraryScreen')?.addEventListener('toggle',()=>syncBackButton());
 one('#findBtn').addEventListener('click', ()=>{saveSel();const anchor=one('#plusBtn');closePanels();openPanel('#findMenu',anchor);one('#findText').focus({preventScroll:true});});
 function literalMatches(term){return requireEditorCore().findLiteral(term);}
