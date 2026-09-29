@@ -51,10 +51,7 @@ const declaredCommands=[...new Set([...ui.matchAll(/(?:data-cmd="|"data-cmd": ")
 const core=read('src/editor-core.mjs');
 for(const cmd of declaredCommands){
   if(cmd==='insertUnorderedList')requireText(app,"cmd==='insertUnorderedList'","comando "+cmd);
-  else if(!new RegExp('(?:^|[^A-Za-z0-9_$])'+cmd.replace(/[.*+?^$()|[\\]{}]/g,'\\for(const cmd of declaredCommands){
-  if(cmd==='insertUnorderedList')requireText(app,"cmd==='insertUnorderedList'","comando "+cmd);
-  else requireText(read('src/editor-core.mjs'),"'"+cmd+"'","comando "+cmd);
-}')+'\\s*:').test(core) && !core.includes('"'+cmd+'"'))fail('comando '+cmd+': caminho funcional ausente');
+  else requireText(core,cmd+':',"comando "+cmd);
 }
 
 const botCommands=[...server.matchAll(/\{ command: "([^"]+)"/g)].map(match=>match[1]);
