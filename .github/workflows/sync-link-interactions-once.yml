@@ -22,7 +22,6 @@ jobs:
       - run: test "$(npm --version)" = "11.19.0"
       - run: npm ci
       - run: npm run build
-      - run: npm test
       - name: Refresh bundle cache keys
         shell: bash
         run: |
@@ -32,6 +31,7 @@ jobs:
           ui_short="${ui_blob:0:12}"
           sed -E -i "s#editor-core\.js\?v=[a-f0-9]{12}#editor-core.js?v=${editor_short}#" index.html
           sed -E -i "s#ui\.js\?v=[a-f0-9]{12}#ui.js?v=${ui_short}#" index.html
+      - run: npm test
       - name: Commit deterministic bundles
         shell: bash
         run: |
