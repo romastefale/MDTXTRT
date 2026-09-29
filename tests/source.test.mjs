@@ -706,8 +706,13 @@ test('step 5 overlays use the visual viewport without changing the baseline mate
 });
 
 
-test('final release gap analysis and immutable anchor gates are explicit',()=>{
-  for(const file of ['GAP_ANALYSIS.md','RELEASE_VALIDATION.md','RELEASE_EVIDENCE_TEMPLATE.md','RELEASE_ANCHOR.md','RELEASE_MANIFEST.json','.github/workflows/release-validation.yml','scripts/verify-release-manifest.mjs','scripts/verify-visual-baseline.mjs','scripts/validate-release-evidence.mjs']){
+test('final release gap analysis, surface audit and final-only anchor gates are explicit',()=>{
+  for(const file of [
+    'GAP_ANALYSIS.md','RELEASE_VALIDATION.md','RELEASE_EVIDENCE_TEMPLATE.md','RELEASE_ANCHOR.md',
+    'RELEASE_MANIFEST.json','SURFACE_CONTRACT.md','.github/workflows/release-validation.yml',
+    'scripts/verify-release-manifest.mjs','scripts/verify-surface-contract.mjs',
+    'scripts/verify-visual-baseline.mjs','scripts/validate-release-evidence.mjs'
+  ]){
     assert.ok(existsSync(new URL('../'+file,import.meta.url)),file);
   }
   const workflow=read('.github/workflows/release-validation.yml');
@@ -715,43 +720,62 @@ test('final release gap analysis and immutable anchor gates are explicit',()=>{
   const validation=read('RELEASE_VALIDATION.md');
   const anchor=read('RELEASE_ANCHOR.md');
   const manifest=JSON.parse(read('RELEASE_MANIFEST.json'));
+  const evidence=read('scripts/validate-release-evidence.mjs');
 
   assert.match(workflow,/workflow_dispatch:/);
   assert.match(workflow,/RELEASE_CANDIDATE_SHA: \$\{\{ github\.event_name == 'pull_request' && github\.event\.pull_request\.head\.sha \|\| github\.sha \}\}/);
   assert.equal((workflow.match(/ref: \$\{\{ env\.RELEASE_CANDIDATE_SHA \}\}/g)||[]).length,2);
   assert.equal((workflow.match(/name: Verify exact candidate checkout/g)||[]).length,2);
   assert.match(workflow,/git rev-parse HEAD[\s\S]*?RELEASE_CANDIDATE_SHA/);
+  assert.match(workflow,/node scripts\/verify-release-manifest\.mjs/);
+  assert.match(workflow,/node scripts\/verify-surface-contract\.mjs/);
   assert.match(workflow,/name: Rebuild all committed bundles[\s\S]*?npm run build/);
   assert.match(workflow,/git diff --exit-code -- editor-core\.js ui\.js/);
-  assert.match(workflow,/node scripts\/verify-release-manifest\.mjs/);
   assert.match(workflow,/node scripts\/verify-visual-baseline\.mjs/);
   assert.match(workflow,/release-rebuilt-bundles-\$\{\{ env\.RELEASE_CANDIDATE_SHA \}\}/);
   assert.match(workflow,/release-visual-baseline-\$\{\{ env\.RELEASE_CANDIDATE_SHA \}\}/);
-  assert.match(workflow,/include-hidden-files: true/);
-  assert.match(workflow,/if-no-files-found: error/);
+  assert.match(workflow,/draft_persistence_evidence_ref:/);
+  assert.match(workflow,/import_export_evidence_ref:/);
+  assert.match(workflow,/DRAFT_PERSISTENCE_EVIDENCE_REF:/);
+  assert.match(workflow,/IMPORT_EXPORT_EVIDENCE_REF:/);
   assert.match(workflow,/name: Audit release evidence record[\s\S]*?GITHUB_TOKEN:[\s\S]*?node scripts\/validate-release-evidence\.mjs/);
   assert.doesNotMatch(workflow,/contents:\s*write|git push/);
 
   assert.match(read('scripts/verify-visual-baseline.mjs'),/for\(const theme of \['light','dark'\]\)/);
-  assert.match(read('scripts/validate-release-evidence.mjs'),/Final status[\s\S]*?RELEASE APPROVED/);
-  assert.match(read('scripts/validate-release-evidence.mjs'),/iOS Telegram Mini App/);
-  assert.match(read('scripts/validate-release-evidence.mjs'),/Telegram unknown timeout/);
+  assert.match(evidence,/Final status[\s\S]*?RELEASE APPROVED/);
+  assert.match(evidence,/iOS PWA/);
+  assert.match(evidence,/Android PWA/);
+  assert.match(evidence,/Draft persistence/);
+  assert.match(evidence,/Import\/export/);
+  assert.match(evidence,/Railway draft-volume write failure/);
+  assert.match(evidence,/Telegram edit timeout/);
+  assert.match(evidence,/stale persistent draft revision/);
 
   assert.equal(manifest.visualBaseline,'aac423e012745c7873908ddc4a76371fb8218aa3');
   assert.deepEqual(manifest.runtime,{node:'24.21.0',npm:'11.19.0'});
-  assert.equal(manifest.stages.length,6);
-  assert.equal(manifest.stages.at(-1).head,'e20d115b18424ab5c9abfa7e175b5376fe0633fb');
+  assert.deepEqual(manifest.stages.map(stage=>stage.pr),[84,86,88,90,92,95]);
+  assert.equal(manifest.stages.at(-1).head,'ad2b05d82770a5057d22b2f92d7fc02255bdfb1c');
   assert.equal(manifest.anchorPolicy.authority,'full-git-commit-sha');
   assert.equal(manifest.anchorPolicy.immutable,true);
+  assert.equal(manifest.anchorPolicy.sealAfter,'release-approved');
 
-  assert.match(gap,/G-05 — No real Telegraph create\/recover\/edit\/restart evidence/);
-  assert.match(gap,/G-13 — Pull-request validation did not prove the exact anchor SHA/);
-  assert.match(gap,/G-14 — Visual comparison evidence was not retained/);
-  assert.match(gap,/\*\*Status:\*\* BLOCKING until real authorized evidence exists/);
-  assert.match(validation,/Release status is one of:/);
+  assert.match(gap,/G-04 — production Railway deployment is behind current `main`/);
+  assert.match(gap,/G-05 — real Railway draft persistence\/restart not yet evidenced/);
+  assert.match(gap,/G-07 — real Telegram send\/edit path not yet evidenced/);
+  assert.match(gap,/G-08 — physical Web\/PWA\/Mini App matrix not yet evidenced/);
+  assert.match(gap,/G-11 — rollback not yet exercised against the candidate/);
+  assert.match(gap,/product is \*\*BLOCKED\*\* for final release/);
+
+  assert.match(validation,/## Release statuses/);
+  assert.match(validation,/CANDIDATE VALIDATED/);
   assert.match(validation,/RELEASE APPROVED/);
-  assert.match(validation,/synthetic pull-request merge ref/);
-  assert.match(validation,/release-visual-baseline-<anchor-sha>/);
-  assert.match(anchor,/full commit SHA is the canonical authority/i);
-  assert.match(anchor,/superseding Release Anchor/);
+  assert.match(validation,/synthetic PR merge ref/);
+  assert.match(validation,/Railway draft-volume persistence and restart/);
+  assert.match(validation,/real Telegram Rich Message send and later edit/i);
+  assert.match(validation,/Web \/ PWA \/ Mini App and physical-device matrix/);
+
+  assert.match(anchor,/canonical release identity is a \*\*full 40-character Git commit SHA\*\*/);
+  assert.match(anchor,/final immutable Release Anchor is created only after every mandatory criterion/i);
+  assert.match(anchor,/optional branch\/tag[\s\S]*only after approval/i);
 });
+
