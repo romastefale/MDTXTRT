@@ -541,22 +541,18 @@ function listPersistentDrafts(owner){
   const items=[];
   for(const name of readdirSync(dir)){
     if(!/^[a-f0-9-]{36}\.json$/i.test(name))continue;
-    try{
-      const doc=name.slice(0,-5);
-      const record=readPersistentDraft(owner,doc);
-      if(!record)continue;
-      items.push({
-        docId:record.draft.docId,
-        name:record.draft.name,
-        dest:record.draft.dest,
-        revision:record.draft.revision,
-        telegraphPath:record.draft.telegraphPath,
-        updatedAt:record.updatedAt,
-        hasMedia:Boolean(record.media)
-      });
-    }catch(error){
-      console.error("Persistent draft list",name,error);
-    }
+    const doc=name.slice(0,-5);
+    const record=readPersistentDraft(owner,doc);
+    if(!record)throw new Error("Índice de rascunho inconsistente");
+    items.push({
+      docId:record.draft.docId,
+      name:record.draft.name,
+      dest:record.draft.dest,
+      revision:record.draft.revision,
+      telegraphPath:record.draft.telegraphPath,
+      updatedAt:record.updatedAt,
+      hasMedia:Boolean(record.media)
+    });
   }
   return items.sort((a,b)=>b.updatedAt-a.updatedAt||a.name.localeCompare(b.name));
 }
@@ -574,7 +570,7 @@ function listTelegraphPages(owner,drafts=[]){
     if(!/^[a-f0-9-]{36}$/i.test(docId))continue;
     const path=typeof value==="string"?value:"";
     const status=typeof value==="string"?"succeeded":value?.status==="pending"?"pending":"invalid";
-    if(status==="invalid")continue;
+    if(status==="invalid")throw new Error("Mapeamento Telegraph persistido inválido");
     const draft=byDoc.get(docId);
     items.push({
       docId,

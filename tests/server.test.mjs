@@ -1,7 +1,7 @@
 import {test,before,after} from 'node:test';
 import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
-import {createHmac,randomUUID} from 'node:crypto';
+import {createHash,createHmac,randomUUID} from 'node:crypto';
 import {mkdtempSync,writeFileSync,readFileSync,rmSync,mkdirSync} from 'node:fs';
 import {join} from 'node:path';
 import {parseDocument} from 'htmlparser2';
@@ -149,6 +149,22 @@ test('draft persistence strips ProseMirror runtime artifacts without rejecting t
   const loaded=await jsonPost('/api/drafts/load',{browserKey,doc});
   assert.equal(loaded.status,200,loaded.data.error);
   assert.equal(loaded.data.draft.html,saved.data.draft.html);
+});
+
+test('draft library fails closed instead of silently hiding a corrupted persistent record',async()=>{
+  const browserKey='f1'.repeat(32);
+  const goodDoc=randomUUID();
+  const saved=await formPost('/api/drafts/save',{browserKey,draft:JSON.stringify(draftFixture('<p>Bom</p>',goodDoc,1,'Bom'))});
+  assert.equal(saved.status,200,saved.data.error);
+  const browserFingerprint=createHash('sha256').update(browserKey).digest('hex');
+  const ownerFingerprint=createHash('sha256').update('browser:'+browserFingerprint).digest('hex');
+  const ownerDir=join(dir,'drafts',ownerFingerprint);
+  const badDoc=randomUUID();
+  writeFileSync(join(ownerDir,badDoc+'.json'),'{"schema":', {mode:0o600});
+  const library=await jsonPost('/api/library/list',{browserKey});
+  assert.equal(library.status,500);
+  assert.match(library.data.error,/rascunho persistido/i);
+  rmSync(join(ownerDir,badDoc+'.json'),{force:true});
 });
 
 test('Telegram revisions preserve chat history with an update notice and a new message',async()=>{

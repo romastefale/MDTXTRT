@@ -35,6 +35,8 @@ A auditoria estática e a regressão cobrem:
 - fullscreen/viewport/safe areas oficiais no Mini App e `visualViewport` no browser;
 - posicionamento de menus/diálogos acima da barra inferior;
 - build determinístico, bundles reproduzíveis e baseline visual automatizada;
+- núcleo transacional obrigatório nos caminhos de serialização/restauração/exportação, sem fallback para DOM bruto;
+- recuperação do volume e biblioteca persistente fail-closed quando o estado é incerto ou corrompido;
 - inventário integral Web/PWA/Mini App/bot em `SURFACE_CONTRACT.md`.
 
 ## O que não é trabalho de implementação pendente
