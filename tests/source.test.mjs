@@ -716,7 +716,7 @@ test('step 5 overlays use the visual viewport without changing the baseline mate
 test('final release gap analysis, surface audit and final-only anchor gates are explicit',()=>{
   for(const file of [
     'GAP_ANALYSIS.md','RELEASE_VALIDATION.md','RELEASE_EVIDENCE_TEMPLATE.md','RELEASE_ANCHOR.md',
-    'RELEASE_MANIFEST.json','SURFACE_CONTRACT.md','.github/workflows/release-validation.yml',
+    'RELEASE_MANIFEST.json','SURFACE_CONTRACT.md','OWNER_ACCEPTANCE.md','.github/workflows/release-validation.yml',
     'scripts/verify-release-manifest.mjs','scripts/verify-surface-contract.mjs',
     'scripts/verify-visual-baseline.mjs','scripts/validate-release-evidence.mjs'
   ]){
@@ -768,12 +768,18 @@ test('final release gap analysis, surface audit and final-only anchor gates are 
   assert.equal(manifest.anchorPolicy.immutable,true);
   assert.equal(manifest.anchorPolicy.sealAfter,'release-approved');
 
-  assert.match(gap,/G-04 — production Railway deployment is behind current `main`/);
-  assert.match(gap,/G-05 — real Railway draft persistence\/restart not yet evidenced/);
-  assert.match(gap,/G-07 — real Telegram send\/edit path not yet evidenced/);
-  assert.match(gap,/G-08 — physical Web\/PWA\/Mini App matrix not yet evidenced/);
-  assert.match(gap,/G-11 — rollback not yet exercised against the candidate/);
-  assert.match(gap,/product is \*\*BLOCKED\*\* for final release/);
+  assert.match(gap,/G-04 — exact production deployment/);
+  assert.match(gap,/G-05 — physical draft persistence\/restart evidence/);
+  assert.match(gap,/G-07 — real Telegram send\/edit path/);
+  assert.match(gap,/G-08 — physical Web\/PWA\/Mini App matrix/);
+  assert.match(gap,/G-11 — rollback exercise/);
+  assert.match(gap,/there are \*\*no open engineering implementation gaps\*\*/);
+  assert.match(gap,/OWNER ACCEPTANCE/);
+  const ownerAcceptance=read('OWNER_ACCEPTANCE.md');
+  assert.match(ownerAcceptance,/Engineering delivery is complete/);
+  assert.match(ownerAcceptance,/Physical-device matrix/);
+  assert.match(ownerAcceptance,/Rollback acceptance/);
+  assert.match(ownerAcceptance,/RELEASE APPROVED/);
 
   assert.match(validation,/## Release statuses/);
   assert.match(validation,/CANDIDATE VALIDATED/);

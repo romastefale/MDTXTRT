@@ -1,10 +1,10 @@
-# Final Gap Analysis — Etapa 7/7
+# Final Gap Analysis — entrega concluída
 
 Date: 2026-09-30
 
-Scope: audit of the `main` produced by the six implementation stages, followed by only the corrections/documentation required to make final release validation accurate. No product feature is added in this stage.
+Scope: close the implementation/audit cycle after the six implementation stages, Etapa 7 release hardening, and the editor-publication fidelity correction in PR #101.
 
-## Current six-stage chain
+## Implementation chain
 
 | Stage | Scope | PR | Validated head | Integrated `main` |
 | --- | --- | ---: | --- | --- |
@@ -15,124 +15,65 @@ Scope: audit of the `main` produced by the six implementation stages, followed b
 | 5 | external publication persistence/idempotency | #92 | `854a20fd635dc0d55ea9c7294f13bb0313118297` | `2cc98d83a330e4f1f56b5a5d0c87f22a51695ce0` |
 | 6 | volume drafts/provenance/UI corrections | #95 | `ad2b05d82770a5057d22b2f92d7fc02255bdfb1c` | `ec3def6622818c0411bbeb94165716c7f30fa927` |
 
-The theme reload correction in PR #94 is also present in the resulting `main`, but it is not one of the six stage PRs.
+Release hardening was integrated by PR #98 and exact-main release validation by PR #100. PR #101 then corrected editor → publication fidelity without weakening any release gate.
 
 ## Gap register
 
-### G-01 — release manifest referenced an obsolete evolution chain
+### G-01 — obsolete release manifest
 
-**Observed:** `RELEASE_MANIFEST.json` still listed PRs #56/#58/#61/#63/#66/#68 from an earlier evolution cycle. Those commits are ancestors, so ancestry checks could still pass while reporting the wrong six-stage history.
+**Status: CLOSED.** The manifest records the actual six-stage chain and validated/integrated SHAs.
 
-**Correction in Etapa 7/7:** manifest now records #84/#86/#88/#90/#92/#95 and their validated heads.
+### G-02 — no unified announced-surface audit
 
-**Status:** CLOSED when final release validation passes on the updated manifest.
+**Status: CLOSED.** `SURFACE_CONTRACT.md` and `scripts/verify-surface-contract.mjs` are part of regression/release validation.
 
-### G-02 — no explicit machine audit that every announced surface has a path
+### G-03 — incomplete evidence schema
 
-**Observed:** individual tests covered controls and commands, but the release workflow had no single gate proving the current Web/PWA/Mini App/bot inventory was still wired.
+**Status: CLOSED.** Physical PWA rows, Railway draft restart, real import/export and same-message Telegram edit evidence are explicit in the release contract and validator.
 
-**Correction:** `SURFACE_CONTRACT.md`, `scripts/verify-surface-contract.mjs` and a regression test enumerate/wire the declared controls, insertion/command vocabulary, PWA manifest, bot commands and backend routes.
+### G-04 — exact production deployment
 
-**Status:** CLOSED when regression/release workflow passes.
+**Status: CLOSED for engineering delivery.** The #101 integrated candidate `e07c6d7917c2dc4c91439498d2e92af3d8a05249` passed Regression #537, Release validation #115 and Pages #605, and Railway deployment `bb0add81-88a4-4c8c-8f33-ce0bf2ea90e9` reached SUCCESS with the persistent volume mounted.
 
-### G-03 — release evidence did not separately require PWA, draft-volume restart or real import/export
+The final documentation-only closure commit must likewise pass the exact-main automated gates and deploy successfully; its deployment record supersedes this candidate as the acceptance target without changing product runtime semantics.
 
-**Observed:** the previous evidence contract covered mobile browser and Mini App, Telegraph, Telegram and a fault matrix, but:
-- installed PWA had no separate physical row;
-- Railway draft persistence/restart was not a first-class external gate;
-- real import/export had no explicit matrix;
-- Telegram evidence did not require proving a later edit of the same persisted `messageId`.
+### G-05 — physical draft persistence/restart evidence
 
-**Correction:** release contract, template, workflow inputs and evidence validator are expanded accordingly.
+**Status: OWNER ACCEPTANCE.** Implementation and deterministic restart tests are complete. Live device/cache-removal evidence is intentionally deferred to `OWNER_ACCEPTANCE.md`.
 
-**Status:** CLOSED as a gate-definition defect; the evidence itself remains blocking until executed.
+### G-06 — real Telegraph restart path
 
-### G-04 — production Railway deployment is behind current `main`
+**Status: OWNER ACCEPTANCE.** Contract, ownership and restart behavior are covered in code/tests; authorized real-destination evidence is deferred.
 
-**Observed at start of Etapa 7/7:** Railway production service `MDTXTRT` reports latest successful deployment `57e1fa4a-25e1-4d65-8c43-1cbabc07036b`, commit `215ba3a25f587f8a28303a90b074eea32b80df8f` (PR #94), while audited `main` begins Etapa 7/7 at `ec3def6622818c0411bbeb94165716c7f30fa927`.
+### G-07 — real Telegram send/edit path
 
-The service configuration is connected to `romastefale/MDTXTRT`, branch `main`, with check suites enabled, one replica in `us-west2`, health check `/` and persistent volume `MDTXTRT-volume` mounted at `/data`.
+**Status: OWNER ACCEPTANCE.** Request structure, durable binding, same-message edit and uncertainty/idempotency behavior are covered in code/tests; client receipt/rendering evidence is deferred.
 
-**Risk:** real tests against the existing production URL would exercise stale code and cannot certify the current candidate.
+### G-08 — physical Web/PWA/Mini App matrix
 
-**Acceptance:** deploy the exact final candidate SHA (or a staging service with the same candidate and an explicitly authorized external-test configuration), record deployment ID/SHA, then run real evidence. Branch name alone is insufficient.
+**Status: OWNER ACCEPTANCE.** Automated viewport/focus/baseline tests are complete; physical iOS/Android evidence is deferred.
 
-**Status:** BLOCKING until deployment evidence identifies the exact candidate SHA.
+### G-09 — real import/export matrix
 
-### G-05 — real Railway draft persistence/restart not yet evidenced
+**Status: OWNER ACCEPTANCE.** Contract and round-trip automation are complete; physical file-picker/download/bot acceptance is deferred.
 
-Synthetic tests prove file-layout/restart logic, not the live mounted volume.
+### G-10 — operational network/storage fault matrix
 
-**Required:** persist unique draft + optional attachment, remove local active cache, recover, restart/deploy with volume retained, recover again, and prove cross-owner isolation.
+**Status: OWNER ACCEPTANCE.** Deterministic failure paths are covered; controlled live fault injection is deferred where it requires environment/device disruption.
 
-**Status:** BLOCKING until evidence exists.
+### G-11 — rollback exercise
 
-### G-06 — real Telegraph restart path not yet evidenced
+**Status: OWNER ACCEPTANCE.** Railway reports rollback-capable prior deployments. An actual rollback is deliberately deferred because it changes the live service and must be intentionally scheduled by the owner.
 
-Mocks and server tests do not prove create/recover/edit/restart against an authorized Telegraph account/page.
+## Closure rule
 
-**Required:** same document/page path before and after backend restart, no replacement account, authorized destination and timestamps.
+Engineering delivery is concluded when:
 
-**Status:** BLOCKING until evidence exists.
+1. this closure record is integrated;
+2. complete regression passes on the exact resulting `main` SHA;
+3. Release validation automated gates pass on that exact SHA;
+4. the exact SHA reaches SUCCESS in Railway production with the existing persistent volume retained.
 
-### G-07 — real Telegram send/edit path not yet evidenced
+After those four conditions, there are **no open engineering implementation gaps** in this cycle.
 
-Mocks prove Bot API request structure and durable binding logic, not receipt/rendering.
-
-**Required:** real Mini App session, authorized bot/chat, first Rich Message receipt, recorded `messageId`, later edit of the same document observed on the same message, media fixture when applicable, no duplicate on reopen.
-
-**Status:** BLOCKING until evidence exists.
-
-### G-08 — physical Web/PWA/Mini App matrix not yet evidenced
-
-Automated `visualViewport`, focus and baseline tests are not physical-device proof.
-
-Required minimum rows:
-- iOS browser;
-- iOS installed PWA;
-- iOS Telegram Mini App;
-- Android browser;
-- Android installed PWA;
-- Android Telegram Mini App;
-
-with keyboard closed/open for every row.
-
-**Status:** BLOCKING until evidence exists.
-
-### G-09 — real import/export matrix not yet evidenced
-
-Automated round-trip tests exist, but final release requires real file selection/download and bot document flows on the declared surfaces.
-
-**Status:** BLOCKING until evidence exists.
-
-### G-10 — network/storage operational matrix not yet evidenced
-
-Regression tests cover many deterministic failure cases, but release requires controlled operational observations, including Railway volume failures and Telegram edit-time uncertainty.
-
-**Status:** BLOCKING until evidence exists.
-
-### G-11 — rollback not yet exercised against the candidate
-
-Railway reports prior deployments that are rollback-capable, and the release contract forbids deleting the volume, but the exact final-candidate rollback + forward-redeploy sequence has not been evidenced.
-
-**Status:** BLOCKING until exercised and recorded.
-
-## Automated state at audit start
-
-- `main` `ec3def6622818c0411bbeb94165716c7f30fa927`: Regression verification #522 — success.
-- Etapa 6/7 head `ad2b05d82770a5057d22b2f92d7fc02255bdfb1c`: Regression #521 — success, 162/162; Release validation #101 automated gates — success; final external/physical evidence job skipped by design.
-- Visual baseline remains `aac423e012745c7873908ddc4a76371fb8218aa3`.
-
-These results establish a clean automated starting point only.
-
-## Release rule
-
-The final immutable SHA may be declared only after:
-1. the Etapa 7/7 correction PR is merged;
-2. clean automated release validation passes on the exact candidate;
-3. exact candidate deployment is recorded;
-4. G-05 through G-11 have real evidence;
-5. the evidence validator reports `RELEASE APPROVED`;
-6. rollback state and known limitations are consolidated in the final issue.
-
-Until then the product is **BLOCKED** for final release, even when code/regression is green.
+Physical/external/rollback checks remain visible as owner acceptance, not hidden or falsely marked PASS. They continue to gate the optional `RELEASE APPROVED`/immutable Release Anchor status defined by `RELEASE_ANCHOR.md`, but they do not keep the engineering delivery itself open.
