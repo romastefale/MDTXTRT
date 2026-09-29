@@ -359,7 +359,8 @@
       color:inherit;text-align:center;white-space:normal
     }
     .tools{display:flex;gap:6px;align-items:center;padding:4px;max-width:100%}
-    .document-tools{padding:5px 6px 3px}
+    .document-tools{padding:5px 6px 3px;flex-direction:column;align-items:stretch;gap:3px}
+    .document-tools::before{content:attr(data-field-label);display:block;padding:0 3px;color:var(--muted);font-size:11px;line-height:1.25}
     .hint{max-width:240px;white-space:normal;margin:5px 8px 7px;font-size:12px;line-height:1.35}
     .tools input{
       min-width:0;width:100%;height:32px;border:0;border-radius:7px;
@@ -428,20 +429,21 @@
       const exportHost=document.querySelector('#exportMenu .glass-menu-content')||document.querySelector('#exportMenu');
       if(!exportHost)return;
       const exportAnchor=exportHost.firstChild;
-      const defaultLabel=input.getAttribute('aria-label')||'Nome do documento';
       const sync=()=>{
         const telegraph=destBtn.getAttribute('aria-pressed')==='true';
         if(telegraph){
           if(tools.parentElement!==slot)slot.append(tools);
           slot.hidden=false;
-          input.setAttribute('aria-label','Título da página Telegraph');
-          input.setAttribute('placeholder','Título');
+          tools.setAttribute('data-field-label','Título da página no Telegraph');
+          input.setAttribute('aria-label','Título da página no Telegraph');
+          input.setAttribute('placeholder','Título da página no Telegraph');
           input.setAttribute('enterkeyhint','next');
         }else{
           if(tools.parentElement!==exportHost)exportHost.insertBefore(tools,exportAnchor);
           slot.hidden=true;
-          input.setAttribute('aria-label',defaultLabel);
-          input.removeAttribute('placeholder');
+          tools.setAttribute('data-field-label','Título do documento');
+          input.setAttribute('aria-label','Título do documento');
+          input.setAttribute('placeholder','Título do documento');
           input.removeAttribute('enterkeyhint');
         }
       };
