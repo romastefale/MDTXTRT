@@ -87,6 +87,9 @@ jobs:
       - name: Verify announced surface contract
         run: node scripts/verify-surface-contract.mjs
 
+      - name: Verify final evidence validator syntax
+        run: node --check scripts/validate-release-evidence.mjs
+
       - name: Rebuild all committed bundles
         run: npm run build
 
