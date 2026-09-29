@@ -25,17 +25,19 @@ This document records the implementation boundaries that are authoritative for M
 - Undo/redo and formatting keymaps are editor-local. Inputs such as document name, Find/Replace and dialogs retain their native keyboard behavior.
 - Composition and paste are committed through the transactional core. Literal Find/Replace walks document text and does not construct a regular expression from user input.
 - Import/export/publication semantics are governed by [FORMAT_CONTRACT.md](FORMAT_CONTRACT.md). Portable export begins from serialized editor state, not transient rendering DOM.
+- The transactional editor core is mandatory. Draft serialization, restore, handoff, search/replace and export fail explicitly if the core is unavailable; there is no raw-contenteditable-DOM fallback.
 
 ## Persistent draft and Telegram provenance boundary
 
 - The browser active slot remains the low-latency working copy, but every ordinary active-draft save also schedules a durable copy under the Railway volume at `$RAILWAY_VOLUME_MOUNT_PATH/drafts` (production: `/data/drafts`).
 - Persisted records are partitioned by a SHA-256 fingerprint of the owner. Telegram ownership comes only from verified Mini App `initData`; standalone browser ownership comes from the existing 256-bit browser capability. The raw browser capability is never written to the server record.
 - Draft metadata, active-document pointers and attachment bytes use volume-backed files. Metadata/pointers are replaced atomically by rename, and a lower revision cannot overwrite a newer persisted revision.
-- When the local active slot is absent, startup may recover the owner's active volume-backed draft. The transactional editor is created before asynchronous recovery; editing is temporarily disabled until that recovery decision completes, and recovered HTML is applied through the editor core rather than by mutating the live DOM behind ProseMirror.
+- When the local active slot is absent, startup may recover the owner's active volume-backed draft. The transactional editor is created before recovery. A transport/server failure keeps editing and draft writes blocked so an empty replacement cannot supersede an unknown remote active document. Only an authoritative 404 is treated as absence. Recovered HTML is applied through the editor core rather than by mutating the live DOM behind ProseMirror.
 - Telegram publication state is stored with the same owner/document record. The first Rich Message records `pending` before the network call and stores verified publisher id, chat id, Telegram message id and revision on success. Ambiguous transport/storage outcomes become `uncertain` and block blind duplication.
 - A later explicit publication of the same document by the same verified Telegram user preserves the previous Rich Message. The server sends a revision notice replying to the previous publication, then sends the new content as a new Rich Message and appends both message provenance and revision metadata to the durable record. No current publication path calls `editMessageText`.
 - Draft persistence serializes the canonical ProseMirror document, not transient rendering DOM. Runtime-only ProseMirror helper nodes/classes and editing attributes are stripped both client-side and server-side so older contaminated snapshots can migrate through the strict semantic allow-list.
 - The owner-scoped library lists volume-backed drafts and Telegraph page bindings. It is reachable from Web/PWA and the Telegram Mini App; private bot commands `/rascunhos` and `/telegraph` deep-link to the corresponding library view. Telegram publications themselves remain a private-chat history, not an in-app editable-message list.
+- Library enumeration is fail-closed: a malformed persistent draft or invalid Telegraph mapping aborts the response instead of being silently omitted.
 - Browser-local `rmdtxtml-document:...` archives created by `/novo` remain local recovery snapshots; persisted server documents are the library source.
 
 ## Browser → Mini App handoff
@@ -106,9 +108,9 @@ This document records the implementation boundaries that are authoritative for M
 - The active draft is durably mirrored to the Railway volume under an owner namespace. Browser-local storage remains a fast recovery/cache layer rather than the only copy.
 - Telegram owner namespaces are derived only from verified Mini App `initData`; standalone browser namespaces are derived from the existing 256-bit local capability and only a SHA-256-derived namespace is used server-side.
 - A persistent draft record contains the canonical draft snapshot, optional attachment metadata/blob and the operational Telegram publication binding for that document.
-- The first confirmed Telegram publication records verified publisher ID, private-chat ID, message ID, document revision and publication state. A later explicit publish of the same document by the same owner edits that message through `editMessageText` + `rich_message` instead of silently creating another message.
-- Publication transport ambiguity is durable state: `pending` or `uncertain` blocks an automatic duplicate send. A confirmed rejection clears the pending first-send binding and requires another explicit action.
-- This is operational provenance needed to recover and edit a publication. It is not an append-only audit ledger; historical revisions are not retained as immutable events.
+- The first confirmed Telegram publication records verified publisher ID, private-chat ID, message ID, document revision and publication state. A later explicit publish preserves the previous message, replies with a revision notice, then sends the revised content as a new Rich Message.
+- Publication transport ambiguity is durable state: `pending` or `uncertain` blocks an automatic duplicate send. A confirmed rejection requires another explicit action.
+- Telegram provenance retains a bounded history of published revision/message IDs and notice IDs so the private chat remains the visible revision trail.
 
 ## Execution and hosting boundary
 
