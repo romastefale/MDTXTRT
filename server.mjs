@@ -267,7 +267,7 @@ function normalizedPortableHTML(html,label="Markdown"){
     node.children?.forEach(walk);
   };
   doc.children.forEach(walk);
-  return DomUtils.getInnerHTML(doc);
+  return DomUtils.getInnerHTML(doc,{encodeEntities:"utf8"});
 }
 
 function importedDraft(fileName,text){
