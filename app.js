@@ -405,7 +405,7 @@ async function verifyTelegram(){
 const portraitQuery=matchMedia('(orientation: portrait)');
 const telegramPhonePlatforms=new Set(['android','ios']);
 const telegramInsetFields=['top','right','bottom','left'];
-let telegramViewportStable=false;
+let telegramViewportStable=false,telegramViewportEventSeen=false;
 function telegramViewportIsStable(tg=getTg()){
   const current=Number(tg?.viewportHeight),stable=Number(tg?.viewportStableHeight);
   return Number.isFinite(current)&&current>0&&Number.isFinite(stable)&&stable>0&&Math.abs(current-stable)<1;
@@ -448,20 +448,20 @@ function syncDeviceContract(){
   if(typeof tg.isVersionAtLeast!=='function'||!tg.isVersionAtLeast('8.0')||typeof tg.lockOrientation!=='function'||!syncTelegramContentSafeArea()){
     setDeviceGate('version');return;
   }
-  if(!telegramViewportStable){
-    if(telegramViewportIsStable(tg))telegramViewportStable=true;
-    else{setDeviceGate();return;}
-  }
+  if(!telegramViewportStable){setDeviceGate();return;}
   if(!portraitQuery.matches){setDeviceGate('portrait');return;}
   setDeviceGate();
   if(!tg.isOrientationLocked)tg.lockOrientation();
 }
 function handleTelegramViewportChange(event){
   scheduleBrowserViewport();
-  if(event?.isStateStable===true||telegramViewportIsStable()){
-    telegramViewportStable=true;
-    syncDeviceContract();
+  telegramViewportEventSeen=true;
+  if(event?.isStateStable!==true){
+    telegramViewportStable=false;
+    return;
   }
+  telegramViewportStable=true;
+  syncDeviceContract();
 }
 function handleTelegramOrientationChange(){
   if(telegramViewportStable)syncDeviceContract();
@@ -470,6 +470,7 @@ function setupTelegram(){
   const tg=getTg();
   session='ready';
   telegramViewportStable=false;
+  telegramViewportEventSeen=false;
   document.body.classList.add('tg');
   setDestination(dest,false,false);
   tg.onEvent('themeChanged',applyScheme);
@@ -481,7 +482,7 @@ function setupTelegram(){
   applyScheme();
   if(!syncTelegramContentSafeArea()){setDeviceGate('version');return;}
   requestAnimationFrame(()=>{
-    if(telegramViewportIsStable(tg)){
+    if(!telegramViewportEventSeen&&telegramViewportIsStable(tg)){
       telegramViewportStable=true;
       syncDeviceContract();
     }
