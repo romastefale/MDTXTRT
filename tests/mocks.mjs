@@ -15,7 +15,7 @@ globalThis.fetch = async (url,options={}) => {
       return new Response(new TextEncoder().encode('arquivo de teste'),{status:200});
     }
     const method=parsed.pathname.split('/').at(-1);
-    if(process.env.TEST_CALLS&&['getFile','sendRichMessage','sendDocument','answerCallbackQuery','setMyCommands','setChatMenuButton','setWebhook'].includes(method)){
+    if(process.env.TEST_CALLS&&['getFile','sendRichMessage','sendDocument','answerCallbackQuery','setMyCommands','deleteMyCommands','setChatMenuButton','setWebhook'].includes(method)){
       let body=options.body;
       if(body instanceof FormData){
         body={};
