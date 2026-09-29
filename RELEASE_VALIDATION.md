@@ -52,7 +52,7 @@ Static surface success does not replace live execution required below.
 
 ## Gate D — visual baseline
 
-Normative visual baseline: `aac423e012745c7873908ddc4a76371fb8218aa3`.
+Normative visual baseline: `1dbbdb2dfaeafbd8ef52cea859611ffa5f6699ad` (incremental application menu and integrated draft/publication library).
 
 Automated component:
 - render candidate and baseline with the same Chrome binary and 390×844 stable browser viewport;
@@ -61,7 +61,7 @@ Automated component:
 
 Manual component:
 - confirm translucent material, scale and composition;
-- confirm title-label clarification and post-baseline constrained-overlay placement are intentional;
+- confirm application-menu icon, library navigation/management capsules, responsive cards and constrained-overlay placement are intentional;
 - confirm menus/dialogs remain reachable and do not sit below the bottom bar.
 
 ## Gate E — Railway draft-volume persistence and restart
