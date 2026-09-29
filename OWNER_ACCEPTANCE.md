@@ -38,7 +38,7 @@ For each cell verify typing/composition, selection, undo/redo, title, destinatio
 - record the returned message ID without exposing credentials;
 - confirm rendering in the Telegram client;
 - edit the same document and publish again;
-- confirm the same message ID is edited rather than a second message being created;
+- confirm the original message remains intact, an update notice replies to it, and the revised content is sent as a new Rich Message;
 - when applicable, exercise one media upload;
 - reopen a completed handoff and confirm no duplicate send.
 
@@ -87,7 +87,7 @@ Check:
 - Railway draft-volume write/recovery failure;
 - offline/timeout before request;
 - Telegram first-send timeout;
-- Telegram edit timeout;
+- Telegram revision-notice/new-version timeout;
 - backend restart during handoff sending;
 - lost response after possible acceptance;
 - Telegraph ownership without credential;
