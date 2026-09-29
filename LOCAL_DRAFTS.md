@@ -29,7 +29,7 @@ Metadata and the active-document pointer are written through a temporary file fo
 
 The volume copy is updated after ordinary draft saves. Draft serialization starts from the canonical editor model rather than the live ProseMirror rendering DOM. Runtime-only ProseMirror classes, helper nodes and editing attributes are removed before strict draft validation; the same migration is applied when older locally/volume-saved HTML is read. This prevents editor decorations such as selection/trailing-break markers from being misreported as unsupported document content.
 
-Local storage remains the immediate working copy so editing does not depend on a network round trip. If a volume write fails, the failure is surfaced and the local working copy remains available when browser storage is usable.
+Local storage remains the immediate working cache so typing does not depend on a network round trip. It is never promoted as a silent substitute for the Railway copy: a volume write failure is surfaced, and external publication still traverses backend validation/persistence. The client does not report a failed volume save as durable success.
 
 ## Owner identity
 
@@ -46,10 +46,14 @@ Startup follows these rules:
 1. a deliberate `?new=<token>` launch creates the requested new document and does not replace it with a server copy;
 2. an existing valid local active slot is restored immediately;
 3. when no local active slot exists and no handoff/new-document transition is in progress, the client asks the backend for the owner's persisted active document;
-4. a recovered server draft is validated and sanitized before it is applied, then written back to the local active slot best-effort;
+4. a recovered server draft is validated and sanitized before it is applied; a local cache write failure is logged but cannot weaken or rewrite the authoritative recovered state;
 5. persisted attachment bytes are downloaded through the authenticated draft endpoint and restored into IndexedDB before normal media recovery completes.
 
-The editor core is created synchronously. During a server recovery with no local draft the editor is temporarily non-editable so user input cannot race the recovered state.
+The transactional editor core is created before any draft is applied. Draft serialization, restore, handoff and export require that core; there is no raw-DOM fallback. During a server recovery with no local draft the editor is non-editable. If the volume request fails or is ambiguous, editing remains blocked instead of opening a replacement draft that could supersede the remote active pointer. A genuine 404 means no persisted active document and may start an empty document normally.
+
+## Fail-closed library behavior
+
+The owner library does not silently skip corrupt persistent documents or invalid Telegraph mappings. If one record cannot satisfy the persistence contract, the library request fails explicitly so a damaged record cannot disappear from the user's view as if it never existed. Repair/migration must be explicit.
 
 ## Attachments
 
