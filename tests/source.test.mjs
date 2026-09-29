@@ -245,10 +245,17 @@ test('interface icon assets are vector SVG only and referenced from React source
   for(const name of names)assert.ok(existsSync(new URL('../icons/'+name+'.svg',import.meta.url)),name);
 });
 
-test('editor emits Bot API 10.3 RichText-compatible expandable quotes',()=>{
-  const app=read('app.js');
-  assert.match(app,/<blockquote expandable>Citação expansível<\/blockquote>/);
-  assert.doesNotMatch(app,/<blockquote expandable><p>/);
+test('editor creates publication structures without serializing instructional sample text',()=>{
+  const app=read('app.js'),core=read('src/editor-core.mjs'),html=read('index.html');
+  assert.match(app,/if\(kind==='expandquote'\)return formatBlock\('expandquote'\)/);
+  assert.match(app,/if\(kind==='pullquote'\)return formatBlock\('pullquote'\)/);
+  assert.match(core,/target==="expandquote"[\s\S]*?expandable:true/);
+  assert.match(core,/target==="pullquote"[\s\S]*?schema\.nodes\.aside/);
+  assert.doesNotMatch(app,/Citação expansível|Citação em destaque|Nova tarefa|Texto expansível|<th>A<\/th>|<td>—<\/td>/);
+  assert.match(app,/<details open><summary><\/summary><p><\/p><\/details>/);
+  assert.match(html,/\.editor blockquote\[expandable\]/);
+  assert.match(html,/\.editor aside\{/);
+  assert.match(html,/\.editor details\{/);
 });
 
 test('editor keeps target-specific publishing validation and code metadata',()=>{
