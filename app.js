@@ -2,6 +2,7 @@ const one=s=>document.querySelector(s);
 const all=s=>Array.from(document.querySelectorAll(s));
 const editor = one('#editor');
 const docName = one('#docName');
+const linkBtn = one('#linkBtn');
 const toast = one('#toast');
 const toastTextHost = one('#toastTextHost');
 if(!toast||!toastTextHost)throw new Error('Interface React incompleta: toast');
@@ -681,14 +682,14 @@ function finishDialog(value){
   focusControl(target);
   if(resolve)resolve(value);
 }
-function dialogOpen(label,value='',rows=1,confirmMode=false){
+function dialogOpen(label,value='',rows=1,confirmMode=false,anchorOverride=null){
   if(dialogResolve)finishDialog(null);
   saveSel();
   dialogReturnFocus=dialogOrigin();
   closePanels();
   const dialog=one('#dialogMenu');
   const input=one('#dialogInput');
-  const anchor=dialogReturnFocus?.isConnected?dialogReturnFocus:null;
+  const anchor=anchorOverride?.isConnected?anchorOverride:dialogReturnFocus?.isConnected?dialogReturnFocus:null;
   if(anchor)panelAnchors.set(dialog,anchor);else panelAnchors.delete(dialog);
   const anchorRect=anchor?.getBoundingClientRect()||null;
   one('#dialogLabel').textContent=label;
@@ -706,7 +707,7 @@ function dialogOpen(label,value='',rows=1,confirmMode=false){
     focusDialogStart(rows===1);
   });
 }
-function ask(label,value='',rows=1){return dialogOpen(label,value,rows,false);}
+function ask(label,value='',rows=1,anchorOverride=null){return dialogOpen(label,value,rows,false,anchorOverride);}
 async function approve(label){return await dialogOpen(label,'',1,true)===true;}
 one('#dialogOk').addEventListener('click',()=>finishDialog(dialogConfirm?true:one('#dialogInput').value));
 one('#dialogCancel').addEventListener('click',()=>finishDialog(dialogConfirm?false:null));
@@ -833,11 +834,11 @@ async function askUrl(label,value='https://',protocols=['http:','https:','tg:'])
     return '';
   }
 }
-function inlineLinkProtocols(){
-  return dest==='telegraph'?['http:','https:']:['http:','https:','mailto:','tel:','tg:'];
+function inlineLinkProtocols(destination=dest){
+  return destination==='telegraph'?['http:','https:']:['http:','https:','mailto:','tel:','tg:'];
 }
-async function askInlineLink(label,value='https://',protocols=inlineLinkProtocols()){
-  const answer=await ask(label,value);
+async function askInlineLink(label,value='https://',{destination=dest,protocols=inlineLinkProtocols(destination),anchor=linkBtn}={}){
+  const answer=await ask(label,value,1,anchor);
   if(answer===null||!answer.trim())return null;
   const text=answer.trim();
   try{
@@ -845,34 +846,37 @@ async function askInlineLink(label,value='https://',protocols=inlineLinkProtocol
     if(!protocols.includes(url.protocol))throw new Error();
     return {href:url.href,text};
   }catch{
-    showToast(dest==='telegraph'?'O Telegraph exige link HTTP ou HTTPS':'Use um link válido');
+    showToast(destination==='telegraph'?'O Telegraph exige link HTTP ou HTTPS':'Use um link válido');
     return null;
   }
 }
 async function insertHyperlink(){
+  const destination=dest;
   restoreSel();
   if(editorCore?.selectionEmpty())editorCore.expandWord();
   if(editorCore?.selectionEmpty())return showToast('Selecione um texto para criar o hyperlink');
   const current=editorCore?.linkHref()||'https://';
-  const link=await askInlineLink('URL do hyperlink',current);
+  const link=await askInlineLink('URL do hyperlink',current,{destination,anchor:linkBtn});
   if(!link)return;
   restoreSel();
   if(editorCore?.selectionEmpty())return showToast('Selecione um texto para criar o hyperlink');
   exec('createLink',link.href);
 }
 async function insertVisibleLink(){
-  const link=await askInlineLink('Link','https://');
+  const destination=dest;
+  const link=await askInlineLink('Link','https://',{destination,anchor:linkBtn});
   if(!link)return;
   restoreSel();
   insertHTML('<a href="'+escapeHTML(link.href)+'">'+escapeHTML(link.text)+'</a>');
 }
 async function insertLinkButton(){
-  if(dest!=='telegram')return showToast('Botões com link estão disponíveis apenas no Telegram');
-  const labelAnswer=await ask('Texto do botão','Abrir');
+  const destination=dest;
+  if(destination!=='telegram')return showToast('Botões com link estão disponíveis apenas no Telegram');
+  const labelAnswer=await ask('Texto do botão','Abrir',1,linkBtn);
   if(labelAnswer===null)return;
   const label=labelAnswer.trim();
   if(!label)return;
-  const link=await askInlineLink('Link do botão','https://',['http:','https:','tg:']);
+  const link=await askInlineLink('Link do botão','https://',{destination,protocols:['http:','https:','tg:'],anchor:linkBtn});
   if(!link)return;
   restoreSel();
   insertHTML('<tg-button-row align="center"><tg-button type="url" url="'+escapeHTML(link.href)+'">'+escapeHTML(label)+'</tg-button></tg-button-row>',true);
@@ -1314,12 +1318,16 @@ all('#typebar [data-block], #headingMenu [data-block], #quoteMenu [data-block]')
 document.querySelectorAll('[data-plus-submenu] [data-insert], #quoteMenu [data-insert], #listMenu [data-insert]').forEach(btn => btn.addEventListener('click', ()=>{void insertFeature(btn.dataset.insert).catch(err=>showToast(err.message));}));
 all('#plusMenu [data-plus-category]').forEach(btn=>btn.addEventListener('click',()=>openPlusSubmenu(btn.dataset.plusCategory)));
 all('[data-plus-submenu] [data-plus-back]').forEach(btn=>btn.addEventListener('click',()=>openPlusRoot()));
-one('#linkBtn').addEventListener('click',()=>openPanel('#linkMenu'));
+const linkActions=Object.freeze({
+  hyperlink:insertHyperlink,
+  url:insertVisibleLink,
+  button:insertLinkButton
+});
+linkBtn.addEventListener('click',()=>openPanel('#linkMenu',linkBtn));
 all('#linkMenu [data-link-kind]').forEach(btn=>btn.addEventListener('click',()=>{
-  const kind=btn.dataset.linkKind;
+  const action=linkActions[btn.dataset.linkKind];
   closePanel(one('#linkMenu'));
-  const action=kind==='hyperlink'?insertHyperlink:kind==='url'?insertVisibleLink:kind==='button'?insertLinkButton:null;
-  if(action)void action().catch(err=>showToast(err.message||'Não foi possível inserir o link'));
+  if(typeof action==='function')void action().catch(err=>showToast(err.message||'Não foi possível inserir o link'));
 }));
 function flashBtn(btn){
   if(!btn) return;
