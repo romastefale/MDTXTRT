@@ -368,7 +368,7 @@ test('mobile editor controls preserve active focus without reopening a dismissed
   const initial=d.documentElement.classList.contains('light');
   theme.dispatchEvent(new w.Event('pointerdown',{bubbles:true,cancelable:true}));
   theme.click();
-  assert.equal(d.documentElement.classList.contains('light'),!initial);
+  assert.equal(w.localStorage.getItem('mdtxtrt-theme'),initial?'dark':'light');
   assert.equal(d.activeElement,editor);
 
   w.visualViewport.height=800;

@@ -218,7 +218,7 @@ test('theme switch owns browser and Telegram chrome without mixed system bars',(
   assert.ok(existsSync(new URL('../icons/dark_mode.svg',import.meta.url)));
   assert.match(app,/const THEME_KEY='mdtxtrt-theme'/);
   assert.match(app,/localStorage\.setItem\(THEME_KEY,mode\)/);
-  assert.match(app,/function setTheme\(mode\)\{[\s\S]*?localStorage\.setItem\(THEME_KEY,mode\)[\s\S]*?applyScheme\(mode\)/);
+  assert.match(app,/function setTheme\(mode\)\{[\s\S]*?localStorage\.setItem\(THEME_KEY,mode\)[\s\S]*?window\.location\.reload\(\)/);
   assert.match(app,/tg\.setHeaderColor\(color\)/);
   assert.match(app,/tg\.setBackgroundColor\(color\)/);
   assert.match(app,/tg\.setBottomBarColor\(color\)/);
@@ -517,8 +517,7 @@ test('editorial pointer retention has one owner and never restores focus after s
   assert.doesNotMatch(html,/keyboardPolicyReady|applyThemeWithoutReload|interactionFocus/);
   assert.match(app,/document\.addEventListener\('pointerdown',event=>\{[\s\S]*?if\(control&&!control\.disabled\)event\.preventDefault\(\);[\s\S]*?\},true\)/);
   assert.doesNotMatch(app,/addEventListener\('mousedown', e => e\.preventDefault\(\)\)/);
-  assert.match(app,/function setTheme\(mode\)[\s\S]*?applyScheme\(mode\)/);
-  assert.doesNotMatch(app,/window\.location\.reload\(\)/);
+  assert.match(app,/function setTheme\(mode\)[\s\S]*?window\.location\.reload\(\)/);
 });
 
 test('document name lives in export flow and becomes the Telegraph editorial title',()=>{
