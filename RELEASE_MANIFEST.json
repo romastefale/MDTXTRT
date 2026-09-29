@@ -70,6 +70,7 @@
     "authority": "full-git-commit-sha",
     "convenienceBranchPrefix": "release-anchor/",
     "immutable": true,
-    "supersedeInsteadOfMove": true
+    "supersedeInsteadOfMove": true,
+    "sealAfter": "release-approved"
   }
 }
