@@ -595,7 +595,7 @@ test('execution toolchain is pinned and CI verifies committed browser bundles wi
   assert.match(workflow,/test "\$\(npm --version\)" = "11\.19\.0"/);
   assert.match(workflow,/name: Rebuild transactional editor bundle[\s\S]*?npm run build:editor/);
   assert.match(workflow,/name: Verify transactional editor bundle[\s\S]*?git diff --exit-code -- editor-core\.js/);
-  assert.match(workflow,/name: Detect React UI bundle input changes[\s\S]*?src\/liquid-glass-ui\.jsx package\.json package-lock\.json/);
+  assert.match(workflow,/name: Detect React UI bundle input changes[\s\S]*?src\/liquid-glass-ui\.jsx app\.js package\.json package-lock\.json/);
   assert.match(workflow,/name: Rebuild React UI bundle[\s\S]*?steps\.ui_inputs\.outputs\.changed == 'true'[\s\S]*?npm run build:ui/);
   assert.match(workflow,/name: Verify React UI bundle[\s\S]*?git diff --exit-code -- ui\.js/);
   assert.doesNotMatch(workflow,/git push|contents: write/);
