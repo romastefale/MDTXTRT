@@ -88,7 +88,7 @@ function setTheme(mode){
   if(mode!=='light'&&mode!=='dark')throw new Error('Tema inválido');
   themePreference=mode;
   try{localStorage.setItem(THEME_KEY,mode);}catch{}
-  window.location.reload();
+  applyScheme(mode);
 }
 function normalizedRevision(value){return Number.isSafeInteger(value)&&value>=0?value:0;}
 function bumpDocumentRevision(){
@@ -1305,7 +1305,13 @@ function syncEditorSelectionUI(){
   all('#headingMenu [data-block]').forEach(btn=>btn.classList.toggle('is-current',btn.dataset.block===kind));
 }
 document.addEventListener('selectionchange',syncEditorSelectionUI);
-one('#typebar').addEventListener('mousedown', e => e.preventDefault());
+document.addEventListener('pointerdown',event=>{
+  const active=document.activeElement;
+  const textEntry=active===editor||active?.matches?.('textarea,input:not([type=button]):not([type=checkbox]):not([type=file]),[contenteditable="true"]');
+  if(!textEntry)return;
+  const control=event.target?.closest?.('#ux-root button,#ux-root [role="button"],#ux-root a[href]');
+  if(control&&!control.disabled)event.preventDefault();
+},true);
 all('#typebar [data-cmd], [data-plus-submenu] [data-cmd], #listMenu [data-cmd]').forEach(btn => btn.addEventListener('click', ()=>{try{exec(btn.dataset.cmd);closePanels();}catch(err){showToast(err.message);}}));
 all('#typebar [data-block], #headingMenu [data-block], #quoteMenu [data-block]').forEach(btn => btn.addEventListener('click', ()=>{try{formatBlock(btn.dataset.block);}catch(err){showToast(err.message);}}));
 document.querySelectorAll('[data-plus-submenu] [data-insert], #quoteMenu [data-insert], #listMenu [data-insert]').forEach(btn => btn.addEventListener('click', ()=>{void insertFeature(btn.dataset.insert).catch(err=>showToast(err.message));}));
@@ -1332,8 +1338,6 @@ function flashBtn(btn){
 }
 one('#undoBtn').addEventListener('click', ()=>{ histUndo(); flashBtn(one('#undoBtn')); });
 one('#redoBtn').addEventListener('click', ()=>{ histRedo(); flashBtn(one('#redoBtn')); });
-one('#undoBtn').addEventListener('mousedown', e => e.preventDefault());
-one('#redoBtn').addEventListener('mousedown', e => e.preventDefault());
 one('#themeBtn').addEventListener('click',()=>setTheme(document.documentElement.classList.contains('light')?'dark':'light'));
 one('#openAppBtn').addEventListener('click',()=>{if(dest==='telegram'&&session!=='ready')void openMiniApp();else void publishCurrent();});
 one('#destBtn').addEventListener('click', ()=>setDestination(dest === 'telegram' ? 'telegraph' : 'telegram'));

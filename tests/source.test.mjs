@@ -218,7 +218,7 @@ test('theme switch owns browser and Telegram chrome without mixed system bars',(
   assert.ok(existsSync(new URL('../icons/dark_mode.svg',import.meta.url)));
   assert.match(app,/const THEME_KEY='mdtxtrt-theme'/);
   assert.match(app,/localStorage\.setItem\(THEME_KEY,mode\)/);
-  assert.match(app,/function setTheme\(mode\)\{[\s\S]*?localStorage\.setItem\(THEME_KEY,mode\)[\s\S]*?window\.location\.reload\(\)/);
+  assert.match(app,/function setTheme\(mode\)\{[\s\S]*?localStorage\.setItem\(THEME_KEY,mode\)[\s\S]*?applyScheme\(mode\)/);
   assert.match(app,/tg\.setHeaderColor\(color\)/);
   assert.match(app,/tg\.setBackgroundColor\(color\)/);
   assert.match(app,/tg\.setBottomBarColor\(color\)/);
@@ -512,14 +512,13 @@ test('plus menu keeps normative compact geometry and opens categorized submenus 
 });
 
 
-test('shell owns a global virtual-keyboard retention policy without modifying generated UI bundles',()=>{
-  const html=read('index.html');
-  assert.match(html,/const keyboardOpen=\(\)=>\{/);
-  assert.match(html,/root\.hasAttribute\('data-keyboard'\)/);
-  assert.match(html,/document\.addEventListener\('pointerdown',preservePointer,true\)/);
-  assert.match(html,/document\.addEventListener\('mousedown',preservePointer,true\)/);
-  assert.match(html,/if\(theme&&keyboardOpen\(\)\)[\s\S]*?applyThemeWithoutReload\(\)/);
-  assert.match(html,/if\(!keyboardOpen\(\)\)return;[\s\S]*?event\.preventDefault\(\)/);
+test('editorial pointer retention has one owner and never restores focus after system dismissal',()=>{
+  const html=read('index.html'),app=read('app.js');
+  assert.doesNotMatch(html,/keyboardPolicyReady|applyThemeWithoutReload|interactionFocus/);
+  assert.match(app,/document\.addEventListener\('pointerdown',event=>\{[\s\S]*?if\(control&&!control\.disabled\)event\.preventDefault\(\);[\s\S]*?\},true\)/);
+  assert.doesNotMatch(app,/addEventListener\('mousedown', e => e\.preventDefault\(\)\)/);
+  assert.match(app,/function setTheme\(mode\)[\s\S]*?applyScheme\(mode\)/);
+  assert.doesNotMatch(app,/window\.location\.reload\(\)/);
 });
 
 test('document name lives in export flow and becomes the Telegraph editorial title',()=>{

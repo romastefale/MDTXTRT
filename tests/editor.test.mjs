@@ -354,6 +354,36 @@ test('Telegram launch already fullscreen and a rejected optional request keep th
   rejected.close();
 });
 
+test('mobile editor controls preserve active focus without reopening a dismissed keyboard',async()=>{
+  const w=page({visualViewport:{height:410}}),d=w.document,editor=d.querySelector('#editor');
+  await wait(40);
+  editor.focus();
+  const bold=d.querySelector('#typebar [data-cmd="bold"]');
+  const activePress=new w.Event('pointerdown',{bubbles:true,cancelable:true});
+  bold.dispatchEvent(activePress);
+  assert.equal(activePress.defaultPrevented,true);
+  assert.equal(d.activeElement,editor);
+
+  const theme=d.querySelector('#themeBtn');
+  const initial=d.documentElement.classList.contains('light');
+  theme.dispatchEvent(new w.Event('pointerdown',{bubbles:true,cancelable:true}));
+  theme.click();
+  assert.equal(d.documentElement.classList.contains('light'),!initial);
+  assert.equal(d.activeElement,editor);
+
+  w.visualViewport.height=800;
+  w.dispatchEvent(new w.Event('resize'));
+  const outside=d.querySelector('#destBtn');
+  outside.focus();
+  assert.equal(d.activeElement,outside);
+  const dismissedPress=new w.Event('pointerdown',{bubbles:true,cancelable:true});
+  bold.dispatchEvent(dismissedPress);
+  assert.equal(dismissedPress.defaultPrevented,false);
+  bold.click();
+  assert.equal(d.activeElement,outside);
+  w.close();
+});
+
 test('Mini App exposes the export menu and keeps publication as an explicit menu action',async()=>{
   const requests=[];
   const fetch=async(url)=>{
