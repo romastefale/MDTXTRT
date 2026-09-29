@@ -61,9 +61,6 @@ function draftFixture(html='<p>Teste</p>',doc=randomUUID(),revision=0,name='Test
   return {version:2,name,html,dest:'telegram',telegraphPath:'',docId:doc,revision,importedMd:'',importedTxt:'',importedHtml:'',media:null};
 }
 async function formPost(path,fields,file){
-  if(path==='/api/telegram/send'&&!Object.hasOwn(fields,'draft')){
-    fields={...fields,draft:JSON.stringify(draftFixture(String(fields.html||'<p>Teste</p>')))};
-  }
   const form=new FormData();
   for(const [key,value] of Object.entries(fields))form.set(key,String(value));
   if(file)form.set('upload',file.blob,file.name);
