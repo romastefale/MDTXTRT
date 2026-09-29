@@ -1321,7 +1321,7 @@ test('link actions distinguish hyperlink, visible URL and Telegram URL button',a
   assert.equal(button?.textContent,'Abrir site');
   assert.equal(button?.getAttribute('type'),'url');
   assert.equal(button?.getAttribute('url'),'https://example.com/button');
-  assert.equal(button?.getAttribute('style'),'primary');
+  assert.equal(button?.hasAttribute('style'),false);
   w.close();
 });
 
