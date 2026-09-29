@@ -79,7 +79,7 @@ for(const label of [
   'Final document/revision unchanged as expected','Draft evidence reference',
   'Telegraph initial revision','Telegraph test path/URL','Backend restart timestamp','Durable volume retained','Telegraph evidence reference',
   'Document UUID','Telegram initial revision','Returned messageId','Delivery timestamp','Receiving device/client','Rendering result',
-  'Later edited revision','Edit returned/observed same messageId','Second-message duplicate check','Reload/reopen duplicate check',
+  'Later revised revision','Original message preserved','Revision notice messageId','Revised content messageId','Revision notice linked to original','Unintended duplicate check','Reload/reopen duplicate check',
   'Cross-owner/document binding isolation','Telegram evidence reference',
   'Light mode evidence','Dark mode evidence','Menus/dialogs evidence','Title-label evidence',
   'Last known-good immutable SHA','Candidate deployment ID/SHA','Rollback deployment procedure exercised',
@@ -91,15 +91,19 @@ if(!/^[1-9]\d*$/.test(requireValue('Returned messageId')))fail('Returned message
 if(!/^[0-9]+$/.test(requireValue('Draft revision before restart')))fail('Draft revision before restart deve ser inteiro não negativo');
 if(!/^[0-9]+$/.test(requireValue('Telegraph initial revision')))fail('Telegraph initial revision deve ser inteiro não negativo');
 if(!/^[0-9]+$/.test(requireValue('Telegram initial revision')))fail('Telegram initial revision deve ser inteiro não negativo');
-if(!/^[0-9]+$/.test(requireValue('Later edited revision')))fail('Later edited revision deve ser inteiro não negativo');
+if(!/^[0-9]+$/.test(requireValue('Later revised revision')))fail('Later revised revision deve ser inteiro não negativo');
+if(!/^[1-9]\d*$/.test(requireValue('Revision notice messageId')))fail('Revision notice messageId deve ser inteiro positivo');
+if(!/^[1-9]\d*$/.test(requireValue('Revised content messageId')))fail('Revised content messageId deve ser inteiro positivo');
+if(requireValue('Returned messageId')===requireValue('Revised content messageId'))fail('Revised content messageId deve ser novo e diferente do messageId inicial');
 
 requireYes('Confirmation that every external destination used is intentionally authorized');
 requireYes('Draft persistent volume retained');
 requireYes('Final document/revision unchanged as expected');
 requireYes('Durable volume retained');
 requireYes('Final path unchanged');
-requireYes('Edit returned/observed same messageId');
-requireYes('Second-message duplicate check');
+requireYes('Original message preserved');
+requireYes('Revision notice linked to original');
+requireYes('Unintended duplicate check');
 requireYes('Reload/reopen duplicate check');
 requireYes('Cross-owner/document binding isolation');
 requireYes('Persistent volume retained');
@@ -137,7 +141,7 @@ for(const label of importRows){
 const faultLabels=[
   'localStorage read failure','identity write/read-back failure','/novo archive storage failure','IndexedDB unavailable with attachment',
   'Railway draft-volume write failure','Railway draft unavailable after restart','offline before request',
-  'Telegram unknown timeout on first send','Telegram edit timeout','backend restart during sending',
+  'Telegram unknown timeout on first send','Telegram revision notice/content timeout','backend restart during sending',
   'response lost after possible acceptance','Telegraph ownership without credential','reload succeeded handoff',
   'reload uncertain handoff','explicit Telegram rejection','stale persistent draft revision'
 ];
