@@ -77,8 +77,8 @@ for(const label of [
   'Draft document UUID','Draft revision before restart','Owner type (browser/Telegram)','Recovery with local active slot absent',
   'Backend restart/deploy timestamp','Draft persistent volume retained','Recovery result after restart','Cross-owner isolation result',
   'Final document/revision unchanged as expected','Draft evidence reference',
-  'Telegraph test path/URL','Backend restart timestamp','Durable volume retained','Telegraph evidence reference',
-  'Document UUID','Initial revision','Returned messageId','Delivery timestamp','Receiving device/client','Rendering result',
+  'Telegraph initial revision','Telegraph test path/URL','Backend restart timestamp','Durable volume retained','Telegraph evidence reference',
+  'Document UUID','Telegram initial revision','Returned messageId','Delivery timestamp','Receiving device/client','Rendering result',
   'Later edited revision','Edit returned/observed same messageId','Second-message duplicate check','Reload/reopen duplicate check',
   'Cross-owner/document binding isolation','Telegram evidence reference',
   'Light mode evidence','Dark mode evidence','Menus/dialogs evidence','Title-label evidence',
@@ -89,7 +89,8 @@ for(const label of [
 
 if(!/^[1-9]\d*$/.test(requireValue('Returned messageId')))fail('Returned messageId deve ser inteiro positivo');
 if(!/^[0-9]+$/.test(requireValue('Draft revision before restart')))fail('Draft revision before restart deve ser inteiro não negativo');
-if(!/^[0-9]+$/.test(requireValue('Initial revision')))fail('Initial revision deve ser inteiro não negativo');
+if(!/^[0-9]+$/.test(requireValue('Telegraph initial revision')))fail('Telegraph initial revision deve ser inteiro não negativo');
+if(!/^[0-9]+$/.test(requireValue('Telegram initial revision')))fail('Telegram initial revision deve ser inteiro não negativo');
 if(!/^[0-9]+$/.test(requireValue('Later edited revision')))fail('Later edited revision deve ser inteiro não negativo');
 
 requireYes('Confirmation that every external destination used is intentionally authorized');
