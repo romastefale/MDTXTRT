@@ -700,6 +700,8 @@ test('webhook authentication and bot command responses retain their contracts',a
   assert.equal((await webhook({message:{text:'/start',message_id:1,chat:{id:7,type:'private'}}},false)).status,401);
   const registered=lastCall('setMyCommands')?.body?.commands?.map(item=>item.command)||[];
   for(const name of ['start','app','novo','ajuda','enviar','exportar','importar'])assert.ok(registered.includes(name),name);
+  assert.deepEqual(lastCall('setMyCommands').body.scope,{type:'all_private_chats'});
+  assert.deepEqual(lastCall('deleteMyCommands').body.scope,{type:'default'});
 
   for(const [text,message_id] of [['/start',11],['/app',12],['/novo',13],['/ajuda',14]]){
     const res=await webhook({message:{text,message_id,chat:{id:7,type:'private'}}});
@@ -753,6 +755,32 @@ test('enviar, exportar, callbacks and group commands produce explicit Telegram a
   res=await webhook({message:{text:'/app',message_id:23,chat:{id:-2,type:'group'}}});
   assert.equal(res.status,200);
   assert.match(lastCall('sendRichMessage').body.rich_message.html,/chat privado/);
+});
+
+test('replied text retains Telegram entity offsets and literal TXT whitespace',async()=>{
+  const reply={text:'  Olá forte\n',entities:[{type:'bold',offset:6,length:5}]};
+  let res=await webhook({message:{text:'/enviar',message_id:24,chat:{id:7,type:'private'},reply_to_message:reply}});
+  assert.equal(res.status,200);
+  assert.equal(lastCall('sendRichMessage').body.rich_message.html,'<p>  Olá <b>forte</b><br></p>');
+
+  res=await webhook({message:{text:'/exportar md',message_id:25,chat:{id:7,type:'private'},reply_to_message:reply}});
+  assert.equal(res.status,200);
+  assert.equal(lastCall('sendDocument').body.document.text,'  Olá **forte**\n');
+
+  res=await webhook({message:{text:'/exportar txt',message_id:26,chat:{id:7,type:'private'},reply_to_message:reply}});
+  assert.equal(res.status,200);
+  assert.equal(lastCall('sendDocument').body.document.text,reply.text);
+
+  const caption={caption:'  texto forte',caption_entities:[{type:'bold',offset:8,length:5}]};
+  res=await webhook({message:{text:'/enviar',message_id:27,chat:{id:7,type:'private'},reply_to_message:caption}});
+  assert.equal(res.status,200);
+  assert.equal(lastCall('sendRichMessage').body.rich_message.html,'<p>  texto <b>forte</b></p>');
+
+  const documentsBefore=callCount('sendDocument');
+  res=await webhook({message:{caption:'/exportar md',message_id:28,chat:{id:7,type:'private'},document:{file_id:'valid-txt',file_name:'notas.txt'}}});
+  assert.equal(res.status,200);
+  assert.equal(callCount('sendDocument'),documentsBefore);
+  assert.match(lastBotHTML(),/documento anexado só pode ser usado com/);
 });
 
 test('Telegraph request errors are typed independently from upstream failures',async()=>{
