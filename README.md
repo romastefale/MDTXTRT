@@ -19,6 +19,7 @@ Consulte [BASELINE.md](BASELINE.md) para a definição operacional, regras de ev
 - [ARCHITECTURE.md](ARCHITECTURE.md): fronteiras arquiteturais e decisões deliberadas da evolução.
 - [FORMAT_CONTRACT.md](FORMAT_CONTRACT.md): matriz de importação, exportação e publicação.
 - [LOCAL_DRAFTS.md](LOCAL_DRAFTS.md): camadas local/volume, identidade, recuperação e proveniência de publicação dos rascunhos.
+- [SURFACE_CONTRACT.md](SURFACE_CONTRACT.md): inventário Web/PWA/Mini App/bot e caminho funcional de cada capacidade anunciada.
 
 ## Validação final de release
 
@@ -26,4 +27,4 @@ Consulte [BASELINE.md](BASELINE.md) para a definição operacional, regras de ev
 - [RELEASE_VALIDATION.md](RELEASE_VALIDATION.md): gates automatizados, externos e físicos obrigatórios.
 - [RELEASE_EVIDENCE_TEMPLATE.md](RELEASE_EVIDENCE_TEMPLATE.md): registro auditável das evidências.
 - [RELEASE_ANCHOR.md](RELEASE_ANCHOR.md): política da âncora canônica imutável por SHA.
-- [RELEASE_MANIFEST.json](RELEASE_MANIFEST.json): linhagem executável das seis etapas e requisitos de release.
+- [RELEASE_MANIFEST.json](RELEASE_MANIFEST.json): linhagem executável das seis etapas de implementação e requisitos da Etapa 7/7.
