@@ -551,6 +551,7 @@ function usableAnchorRect(rect,bounds){
 }
 function placePanel(panel,anchorRect=null){
   if(!panel)return;
+  panel.setAttribute('data-runtime-positioned','');
   const viewport=visualViewportBounds(),bounds=panelViewportBounds(viewport),edge=8,gap=8;
   const fullHeight=Math.max(0,bounds.height-edge*2);
   const baseMax=Math.max(0,Math.min(420,bounds.height*.55,fullHeight));
