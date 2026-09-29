@@ -443,7 +443,10 @@ function setupTelegram(){
   tg.expand();
   applyScheme();
   syncTelegramSafeAreas();
-  if(typeof tg.isVersionAtLeast==='function'&&tg.isVersionAtLeast('8.0')&&typeof tg.requestFullscreen==='function'&&!tg.isFullscreen)tg.requestFullscreen();
+  if(typeof tg.isVersionAtLeast==='function'&&tg.isVersionAtLeast('8.0')&&typeof tg.requestFullscreen==='function'&&!tg.isFullscreen){
+    try{tg.requestFullscreen();}
+    catch(error){console.error('Telegram fullscreen',error);showToast('Não foi possível abrir em fullscreen');}
+  }
   scheduleBrowserViewport();
   tg.SettingsButton.show();
   tg.SettingsButton.onClick(openPlusRoot);
@@ -1507,7 +1510,7 @@ function syncBrowserViewport(){
     const stable=Number(getTg()?.viewportStableHeight);
     root.style.setProperty('--vv-top','0px');
     root.style.setProperty('--vv-bottom','0px');
-    if(Number.isFinite(stable)&&stable>0)root.style.setProperty('--vv-height',stable+'px');
+    root.style.setProperty('--vv-height',Number.isFinite(stable)&&stable>0?stable+'px':'var(--tg-viewport-stable-height,100dvh)');
     root.removeAttribute('data-keyboard');
     for(const sel of sheets){const panel=one(sel);if(panel?.matches(':popover-open'))placePanel(panel);}
     const dialog=one('#dialogMenu');
