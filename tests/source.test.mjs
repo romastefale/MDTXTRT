@@ -710,13 +710,24 @@ test('step 6 persists drafts on the Railway volume, binds Telegram publication p
   assert.match(ui,/id="draftList"/);
   assert.match(ui,/id="telegramList"/);
   assert.match(ui,/id="telegraphList"/);
-  assert.match(ui,/id="libraryRefresh"/);
-  assert.match(ui,/id="libraryNew"/);
+  assert.doesNotMatch(ui,/id="libraryRefresh"/);
+  assert.match(ui,/id="libraryNew"[\s\S]*?Icon name="sticky_note_2"/);
+  assert.match(ui,/id="libraryDismiss"/);
+  assert.match(ui,/id="publicationToggle"[\s\S]*?aria-expanded="true"/);
+  assert.ok(ui.indexOf('id="publicationLibrarySection"')<ui.indexOf('id="draftLibrarySection"'));
+  assert.doesNotMatch(ui,/Conteúdo persistido no volume/);
   assert.match(ui,/Icon name="menu"/);
   assert.match(app,/Array\.isArray\(data\.telegram\)/);
   assert.match(server,/function listTelegramPublications\(owner,drafts=\[\]\)/);
   assert.match(html,/\.library-list\{display:grid/);
   assert.match(html,/\.library-preview\{/);
+  assert.match(html,/\.library-dismiss\{[\s\S]*?position:fixed;inset:0[\s\S]*?pointer-events:auto/);
+  assert.match(html,/#libraryNew\.library-new-action\{[\s\S]*?background:var\(--accent\)[\s\S]*?box-shadow/);
+  assert.match(html,/\.library-back-pill,\.library-action-pill\{[\s\S]*?width:var\(--pill-h\)[\s\S]*?height:var\(--pill-h\)/);
+  assert.match(app,/function setLibraryModality\(active\)/);
+  assert.match(app,/function setPublicationsExpanded\(expanded\)/);
+  assert.match(app,/one\('#libraryDismiss'\)\?\.addEventListener\('click',closeLibrary\)/);
+  assert.match(app,/one\('#publicationToggle'\)\?\.addEventListener/);
 });
 
 test('step 5 overlays use the visual viewport without changing the baseline material contract',()=>{

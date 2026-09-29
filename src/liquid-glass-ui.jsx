@@ -304,6 +304,7 @@ function FindMenu() {
 function LibraryScreen() {
   return (
     <div id="libraryScreen" popover="manual" className="library-screen" role="dialog" aria-modal="true" aria-labelledby="libraryTitle">
+      <button type="button" id="libraryDismiss" className="library-dismiss" tabIndex="-1" aria-label="Fechar biblioteca" />
       <Glass optics={MENU_LENS} className="library-material" style={{ display: "block", width: "100%", height: "100%" }}>
         <div className="library-shell">
           <div className="library-head">
@@ -312,25 +313,35 @@ function LibraryScreen() {
             </GlassControl>
             <div className="library-heading">
               <h2 id="libraryTitle">Rascunhos e publicações</h2>
-              <p className="hint">Conteúdo persistido no volume, com acesso de edição para Telegram e Telegraph.</p>
             </div>
-            <GlassControl className="seg top-pill library-manage-pill">
-              <button type="button" id="libraryRefresh" aria-label="Atualizar biblioteca" title="Atualizar biblioteca"><Icon name="redo" /></button>
-              <button type="button" id="libraryNew" aria-label="Novo documento" title="Novo documento"><Icon name="plus" /></button>
+            <GlassControl className="seg top-pill library-action-pill">
+              <button type="button" id="libraryNew" className="library-new-action action-dot" aria-label="Criar novo documento" title="Criar novo documento"><Icon name="sticky_note_2" /></button>
             </GlassControl>
           </div>
-          <div id="libraryStatus" className="hint library-status" role="status" aria-live="polite" />
+          <div id="libraryStatus" className="library-status" role="status" aria-live="polite" />
+          <section className="library-section library-publications" id="publicationLibrarySection" aria-labelledby="publicationLibraryTitle">
+            <button type="button" id="publicationToggle" className="library-section-toggle" aria-expanded="true" aria-controls="publicationLists">
+              <span id="publicationLibraryTitle">Publicações</span>
+              <span id="publicationCount" className="library-section-count">0</span>
+              <Icon name="chevron_right" />
+            </button>
+            <div id="publicationLists" className="library-publication-groups">
+              <section className="library-platform-group" id="telegramLibrarySection" aria-labelledby="telegramLibraryTitle">
+                <h3 id="telegramLibraryTitle">Telegram</h3>
+                <div id="telegramList" className="library-list" />
+              </section>
+              <section className="library-platform-group" id="telegraphLibrarySection" aria-labelledby="telegraphLibraryTitle">
+                <h3 id="telegraphLibraryTitle">Telegraph</h3>
+                <div id="telegraphList" className="library-list" />
+              </section>
+            </div>
+          </section>
           <section className="library-section" id="draftLibrarySection" aria-labelledby="draftLibraryTitle">
-            <h3 id="draftLibraryTitle">Rascunhos</h3>
+            <div className="library-section-heading">
+              <h3 id="draftLibraryTitle">Rascunhos</h3>
+              <span id="draftCount" className="library-section-count">0</span>
+            </div>
             <div id="draftList" className="library-list" />
-          </section>
-          <section className="library-section" id="telegramLibrarySection" aria-labelledby="telegramLibraryTitle">
-            <h3 id="telegramLibraryTitle">Publicações Telegram</h3>
-            <div id="telegramList" className="library-list" />
-          </section>
-          <section className="library-section" id="telegraphLibrarySection" aria-labelledby="telegraphLibraryTitle">
-            <h3 id="telegraphLibraryTitle">Publicações Telegraph</h3>
-            <div id="telegraphList" className="library-list" />
           </section>
         </div>
       </Glass>
