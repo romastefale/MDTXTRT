@@ -646,7 +646,10 @@ test('stage 6/7 persists active drafts and Telegram provenance without changing 
   assert.match(server,/history:nextHistory/);
   assert.doesNotMatch(server,/telegramCall\("editMessageText"/);
   assert.match(app,/function sanitizeDraftRuntimeDOM\(box\)/);
-  assert.match(app,/editorCore\?editorCore\.html\(\):editor\.innerHTML/);
+  assert.match(app,/box\.innerHTML=requireEditorCore\(\)\.html\(\)/);
+  assert.doesNotMatch(app,/editorCore\?editorCore\.html\(\):editor\.innerHTML/);
+  assert.doesNotMatch(app,/else editor\.innerHTML=/);
+  assert.match(app,/edição bloqueada para não substituir um rascunho remoto/);
   assert.match(app,/function persistRemoteDraft\(pagehide=false\)/);
   assert.match(app,/function loadRemoteDraft\(doc=''\)/);
   assert.match(app,/form\.set\('draft',JSON\.stringify\(draftState\(\)\)\)/);
@@ -664,7 +667,8 @@ test('step 4 format contract is explicit and conversion code uses the shared por
   const app=read('app.js'),contract=read('FORMAT_CONTRACT.md');
   assert.match(app,/const FORMAT_CONTRACT=Object\.freeze/);
   assert.match(app,/function normalizePortableHTML\(root,label='conteúdo'\)/);
-  assert.match(app,/function exportDocumentHTML\(\)\{[\s\S]*?editorCore\?editorCore\.html\(\):editor\.innerHTML/);
+  assert.match(app,/function exportDocumentHTML\(\)\{[\s\S]*?requireEditorCore\(\)\.html\(\)/);
+  assert.doesNotMatch(app,/function exportDocumentHTML\(\)\{[\s\S]*?editor\.innerHTML/);
   assert.match(app,/svc\.addRule\('strikethrough'/);
   assert.doesNotMatch(app,/if\(importedMd && editor\.innerHTML === importedHtml\) return importedMd/);
   assert.doesNotMatch(app,/if\(importedTxt && editor\.innerHTML===importedHtml\)return importedTxt/);
