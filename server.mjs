@@ -73,6 +73,8 @@ const BOT_COMMANDS = [
   { command: "start", description: "Abrir o MDTXTRT" },
   { command: "app", description: "Abrir o Mini App" },
   { command: "novo", description: "Criar um documento" },
+  { command: "rascunhos", description: "Abrir rascunhos salvos" },
+  { command: "telegraph", description: "Gerenciar páginas Telegraph" },
   { command: "ajuda", description: "Ver os comandos" },
   { command: "enviar", description: "Enviar texto rico" },
   { command: "exportar", description: "Exportar texto como arquivo" },
@@ -361,12 +363,40 @@ async function importTelegramDocument(document,chatId){
   return {draft,token};
 }
 
+function normalizeDraftRuntimeHTML(html){
+  const doc=parseDocument(String(html||""));
+  const walk=node=>{
+    if(node.type!=="tag"){
+      node.children?.slice().forEach(walk);
+      return;
+    }
+    const classes=String(node.attribs?.class||"").split(/\s+/).filter(Boolean);
+    const transientNode=classes.some(name=>["ProseMirror-trailingBreak","ProseMirror-separator","ProseMirror-gapcursor"].includes(name));
+    if(transientNode){
+      DomUtils.removeElement(node);
+      return;
+    }
+    for(const key of ["contenteditable","draggable","spellcheck","tabindex","aria-selected"])delete node.attribs[key];
+    for(const key of Object.keys(node.attribs||{}))if(key.startsWith("data-pm-"))delete node.attribs[key];
+    if(classes.length){
+      const kept=classes.filter(name=>!name.startsWith("ProseMirror-"));
+      if(kept.length)node.attribs.class=kept.join(" ");
+      else delete node.attribs.class;
+    }
+    node.children?.slice().forEach(walk);
+  };
+  doc.children.slice().forEach(walk);
+  return DomUtils.getInnerHTML(doc,{encodeEntities:"utf8"});
+}
+
 function draftValid(draft) {
   if (!draft || typeof draft !== "object" || Array.isArray(draft)) throw new Error("Rascunho inválido");
   if(draft.version!==2)throw new Error("Versão do rascunho incompatível");
   const json = JSON.stringify(draft);
   if (Buffer.byteLength(json, "utf8") > 350_000) throw new Error("Rascunho grande demais");
   if (typeof draft.html !== "string" || Buffer.byteLength(draft.html, "utf8") > 160_000) throw new Error("Conteúdo do rascunho inválido");
+  draft.html=normalizeDraftRuntimeHTML(draft.html);
+  if (Buffer.byteLength(draft.html, "utf8") > 160_000) throw new Error("Conteúdo do rascunho inválido");
   if (typeof draft.name !== "string" || draft.name.length > 120) throw new Error("Nome do rascunho inválido");
   if (!["telegram", "telegraph"].includes(draft.dest)) throw new Error("Destino do rascunho inválido");
   if (draft.action !== undefined && draft.action !== "publish") throw new Error("Ação do rascunho inválida");
@@ -440,6 +470,17 @@ function telegramPublicationValid(value){
     throw new Error("Estado da mensagem publicada inválido");
   }
   if(typeof value.error!=="string")throw new Error("Erro da publicação inválido");
+  if(value.history!==undefined){
+    if(!Array.isArray(value.history)||value.history.length>100)throw new Error("Histórico Telegram inválido");
+    for(const entry of value.history){
+      if(!entry||typeof entry!=="object"||Array.isArray(entry)||!Number.isInteger(entry.messageId)||entry.messageId<=0||!Number.isSafeInteger(entry.revision)||entry.revision<0||!Number.isFinite(entry.publishedAt)||entry.publishedAt<0||!Number.isInteger(entry.noticeMessageId||0)||Number(entry.noticeMessageId||0)<0)throw new Error("Histórico Telegram inválido");
+    }
+  }
+  if(value.pendingUpdate!==undefined&&value.pendingUpdate!==null){
+    const pending=value.pendingUpdate;
+    if(!pending||typeof pending!=="object"||Array.isArray(pending)||!["pending","failed","uncertain"].includes(pending.status)||!["notice","content"].includes(pending.phase)||!Number.isSafeInteger(pending.revision)||pending.revision<0||!Number.isInteger(pending.noticeMessageId)||pending.noticeMessageId<0||!Number.isFinite(pending.startedAt)||pending.startedAt<0||typeof pending.error!=="string")throw new Error("Atualização Telegram pendente inválida");
+    if(pending.phase==="content"&&pending.noticeMessageId<=0)throw new Error("Aviso da atualização Telegram inválido");
+  }
 }
 function persistentRecordValid(record,owner,doc){
   if(!record||typeof record!=="object"||Array.isArray(record)||record.schema!==1)throw new Error("Rascunho persistido inválido");
@@ -494,6 +535,59 @@ function persistentDraftView(record){
     }
   };
 }
+function listPersistentDrafts(owner){
+  const dir=DRAFT_DIR+"/"+ownerFingerprint(owner);
+  if(!existsSync(dir))return [];
+  const items=[];
+  for(const name of readdirSync(dir)){
+    if(!/^[a-f0-9-]{36}\.json$/i.test(name))continue;
+    try{
+      const doc=name.slice(0,-5);
+      const record=readPersistentDraft(owner,doc);
+      if(!record)continue;
+      items.push({
+        docId:record.draft.docId,
+        name:record.draft.name,
+        dest:record.draft.dest,
+        revision:record.draft.revision,
+        telegraphPath:record.draft.telegraphPath,
+        updatedAt:record.updatedAt,
+        hasMedia:Boolean(record.media)
+      });
+    }catch(error){
+      console.error("Persistent draft list",name,error);
+    }
+  }
+  return items.sort((a,b)=>b.updatedAt-a.updatedAt||a.name.localeCompare(b.name));
+}
+function telegraphOwnerFromDraftOwner(owner){
+  return owner.kind==="telegram"?owner.chatId:owner.key;
+}
+function listTelegraphPages(owner,drafts=[]){
+  const pages=readPages();
+  const prefix=telegraphOwnerFromDraftOwner(owner)+":";
+  const byDoc=new Map(drafts.map(item=>[item.docId,item]));
+  const items=[];
+  for(const [key,value] of Object.entries(pages)){
+    if(!key.startsWith(prefix))continue;
+    const docId=key.slice(prefix.length);
+    if(!/^[a-f0-9-]{36}$/i.test(docId))continue;
+    const path=typeof value==="string"?value:"";
+    const status=typeof value==="string"?"succeeded":value?.status==="pending"?"pending":"invalid";
+    if(status==="invalid")continue;
+    const draft=byDoc.get(docId);
+    items.push({
+      docId,
+      path,
+      status,
+      name:draft?.name||path||"Página Telegraph",
+      revision:draft?.revision||0,
+      updatedAt:draft?.updatedAt||0
+    });
+  }
+  return items.sort((a,b)=>b.updatedAt-a.updatedAt||a.name.localeCompare(b.name));
+}
+
 function savePersistentDraft(owner,draft,file=null){
   draftValid(draft);
   if(!/^[a-f0-9-]{36}$/i.test(String(draft.docId||"")))throw new HttpError(400,"Documento inválido");
@@ -766,12 +860,12 @@ function richEmojiImage(value){
   return url.protocol==="tg:"&&url.hostname==="emoji"&&/^\d+$/.test(url.searchParams.get("id")||"")&&[...url.searchParams.keys()].every(key=>key==="id");
 }
 
-async function sendRich(initData,html,file=null,messageId=0){
+async function sendRich(initData,html,file=null,replyTo=0){
   let body;
   try{
     richValid(html);
     const { chatId } = userFromInitData(String(initData || ""));
-    const editing=Number.isInteger(messageId)&&messageId>0;
+    const replying=Number.isInteger(replyTo)&&replyTo>0;
     const doc = parseDocument(String(html));
     const media = [];
     let attached = false;
@@ -811,7 +905,7 @@ async function sendRich(initData,html,file=null,messageId=0){
     if (file && !attached) throw new Error("A mídia anexada não está no documento");
     const rich = { html: DomUtils.getInnerHTML(doc,{encodeEntities:"utf8"}) };
     if (media.length) rich.media = media;
-    body = { chat_id: chatId, ...(editing?{message_id:messageId}:{}), rich_message: rich };
+    body = { chat_id: chatId, ...(replying?{reply_parameters:{message_id:replyTo}}:{}), rich_message: rich };
     if (file) {
       const kind={image:"photo",video:"video",audio:"audio",voice:"voice_note",document:"document"}[file.kind];
       const mimeContract={
@@ -825,7 +919,7 @@ async function sendRich(initData,html,file=null,messageId=0){
       if(file.kind==="image"&&file.bytes.length>10_000_000)throw new Error("Fotos devem ter no máximo 10 MB");
       const form = new FormData();
       form.set("chat_id", chatId);
-      if(editing)form.set("message_id",String(messageId));
+      if(replying)form.set("reply_parameters",JSON.stringify({message_id:replyTo}));
       form.set("rich_message", JSON.stringify(body.rich_message));
       form.set("upload", new Blob([file.bytes], {type:file.mime}), file.name);
       body = form;
@@ -833,41 +927,115 @@ async function sendRich(initData,html,file=null,messageId=0){
   }catch(error){
     throw asHttpError(error,400,"Dados inválidos para publicação");
   }
-  const method=messageId>0?"editMessageText":"sendRichMessage";
-  const msg = await telegramCall(method, body);
-  const returnedId=messageId>0?messageId:Number(msg?.message_id||0);
+  const msg = await telegramCall("sendRichMessage", body);
+  const returnedId=Number(msg?.message_id||0);
   if(!Number.isInteger(returnedId)||returnedId<=0)throw new DeliveryError("O Telegram não confirmou o identificador da mensagem","uncertain");
-  return { via: method, messageId: returnedId, ...(messageId>0?{edited:true}:{}) };
+  return { via:"sendRichMessage", messageId:returnedId, ...(replyTo>0?{replyTo}:{}) };
+}
+
+async function sendTelegramRevisionNotice(owner,draft,previousMessageId){
+  const title=String(draft?.name||"Documento").trim()||"Documento";
+  const html="<p><b>Atualização de publicação</b></p><p><b>"+htmlEscape(title)+"</b> recebeu uma nova versão. A versão anterior permanece no histórico desta conversa; o conteúdo atualizado será enviado na próxima mensagem.</p>";
+  const body={chat_id:owner.chatId,reply_parameters:{message_id:previousMessageId},rich_message:{html}};
+  const msg=await telegramCall("sendRichMessage",body);
+  const messageId=Number(msg?.message_id||0);
+  if(!Number.isInteger(messageId)||messageId<=0)throw new DeliveryError("O Telegram não confirmou o aviso da atualização","uncertain");
+  return messageId;
 }
 
 async function publishTelegramPersistent(initData,draft,html,file=null){
   const owner=draftOwner({initData});
   if(owner.kind!=="telegram")throw new HttpError(400,"Publicação Telegram exige identidade Telegram");
   let record=savePersistentDraft(owner,draft,file);
-  const prior=record.publication.telegram;
+  let prior=record.publication.telegram;
   if(prior?.status==="pending"||prior?.status==="uncertain"){
     throw new HttpError(409,prior.error||"O resultado da publicação anterior é incerto; confira o chat antes de publicar novamente");
   }
+  if(prior?.pendingUpdate?.status==="pending"||prior?.pendingUpdate?.status==="uncertain"){
+    throw new HttpError(409,prior.pendingUpdate.error||"Uma atualização anterior ainda não foi confirmada; confira o chat antes de publicar novamente");
+  }
+
   if(prior?.status==="succeeded"){
-    const result=await sendRich(initData,html,file,prior.messageId);
+    const history=Array.isArray(prior.history)&&prior.history.length
+      ?prior.history.slice(-99)
+      :[{messageId:prior.messageId,revision:prior.revision,publishedAt:prior.updatedAt,noticeMessageId:0}];
+    let pending=prior.pendingUpdate||null;
+    if(!pending||pending.revision!==draft.revision||pending.phase!=="content"||pending.status!=="failed"){
+      pending={status:"pending",phase:"notice",revision:draft.revision,noticeMessageId:0,startedAt:Date.now(),error:""};
+      prior={...prior,history,pendingUpdate:pending,updatedAt:Date.now()};
+      record.publication.telegram=prior;
+      record.updatedAt=Date.now();
+      writePersistentRecord(owner,record);
+      try{
+        pending.noticeMessageId=await sendTelegramRevisionNotice(owner,draft,prior.messageId);
+        pending.phase="content";
+        pending.status="pending";
+        pending.error="";
+        record.publication.telegram={...prior,pendingUpdate:{...pending},updatedAt:Date.now()};
+        record.updatedAt=Date.now();
+        writePersistentRecord(owner,record);
+      }catch(error){
+        record=readPersistentDraft(owner,draft.docId)||record;
+        prior=record.publication.telegram||prior;
+        const failed=error instanceof DeliveryError&&error.outcome==="failed";
+        prior.pendingUpdate={...pending,status:failed?"failed":"uncertain",error:error instanceof Error?error.message:"Resultado do aviso incerto"};
+        prior.updatedAt=Date.now();
+        record.publication.telegram=prior;
+        record.updatedAt=Date.now();
+        try{writePersistentRecord(owner,record);}catch(storageError){console.error("Telegram revision notice provenance",storageError);}
+        throw error;
+      }
+    }else{
+      pending={...pending,status:"pending",error:"",startedAt:Date.now()};
+      prior={...prior,history,pendingUpdate:pending,updatedAt:Date.now()};
+      record.publication.telegram=prior;
+      record.updatedAt=Date.now();
+      writePersistentRecord(owner,record);
+    }
+
+    let result;
+    try{
+      result=await sendRich(initData,html,file,pending.noticeMessageId);
+    }catch(error){
+      record=readPersistentDraft(owner,draft.docId)||record;
+      prior=record.publication.telegram||prior;
+      const failed=error instanceof DeliveryError&&error.outcome==="failed"||error instanceof HttpError;
+      prior.pendingUpdate={...pending,status:failed?"failed":"uncertain",phase:"content",error:error instanceof Error?error.message:"Resultado da nova versão incerto"};
+      prior.updatedAt=Date.now();
+      record.publication.telegram=prior;
+      record.updatedAt=Date.now();
+      try{writePersistentRecord(owner,record);}catch(storageError){console.error("Telegram revision provenance",storageError);}
+      throw error;
+    }
+
     record=readPersistentDraft(owner,draft.docId)||record;
+    prior=record.publication.telegram||prior;
+    const nextHistory=[...(Array.isArray(prior.history)?prior.history:history),{
+      messageId:result.messageId,
+      revision:draft.revision,
+      publishedAt:Date.now(),
+      noticeMessageId:pending.noticeMessageId
+    }].slice(-100);
     record.publication.telegram={
       status:"succeeded",
       telegramUserId:owner.telegramUserId,
       chatId:owner.chatId,
-      messageId:prior.messageId,
+      messageId:result.messageId,
       revision:draft.revision,
       updatedAt:Date.now(),
-      error:""
+      error:"",
+      history:nextHistory,
+      pendingUpdate:null
     };
     record.updatedAt=Date.now();
     try{writePersistentRecord(owner,record);}
     catch(error){
-      console.error("Telegram edit provenance",error);
-      throw new DeliveryError("A mensagem foi atualizada, mas o vínculo persistente não pôde ser confirmado","uncertain");
+      console.error("Telegram revision provenance",error);
+      throw new DeliveryError("A nova versão foi enviada, mas seu vínculo persistente não pôde ser confirmado; não repita o envio","uncertain");
     }
-    return result;
+    return {...result,previousMessageId:prior.messageId,noticeMessageId:pending.noticeMessageId,revision:draft.revision};
   }
+
   record.publication.telegram={
     status:"pending",
     telegramUserId:owner.telegramUserId,
@@ -875,7 +1043,9 @@ async function publishTelegramPersistent(initData,draft,html,file=null){
     messageId:0,
     revision:draft.revision,
     updatedAt:Date.now(),
-    error:""
+    error:"",
+    history:[],
+    pendingUpdate:null
   };
   record.updatedAt=Date.now();
   writePersistentRecord(owner,record);
@@ -884,7 +1054,7 @@ async function publishTelegramPersistent(initData,draft,html,file=null){
     result=await sendRich(initData,html,file);
   }catch(error){
     record=readPersistentDraft(owner,draft.docId)||record;
-    if(error instanceof DeliveryError&&error.outcome==="failed"){
+    if(error instanceof DeliveryError&&error.outcome==="failed"||error instanceof HttpError){
       record.publication.telegram=null;
     }else{
       record.publication.telegram={
@@ -894,7 +1064,9 @@ async function publishTelegramPersistent(initData,draft,html,file=null){
         messageId:0,
         revision:draft.revision,
         updatedAt:Date.now(),
-        error:error instanceof Error?error.message:"Resultado da publicação incerto"
+        error:error instanceof Error?error.message:"Resultado da publicação incerto",
+        history:[],
+        pendingUpdate:null
       };
     }
     record.updatedAt=Date.now();
@@ -902,22 +1074,25 @@ async function publishTelegramPersistent(initData,draft,html,file=null){
     throw error;
   }
   record=readPersistentDraft(owner,draft.docId)||record;
+  const publishedAt=Date.now();
   record.publication.telegram={
     status:"succeeded",
     telegramUserId:owner.telegramUserId,
     chatId:owner.chatId,
     messageId:result.messageId,
     revision:draft.revision,
-    updatedAt:Date.now(),
-    error:""
+    updatedAt:publishedAt,
+    error:"",
+    history:[{messageId:result.messageId,revision:draft.revision,publishedAt,noticeMessageId:0}],
+    pendingUpdate:null
   };
-  record.updatedAt=Date.now();
+  record.updatedAt=publishedAt;
   try{writePersistentRecord(owner,record);}
   catch(error){
     console.error("Telegram publication provenance",error);
     throw new DeliveryError("Mensagem enviada, mas o vínculo com o publicador não pôde ser persistido; não repita o envio","uncertain");
   }
-  return result;
+  return {...result,revision:draft.revision};
 }
 
 function webhookSecret(){
@@ -1167,6 +1342,20 @@ function telegraphValid(content) {
   content.forEach(node => walk(node));
 }
 
+function telegraphContentHTML(content){
+  telegraphValid(content);
+  const voidTags=new Set(["br","hr","img"]);
+  const render=node=>{
+    if(typeof node==="string")return htmlEscape(node);
+    const attrs=[];
+    for(const [key,value] of Object.entries(node.attrs||{}))attrs.push(key+'="'+htmlEscape(value)+'"');
+    const open="<"+node.tag+(attrs.length?" "+attrs.join(" "):"")+">";
+    if(voidTags.has(node.tag))return open;
+    return open+(node.children||[]).map(render).join("")+"</"+node.tag+">";
+  };
+  return content.map(render).join("");
+}
+
 function safeLink(value){
   let url;
   try{url=new URL(value);}catch{throw new Error("Link inválido");}
@@ -1266,25 +1455,30 @@ async function sendBotRich(chatId,html,replyTo){
   return telegramCall("sendRichMessage", body);
 }
 
-function documentLaunchURL(base,newToken="") {
-  if(!newToken)return base;
-  if(!/^[a-f0-9]{32}$/.test(newToken))throw new Error("Token de novo documento inválido");
+function documentLaunchURL(base,newToken="",view="") {
   const url=new URL(base);
-  url.searchParams.set("new",newToken);
+  if(newToken){
+    if(!/^[a-f0-9]{32}$/.test(newToken))throw new Error("Token de novo documento inválido");
+    url.searchParams.set("new",newToken);
+  }
+  if(view){
+    if(!["library","telegraph"].includes(view))throw new Error("Tela do Mini App inválida");
+    url.searchParams.set("view",view);
+  }
   return url.href;
 }
 
-function appButton(newToken="") {
-  const miniURL=documentLaunchURL(MINI_APP_URL,newToken);
-  const browserURL=documentLaunchURL(WEBHOOK_BASE + "/",newToken);
-  const miniLabel=newToken?"Criar novo documento no Mini App":"Mini App MDTXTRT";
-  const browserLabel=newToken?"Criar novo documento no browser":"Abrir MDTXTRT no browser";
+function appButton(newToken="",view="") {
+  const miniURL=documentLaunchURL(MINI_APP_URL,newToken,view);
+  const browserURL=documentLaunchURL(WEBHOOK_BASE + "/",newToken,view);
+  const miniLabel=newToken?"Criar novo documento no Mini App":view==="telegraph"?"Abrir Telegraph no Mini App":view==="library"?"Abrir rascunhos no Mini App":"Mini App MDTXTRT";
+  const browserLabel=newToken?"Criar novo documento no browser":view==="telegraph"?"Abrir Telegraph no browser":view==="library"?"Abrir rascunhos no browser":"Abrir MDTXTRT no browser";
   return "<tg-button-row align=\"center\"><tg-button type=\"web_app\" style=\"success\" url=\"" + htmlEscape(miniURL) + "\">"+miniLabel+"</tg-button></tg-button-row>" +
     "<tg-button-row align=\"center\"><tg-button type=\"url\" style=\"danger\" url=\"" + htmlEscape(browserURL) + "\">"+browserLabel+"</tg-button></tg-button-row>";
 }
 
-function appMessage(title,newToken="") {
-  return "<h1>MDTXTRT</h1><p>" + title + "</p>" + appButton(newToken);
+function appMessage(title,newToken="",view="") {
+  return "<h1>MDTXTRT</h1><p>" + title + "</p>" + appButton(newToken,view);
 }
 
 function importAppButton(token){
@@ -1370,8 +1564,16 @@ async function handleBotUpdate(update) {
     await sendBotRich(chatId, appMessage("Crie outro documento sem substituir o rascunho local atual.",newToken), message.message_id);
     return;
   }
+  if (command === "rascunhos") {
+    await sendBotRich(chatId, appMessage("Abra seus rascunhos persistidos. Publicações Telegram continuam no histórico desta conversa.","","library"), message.message_id);
+    return;
+  }
+  if (command === "telegraph") {
+    await sendBotRich(chatId, appMessage("Veja e edite suas páginas Telegraph vinculadas aos rascunhos.","","telegraph"), message.message_id);
+    return;
+  }
   if (command === "ajuda") {
-    const html = "<h1>Comandos</h1><p><b>/app</b> abre o documento local ativo no Mini App.</p><p><b>/novo</b> abre outro documento e preserva o rascunho local anterior neste dispositivo.</p><p><b>/enviar texto</b> envia o texto como mensagem rica. Também pode responder a uma mensagem com <b>/enviar</b>.</p><p><b>/exportar [txt|md]</b> exporta o texto da mensagem respondida como arquivo.</p><p><b>/importar</b> importa um documento .md ou .txt anexado ou respondido.</p>" + appButton();
+    const html = "<h1>Comandos</h1><p><b>/app</b> abre o documento local ativo no Mini App.</p><p><b>/novo</b> abre outro documento e preserva o rascunho local anterior neste dispositivo.</p><p><b>/rascunhos</b> abre a biblioteca de rascunhos.</p><p><b>/telegraph</b> abre as páginas Telegraph para edição.</p><p><b>/enviar texto</b> envia o texto como mensagem rica. Também pode responder a uma mensagem com <b>/enviar</b>.</p><p><b>/exportar [txt|md]</b> exporta o texto da mensagem respondida como arquivo.</p><p><b>/importar</b> importa um documento .md ou .txt anexado ou respondido.</p>" + appButton();
     await sendBotRich(chatId, html, message.message_id);
     return;
   }
@@ -1566,6 +1768,27 @@ const server = createServer(async (req, res) => {
       return;
     }
 
+
+    if (url.pathname === "/api/library/list" && req.method === "POST") {
+      if (!setCors(req, res)) {
+        res.writeHead(403, { "content-type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ error: "Acesso não autorizado" }));
+        return;
+      }
+      try{
+        const body=await readJson(req,20000);
+        const owner=draftOwner(body);
+        const drafts=listPersistentDrafts(owner);
+        const telegraph=listTelegraphPages(owner,drafts);
+        res.writeHead(200,{"content-type":"application/json; charset=utf-8","cache-control":"no-store"});
+        res.end(JSON.stringify({drafts,telegraph}));
+      }catch(err){
+        const code=err instanceof HttpError?err.status:500;
+        res.writeHead(code,{"content-type":"application/json; charset=utf-8","cache-control":"no-store"});
+        res.end(JSON.stringify({error:err instanceof Error?err.message:"Não foi possível carregar a biblioteca"}));
+      }
+      return;
+    }
 
     if (url.pathname === "/api/drafts/save" && req.method === "POST") {
       if (!setCors(req, res)) {
@@ -1762,6 +1985,43 @@ const server = createServer(async (req, res) => {
       } catch (err) {
         res.writeHead(400, { "content-type": "application/json; charset=utf-8" });
         res.end(JSON.stringify({ error: err.message || "Não foi possível recuperar o anexo" }));
+      }
+      return;
+    }
+
+    if (url.pathname === "/api/telegraph/load" && req.method === "POST") {
+      if (!setCors(req, res)) {
+        res.writeHead(403, { "content-type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ error: "Acesso não autorizado" }));
+        return;
+      }
+      try{
+        const body=await readJson(req,20000);
+        const doc=String(body?.doc||"");
+        if(!/^[a-f0-9-]{36}$/i.test(doc))throw new HttpError(400,"Documento inválido");
+        const ownerKey=telegraphOwner(body);
+        const mapped=readPages()[ownerKey+":"+doc]||"";
+        if(mapped&&typeof mapped!=="string")throw new HttpError(409,"Resultado anterior incerto no Telegraph; confira a página antes de editar");
+        if(!mapped){
+          res.writeHead(404,{"content-type":"application/json; charset=utf-8","cache-control":"no-store"});
+          res.end(JSON.stringify({error:"Página não encontrada"}));
+          return;
+        }
+        const page=await verifyTelegraphPage(mapped);
+        if(!Array.isArray(page.content))throw new Error("O Telegraph não retornou o conteúdo da página");
+        const html=telegraphContentHTML(page.content);
+        let revision=0,updatedAt=0;
+        try{
+          const owner=draftOwner(body);
+          const record=readPersistentDraft(owner,doc);
+          if(record){revision=record.draft.revision;updatedAt=record.updatedAt;}
+        }catch(error){if(error instanceof HttpError)throw error;console.error("Telegraph draft metadata",error);}
+        res.writeHead(200,{"content-type":"application/json; charset=utf-8","cache-control":"no-store"});
+        res.end(JSON.stringify({doc,path:page.path,url:page.url,title:String(page.title||"Página Telegraph"),html,revision,updatedAt}));
+      }catch(err){
+        const code=err instanceof HttpError?err.status:502;
+        res.writeHead(code,{"content-type":"application/json; charset=utf-8","cache-control":"no-store"});
+        res.end(JSON.stringify({error:err instanceof Error?err.message:"Não foi possível carregar a página"}));
       }
       return;
     }
