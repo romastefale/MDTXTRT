@@ -52,6 +52,7 @@ const ALLOW_ORIGINS=new Set([MINI_APP.origin,PUBLIC_BASE.origin]);
 const TELEGRAPH_FILE = DATA + "/telegraph-token";
 const PAGES_FILE = TELEGRAPH_FILE + "-pages.json";
 const HANDOFF_DIR = DATA + "/handoffs";
+const DRAFT_DIR = DATA + "/drafts";
 const HANDOFF_TTL = 15 * 60 * 1000;
 const BOT_IMPORT_DOWNLOAD_MAX = 20_000_000;
 const BOT_IMPORT_SOURCE_MAX = 240_000;
@@ -63,6 +64,7 @@ let telegraphToken="";
 let telegraphQueue = Promise.resolve();
 let botLink;
 mkdirSync(HANDOFF_DIR, { recursive: true });
+mkdirSync(DRAFT_DIR, { recursive: true });
 if(existsSync(TELEGRAPH_FILE)){
   telegraphToken=readFileSync(TELEGRAPH_FILE,"utf8").trim();
   if(!telegraphToken)throw new Error("Credencial Telegraph persistida está vazia");
@@ -142,7 +144,7 @@ function userFromInitData(initData) {
   let user;
   try { user = JSON.parse(userRaw); } catch { throw new Error("Dados da sessão inválidos"); }
   if (!user?.id) throw new Error("Usuário Telegram ausente");
-  return { chatId: String(user.id) };
+  return { chatId: String(user.id), userId: String(user.id) };
 }
 
 function telegraphOwner(body){
@@ -155,6 +157,23 @@ function telegraphOwner(body){
   }
   if(!/^[a-f0-9]{64}$/.test(browserKey))throw new HttpError(400,"Identidade do navegador inválida");
   return "browser:"+createHash("sha256").update(browserKey).digest("hex");
+}
+function draftOwner(body){
+  const initData=typeof body?.initData==="string"?body.initData.trim():"";
+  const browserKey=typeof body?.browserKey==="string"?body.browserKey.trim():"";
+  if(initData&&browserKey)throw new HttpError(400,"Identidade de rascunho ambígua");
+  if(initData){
+    try{
+      const {chatId,userId}=userFromInitData(initData);
+      return {key:"telegram:"+userId,kind:"telegram",telegramUserId:userId,chatId};
+    }catch(error){throw asHttpError(error,400,"Sessão Telegram inválida");}
+  }
+  if(!/^[a-f0-9]{64}$/.test(browserKey))throw new HttpError(400,"Identidade do navegador inválida");
+  const fingerprint=createHash("sha256").update(browserKey).digest("hex");
+  return {key:"browser:"+fingerprint,kind:"browser",telegramUserId:"",chatId:""};
+}
+function ownerFingerprint(owner){
+  return createHash("sha256").update(owner.key).digest("hex");
 }
 function telegraphRevision(value){
   if(value===undefined)return 0;
@@ -393,6 +412,124 @@ function draftValid(draft) {
   return draft;
 }
 
+
+function persistentDraftPaths(owner,doc){
+  const ownerDir=DRAFT_DIR+"/"+ownerFingerprint(owner);
+  return {dir:ownerDir,active:ownerDir+"/active",meta:ownerDir+"/"+doc+".json",file:ownerDir+"/"+doc+".bin"};
+}
+function atomicWrite(path,data){
+  const tmp=path+".tmp-"+SERVER_BOOT_ID;
+  try{
+    writeFileSync(tmp,data,{mode:0o600});
+    renameSync(tmp,path);
+  }catch(error){
+    try{if(existsSync(tmp))unlinkSync(tmp);}catch(cleanupError){console.error("Persistent draft cleanup",tmp,cleanupError);}
+    throw error;
+  }
+}
+function telegramPublicationValid(value){
+  if(value===null||value===undefined)return;
+  if(!value||typeof value!=="object"||Array.isArray(value))throw new Error("Proveniência Telegram inválida");
+  if(!["pending","succeeded","uncertain"].includes(value.status))throw new Error("Estado da publicação Telegram inválido");
+  if(!/^\d+$/.test(String(value.telegramUserId||""))||!/^\d+$/.test(String(value.chatId||"")))throw new Error("Publicador Telegram inválido");
+  if(!Number.isSafeInteger(value.revision)||value.revision<0)throw new Error("Revisão publicada inválida");
+  if(!Number.isFinite(value.updatedAt)||value.updatedAt<0)throw new Error("Data da publicação inválida");
+  if(value.status==="succeeded"){
+    if(!Number.isInteger(value.messageId)||value.messageId<=0)throw new Error("Mensagem publicada inválida");
+  }else if(value.messageId!==0){
+    throw new Error("Estado da mensagem publicada inválido");
+  }
+  if(typeof value.error!=="string")throw new Error("Erro da publicação inválido");
+}
+function persistentRecordValid(record,owner,doc){
+  if(!record||typeof record!=="object"||Array.isArray(record)||record.schema!==1)throw new Error("Rascunho persistido inválido");
+  if(record.ownerFingerprint!==ownerFingerprint(owner))throw new HttpError(403,"Este rascunho pertence a outra identidade");
+  if(!record.owner||record.owner.kind!==owner.kind)throw new HttpError(403,"Este rascunho pertence a outra identidade");
+  if(owner.kind==="telegram"&&record.owner.telegramUserId!==owner.telegramUserId)throw new HttpError(403,"Este rascunho pertence a outro usuário Telegram");
+  if(!Number.isFinite(record.updatedAt)||record.updatedAt<0)throw new Error("Rascunho persistido inválido");
+  draftValid(record.draft);
+  if(doc&&record.draft.docId!==doc)throw new Error("Documento persistido incompatível");
+  if(!record.publication||typeof record.publication!=="object"||Array.isArray(record.publication))throw new Error("Proveniência persistida inválida");
+  telegramPublicationValid(record.publication.telegram);
+  if(record.media!==null){
+    const media=record.media;
+    if(!media||typeof media!=="object"||Array.isArray(media)||!/^[A-Za-z0-9_-]{1,64}$/.test(String(media.id||""))||!["image","video","audio","voice","document"].includes(media.kind)||typeof media.name!=="string"||!media.name||typeof media.mime!=="string"||!media.mime||!Number.isInteger(media.size)||media.size<1||media.size>20_000_000)throw new Error("Anexo persistido inválido");
+  }
+  return record;
+}
+function readPersistentDraft(owner,doc=""){
+  const ownerDir=DRAFT_DIR+"/"+ownerFingerprint(owner);
+  let target=String(doc||"");
+  if(!target){
+    const active=ownerDir+"/active";
+    if(!existsSync(active))return null;
+    target=readFileSync(active,"utf8").trim();
+  }
+  if(!/^[a-f0-9-]{36}$/i.test(target))throw new Error("Índice de rascunho persistido inválido");
+  const paths=persistentDraftPaths(owner,target);
+  if(!existsSync(paths.meta))return null;
+  let record;
+  try{record=JSON.parse(readFileSync(paths.meta,"utf8"));}
+  catch{throw new Error("Não foi possível recuperar o rascunho persistido");}
+  persistentRecordValid(record,owner,target);
+  if(record.media!==null&&(!existsSync(paths.file)||statSync(paths.file).size!==record.media.size))throw new Error("Anexo persistido indisponível");
+  return record;
+}
+function writePersistentRecord(owner,record){
+  persistentRecordValid(record,owner,record.draft.docId);
+  const paths=persistentDraftPaths(owner,record.draft.docId);
+  mkdirSync(paths.dir,{recursive:true});
+  atomicWrite(paths.meta,JSON.stringify(record));
+  atomicWrite(paths.active,record.draft.docId);
+}
+function persistentDraftView(record){
+  return {
+    draft:record.draft,
+    media:record.media,
+    publication:record.publication.telegram,
+    updatedAt:record.updatedAt,
+    owner:{
+      kind:record.owner.kind,
+      ...(record.owner.kind==="telegram"?{telegramUserId:record.owner.telegramUserId}:{})
+    }
+  };
+}
+function savePersistentDraft(owner,draft,file=null){
+  draftValid(draft);
+  if(!/^[a-f0-9-]{36}$/i.test(String(draft.docId||"")))throw new HttpError(400,"Documento inválido");
+  const paths=persistentDraftPaths(owner,draft.docId);
+  let existing=readPersistentDraft(owner,draft.docId);
+  if(existing&&draft.revision<existing.draft.revision)throw new HttpError(409,"Uma revisão mais recente deste rascunho já está persistida");
+  let media=null;
+  if(draft.media){
+    if(file){
+      if(file.id!==draft.media.id||file.kind!==draft.media.kind)throw new HttpError(400,"O anexo não corresponde ao rascunho");
+      if(!file.bytes?.length||file.bytes.length>20_000_000)throw new HttpError(400,"Mídia grande demais");
+      if(typeof file.mime!=="string"||!file.mime.trim())throw new HttpError(400,"Tipo de mídia inválido");
+      mkdirSync(paths.dir,{recursive:true});
+      atomicWrite(paths.file,file.bytes);
+      media={id:draft.media.id,kind:draft.media.kind,name:cleanFileName(file.name),mime:file.mime,size:file.bytes.length};
+    }else if(existing?.media?.id===draft.media.id&&existsSync(paths.file)&&statSync(paths.file).size===existing.media.size){
+      media=existing.media;
+    }else{
+      throw new HttpError(409,"O anexo do rascunho precisa ser persistido junto com o documento");
+    }
+  }else{
+    try{if(existsSync(paths.file))unlinkSync(paths.file);}catch(error){console.error("Persistent media cleanup",error);}
+  }
+  const record={
+    schema:1,
+    ownerFingerprint:ownerFingerprint(owner),
+    owner:{kind:owner.kind,telegramUserId:owner.kind==="telegram"?owner.telegramUserId:""},
+    updatedAt:Date.now(),
+    draft:{...draft},
+    media,
+    publication:existing?.publication||{telegram:null}
+  };
+  writePersistentRecord(owner,record);
+  return record;
+}
+
 function handoffFiles(token) {
   return { meta: HANDOFF_DIR + "/" + token + ".json", file: HANDOFF_DIR + "/" + token + ".bin" };
 }
@@ -437,7 +574,7 @@ function handoffActionValid(action,draft,file){
   if(action.request!==null)handoffPublishRequestValid(action.request,draft,file);
   if(action.status!=="uncertain"&&action.request===null)throw new Error("Estado de publicação da transferência inválido");
   if(action.status==="succeeded"){
-    if(!action.result||action.result.via!=="sendRichMessage"||!Number.isInteger(action.result.messageId)||action.result.messageId<=0)throw new Error("Resultado da publicação transferida inválido");
+    if(!action.result||!["sendRichMessage","editMessageText"].includes(action.result.via)||!Number.isInteger(action.result.messageId)||action.result.messageId<=0)throw new Error("Resultado da publicação transferida inválido");
   }else if(action.result!==null){
     throw new Error("Estado de publicação da transferência inválido");
   }
@@ -598,7 +735,7 @@ async function publishHandoff(token,state,initData){
       file={...state.file,bytes:readFileSync(path)};
     }
     try{
-      const result=await sendRich(initData,action.request.html,file);
+      const result=await publishTelegramPersistent(initData,state.draft,action.request.html,file);
       action.status="succeeded";
       action.result=result;
       action.error="";
@@ -629,11 +766,12 @@ function richEmojiImage(value){
   return url.protocol==="tg:"&&url.hostname==="emoji"&&/^\d+$/.test(url.searchParams.get("id")||"")&&[...url.searchParams.keys()].every(key=>key==="id");
 }
 
-async function sendRich(initData,html,file=null){
+async function sendRich(initData,html,file=null,messageId=0){
   let body;
   try{
     richValid(html);
     const { chatId } = userFromInitData(String(initData || ""));
+    const editing=Number.isInteger(messageId)&&messageId>0;
     const doc = parseDocument(String(html));
     const media = [];
     let attached = false;
@@ -673,7 +811,7 @@ async function sendRich(initData,html,file=null){
     if (file && !attached) throw new Error("A mídia anexada não está no documento");
     const rich = { html: DomUtils.getInnerHTML(doc) };
     if (media.length) rich.media = media;
-    body = { chat_id: chatId, rich_message: rich };
+    body = { chat_id: chatId, ...(editing?{message_id:messageId}:{}), rich_message: rich };
     if (file) {
       const kind={image:"photo",video:"video",audio:"audio",voice:"voice_note",document:"document"}[file.kind];
       const mimeContract={
@@ -687,6 +825,7 @@ async function sendRich(initData,html,file=null){
       if(file.kind==="image"&&file.bytes.length>10_000_000)throw new Error("Fotos devem ter no máximo 10 MB");
       const form = new FormData();
       form.set("chat_id", chatId);
+      if(editing)form.set("message_id",String(messageId));
       form.set("rich_message", JSON.stringify(body.rich_message));
       form.set("upload", new Blob([file.bytes], {type:file.mime}), file.name);
       body = form;
@@ -694,8 +833,91 @@ async function sendRich(initData,html,file=null){
   }catch(error){
     throw asHttpError(error,400,"Dados inválidos para publicação");
   }
-  const msg = await telegramCall("sendRichMessage", body);
-  return { via: "sendRichMessage", messageId: msg.message_id };
+  const method=messageId>0?"editMessageText":"sendRichMessage";
+  const msg = await telegramCall(method, body);
+  const returnedId=messageId>0?messageId:Number(msg?.message_id||0);
+  if(!Number.isInteger(returnedId)||returnedId<=0)throw new DeliveryError("O Telegram não confirmou o identificador da mensagem","uncertain");
+  return { via: method, messageId: returnedId, edited: messageId>0 };
+}
+
+async function publishTelegramPersistent(initData,draft,html,file=null){
+  const owner=draftOwner({initData});
+  if(owner.kind!=="telegram")throw new HttpError(400,"Publicação Telegram exige identidade Telegram");
+  let record=savePersistentDraft(owner,draft,file);
+  const prior=record.publication.telegram;
+  if(prior?.status==="pending"||prior?.status==="uncertain"){
+    throw new HttpError(409,prior.error||"O resultado da publicação anterior é incerto; confira o chat antes de publicar novamente");
+  }
+  if(prior?.status==="succeeded"){
+    const result=await sendRich(initData,html,file,prior.messageId);
+    record=readPersistentDraft(owner,draft.docId)||record;
+    record.publication.telegram={
+      status:"succeeded",
+      telegramUserId:owner.telegramUserId,
+      chatId:owner.chatId,
+      messageId:prior.messageId,
+      revision:draft.revision,
+      updatedAt:Date.now(),
+      error:""
+    };
+    record.updatedAt=Date.now();
+    try{writePersistentRecord(owner,record);}
+    catch(error){
+      console.error("Telegram edit provenance",error);
+      throw new DeliveryError("A mensagem foi atualizada, mas o vínculo persistente não pôde ser confirmado","uncertain");
+    }
+    return result;
+  }
+  record.publication.telegram={
+    status:"pending",
+    telegramUserId:owner.telegramUserId,
+    chatId:owner.chatId,
+    messageId:0,
+    revision:draft.revision,
+    updatedAt:Date.now(),
+    error:""
+  };
+  record.updatedAt=Date.now();
+  writePersistentRecord(owner,record);
+  let result;
+  try{
+    result=await sendRich(initData,html,file);
+  }catch(error){
+    record=readPersistentDraft(owner,draft.docId)||record;
+    if(error instanceof DeliveryError&&error.outcome==="failed"){
+      record.publication.telegram=null;
+    }else{
+      record.publication.telegram={
+        status:"uncertain",
+        telegramUserId:owner.telegramUserId,
+        chatId:owner.chatId,
+        messageId:0,
+        revision:draft.revision,
+        updatedAt:Date.now(),
+        error:error instanceof Error?error.message:"Resultado da publicação incerto"
+      };
+    }
+    record.updatedAt=Date.now();
+    try{writePersistentRecord(owner,record);}catch(storageError){console.error("Telegram provenance failure",storageError);}
+    throw error;
+  }
+  record=readPersistentDraft(owner,draft.docId)||record;
+  record.publication.telegram={
+    status:"succeeded",
+    telegramUserId:owner.telegramUserId,
+    chatId:owner.chatId,
+    messageId:result.messageId,
+    revision:draft.revision,
+    updatedAt:Date.now(),
+    error:""
+  };
+  record.updatedAt=Date.now();
+  try{writePersistentRecord(owner,record);}
+  catch(error){
+    console.error("Telegram publication provenance",error);
+    throw new DeliveryError("Mensagem enviada, mas o vínculo com o publicador não pôde ser persistido; não repita o envio","uncertain");
+  }
+  return result;
 }
 
 function webhookSecret(){
@@ -1344,6 +1566,86 @@ const server = createServer(async (req, res) => {
       return;
     }
 
+
+    if (url.pathname === "/api/drafts/save" && req.method === "POST") {
+      if (!setCors(req, res)) {
+        res.writeHead(403, { "content-type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ error: "Acesso não autorizado" }));
+        return;
+      }
+      try{
+        const media=await readMedia(req);
+        let draft;
+        try{draft=JSON.parse(media.fields.draft||"");}catch{throw new HttpError(400,"Rascunho inválido");}
+        const owner=draftOwner(media.fields);
+        let file=null;
+        if(media.file){
+          if(!draft?.media)throw new HttpError(400,"Anexo sem metadados de rascunho");
+          file={...media.file,id:draft.media.id,kind:draft.media.kind};
+        }
+        const record=savePersistentDraft(owner,draft,file);
+        res.writeHead(200,{"content-type":"application/json; charset=utf-8","cache-control":"no-store"});
+        res.end(JSON.stringify(persistentDraftView(record)));
+      }catch(err){
+        const code=err instanceof HttpError?err.status:507;
+        res.writeHead(code,{"content-type":"application/json; charset=utf-8","cache-control":"no-store"});
+        res.end(JSON.stringify({error:err instanceof Error?err.message:"Não foi possível persistir o rascunho"}));
+      }
+      return;
+    }
+
+    if (url.pathname === "/api/drafts/load" && req.method === "POST") {
+      if (!setCors(req, res)) {
+        res.writeHead(403, { "content-type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ error: "Acesso não autorizado" }));
+        return;
+      }
+      try{
+        const body=await readJson(req,20000);
+        const owner=draftOwner(body);
+        const doc=body?.doc===undefined?"":String(body.doc||"");
+        if(doc&&!/^[a-f0-9-]{36}$/i.test(doc))throw new HttpError(400,"Documento inválido");
+        const record=readPersistentDraft(owner,doc);
+        if(!record){
+          res.writeHead(404,{"content-type":"application/json; charset=utf-8","cache-control":"no-store"});
+          res.end(JSON.stringify({error:"Rascunho persistido não encontrado"}));
+          return;
+        }
+        res.writeHead(200,{"content-type":"application/json; charset=utf-8","cache-control":"no-store"});
+        res.end(JSON.stringify(persistentDraftView(record)));
+      }catch(err){
+        const code=err instanceof HttpError?err.status:500;
+        res.writeHead(code,{"content-type":"application/json; charset=utf-8","cache-control":"no-store"});
+        res.end(JSON.stringify({error:err instanceof Error?err.message:"Não foi possível recuperar o rascunho"}));
+      }
+      return;
+    }
+
+    if (url.pathname === "/api/drafts/file" && req.method === "POST") {
+      if (!setCors(req, res)) {
+        res.writeHead(403, { "content-type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ error: "Acesso não autorizado" }));
+        return;
+      }
+      try{
+        const body=await readJson(req,20000);
+        const owner=draftOwner(body);
+        const doc=String(body?.doc||""),id=String(body?.id||"");
+        if(!/^[a-f0-9-]{36}$/i.test(doc)||!/^[A-Za-z0-9_-]{1,64}$/.test(id))throw new HttpError(400,"Anexo persistido inválido");
+        const record=readPersistentDraft(owner,doc);
+        if(!record?.media||record.media.id!==id)throw new HttpError(404,"Anexo persistido não encontrado");
+        const path=persistentDraftPaths(owner,doc).file;
+        const bytes=readFileSync(path);
+        res.writeHead(200,{"content-type":record.media.mime,"content-length":bytes.length,"cache-control":"no-store","x-mdtxtrt-file-name":encodeURIComponent(record.media.name),"x-mdtxtrt-file-kind":record.media.kind});
+        res.end(bytes);
+      }catch(err){
+        const code=err instanceof HttpError?err.status:500;
+        res.writeHead(code,{"content-type":"application/json; charset=utf-8","cache-control":"no-store"});
+        res.end(JSON.stringify({error:err instanceof Error?err.message:"Não foi possível recuperar o anexo"}));
+      }
+      return;
+    }
+
     if (url.pathname === "/api/handoff" && req.method === "POST") {
       if (!setCors(req, res)) {
         res.writeHead(403, { "content-type": "application/json; charset=utf-8" });
@@ -1533,8 +1835,15 @@ const server = createServer(async (req, res) => {
         let media;
         try{media=await readMedia(req);}catch(error){throw asHttpError(error,400,"Mídia inválida");}
         const body=media.fields;
-        if (typeof body.initData !== "string" || typeof body.html !== "string") throw new HttpError(400,"Os dados do envio estão incompletos");
-        const result=await sendRich(body.initData,body.html,media.file?{...media.file,kind:body.kind,id:body.id}:null);
+        if (typeof body.initData !== "string" || typeof body.html !== "string" || typeof body.draft !== "string") throw new HttpError(400,"Os dados do envio estão incompletos");
+        let draft;
+        try{draft=JSON.parse(body.draft);}catch{throw new HttpError(400,"Rascunho de publicação inválido");}
+        let file=null;
+        if(media.file){
+          if(!draft?.media)throw new HttpError(400,"Anexo sem metadados de rascunho");
+          file={...media.file,kind:draft.media.kind,id:draft.media.id};
+        }
+        const result=await publishTelegramPersistent(body.initData,draft,body.html,file);
         res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
         res.end(JSON.stringify(result));
       } catch (err) {
