@@ -266,88 +266,67 @@ test('novo preserves archived attachment records when the new document stores an
   w.close();
 });
 
-test('Telegram Main Mini App waits for a stable portrait viewport before locking orientation',async()=>{
-  let portrait=false,locks=0;
-  const handlers=new Map(),orientationListeners=new Set();
-  const portraitMql={
-    get matches(){return portrait;},
-    addEventListener(type,fn){if(type==='change')orientationListeners.add(fn);},
-    removeEventListener(type,fn){if(type==='change')orientationListeners.delete(fn);}
-  };
-  const matchMedia=query=>{
-    if(query==='(orientation: portrait)')return portraitMql;
-    if(query==='(orientation:landscape)')return {get matches(){return !portrait;},addEventListener(){},removeEventListener(){}};
-    if(query==='(min-width:760px)')return {matches:true,addEventListener(){},removeEventListener(){}};
-    return {matches:false,addEventListener(){},removeEventListener(){}};
-  };
+test('Telegram uses official fullscreen, viewport and safe-area state without orientation gates',async()=>{
+  const handlers=new Map();
   const fetch=async(url)=>{
     const target=String(url);
     if(target.endsWith('/api/telegram/session'))return {ok:true,status:200,json:async()=>({ok:true})};
     if(target.endsWith('/api/telegraph/recover'))return {ok:false,status:404,json:async()=>({})};
     return {ok:false,status:404,json:async()=>({error:'not found'})};
   };
+  let requests=0,locks=0;
   const tg={
-    platform:'android',
-    viewportHeight:420,
-    viewportStableHeight:800,
-    contentSafeAreaInset:{top:0,right:0,bottom:0,left:0},
-    isOrientationLocked:false,
+    platform:'android',isFullscreen:false,isOrientationLocked:false,
+    viewportHeight:390,viewportStableHeight:390,
+    safeAreaInset:{top:20,right:1,bottom:5,left:2},
+    contentSafeAreaInset:{top:42,right:3,bottom:12,left:4},
     isVersionAtLeast:version=>version==='8.0',
-    lockOrientation(){locks++;this.isOrientationLocked=true;},
+    requestFullscreen(){requests++;},
+    lockOrientation(){locks++;},
     onEvent(type,fn){handlers.set(type,fn);}
   };
-  const w=page({fetch,tg,matchMedia}),root=w.document.documentElement;
-  await wait(10);
-
-  assert.equal(root.hasAttribute('data-device-gate'),false);
+  const w=page({fetch,tg,matchMedia:query=>({matches:query==='(orientation:landscape)',addEventListener(){},removeEventListener(){}})}),root=w.document.documentElement;
+  await wait(40);
+  assert.equal(requests,1);
   assert.equal(locks,0);
+  assert.equal(root.hasAttribute('data-device-gate'),false);
+  assert.equal(root.style.getPropertyValue('--app-tg-content-safe-top'),'42px');
+  assert.equal(root.style.getPropertyValue('--app-tg-safe-top'),'20px');
+  assert.equal(root.style.getPropertyValue('--vv-height'),'390px');
+  assert.equal(typeof handlers.get('fullscreenChanged'),'function');
+  assert.equal(typeof handlers.get('fullscreenFailed'),'function');
   assert.equal(typeof handlers.get('viewportChanged'),'function');
-
-  handlers.get('viewportChanged')({isStateStable:false});
-  await wait(0);
-  assert.equal(root.hasAttribute('data-device-gate'),false);
-  assert.equal(locks,0);
-
-  portrait=true;
-  w.Telegram.WebApp.viewportHeight=800;
+  w.Telegram.WebApp.isFullscreen=true;
+  w.Telegram.WebApp.viewportStableHeight=800;
+  w.Telegram.WebApp.contentSafeAreaInset={top:5,right:0,bottom:10,left:0};
+  handlers.get('fullscreenChanged')();
   handlers.get('viewportChanged')({isStateStable:true});
-  await wait(0);
-
-  assert.equal(root.hasAttribute('data-device-gate'),false);
-  assert.equal(locks,1);
-  assert.equal(w.Telegram.WebApp.isOrientationLocked,true);
+  handlers.get('contentSafeAreaChanged')();
+  await wait(40);
+  assert.equal(root.style.getPropertyValue('--vv-height'),'800px');
+  assert.equal(root.style.getPropertyValue('--app-tg-content-safe-top'),'5px');
+  assert.equal(locks,0);
   w.close();
 });
 
-test('Telegram keeps a real stable landscape viewport unlocked and shows the portrait notice',async()=>{
+test('optional fullscreen unavailable does not block Mini App editing',async()=>{
   const handlers=new Map();
-  const landscapeMql={matches:false,addEventListener(){},removeEventListener(){}};
-  const matchMedia=query=>query==='(orientation: portrait)'
-    ?landscapeMql
-    :{matches:true,addEventListener(){},removeEventListener(){}};
   const fetch=async(url)=>{
     const target=String(url);
     if(target.endsWith('/api/telegram/session'))return {ok:true,status:200,json:async()=>({ok:true})};
     if(target.endsWith('/api/telegraph/recover'))return {ok:false,status:404,json:async()=>({})};
     return {ok:false,status:404,json:async()=>({error:'not found'})};
   };
-  let locks=0;
-  const w=page({fetch,matchMedia,tg:{
-    platform:'android',
-    viewportHeight:800,
-    viewportStableHeight:800,
-    contentSafeAreaInset:{top:0,right:0,bottom:0,left:0},
-    isOrientationLocked:false,
-    isVersionAtLeast:version=>version==='8.0',
-    lockOrientation(){locks++;},
-    onEvent(type,fn){handlers.set(type,fn);}
+  const w=page({fetch,tg:{
+    platform:'ios',isFullscreen:false,viewportStableHeight:600,
+    isVersionAtLeast:()=>false,onEvent(type,fn){handlers.set(type,fn);}
   }});
-  await wait(10);
-  assert.equal(typeof handlers.get('viewportChanged'),'function');
-  handlers.get('viewportChanged')({isStateStable:true});
-  await wait(0);
-  assert.equal(w.document.documentElement.getAttribute('data-device-gate'),'portrait');
-  assert.equal(locks,0);
+  await wait(40);
+  assert.equal(w.document.documentElement.hasAttribute('data-device-gate'),false);
+  assert.equal(w.document.body.classList.contains('tg'),true);
+  assert.equal(w.document.documentElement.style.getPropertyValue('--vv-height'),'600px');
+  handlers.get('fullscreenFailed')({error:'UNSUPPORTED'});
+  assert.match(w.document.querySelector('#toast').textContent,/Fullscreen indisponível/);
   w.close();
 });
 
