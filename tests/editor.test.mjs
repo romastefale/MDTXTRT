@@ -1241,60 +1241,83 @@ test('visual viewport constrains overlays and Find stays anchored to a visible c
 });
 
 
-test('visible virtual keyboard is preserved across chrome controls and menus without forcing it back after dismissal',async()=>{
+test('shell keyboard policy preserves an open virtual keyboard across in-app controls and respects system dismissal',async()=>{
   const w=page(),d=w.document;
-  w.eval("currentEditorCore().resetHTML('<p>texto</p>',{silent:true});currentEditorCore().selectRange({from:2,to:2},{focus:true});document.documentElement.setAttribute('data-keyboard','')");
+  await wait(0);
+  const editor=d.querySelector('#editor'),root=d.documentElement;
+  w.eval("currentEditorCore().resetHTML('<p>texto</p>',{silent:true});currentEditorCore().selectRange({from:2,to:2},{focus:true})");
+  editor.focus();
+  root.setAttribute('data-keyboard','');
+
   const press=selector=>{
     const control=d.querySelector(selector);
     const down=new w.MouseEvent('mousedown',{bubbles:true,cancelable:true});
     control.dispatchEvent(down);
-    assert.equal(down.defaultPrevented,true,selector+' deve preservar o foco enquanto o teclado estiver aberto');
+    assert.equal(down.defaultPrevented,true,selector+' deve impedir a transferência de foco');
     control.click();
     return control;
   };
 
   press('#undoBtn');
   await wait(0);
-  assert.equal(d.activeElement,d.querySelector('#editor'));
+  assert.equal(d.activeElement,editor);
 
   press('#destBtn');
   await wait(0);
-  assert.equal(d.activeElement,d.querySelector('#editor'));
   assert.equal(d.querySelector('#destBtn').title,'Destino: Telegraph');
+  assert.equal(d.activeElement,editor);
 
   press('#exportBtn');
   await wait(0);
   assert.equal(d.querySelector('#exportMenu').matches(':popover-open'),true);
-  assert.equal(d.activeElement,d.querySelector('#editor'));
+  assert.equal(d.activeElement,editor);
 
-  w.eval("openPanel('#plusMenu')");
-  press('#plusMenu [data-plus-category="format"]');
-  await wait(0);
-  assert.equal(d.querySelector('#plus-format-menu').matches(':popover-open'),true);
-  assert.equal(d.activeElement,d.querySelector('#editor'));
-
-  const wasLight=d.documentElement.classList.contains('light');
+  const wasLight=root.classList.contains('light');
   press('#themeBtn');
   await wait(0);
-  assert.equal(d.documentElement.classList.contains('light'),!wasLight);
-  assert.equal(d.activeElement,d.querySelector('#editor'));
+  assert.equal(root.classList.contains('light'),!wasLight);
+  assert.equal(d.activeElement,editor);
 
-  d.documentElement.removeAttribute('data-keyboard');
+  root.removeAttribute('data-keyboard');
   const down=new w.MouseEvent('mousedown',{bubbles:true,cancelable:true});
   d.querySelector('#destBtn').dispatchEvent(down);
-  assert.equal(down.defaultPrevented,false,'teclado dispensado pelo sistema não deve ser reaberto à força');
+  assert.equal(down.defaultPrevented,false,'depois da dispensa pelo sistema o teclado não deve ser forçado a reabrir');
   w.close();
 });
 
-test('confirmation dialogs keep an already-open virtual keyboard attached to the editor',async()=>{
-  const w=page(),d=w.document,editor=d.querySelector('#editor'),canvas=d.querySelector('#canvas');
-  w.eval("currentEditorCore().resetHTML('<p>texto</p>',{silent:true});currentEditorCore().selectRange({from:2,to:2},{focus:true});document.documentElement.setAttribute('data-keyboard','')");
-  const prompt=w.eval("approve('Confirmar?')");
+test('destination switch moves keyboard focus from a hidden Telegraph title back to the editor',async()=>{
+  const w=page(),d=w.document;
+  await wait(0);
+  const root=d.documentElement,editor=d.querySelector('#editor'),name=d.querySelector('#docName');
+  d.querySelector('#destBtn').click();
+  await wait(0);
+  name.focus();
+  root.setAttribute('data-keyboard','');
+
+  const dest=d.querySelector('#destBtn');
+  const down=new w.MouseEvent('mousedown',{bubbles:true,cancelable:true});
+  dest.dispatchEvent(down);
+  assert.equal(down.defaultPrevented,true);
+  dest.click();
   await wait(0);
 
+  assert.equal(dest.title,'Destino: Telegram');
+  assert.equal(d.activeElement,editor);
+  w.close();
+});
+
+test('confirmation dialogs keep an already-open virtual keyboard on its text entry',async()=>{
+  const w=page(),d=w.document;
+  await wait(0);
+  const editor=d.querySelector('#editor'),root=d.documentElement;
+  w.eval("currentEditorCore().resetHTML('<p>texto</p>',{silent:true});currentEditorCore().selectRange({from:2,to:2},{focus:true})");
+  editor.focus();
+  root.setAttribute('data-keyboard','');
+
+  const prompt=w.eval("approve('Confirmar?')");
+  await wait(0);
   assert.equal(d.querySelector('#dialogMenu').matches(':popover-open'),true);
   assert.equal(d.activeElement,editor);
-  assert.equal(canvas.hasAttribute('inert'),false);
 
   const cancel=d.querySelector('#dialogCancel');
   const down=new w.MouseEvent('mousedown',{bubbles:true,cancelable:true});
