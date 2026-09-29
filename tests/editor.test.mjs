@@ -380,7 +380,7 @@ test('Telegram uses official fullscreen, viewport and safe-area state without or
     onEvent(type,fn){handlers.set(type,fn);}
   };
   const w=page({fetch,tg,matchMedia:query=>({matches:query==='(orientation:landscape)',addEventListener(){},removeEventListener(){}})}),root=w.document.documentElement;
-  await wait(40);
+  for(let i=0;i<20&&root.style.getPropertyValue('--vv-height')!=='390px';i++)await wait(10);
   assert.equal(requests,1);
   assert.equal(locks,0);
   assert.equal(root.hasAttribute('data-device-gate'),false);
@@ -396,7 +396,7 @@ test('Telegram uses official fullscreen, viewport and safe-area state without or
   handlers.get('fullscreenChanged')();
   handlers.get('viewportChanged')({isStateStable:true});
   handlers.get('contentSafeAreaChanged')();
-  await wait(40);
+  for(let i=0;i<20&&root.style.getPropertyValue('--vv-height')!=='800px';i++)await wait(10);
   assert.equal(root.style.getPropertyValue('--vv-height'),'800px');
   assert.equal(root.style.getPropertyValue('--app-tg-content-safe-top'),'5px');
   assert.equal(locks,0);
