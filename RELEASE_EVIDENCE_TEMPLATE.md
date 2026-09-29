@@ -91,7 +91,7 @@ For every cell record menu/dialog reachability, internal scroll, Find anchor, fo
 
 ## Visual baseline manual verification
 
-- Baseline SHA: `dde30467ed9b0d108bac2ae7ad9bcac1137c169e`
+- Baseline SHA: `aac423e012745c7873908ddc4a76371fb8218aa3`
 - Candidate/anchor SHA:
 - Light mode evidence:
 - Dark mode evidence:
