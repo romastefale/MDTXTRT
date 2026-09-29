@@ -10,7 +10,6 @@ permissions:
 
 jobs:
   regenerate:
-    if: github.actor != 'github-actions[bot]' || !contains(github.event.head_commit.message, 'chore: commit rebuilt UI bundle')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
