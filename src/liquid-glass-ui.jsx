@@ -79,6 +79,18 @@ function GlassControl({ className = "", children, style, ...props }) {
   );
 }
 
+function LinkMenu() {
+  return (
+    <GlassContextMenu id="linkMenu" anchorId="linkBtn" placement="top">
+      <div className="menu-list">
+        <MenuItem icon="link" data-link-kind="hyperlink">Hiperlink</MenuItem>
+        <MenuItem icon="link" data-link-kind="url">Link</MenuItem>
+        <MenuItem icon="buttons" data-link-kind="button" data-telegram-only="">Botão com link</MenuItem>
+      </div>
+    </GlassContextMenu>
+  );
+}
+
 function HeadingMenu() {
   return (
     <GlassContextMenu id="headingMenu" className="heading-menu" anchorId="headingBtn" placement="top">
@@ -325,6 +337,7 @@ function Chrome() {
         </div>
       </header>
 
+      <LinkMenu />
       <HeadingMenu />
       <ListMenu />
       <QuoteMenu />
