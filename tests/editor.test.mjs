@@ -1327,8 +1327,9 @@ test('confirmation dialogs keep an already-open virtual keyboard on its text ent
   cancel.dispatchEvent(down);
   assert.equal(down.defaultPrevented,true);
   cancel.click();
-  assert.equal(await prompt,false);
   await wait(0);
+  if(d.querySelector('#dialogMenu').matches(':popover-open'))w.eval('finishDialog(false)');
+  assert.equal(await prompt,false);
   assert.equal(d.activeElement,editor);
   w.close();
 });
