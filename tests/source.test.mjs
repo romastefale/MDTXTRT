@@ -707,7 +707,15 @@ test('step 6 persists drafts on the Railway volume, binds Telegram publication p
   const ui=read('src/liquid-glass-ui.jsx');
   assert.match(ui,/id="libraryScreen"/);
   assert.match(ui,/id="draftList"/);
+  assert.match(ui,/id="telegramList"/);
   assert.match(ui,/id="telegraphList"/);
+  assert.match(ui,/id="libraryRefresh"/);
+  assert.match(ui,/id="libraryNew"/);
+  assert.match(ui,/Icon name="menu"/);
+  assert.match(app,/Array\.isArray\(data\.telegram\)/);
+  assert.match(server,/function listTelegramPublications\(owner,drafts=\[\]\)/);
+  assert.match(html,/\.library-list\{display:grid/);
+  assert.match(html,/\.library-preview\{/);
 });
 
 test('step 5 overlays use the visual viewport without changing the baseline material contract',()=>{
