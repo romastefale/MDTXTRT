@@ -151,6 +151,7 @@ const plusSections = [
     icon: "markdown",
     label: "Arquivo",
     items: [
+      ["file", "Rascunhos e Telegraph", { id: "libraryBtn" }],
       ["markdown", "Importar Markdown", { id: "importMdBtn" }],
       ["text_fields", "Importar TXT", { id: "importTxtBtn" }],
       ["search", "Localizar e substituir", { id: "findBtn" }],
@@ -299,6 +300,33 @@ function FindMenu() {
   );
 }
 
+function LibraryScreen() {
+  return (
+    <div id="libraryScreen" popover="manual" className="library-screen" role="dialog" aria-modal="true" aria-labelledby="libraryTitle">
+      <Glass optics={MENU_LENS} className="library-material" style={{ display: "block", width: "100%", height: "100%" }}>
+        <div className="library-shell">
+          <div className="library-head">
+            <div>
+              <h2 id="libraryTitle">Rascunhos e Telegraph</h2>
+              <p className="hint">Rascunhos ficam no volume. Publicações Telegram permanecem no chat privado; aqui você gerencia páginas Telegraph.</p>
+            </div>
+            <button type="button" id="libraryClose" aria-label="Fechar biblioteca" title="Fechar biblioteca"><Icon name="arrow_back" /></button>
+          </div>
+          <div id="libraryStatus" className="hint" role="status" aria-live="polite" />
+          <section className="library-section" id="draftLibrarySection" aria-labelledby="draftLibraryTitle">
+            <h3 id="draftLibraryTitle">Rascunhos</h3>
+            <div id="draftList" className="library-list" />
+          </section>
+          <section className="library-section" id="telegraphLibrarySection" aria-labelledby="telegraphLibraryTitle">
+            <h3 id="telegraphLibraryTitle">Publicações Telegraph</h3>
+            <div id="telegraphList" className="library-list" />
+          </section>
+        </div>
+      </Glass>
+    </div>
+  );
+}
+
 function Toast() {
   return (
     <div className="toast" id="toast" role="status" aria-live="polite" aria-atomic="true">
@@ -345,6 +373,7 @@ function Chrome() {
       <PlusMenu />
       <input id="fileInput" type="file" accept=".txt,.md,text/plain,text/markdown" hidden />
       <input id="mediaInput" type="file" accept="image/*,video/*,audio/*,.pdf,.zip" hidden />
+      <LibraryScreen />
       <Toast />
       <DialogMenu />
       <FindMenu />
