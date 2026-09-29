@@ -20,7 +20,8 @@ The Web/PWA shell uses the same editor and document model.
 | Local attachment | media/voice input → IndexedDB + draft metadata |
 | Telegraph publish | Export menu → `publishTelegraph()` → backend ownership/path contract |
 | Telegram from browser/PWA | explicit browser-to-Mini-App handoff; browser mode never pretends to possess Telegram identity |
-| Draft persistence | local recovery plus Railway-volume mirror under the browser owner capability |
+| Draft persistence / library | local recovery plus Railway-volume records; File → Rascunhos e Telegraph → owned draft picker |
+| Telegraph page library/edit | owner-scoped page list → authoritative `/api/telegraph/load` → same document/path opened in editor |
 
 ## Telegram Mini App
 
@@ -30,8 +31,9 @@ The Mini App uses the same shell after server validation of Telegram `initData`.
 | --- | --- |
 | Editor/import/export controls | same Web shell after `/api/telegram/session` succeeds |
 | Telegram publish | `publishTelegram()` → verified owner → durable provenance → `sendRichMessage` |
-| Edit the same published document | persisted owner/document/message binding → `editMessageText.rich_message` |
-| Telegraph publish | same Telegraph path with verified Telegram owner |
+| Publish a revised Telegram document | durable owner/document provenance → revision notice replying to prior message → new `sendRichMessage`; prior message is preserved |
+| Draft / Telegraph library | same owner-scoped library screen as Web/PWA; Telegraph page can be reopened into the editor |
+| Telegraph publish/edit | same Telegraph path with verified Telegram owner |
 | Handoff recovery | `/api/handoff/claim`; claim is passive until explicit publish |
 | Settings / Back integration | official Mini App SettingsButton / BackButton events |
 | Fullscreen / viewport / safe areas | official Telegram state/events; Web visual viewport is the non-Telegram fallback |
@@ -46,6 +48,8 @@ The bot advertises these commands only in private chats:
 | `/start` | opens MDTXTRT entry points |
 | `/app` | opens the active document in the Mini App |
 | `/novo` | creates a one-shot new-document launch token |
+| `/rascunhos` | opens the owner-scoped draft library in Mini App/browser |
+| `/telegraph` | opens the Telegraph publication library for editing |
 | `/ajuda` | documents registered command paths |
 | `/enviar` | sends command/replied text as a Rich Message |
 | `/exportar` | exports replied/inline text as TXT or Markdown |
