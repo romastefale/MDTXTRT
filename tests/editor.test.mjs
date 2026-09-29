@@ -293,6 +293,22 @@ test('volume recovery restores a missing local draft by persistent browser ident
   w.close();
 });
 
+test('volume recovery failure blocks editing instead of opening a degraded replacement draft',async()=>{
+  const browserKey='aa'.repeat(32);
+  const fetch=async(url)=>{
+    const target=String(url);
+    if(target.endsWith('/api/drafts/load'))throw new TypeError('volume unavailable');
+    if(target.endsWith('/api/telegraph/recover'))return {ok:false,status:404,json:async()=>({error:'Página não encontrada'})};
+    return {ok:false,status:404,json:async()=>({error:'not found'})};
+  };
+  const w=page({fetch,local:{'mdtxtrt-browser-owner':browserKey}}),d=w.document;
+  await wait(30);
+  assert.equal(d.querySelector('#editor').getAttribute('contenteditable'),'false');
+  assert.match(d.querySelector('#toast').textContent,/edição bloqueada/i);
+  assert.equal(w.localStorage.getItem('rmdtxtml'),null);
+  w.close();
+});
+
 test('remote draft save sends the active canonical document and stable browser identity',async()=>{
   const doc='91919191-9191-4191-8191-919191919191';
   const browserKey='cd'.repeat(32);
