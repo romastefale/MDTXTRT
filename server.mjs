@@ -809,7 +809,7 @@ async function sendRich(initData,html,file=null,messageId=0){
     };
     doc.children.forEach(visit);
     if (file && !attached) throw new Error("A mídia anexada não está no documento");
-    const rich = { html: DomUtils.getInnerHTML(doc) };
+    const rich = { html: DomUtils.getInnerHTML(doc,{encodeEntities:"utf8"}) };
     if (media.length) rich.media = media;
     body = { chat_id: chatId, ...(editing?{message_id:messageId}:{}), rich_message: rich };
     if (file) {
@@ -837,7 +837,7 @@ async function sendRich(initData,html,file=null,messageId=0){
   const msg = await telegramCall(method, body);
   const returnedId=messageId>0?messageId:Number(msg?.message_id||0);
   if(!Number.isInteger(returnedId)||returnedId<=0)throw new DeliveryError("O Telegram não confirmou o identificador da mensagem","uncertain");
-  return { via: method, messageId: returnedId, edited: messageId>0 };
+  return { via: method, messageId: returnedId, ...(messageId>0?{edited:true}:{}) };
 }
 
 async function publishTelegramPersistent(initData,draft,html,file=null){
