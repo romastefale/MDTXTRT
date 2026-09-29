@@ -1074,7 +1074,7 @@ async function replyImportResult(message,document){
   const chatId=message.chat.id;
   try{
     const result=await importTelegramDocument(document,chatId);
-    const source=result.draft.importedMd?"Markdown":"TXT";
+    const source=extname(document.file_name).toLowerCase()===".md"?"Markdown":"TXT";
     const html="<h1>Arquivo importado</h1><p><b>"+htmlEscape(document.file_name)+"</b> foi validado como "+source+" e preparado como um novo documento.</p><p>Nenhum conteúdo foi publicado. Ao continuar, o Mini App preserva o documento local ativo antes de abrir esta importação.</p>"+importAppButton(result.token);
     await sendBotRich(chatId,html,message.message_id);
   }catch(error){
