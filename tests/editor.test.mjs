@@ -135,7 +135,7 @@ function page(setup={}){
   w.cancelAnimationFrame=id=>{frames.delete(id);return nativeCancelAnimationFrame(id);};
   w.TextEncoder=TextEncoder;
   Object.defineProperty(w.crypto,'randomUUID',{value:randomUUID,configurable:true});
-  w.matchMedia=()=>({matches:true,addEventListener(){},removeEventListener(){}});
+  w.matchMedia=setup.matchMedia||(()=>({matches:true,addEventListener(){},removeEventListener(){}}));
   Object.defineProperty(w,'visualViewport',{value:{
     offsetLeft:0,offsetTop:0,width:390,height:800,
     addEventListener(){},removeEventListener(){},
@@ -263,6 +263,91 @@ test('novo preserves archived attachment records when the new document stores an
   assert.equal(db.rows.has(oldMedia),true);
   assert.equal(db.rows.size,2);
   assert.equal(w.localStorage.getItem('rmdtxtml-document:'+oldDoc),raw);
+  w.close();
+});
+
+test('Telegram Main Mini App waits for a stable portrait viewport before locking orientation',async()=>{
+  let portrait=false,locks=0;
+  const handlers=new Map(),orientationListeners=new Set();
+  const portraitMql={
+    get matches(){return portrait;},
+    addEventListener(type,fn){if(type==='change')orientationListeners.add(fn);},
+    removeEventListener(type,fn){if(type==='change')orientationListeners.delete(fn);}
+  };
+  const matchMedia=query=>{
+    if(query==='(orientation: portrait)')return portraitMql;
+    if(query==='(orientation:landscape)')return {get matches(){return !portrait;},addEventListener(){},removeEventListener(){}};
+    if(query==='(min-width:760px)')return {matches:true,addEventListener(){},removeEventListener(){}};
+    return {matches:false,addEventListener(){},removeEventListener(){}};
+  };
+  const fetch=async(url)=>{
+    const target=String(url);
+    if(target.endsWith('/api/telegram/session'))return {ok:true,status:200,json:async()=>({ok:true})};
+    if(target.endsWith('/api/telegraph/recover'))return {ok:false,status:404,json:async()=>({})};
+    return {ok:false,status:404,json:async()=>({error:'not found'})};
+  };
+  const tg={
+    platform:'android',
+    viewportHeight:420,
+    viewportStableHeight:800,
+    contentSafeAreaInset:{top:0,right:0,bottom:0,left:0},
+    isOrientationLocked:false,
+    isVersionAtLeast:version=>version==='8.0',
+    lockOrientation(){locks++;this.isOrientationLocked=true;},
+    onEvent(type,fn){handlers.set(type,fn);}
+  };
+  const w=page({fetch,tg,matchMedia}),root=w.document.documentElement;
+  await wait(10);
+
+  assert.equal(root.hasAttribute('data-device-gate'),false);
+  assert.equal(locks,0);
+  assert.equal(typeof handlers.get('viewportChanged'),'function');
+
+  handlers.get('viewportChanged')({isStateStable:false});
+  await wait(0);
+  assert.equal(root.hasAttribute('data-device-gate'),false);
+  assert.equal(locks,0);
+
+  portrait=true;
+  w.Telegram.WebApp.viewportHeight=800;
+  handlers.get('viewportChanged')({isStateStable:true});
+  await wait(0);
+
+  assert.equal(root.hasAttribute('data-device-gate'),false);
+  assert.equal(locks,1);
+  assert.equal(w.Telegram.WebApp.isOrientationLocked,true);
+  w.close();
+});
+
+test('Telegram keeps a real stable landscape viewport unlocked and shows the portrait notice',async()=>{
+  const handlers=new Map();
+  const landscapeMql={matches:false,addEventListener(){},removeEventListener(){}};
+  const matchMedia=query=>query==='(orientation: portrait)'
+    ?landscapeMql
+    :{matches:true,addEventListener(){},removeEventListener(){}};
+  const fetch=async(url)=>{
+    const target=String(url);
+    if(target.endsWith('/api/telegram/session'))return {ok:true,status:200,json:async()=>({ok:true})};
+    if(target.endsWith('/api/telegraph/recover'))return {ok:false,status:404,json:async()=>({})};
+    return {ok:false,status:404,json:async()=>({error:'not found'})};
+  };
+  let locks=0;
+  const w=page({fetch,matchMedia,tg:{
+    platform:'android',
+    viewportHeight:800,
+    viewportStableHeight:800,
+    contentSafeAreaInset:{top:0,right:0,bottom:0,left:0},
+    isOrientationLocked:false,
+    isVersionAtLeast:version=>version==='8.0',
+    lockOrientation(){locks++;},
+    onEvent(type,fn){handlers.set(type,fn);}
+  }});
+  await wait(10);
+  assert.equal(typeof handlers.get('viewportChanged'),'function');
+  handlers.get('viewportChanged')({isStateStable:true});
+  await wait(0);
+  assert.equal(w.document.documentElement.getAttribute('data-device-gate'),'portrait');
+  assert.equal(locks,0);
   w.close();
 });
 

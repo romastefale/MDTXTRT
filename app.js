@@ -405,6 +405,11 @@ async function verifyTelegram(){
 const portraitQuery=matchMedia('(orientation: portrait)');
 const telegramPhonePlatforms=new Set(['android','ios']);
 const telegramInsetFields=['top','right','bottom','left'];
+let telegramViewportStable=false,telegramViewportEventSeen=false;
+function telegramViewportIsStable(tg=getTg()){
+  const current=Number(tg?.viewportHeight),stable=Number(tg?.viewportStableHeight);
+  return Number.isFinite(current)&&current>0&&Number.isFinite(stable)&&stable>0&&Math.abs(current-stable)<1;
+}
 function validTelegramInsets(value){
   return value&&telegramInsetFields.every(field=>Number.isInteger(value[field])&&value[field]>=0);
 }
@@ -443,24 +448,45 @@ function syncDeviceContract(){
   if(typeof tg.isVersionAtLeast!=='function'||!tg.isVersionAtLeast('8.0')||typeof tg.lockOrientation!=='function'||!syncTelegramContentSafeArea()){
     setDeviceGate('version');return;
   }
+  if(!telegramViewportStable){setDeviceGate();return;}
   if(!portraitQuery.matches){setDeviceGate('portrait');return;}
   setDeviceGate();
   if(!tg.isOrientationLocked)tg.lockOrientation();
 }
+function handleTelegramViewportChange(event){
+  scheduleBrowserViewport();
+  telegramViewportEventSeen=true;
+  if(event?.isStateStable!==true){
+    telegramViewportStable=false;
+    return;
+  }
+  telegramViewportStable=true;
+  syncDeviceContract();
+}
+function handleTelegramOrientationChange(){
+  if(telegramViewportStable)syncDeviceContract();
+}
 function setupTelegram(){
   const tg=getTg();
   session='ready';
+  telegramViewportStable=false;
+  telegramViewportEventSeen=false;
   document.body.classList.add('tg');
   setDestination(dest,false,false);
+  tg.onEvent('themeChanged',applyScheme);
+  tg.onEvent('viewportChanged',handleTelegramViewportChange);
+  tg.onEvent('contentSafeAreaChanged',handleTelegramContentSafeAreaChange);
+  portraitQuery.addEventListener('change',handleTelegramOrientationChange);
   tg.ready();
   tg.expand();
   applyScheme();
   if(!syncTelegramContentSafeArea()){setDeviceGate('version');return;}
-  tg.onEvent('themeChanged',applyScheme);
-  tg.onEvent('viewportChanged',scheduleBrowserViewport);
-  tg.onEvent('contentSafeAreaChanged',handleTelegramContentSafeAreaChange);
-  portraitQuery.addEventListener('change',syncDeviceContract);
-  syncDeviceContract();
+  requestAnimationFrame(()=>{
+    if(!telegramViewportEventSeen&&telegramViewportIsStable(tg)){
+      telegramViewportStable=true;
+      syncDeviceContract();
+    }
+  });
   scheduleBrowserViewport();
   tg.SettingsButton.show();
   tg.SettingsButton.onClick(openPlusRoot);

@@ -410,11 +410,12 @@
   <script src="marked.js"></script>
   <script src="turndown.js"></script>
   <script src="editor-core.js?v=fa4c41a9169b"></script>
-  <script type="module" src="ui.js?v=9dce87bce72b"></script>
+  <script type="module" src="ui.js?v=83f203e2f4b6"></script>
   <script>
     document.addEventListener('DOMContentLoaded',()=>{
       const root=document.documentElement;
-      const initialDeviceNotice=matchMedia('(orientation:landscape)').matches||matchMedia('(min-width:760px)').matches;
+      const telegramMiniApp=Boolean(window.Telegram?.WebApp?.initData);
+      const initialDeviceNotice=!telegramMiniApp&&(matchMedia('(orientation:landscape)').matches||matchMedia('(min-width:760px)').matches);
       if(initialDeviceNotice){
         root.setAttribute('data-device-gate','');
         setTimeout(()=>root.removeAttribute('data-device-gate'),4300);
