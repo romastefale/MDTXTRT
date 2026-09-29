@@ -1,7 +1,7 @@
 import {test,before,after} from 'node:test';
 import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
-import {createHmac} from 'node:crypto';
+import {createHmac,randomUUID} from 'node:crypto';
 import {mkdtempSync,writeFileSync,readFileSync,rmSync,mkdirSync} from 'node:fs';
 import {join} from 'node:path';
 import {parseDocument} from 'htmlparser2';
@@ -57,7 +57,13 @@ async function start(){
   }
   throw new Error('Server did not start: '+stderr);
 }
+function draftFixture(html='<p>Teste</p>',doc=randomUUID(),revision=0,name='Teste'){
+  return {version:2,name,html,dest:'telegram',telegraphPath:'',docId:doc,revision,importedMd:'',importedTxt:'',importedHtml:'',media:null};
+}
 async function formPost(path,fields,file){
+  if(path==='/api/telegram/send'&&!Object.hasOwn(fields,'draft')){
+    fields={...fields,draft:JSON.stringify(draftFixture(String(fields.html||'<p>Teste</p>')))};
+  }
   const form=new FormData();
   for(const [key,value] of Object.entries(fields))form.set(key,String(value));
   if(file)form.set('upload',file.blob,file.name);
@@ -109,6 +115,60 @@ after(async()=>{
 test('serves vector app icon and no raster app icon',async()=>{
   assert.equal((await fetch(`http://127.0.0.1:${port}/logo.svg`)).status,200);
   assert.equal((await fetch(`http://127.0.0.1:${port}/logo.png`)).status,404);
+});
+
+
+test('drafts persist on the Railway volume and survive backend restart',async()=>{
+  const doc=randomUUID();
+  const browserKey='ab'.repeat(32);
+  const draft=draftFixture('<p>Persistente</p>',doc,3,'Persistente');
+  const saved=await formPost('/api/drafts/save',{browserKey,draft:JSON.stringify(draft)});
+  assert.equal(saved.status,200,saved.data.error);
+  assert.equal(saved.data.draft.docId,doc);
+  assert.equal(saved.data.draft.revision,3);
+  assert.equal(saved.data.owner.kind,'browser');
+
+  const loaded=await jsonPost('/api/drafts/load',{browserKey});
+  assert.equal(loaded.status,200,loaded.data.error);
+  assert.equal(loaded.data.draft.html,'<p>Persistente</p>');
+
+  await restart();
+  const afterRestart=await jsonPost('/api/drafts/load',{browserKey});
+  assert.equal(afterRestart.status,200,afterRestart.data.error);
+  assert.equal(afterRestart.data.draft.docId,doc);
+  assert.equal(afterRestart.data.draft.revision,3);
+});
+
+test('Telegram publication provenance is bound to the publisher and later saves edit the same message',async()=>{
+  const doc=randomUUID();
+  const first=draftFixture('<p>Primeira versão</p>',doc,1,'Publicação');
+  const sent=await formPost('/api/telegram/send',{initData:init(7),html:first.html,draft:JSON.stringify(first)});
+  assert.equal(sent.status,200,sent.data.error);
+  assert.equal(sent.data.via,'sendRichMessage');
+  assert.equal(sent.data.messageId,42);
+
+  const persisted=await jsonPost('/api/drafts/load',{initData:init(7),doc});
+  assert.equal(persisted.status,200,persisted.data.error);
+  assert.equal(persisted.data.owner.kind,'telegram');
+  assert.equal(persisted.data.owner.telegramUserId,'7');
+  assert.equal(persisted.data.publication.status,'succeeded');
+  assert.equal(persisted.data.publication.telegramUserId,'7');
+  assert.equal(persisted.data.publication.messageId,42);
+
+  const second={...first,html:'<p>Segunda versão</p>',revision:2};
+  const edited=await formPost('/api/telegram/send',{initData:init(7),html:second.html,draft:JSON.stringify(second)});
+  assert.equal(edited.status,200,edited.data.error);
+  assert.equal(edited.data.via,'editMessageText');
+  assert.equal(edited.data.messageId,42);
+  assert.equal(lastCall('editMessageText').body.chat_id,'7');
+  assert.equal(lastCall('editMessageText').body.message_id,42);
+  assert.match(lastCall('editMessageText').body.rich_message.html,/Segunda versão/);
+
+  const other={...second,revision:3,html:'<p>Outro usuário</p>'};
+  const otherUser=await formPost('/api/telegram/send',{initData:init(8),html:other.html,draft:JSON.stringify(other)});
+  assert.equal(otherUser.status,200,otherUser.data.error);
+  assert.equal(otherUser.data.via,'sendRichMessage');
+  assert.equal(lastCall('sendRichMessage').body.chat_id,'8');
 });
 
 test('session endpoint accepts current signed initData and rejects invalid data',async()=>{
