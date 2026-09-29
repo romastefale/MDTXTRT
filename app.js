@@ -896,17 +896,17 @@ async function figure(kind){
   insertHTML('<figure>'+tag+cap+'</figure>',true);
 }
 async function insertFeature(kind){
-  if(kind==='task')return insertHTML('<ul><li><input type="checkbox">Nova tarefa</li></ul>',true);
+  if(kind==='task')return insertHTML('<ul><li><input type="checkbox"></li></ul>',true);
   if(kind==='ordered')return toggleList('ol');
   if(kind==='divider')return insertHTML('<hr/>',true);
   if(kind==='table'){
     const caption=await ask('Legenda da tabela','');
     if(caption===null)return;
-    return insertHTML('<table bordered striped compact>'+(caption?'<caption>'+escapeHTML(caption)+'</caption>':'')+'<tr><th>A</th><th>B</th></tr><tr><td>—</td><td>—</td></tr></table>',true);
+    return insertHTML('<table bordered striped compact>'+(caption?'<caption>'+escapeHTML(caption)+'</caption>':'')+'<tr><th></th><th></th></tr><tr><td></td><td></td></tr></table>',true);
   }
-  if(kind==='expandquote')return insertHTML('<blockquote expandable>Citação expansível</blockquote>',true);
-  if(kind==='pullquote')return insertHTML('<aside>Citação em destaque</aside>',true);
-  if(kind==='details')return insertHTML('<details open><summary>Conteúdo</summary><p>Texto expansível</p></details>',true);
+  if(kind==='expandquote')return formatBlock('expandquote');
+  if(kind==='pullquote')return formatBlock('pullquote');
+  if(kind==='details')return insertHTML('<details open><summary></summary><p></p></details>',true);
   if(kind==='mathblock'){
     const value=await ask('Fórmula LaTeX','E = mc^2');
     if(value)return insertHTML('<tg-math-block>'+escapeHTML(value)+'</tg-math-block>',true);
@@ -1412,6 +1412,10 @@ function syncEditorSelectionUI(){
   toggleToolbarState(one('#linkBtn'),Boolean(editorCore?.linkHref())||Boolean(one('#linkMenu')?.matches(':popover-open')));
   one('#plusBtn')?.classList.toggle('on',one('#plusMenu')?.matches(':popover-open')||plusSubmenus.some(sel=>one(sel).matches(':popover-open')));
   all('#headingMenu [data-block]').forEach(btn=>btn.classList.toggle('is-current',btn.dataset.block===kind));
+  all('#quoteMenu [data-block],#quoteMenu [data-insert]').forEach(btn=>{
+    const requested=btn.dataset.block||btn.dataset.insert;
+    btn.classList.toggle('is-current',requested===kind);
+  });
 }
 document.addEventListener('selectionchange',syncEditorSelectionUI);
 document.addEventListener('pointerdown',event=>{

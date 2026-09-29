@@ -361,6 +361,8 @@ export function createEditorCore({element,onChange=()=>{},onSelectionChange=()=>
       const node=$from.node(depth);
       if(node.type===schema.nodes.heading)return "h"+node.attrs.level;
       if(node.type===schema.nodes.footer)return "footer";
+      if(node.type===schema.nodes.blockquote)return node.attrs.expandable?"expandquote":"blockquote";
+      if(node.type===schema.nodes.aside)return "pullquote";
       if(node.type===schema.nodes.paragraph)return "p";
       if(node.type===schema.nodes.pre)return "pre";
     }
@@ -389,7 +391,9 @@ export function createEditorCore({element,onChange=()=>{},onSelectionChange=()=>
     const current=currentBlockKind();
     const target=current===kind?"p":kind;
     let type,attrs=null;
-    if(target==="blockquote")type=schema.nodes.blockquote;
+    if(target==="blockquote"){type=schema.nodes.blockquote;attrs={expandable:false};}
+    else if(target==="expandquote"){type=schema.nodes.blockquote;attrs={expandable:true};}
+    else if(target==="pullquote")type=schema.nodes.aside;
     else if(target==="footer")type=schema.nodes.footer;
     else if(/^h[1-6]$/.test(target)){type=schema.nodes.heading;attrs={level:Number(target.slice(1))};}
     else type=schema.nodes.paragraph;
@@ -461,7 +465,7 @@ export function createEditorCore({element,onChange=()=>{},onSelectionChange=()=>
     const {$from}=state.selection;
     for(let depth=$from.depth;depth>0;depth--){
       const node=$from.node(depth);
-      if(node.type!==schema.nodes.heading&&node.type!==schema.nodes.blockquote)continue;
+      if(node.type!==schema.nodes.heading&&node.type!==schema.nodes.blockquote&&node.type!==schema.nodes.aside)continue;
       if($from.parent!==node)return false;
       const pos=$from.before(depth),offset=$from.parentOffset;
       let tr=state.tr;
@@ -492,7 +496,7 @@ export function createEditorCore({element,onChange=()=>{},onSelectionChange=()=>
         tr=tr.setSelection(TextSelection.create(tr.doc,pos+1));
         dispatch(tr);view.focus();return true;
       }
-      if(node.type===schema.nodes.blockquote){
+      if(node.type===schema.nodes.blockquote||node.type===schema.nodes.aside){
         if(node.textContent.replace(/\u200b/g,"").trim())return false;
         const pos=$from.before(depth);
         let tr=state.tr.replaceWith(pos,pos+node.nodeSize,schema.nodes.paragraph.create());
