@@ -142,12 +142,12 @@ const nodes={
   },
   button:{
     attrs:{
-      ...textAttrs("url","data","query","text","forward-text"),
+      ...textAttrs("type","style","url","data","query","text","forward-text"),
       ...boolAttrs("request-write-access","allow-user-chats","allow-bot-chats","allow-group-chats","allow-channel-chats","disabled")
     },
     content:"inline*",
-    parseDOM:[{tag:"tg-button",getAttrs:el=>readAttrs(el,["url","data","query","text","forward-text"],["request-write-access","allow-user-chats","allow-bot-chats","allow-group-chats","allow-channel-chats","disabled"])}],
-    toDOM:node=>["tg-button",domAttrs(node.attrs,["url","data","query","text","forward-text"],["request-write-access","allow-user-chats","allow-bot-chats","allow-group-chats","allow-channel-chats","disabled"]),0]
+    parseDOM:[{tag:"tg-button",getAttrs:el=>readAttrs(el,["type","style","url","data","query","text","forward-text"],["request-write-access","allow-user-chats","allow-bot-chats","allow-group-chats","allow-channel-chats","disabled"])}],
+    toDOM:node=>["tg-button",domAttrs(node.attrs,["type","style","url","data","query","text","forward-text"],["request-write-access","allow-user-chats","allow-bot-chats","allow-group-chats","allow-channel-chats","disabled"]),0]
   },
   anchor:{
     inline:true,group:"inline",atom:true,attrs:{name:{default:""}},
