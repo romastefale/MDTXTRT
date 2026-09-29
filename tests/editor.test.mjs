@@ -332,10 +332,10 @@ test('Telegram keeps a real stable landscape viewport unlocked and shows the por
     return {ok:false,status:404,json:async()=>({error:'not found'})};
   };
   let locks=0;
-  const w=page({fetch,matchMedia,tg:{
+  const w=page({fetch,matchMedia,visualViewport:{width:800,height:390},tg:{
     platform:'android',
-    viewportHeight:800,
-    viewportStableHeight:800,
+    viewportHeight:390,
+    viewportStableHeight:390,
     contentSafeAreaInset:{top:0,right:0,bottom:0,left:0},
     isOrientationLocked:false,
     isVersionAtLeast:version=>version==='8.0',
