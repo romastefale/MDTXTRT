@@ -138,7 +138,8 @@ test('theme neutrals are chromatic derivatives of the active accent',()=>{
   assert.match(html,/\.seg,\.bar\{[^}]*background:var\(--glass-tint\)/);
   assert.doesNotMatch(html,/\.theme-switch\{[^}]*background:var\(--bar-glass-tint\)/);
   assert.match(html,/\.glass-menu-material,\.toast-material\{background:var\(--glass-tint\)\}/);
-  assert.match(html,/box-shadow:inset 0 0 0 1px var\(--glass-hairline\)/);
+  assert.doesNotMatch(html,/--glass-hairline:/);
+  assert.doesNotMatch(html,/box-shadow:[^;}]*inset 0 0 0 1px/);
   assert.match(html,/\.menu-divider::after\{[^}]*background:var\(--menu-edge\)\}/);
   assert.doesNotMatch(html,/--glass-edge:/);
   assert.doesNotMatch(html,/--glass-inner:/);
@@ -150,15 +151,14 @@ test('theme neutrals are chromatic derivatives of the active accent',()=>{
   assert.doesNotMatch(html,/html\.dark\{[^}]*--muted:/);
 });
 
-test('bars use one uniform shared hairline token across themes',()=>{
+test('bars keep the shared glass fill with no hairline stroke',()=>{
   const html=read('index.html');
   const shared=html.match(/\.seg,\.bar\{([^}]*)\}/)?.[1]||'';
   const seg=html.match(/\.seg\{([^}]*)\}/)?.[1]||'';
   const bar=html.match(/\.bar\{([^}]*)\}/)?.[1]||'';
+  assert.doesNotMatch(html,/--glass-hairline:/);
   assert.doesNotMatch(shared,/(?:^|;)\s*border\s*:/);
-  assert.match(shared,/box-shadow:inset 0 0 0 1px var\(--glass-hairline\)/);
-  assert.match(html,/--glass-hairline:rgba\(255,255,255,\.05\)/);
-  assert.match(html,/html\.light\{[\s\S]*?--glass-hairline:rgba\(255,255,255,\.12\)/);
+  assert.doesNotMatch(shared,/box-shadow:/);
   assert.doesNotMatch(shared,/(?:linear|radial|conic)-gradient/);
   for(const block of [seg,bar]){
     assert.doesNotMatch(block,/(?:^|;)\s*border\s*:/);
@@ -358,9 +358,8 @@ test('destination Telegram and Telegraph icon is 28px',()=>{
 
 test('chrome circles share one control diameter and dark icons retain contrast',()=>{
   const html=read('index.html');
-  assert.match(html,/--glass-hairline:rgba\(255,255,255,\.05\)/);
-  assert.match(html,/html\.light\{[\s\S]*?--glass-hairline:rgba\(255,255,255,\.12\)/);
-  assert.match(html,/\.seg,\.bar\{[\s\S]*?box-shadow:inset 0 0 0 1px var\(--glass-hairline\)/);
+  assert.doesNotMatch(html,/--glass-hairline:/);
+  assert.doesNotMatch(html,/\.seg,\.bar\{[^}]*box-shadow:/);
   assert.match(html,/html\.dark \.seg,html\.dark \.bar\{color:#f5f5f7\}/);
   assert.match(html,/\.seg button\{[\s\S]*?width:var\(--control-size\);height:var\(--control-size\)/);
   assert.match(html,/\.bar > button\{[\s\S]*?flex:0 0 var\(--control-size\);width:var\(--control-size\);min-width:var\(--control-size\);height:var\(--control-size\)/);
@@ -371,9 +370,10 @@ test('chrome circles share one control diameter and dark icons retain contrast',
   assert.doesNotMatch(html,/\.action-dot\{[\s\S]*?control-size\) - 6px/);
 });
 
-test('menus use the same theme glass fill and uniform hairline as chrome capsules',()=>{
+test('menus keep the same theme glass fill without a hairline stroke',()=>{
   const html=read('index.html');
   const menu=html.match(/\.glass-menu\{([^}]*)\}/)?.[1]||'';
+  const content=html.match(/\.glass-menu-content\{([^}]*)\}/)?.[1]||'';
   assert.match(menu,/color:var\(--text\)/);
   assert.match(html,/\.tools input\{[\s\S]*?color:inherit/);
   assert.match(html,/\.tools button\{[\s\S]*?color:inherit/);
@@ -382,9 +382,9 @@ test('menus use the same theme glass fill and uniform hairline as chrome capsule
   assert.match(html,/\.dialog-actions button\{[\s\S]*?color:inherit/);
   assert.doesNotMatch(menu,/color:#151515/);
   assert.match(html,/\.glass-menu-material,\.toast-material\{background:var\(--glass-tint\)\}/);
-  assert.match(html,/\.glass-menu-content\{[\s\S]*?box-shadow:inset 0 0 0 1px var\(--glass-hairline\),0 14px 34px var\(--menu-shadow\),0 2px 6px var\(--menu-shadow-tight\)/);
+  assert.match(content,/box-shadow:0 14px 34px var\(--menu-shadow\),0 2px 6px var\(--menu-shadow-tight\)/);
+  assert.doesNotMatch(content,/inset 0 0 0/);
   assert.doesNotMatch(html,/--menu-inner:/);
-  assert.doesNotMatch(html,/box-shadow:inset 0 0 0 \.5px var\(--menu-inner\),0 0 0 \.5px var\(--menu-edge\)/);
 });
 
 test('toast uses the shared translucent pill surface and theme-aware text',()=>{
@@ -398,7 +398,7 @@ test('toast uses the shared translucent pill surface and theme-aware text',()=>{
   assert.doesNotMatch(toast,/color:#151515/);
   assert.match(material,/border-radius:999px/);
   assert.match(material,/background:var\(--glass-tint\)/);
-  assert.match(material,/box-shadow:inset 0 0 0 1px var\(--glass-hairline\)/);
+  assert.doesNotMatch(material,/box-shadow:/);
   assert.match(content,/padding:8px 13px/);
   assert.match(content,/color:inherit/);
 });
