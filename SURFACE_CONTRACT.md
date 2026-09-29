@@ -20,7 +20,7 @@ The Web/PWA shell uses the same editor and document model.
 | Local attachment | media/voice input → IndexedDB + draft metadata |
 | Telegraph publish | top hamburger application menu → `publishTelegraph()` → backend ownership/path contract |
 | Telegram from browser/PWA | explicit browser-to-Mini-App handoff; browser mode never pretends to possess Telegram identity |
-| Draft persistence / library | local recovery plus Railway-volume records; top hamburger → Rascunhos e publicações → responsive owner-scoped cards |
+| Draft persistence / library | local recovery plus Railway-volume records; top hamburger → modal owner library with publication-first collapsible cards, draft cards, light-dismiss outside the modal and a dedicated new-document action |
 | Telegram publication library/edit | existing durable Telegram provenance → publication summary card → linked current draft opened in editor; prior messages remain unchanged |
 | Telegraph page library/edit | owner-scoped page list → authoritative `/api/telegraph/load` → same document/path opened in editor |
 
