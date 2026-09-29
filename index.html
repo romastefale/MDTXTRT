@@ -444,5 +444,156 @@
       sync();
     });
   </script>
+  <script>
+    document.addEventListener('DOMContentLoaded',()=>{
+      const root=document.documentElement;
+      if(root.dataset.keyboardPolicyReady==='true')return;
+      root.dataset.keyboardPolicyReady='true';
+      const editor=document.querySelector('#editor');
+      const dialog=document.querySelector('#dialogMenu');
+      const dialogInput=document.querySelector('#dialogInput');
+      if(!editor)return;
+
+      let keyboardFocus=editor;
+      let interactionFocus=null;
+      let editorRange=null;
+
+      const textEntry=element=>{
+        if(!element||element.nodeType!==1)return false;
+        if(element===editor||element.matches?.('textarea,[contenteditable="true"]'))return true;
+        if(!element.matches?.('input'))return false;
+        const type=(element.getAttribute('type')||'text').toLowerCase();
+        return !['button','checkbox','radio','file','submit','reset','range','color','date','time','datetime-local','month','week','hidden'].includes(type);
+      };
+      const keyboardOpen=()=>{
+        if(root.hasAttribute('data-keyboard'))return true;
+        const viewport=window.visualViewport;
+        if(!viewport||!textEntry(document.activeElement))return false;
+        const hidden=Math.max(0,root.clientHeight-(Number(viewport.offsetTop)||0)-(Number(viewport.height)||0));
+        return hidden>80;
+      };
+      const saveEditorRange=()=>{
+        const selection=window.getSelection();
+        if(!selection||!selection.rangeCount||!editor.contains(selection.anchorNode))return;
+        editorRange=selection.getRangeAt(0).cloneRange();
+      };
+      const usable=element=>{
+        if(!element||!element.isConnected||typeof element.focus!=='function'||element.hidden||element.disabled)return false;
+        if(element.closest?.('[hidden]'))return false;
+        const panel=element.closest?.('.glass-menu');
+        return !panel||panel.matches(':popover-open');
+      };
+      const releaseInert=element=>{
+        for(let node=element;node&&node!==document.body;node=node.parentElement){
+          if(node.hasAttribute?.('inert'))node.removeAttribute('inert');
+        }
+      };
+      const focusEntry=preferred=>{
+        const target=usable(preferred)&&textEntry(preferred)?preferred:editor;
+        if(!target?.isConnected)return false;
+        releaseInert(target);
+        try{target.focus({preventScroll:true});}catch{target.focus();}
+        if(target===editor&&editorRange?.startContainer&&editor.contains(editorRange.startContainer)&&editor.contains(editorRange.endContainer)){
+          const selection=window.getSelection();
+          if(selection){
+            selection.removeAllRanges();
+            selection.addRange(editorRange);
+          }
+        }
+        keyboardFocus=target;
+        return true;
+      };
+      const pinnedConfirm=()=>Boolean(
+        keyboardOpen()&&dialog?.matches(':popover-open')&&dialogInput?.hidden
+      );
+      const preservePointer=event=>{
+        if(!keyboardOpen())return;
+        const target=event.target;
+        if(!target?.closest)return;
+        const control=target.closest('button,input,select,[role="button"],[tabindex],a[href]');
+        if(!control||textEntry(control))return;
+        interactionFocus=textEntry(document.activeElement)?document.activeElement:keyboardFocus;
+        saveEditorRange();
+        event.preventDefault();
+      };
+      const finishInteraction=()=>{
+        const preferred=interactionFocus;
+        interactionFocus=null;
+        if(!preferred)return;
+        queueMicrotask(()=>{
+          if(!keyboardOpen())return;
+          if(textEntry(document.activeElement)&&document.activeElement!==preferred){
+            keyboardFocus=document.activeElement;
+            return;
+          }
+          focusEntry(preferred);
+        });
+      };
+      const applyThemeWithoutReload=()=>{
+        const light=!root.classList.contains('light');
+        const mode=light?'light':'dark';
+        const color=light?'#f8fbff':'#000000';
+        try{localStorage.setItem('mdtxtrt-theme',mode);}catch{}
+        root.classList.remove(light?'dark':'light');
+        root.classList.add(mode);
+        root.dataset.theme=mode;
+        root.style.colorScheme=mode;
+        document.querySelector('#colorScheme')?.setAttribute('content',mode);
+        document.querySelector('#themeColor')?.setAttribute('content',color);
+        const status=document.querySelector('#statusBarStyle');
+        if(status)status.content=light?'default':'black-translucent';
+        const button=document.querySelector('#themeBtn');
+        const icon=button?.querySelector('[data-icon]');
+        const iconName=light?'dark_mode':'light_mode';
+        if(icon){
+          icon.setAttribute('data-icon',iconName);
+          icon.style.setProperty('--ui-icon','url("icons/'+iconName+'.svg")');
+        }
+        if(button){
+          const label=light?'Ativar modo escuro':'Ativar modo claro';
+          button.setAttribute('aria-label',label);
+          button.title=label;
+        }
+        const tg=window.Telegram?.WebApp;
+        try{
+          tg?.setHeaderColor?.(color);
+          tg?.setBackgroundColor?.(color);
+          tg?.setBottomBarColor?.(color);
+        }catch{}
+      };
+
+      document.addEventListener('selectionchange',()=>{
+        if(document.activeElement===editor)saveEditorRange();
+      });
+      document.addEventListener('focusin',event=>{
+        const target=event.target;
+        if(textEntry(target)){
+          keyboardFocus=target;
+          if(target===editor)saveEditorRange();
+          if(pinnedConfirm()&&!dialog.contains(target))event.stopImmediatePropagation();
+          return;
+        }
+        if(!keyboardOpen())return;
+        event.stopImmediatePropagation();
+        focusEntry(interactionFocus||keyboardFocus||editor);
+      },true);
+      document.addEventListener('pointerdown',preservePointer,true);
+      document.addEventListener('mousedown',preservePointer,true);
+      document.addEventListener('pointercancel',()=>{interactionFocus=null;},true);
+      document.addEventListener('click',event=>{
+        const theme=event.target?.closest?.('#themeBtn');
+        if(theme&&keyboardOpen()){
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          const preferred=interactionFocus||keyboardFocus||editor;
+          interactionFocus=null;
+          applyThemeWithoutReload();
+          queueMicrotask(()=>{if(keyboardOpen())focusEntry(preferred);});
+          return;
+        }
+      },true);
+      document.addEventListener('click',finishInteraction);
+    });
+  </script>
 </body>
 </html>

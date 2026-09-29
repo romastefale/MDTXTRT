@@ -481,6 +481,17 @@ test('plus menu keeps normative compact geometry and opens categorized submenus 
   assert.match(html,/\.plus-submenu \.submenu-back\{font-weight:650\}/);
 });
 
+
+test('shell owns a global virtual-keyboard retention policy without modifying generated UI bundles',()=>{
+  const html=read('index.html');
+  assert.match(html,/const keyboardOpen=\(\)=>\{/);
+  assert.match(html,/root\.hasAttribute\('data-keyboard'\)/);
+  assert.match(html,/document\.addEventListener\('pointerdown',preservePointer,true\)/);
+  assert.match(html,/document\.addEventListener\('mousedown',preservePointer,true\)/);
+  assert.match(html,/if\(theme&&keyboardOpen\(\)\)[\s\S]*?applyThemeWithoutReload\(\)/);
+  assert.match(html,/if\(!keyboardOpen\(\)\)return;[\s\S]*?event\.preventDefault\(\)/);
+});
+
 test('document name lives in export flow and becomes the Telegraph editorial title',()=>{
   const html=read('index.html'),src=uiSource(),app=read('app.js');
   assert.match(html,/class="telegraph-title" id="telegraphTitleSlot" hidden/);
