@@ -54,7 +54,7 @@ Do not place tokens, raw Telegram initData, raw browser capabilities, passwords 
 ## Telegraph restart test
 
 - Initial document UUID:
-- Initial revision:
+- Telegraph initial revision:
 - Telegraph test path/URL:
 - Initial publication timestamp:
 - Recovery result before restart:
@@ -70,7 +70,7 @@ Do not place tokens, raw Telegram initData, raw browser capabilities, passwords 
 
 - Test fixture/feature matrix:
 - Document UUID:
-- Initial revision:
+- Telegram initial revision:
 - Returned messageId:
 - Delivery timestamp:
 - Receiving device/client:
