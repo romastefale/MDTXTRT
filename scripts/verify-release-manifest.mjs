@@ -8,7 +8,7 @@ const pkg=JSON.parse(readFileSync(new URL('../package.json',import.meta.url),'ut
 const baseline=readFileSync(new URL('../BASELINE.md',import.meta.url),'utf8');
 
 if(manifest.schema!==1)fail('Release manifest schema inválido');
-if(manifest.visualBaseline!=='dde30467ed9b0d108bac2ae7ad9bcac1137c169e')fail('Baseline visual inesperada');
+if(manifest.visualBaseline!=='aac423e012745c7873908ddc4a76371fb8218aa3')fail('Baseline visual inesperada');
 if(!baseline.includes(manifest.visualBaseline))fail('BASELINE.md não contém a baseline do manifesto');
 if(manifest.runtime?.node!=='24.21.0'||manifest.runtime?.npm!=='11.19.0')fail('Runtime do manifesto divergente');
 if(pkg.engines?.node!==manifest.runtime.node)fail('package.json diverge do runtime do manifesto');

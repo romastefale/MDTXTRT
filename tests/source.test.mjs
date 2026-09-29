@@ -333,15 +333,15 @@ test('browser PWA uses platform safe areas while Telegram keeps its content safe
   assert.match(html,/--safe-top:env\(safe-area-inset-top,0px\);[\s\S]*?--safe-bottom:env\(safe-area-inset-bottom,0px\);[\s\S]*?--safe-left:env\(safe-area-inset-left,0px\);[\s\S]*?--safe-right:env\(safe-area-inset-right,0px\);[\s\S]*?--safe-bottom-max:env\(safe-area-max-inset-bottom,36px\);/);
   assert.match(html,/html\.tg-shell\{[\s\S]*?--safe-top:var\(--app-tg-content-safe-top\);[\s\S]*?--safe-bottom:var\(--app-tg-content-safe-bottom\);[\s\S]*?--safe-left:var\(--app-tg-content-safe-left\);[\s\S]*?--safe-right:var\(--app-tg-content-safe-right\);[\s\S]*?--safe-bottom-max:0px/);
   assert.match(html,/\.fade-bot\{[\s\S]*?bottom:calc\(var\(--vv-bottom\) \+ var\(--safe-bottom\) - var\(--safe-bottom-max\)\);[\s\S]*?height:calc\(var\(--foot-inset\) \+ 50px \+ var\(--safe-bottom-max\)\)/);
-  assert.match(app,/function syncTelegramContentSafeArea\(\)/);
-  assert.doesNotMatch(app,/tg\.safeAreaInset/);
+  assert.match(app,/function syncTelegramSafeAreas\(\)/);
+  assert.match(app,/tg\?\.safeAreaInset/);
   assert.match(app,/tg\.contentSafeAreaInset/);
-  assert.doesNotMatch(app,/--app-tg-safe-/);
+  assert.match(app,/--app-tg-safe-/);
   assert.match(app,/root\.style\.setProperty\('--app-tg-content-safe-'\+field/);
-  assert.doesNotMatch(app,/tg\.onEvent\('safeAreaChanged'/);
-  assert.match(app,/tg\.onEvent\('contentSafeAreaChanged',handleTelegramContentSafeAreaChange\)/);
+  assert.match(app,/tg\.onEvent\('safeAreaChanged',syncTelegramSafeAreas\)/);
+  assert.match(app,/tg\.onEvent\('contentSafeAreaChanged',syncTelegramSafeAreas\)/);
   assert.match(app,/tg\.isVersionAtLeast\('8\.0'\)/);
-  assert.match(app,/!syncTelegramContentSafeArea\(\)/);
+  assert.doesNotMatch(app,/setDeviceGate\(/);
 });
 
 test('undo and redo use destination mid-tone and export accent while flashing',()=>{
@@ -544,21 +544,17 @@ test('Glass wrappers keep chrome controls horizontal instead of package inline-b
   assert.equal((html.match(/--accent:#2B88D8;/g)||[]).length,2);
 });
 
-test('Telegram Mini App waits for stable viewport before validating and locking portrait',()=>{
+test('Telegram Mini App uses official fullscreen, viewport and safe-area state without orientation inference',()=>{
   const app=read('app.js');
-  assert.match(app,/telegramPhonePlatforms=new Set\(\['android','ios'\]\)/);
-  assert.match(app,/function telegramViewportIsStable\(tg=getTg\(\)\)/);
-  assert.match(app,/tg\?\.viewportHeight/);
-  assert.match(app,/tg\?\.viewportStableHeight/);
-  assert.match(app,/telegramViewportEventSeen=true/);
-  assert.match(app,/event\?\.isStateStable!==true/);
+  assert.match(app,/tg\.isFullscreen/);
+  assert.match(app,/tg\.requestFullscreen\(\)/);
+  assert.match(app,/tg\.onEvent\('fullscreenChanged'/);
+  assert.match(app,/tg\.onEvent\('fullscreenFailed'/);
   assert.match(app,/tg\.onEvent\('viewportChanged',handleTelegramViewportChange\)/);
-  assert.match(app,/!telegramViewportEventSeen&&telegramViewportIsStable\(tg\)/);
-  assert.match(app,/portraitQuery\.addEventListener\('change',handleTelegramOrientationChange\)/);
-  assert.match(app,/if\(!telegramViewportStable\)[\s\S]*?setDeviceGate\(\);return;/);
-  assert.match(app,/if\(!portraitQuery\.matches\)\{setDeviceGate\('portrait'\);return;\}/);
-  assert.match(app,/if\(!tg\.isOrientationLocked\)tg\.lockOrientation\(\)/);
-  assert.ok(app.indexOf("if(!portraitQuery.matches)")<app.indexOf("tg.lockOrientation()"));
+  assert.match(app,/getTg\(\)\?\.viewportStableHeight/);
+  assert.match(app,/tg\.onEvent\('safeAreaChanged',syncTelegramSafeAreas\)/);
+  assert.match(app,/tg\.onEvent\('contentSafeAreaChanged',syncTelegramSafeAreas\)/);
+  assert.doesNotMatch(app,/portraitQuery|telegramStableViewportIsPortrait|lockOrientation\(|setDeviceGate\(/);
 });
 
 test('Telegraph supports explicit Telegram or browser capability ownership without identity fallback',()=>{
@@ -599,7 +595,7 @@ test('execution toolchain is pinned and CI verifies committed browser bundles wi
   assert.match(workflow,/test "\$\(npm --version\)" = "11\.19\.0"/);
   assert.match(workflow,/name: Rebuild transactional editor bundle[\s\S]*?npm run build:editor/);
   assert.match(workflow,/name: Verify transactional editor bundle[\s\S]*?git diff --exit-code -- editor-core\.js/);
-  assert.match(workflow,/name: Detect React UI bundle input changes[\s\S]*?src\/liquid-glass-ui\.jsx package\.json package-lock\.json/);
+  assert.match(workflow,/name: Detect React UI bundle input changes[\s\S]*?src\/liquid-glass-ui\.jsx app\.js package\.json package-lock\.json/);
   assert.match(workflow,/name: Rebuild React UI bundle[\s\S]*?steps\.ui_inputs\.outputs\.changed == 'true'[\s\S]*?npm run build:ui/);
   assert.match(workflow,/name: Verify React UI bundle[\s\S]*?git diff --exit-code -- ui\.js/);
   assert.doesNotMatch(workflow,/git push|contents: write/);
@@ -639,6 +635,7 @@ test('step 6 semantics and documentation preserve the pinned visual baseline',()
   assert.match(architecture,/Durable document provenance boundary/);
   assert.match(drafts,/one \*\*active draft slot\*\*/);
   assert.match(drafts,/not a synchronized document database or a durable provenance ledger/);
+  assert.match(baseline,/aac423e012745c7873908ddc4a76371fb8218aa3/);
   assert.match(baseline,/dde30467ed9b0d108bac2ae7ad9bcac1137c169e/);
 });
 
@@ -710,7 +707,7 @@ test('final release gap analysis and immutable anchor gates are explicit',()=>{
   assert.match(read('scripts/validate-release-evidence.mjs'),/iOS Telegram Mini App/);
   assert.match(read('scripts/validate-release-evidence.mjs'),/Telegram unknown timeout/);
 
-  assert.equal(manifest.visualBaseline,'dde30467ed9b0d108bac2ae7ad9bcac1137c169e');
+  assert.equal(manifest.visualBaseline,'aac423e012745c7873908ddc4a76371fb8218aa3');
   assert.deepEqual(manifest.runtime,{node:'24.21.0',npm:'11.19.0'});
   assert.equal(manifest.stages.length,6);
   assert.equal(manifest.stages.at(-1).head,'e20d115b18424ab5c9abfa7e175b5376fe0633fb');

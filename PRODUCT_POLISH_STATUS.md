@@ -2,7 +2,7 @@
 
 ## Escopo
 
-O baseline visual existente permanece como contrato. Esta fase não altera o design nem adiciona funções fora do escopo já declarado pelo produto. O objetivo é fechar defeitos de edição, interação, implantação e paridade entre Web, PWA, Mini App e conversa privada com o bot.
+O design translúcido consolidado permanece como contrato visual. A referência vigente é `aac423e012745c7873908ddc4a76371fb8218aa3`, adotada explicitamente após a referência histórica `dde30467ed9b0d108bac2ae7ad9bcac1137c169e`; veja `BASELINE.md`. Esta fase não adiciona funções fora do escopo já declarado pelo produto. O objetivo é fechar defeitos de edição, interação, implantação e paridade entre Web, PWA, Mini App e conversa privada com o bot.
 
 ## Estado verificado em `main`
 
@@ -48,7 +48,7 @@ Critério mínimo:
 
 ### 3. Abertura fullscreen do Mini App
 
-O PR #82 contém a correção mais recente da geometria de orientação. A regressão automatizada passa, mas o gate de release ainda falha na comparação visual com a baseline. Esse resultado precisa ser resolvido antes de integrar a correção como parte da finalização.
+O PR #82 foi encerrado sem integração: comparava altura e largura para inferir orientação física. O PR #88 usa estados e eventos oficiais de fullscreen, viewport e safe areas do Telegram. O gate visual histórico divergente foi investigado: os screenshots do PR #88 são byte-idênticos aos registrados antes desta etapa. A referência vigente foi deliberadamente atualizada para o design translúcido integrado, sem alterar a aparência do PR #88. A validação física das formas de abertura e dos dispositivos permanece necessária.
 
 ### 4. Evidência real de plataforma
 

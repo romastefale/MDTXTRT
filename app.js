@@ -405,91 +405,48 @@ async function verifyTelegram(){
   }
   try{await recoverTelegraph();}catch(err){showToast(err.message||'Não foi possível recuperar a página do Telegraph');}
 }
-const portraitQuery=matchMedia('(orientation: portrait)');
-const telegramPhonePlatforms=new Set(['android','ios']);
 const telegramInsetFields=['top','right','bottom','left'];
-let telegramViewportStable=false,telegramViewportEventSeen=false;
-function telegramViewportIsStable(tg=getTg()){
-  const current=Number(tg?.viewportHeight),stable=Number(tg?.viewportStableHeight);
-  return Number.isFinite(current)&&current>0&&Number.isFinite(stable)&&stable>0&&Math.abs(current-stable)<1;
-}
 function validTelegramInsets(value){
   return value&&telegramInsetFields.every(field=>Number.isInteger(value[field])&&value[field]>=0);
 }
-function syncTelegramContentSafeArea(){
+function syncTelegramSafeAreas(){
   const tg=getTg(),root=document.documentElement;
-  if(typeof tg?.isVersionAtLeast!=='function'||!tg.isVersionAtLeast('8.0'))return false;
-  if(!validTelegramInsets(tg.contentSafeAreaInset))return false;
-  for(const field of telegramInsetFields){
-    root.style.setProperty('--app-tg-content-safe-'+field,tg.contentSafeAreaInset[field]+'px');
+  if(validTelegramInsets(tg?.safeAreaInset)){
+    for(const field of telegramInsetFields)root.style.setProperty('--app-tg-safe-'+field,tg.safeAreaInset[field]+'px');
   }
-  root.classList.add('tg-shell');
-  scheduleBrowserViewport();
-  return true;
-}
-function handleTelegramContentSafeAreaChange(){
-  if(!syncTelegramContentSafeArea())setDeviceGate('version');
-}
-function setDeviceGate(reason=''){
-  const root=document.documentElement;
-  const text=one('#deviceGateText');
-  if(!reason){
-    root.removeAttribute('data-device-gate');
-    if(text)text.textContent='Este WebApp funciona apenas em smartphones no modo retrato. Gire o aparelho para continuar.';
-    return;
+  if(validTelegramInsets(tg?.contentSafeAreaInset)){
+    for(const field of telegramInsetFields)root.style.setProperty('--app-tg-content-safe-'+field,tg.contentSafeAreaInset[field]+'px');
+    root.classList.add('tg-shell');
+  }else{
+    root.classList.remove('tg-shell');
   }
-  root.setAttribute('data-device-gate',reason);
-  if(!text)return;
-  if(reason==='platform')text.textContent='Abra este WebApp no Telegram em um smartphone.';
-  else if(reason==='version')text.textContent='Atualize o Telegram para uma versão compatível com bloqueio de orientação.';
-  else text.textContent='Este WebApp funciona apenas em smartphones no modo retrato. Gire o aparelho para continuar.';
-}
-function syncDeviceContract(){
-  if(session!=='ready')return;
-  const tg=getTg();
-  if(!telegramPhonePlatforms.has(tg.platform)){setDeviceGate('platform');return;}
-  if(typeof tg.isVersionAtLeast!=='function'||!tg.isVersionAtLeast('8.0')||typeof tg.lockOrientation!=='function'||!syncTelegramContentSafeArea()){
-    setDeviceGate('version');return;
-  }
-  if(!telegramViewportStable){setDeviceGate();return;}
-  if(!portraitQuery.matches){setDeviceGate('portrait');return;}
-  setDeviceGate();
-  if(!tg.isOrientationLocked)tg.lockOrientation();
 }
 function handleTelegramViewportChange(event){
+  if(event?.isStateStable===true)syncTelegramSafeAreas();
   scheduleBrowserViewport();
-  telegramViewportEventSeen=true;
-  if(event?.isStateStable!==true){
-    telegramViewportStable=false;
-    return;
-  }
-  telegramViewportStable=true;
-  syncDeviceContract();
-}
-function handleTelegramOrientationChange(){
-  if(telegramViewportStable)syncDeviceContract();
 }
 function setupTelegram(){
   const tg=getTg();
   session='ready';
-  telegramViewportStable=false;
-  telegramViewportEventSeen=false;
   document.body.classList.add('tg');
   setDestination(dest,false,false);
   tg.onEvent('themeChanged',applyScheme);
   tg.onEvent('viewportChanged',handleTelegramViewportChange);
-  tg.onEvent('contentSafeAreaChanged',handleTelegramContentSafeAreaChange);
-  portraitQuery.addEventListener('change',handleTelegramOrientationChange);
+  tg.onEvent('safeAreaChanged',syncTelegramSafeAreas);
+  tg.onEvent('contentSafeAreaChanged',syncTelegramSafeAreas);
+  tg.onEvent('fullscreenChanged',()=>{syncTelegramSafeAreas();scheduleBrowserViewport();});
+  tg.onEvent('fullscreenFailed',event=>{
+    if(event?.error==='ALREADY_FULLSCREEN'&&tg.isFullscreen)return;
+    showToast(event?.error==='UNSUPPORTED'?'Fullscreen indisponível neste Telegram':'Não foi possível abrir em fullscreen');
+  });
   tg.ready();
   tg.expand();
   applyScheme();
-  if(!syncTelegramContentSafeArea()){setDeviceGate('version');return;}
-  requestAnimationFrame(()=>{
-    if(!telegramViewportEventSeen&&telegramViewportIsStable(tg)){
-      telegramViewportStable=true;
-      syncDeviceContract();
-    }
-  });
+  syncTelegramSafeAreas();
+  if(typeof tg.isVersionAtLeast==='function'&&tg.isVersionAtLeast('8.0')&&typeof tg.requestFullscreen==='function'&&!tg.isFullscreen){
+    try{tg.requestFullscreen();}
+    catch(error){console.error('Telegram fullscreen',error);showToast('Não foi possível abrir em fullscreen');}
+  }
   scheduleBrowserViewport();
   tg.SettingsButton.show();
   tg.SettingsButton.onClick(openPlusRoot);
@@ -554,6 +511,13 @@ const panelAnchors=new WeakMap(),panelOpeners=new WeakMap();
 let dialogReturnFocus=null,dialogInerted=[];
 function visualViewportBounds(){
   const root=document.documentElement,viewport=window.visualViewport;
+  if(session==='ready'){
+    const stable=Number(getTg()?.viewportStableHeight);
+    if(Number.isFinite(stable)&&stable>0){
+      const width=root.clientWidth||window.innerWidth;
+      return {left:0,top:0,width,height:stable,right:width,bottom:stable};
+    }
+  }
   const left=viewport&&Number.isFinite(viewport.offsetLeft)?Math.max(0,viewport.offsetLeft):0;
   const top=viewport&&Number.isFinite(viewport.offsetTop)?Math.max(0,viewport.offsetTop):0;
   const width=viewport&&Number.isFinite(viewport.width)&&viewport.width>0?viewport.width:(root.clientWidth||window.innerWidth);
@@ -1542,6 +1506,17 @@ function keyboardTarget(){
 }
 function syncBrowserViewport(){
   const root=document.documentElement,viewport=window.visualViewport,bounds=visualViewportBounds();
+  if(session==='ready'){
+    const stable=Number(getTg()?.viewportStableHeight);
+    root.style.setProperty('--vv-top','0px');
+    root.style.setProperty('--vv-bottom','0px');
+    root.style.setProperty('--vv-height',Number.isFinite(stable)&&stable>0?stable+'px':'var(--tg-viewport-stable-height,100dvh)');
+    root.removeAttribute('data-keyboard');
+    for(const sel of sheets){const panel=one(sel);if(panel?.matches(':popover-open'))placePanel(panel);}
+    const dialog=one('#dialogMenu');
+    if(dialog?.matches(':popover-open'))placePanel(dialog);
+    return;
+  }
   const bottom=Math.max(0,root.clientHeight-bounds.top-bounds.height);
   inset=keyboardTarget()||inset>0?bottom:0;
   root.toggleAttribute('data-keyboard',inset>0);

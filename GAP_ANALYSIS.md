@@ -2,7 +2,7 @@
 
 Date: 2026-09-29
 
-Scope: complete evolution chain from the visual baseline `dde30467ed9b0d108bac2ae7ad9bcac1137c169e` through evolution step 6/6, plus the controls required before final release.
+Scope of the original analysis: complete evolution chain from the historical visual baseline `dde30467ed9b0d108bac2ae7ad9bcac1137c169e` through evolution step 6/6, plus the controls required before final release. The current approved translucent visual reference is `aac423e012745c7873908ddc4a76371fb8218aa3`; see `BASELINE.md` for the explicit replacement record. Historical findings below retain their original context.
 
 This analysis is normative for release readiness. A criterion marked **BLOCKING** prevents release. A criterion marked **CLOSED** has a concrete implementation or automated gate in this branch. An external/manual criterion cannot be converted to CLOSED without real evidence from an explicitly authorized test destination or physical device.
 

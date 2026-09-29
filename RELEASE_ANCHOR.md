@@ -6,9 +6,9 @@ The release process uses two distinct immutable references.
 
 The visual/design contract remains:
 
-`dde30467ed9b0d108bac2ae7ad9bcac1137c169e`
+`aac423e012745c7873908ddc4a76371fb8218aa3`
 
-That commit defines the baseline material, normal dimensions and composition. Later behavioral corrections may change interaction/placement under constrained conditions without silently redefining the visual contract.
+That commit defines the approved translucent material, normal dimensions and composition. It explicitly supersedes the historical `dde30467ed9b0d108bac2ae7ad9bcac1137c169e` visual reference; see `BASELINE.md`. Later behavioral corrections may change interaction/placement under constrained conditions without silently redefining this contract. Earlier sealed anchors retain their original meaning.
 
 ## Release Anchor
 
