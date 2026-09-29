@@ -1133,7 +1133,8 @@ async function loadRemoteDraft(){
   const d=data.draft;
   if(!d||d.version!==STATE_VERSION||typeof d.html!=='string'||typeof d.name!=='string'||d.name.length>120||!['telegram','telegraph'].includes(d.dest)||typeof d.telegraphPath!=='string'||!/^[a-f0-9-]{36}$/i.test(d.docId)||(d.revision!==undefined&&(!Number.isSafeInteger(d.revision)||d.revision<0))||typeof d.importedMd!=='string'||typeof d.importedTxt!=='string'||typeof d.importedHtml!=='string')throw new Error('Rascunho persistido incompatível');
   const html=cleanDraftHTML(d.html);
-  editor.innerHTML=html;
+  if(editorCore)editorCore.resetHTML(html,{silent:true});
+  else editor.innerHTML=html;
   docName.value=d.name;
   telegraphPath=d.telegraphPath;
   docId=d.docId;
@@ -1655,7 +1656,7 @@ window.addEventListener('resize',scheduleBrowserViewport);
 document.addEventListener('focusin',scheduleBrowserViewport);
 document.addEventListener('focusout',scheduleBrowserViewport);
 syncBrowserViewport();
-async function boot(){
+function boot(){
   let notice='',createdNew=false,preservedPrevious=false,loadedLocal=false;
   const newToken=consumeNewDocumentToken();
   if(newToken){
@@ -1666,14 +1667,6 @@ async function boot(){
     }
   }else{
     try{loadedLocal=loadLocal();}catch(err){notice=err.message;}
-  }
-  if(!createdNew&&!loadedLocal&&!handoffToken()){
-    try{
-      if(await loadRemoteDraft())notice=notice||'Rascunho recuperado do volume persistente';
-    }catch(error){
-      console.error('Persistent draft recovery',error);
-      if(!notice)notice='Não foi possível recuperar a cópia persistente; um novo rascunho local foi aberto';
-    }
   }
   decorateSpecials();
   const factory=window.MDTXTRTEditorCore?.createEditorCore;
@@ -1691,9 +1684,28 @@ async function boot(){
       :'Novo documento criado, mas não foi possível persistir o novo rascunho neste dispositivo.';
   }
   if(notice)showToast(notice);
-  try{
-    await restoreMedia();
-    await verifyTelegram();
-  }catch(err){showToast(err.message||'Não foi possível restaurar o documento');}
+  const recoverVolume=!createdNew&&!loadedLocal&&!handoffToken();
+  if(recoverVolume)editor.setAttribute('contenteditable','false');
+  void (async()=>{
+    try{
+      if(recoverVolume){
+        try{
+          const loaded=await loadRemoteDraft();
+          if(loaded){
+            setDestination(dest,false,false);
+            syncEditorSelectionUI();
+            showToast('Rascunho recuperado do volume persistente');
+          }
+        }catch(error){
+          console.error('Persistent draft recovery',error);
+          showToast('Não foi possível recuperar a cópia persistente; um novo rascunho local foi aberto');
+        }finally{
+          editor.setAttribute('contenteditable','true');
+        }
+      }
+      await restoreMedia();
+      await verifyTelegram();
+    }catch(err){showToast(err.message||'Não foi possível restaurar o documento');}
+  })();
 }
-void boot();
+boot();
