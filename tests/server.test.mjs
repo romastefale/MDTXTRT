@@ -161,6 +161,10 @@ test('Telegram request errors are typed independently from upstream failures',as
   assert.equal(invalid.status,400);
   const upstream=await formPost('/api/telegram/send',{initData:init(),html:'<p>UPSTREAM_REJECT</p>'});
   assert.equal(upstream.status,502);
+  assert.equal(upstream.data.outcome,'failed');
+  const timeout=await formPost('/api/telegram/send',{initData:init(),html:'<p>UPSTREAM_TIMEOUT</p>'});
+  assert.equal(timeout.status,409);
+  assert.equal(timeout.data.outcome,'uncertain');
 });
 
 test('local attachment is represented as attach upload and stale tg media is rejected',async()=>{
