@@ -1305,12 +1305,15 @@ test('link actions distinguish hyperlink, visible URL and Telegram URL button',a
   assert.equal(links.at(-1)?.getAttribute('href'),'https://example.com/visible');
 
   w.eval("setDestination('telegram',false,false)");
+  w.eval("(()=>{const pos=currentEditorCore().state.doc.content.size-1;currentEditorCore().selectRange({from:pos,to:pos},{focus:true});saveSel()})()");
   linkBtn.focus();
   action=w.eval("insertLinkButton()");
-  await wait(0);
+  for(let i=0;i<10&&d.querySelector('#dialogLabel').textContent!=='Texto do botão';i++)await wait(0);
+  assert.equal(d.querySelector('#dialogLabel').textContent,'Texto do botão');
   dialog.value='Abrir site';
   ok.click();
-  await wait(0);
+  for(let i=0;i<10&&d.querySelector('#dialogLabel').textContent!=='Link do botão';i++)await wait(0);
+  assert.equal(d.querySelector('#dialogLabel').textContent,'Link do botão');
   dialog.value='https://example.com/button';
   ok.click();
   await action;
