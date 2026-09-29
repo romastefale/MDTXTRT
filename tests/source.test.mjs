@@ -547,8 +547,10 @@ test('Telegram Mini App waits for stable viewport before validating and locking 
   assert.match(app,/function telegramViewportIsStable\(tg=getTg\(\)\)/);
   assert.match(app,/tg\?\.viewportHeight/);
   assert.match(app,/tg\?\.viewportStableHeight/);
-  assert.match(app,/event\?\.isStateStable===true/);
+  assert.match(app,/telegramViewportEventSeen=true/);
+  assert.match(app,/event\?\.isStateStable!==true/);
   assert.match(app,/tg\.onEvent\('viewportChanged',handleTelegramViewportChange\)/);
+  assert.match(app,/!telegramViewportEventSeen&&telegramViewportIsStable\(tg\)/);
   assert.match(app,/portraitQuery\.addEventListener\('change',handleTelegramOrientationChange\)/);
   assert.match(app,/if\(!telegramViewportStable\)[\s\S]*?setDeviceGate\(\);return;/);
   assert.match(app,/if\(!portraitQuery\.matches\)\{setDeviceGate\('portrait'\);return;\}/);
