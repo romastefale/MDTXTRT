@@ -1809,6 +1809,14 @@ document.addEventListener('focusin',scheduleBrowserViewport);
 document.addEventListener('focusout',scheduleBrowserViewport);
 syncBrowserViewport();
 function boot(){
+  const factory=window.MDTXTRTEditorCore?.createEditorCore;
+  if(typeof factory!=='function')throw new Error('Núcleo de edição indisponível');
+  editorCore=factory({
+    element:editor,
+    onChange:()=>{markDirty();restoreActiveMediaVisual();},
+    onSelectionChange:()=>queueMicrotask(syncEditorSelectionUI)
+  });
+
   let notice='',createdNew=false,preservedPrevious=false,loadedLocal=false;
   const requestedView=consumeLibraryView();
   const newToken=consumeNewDocumentToken();
@@ -1821,14 +1829,6 @@ function boot(){
   }else{
     try{loadedLocal=loadLocal();}catch(err){notice=err.message;}
   }
-  decorateSpecials();
-  const factory=window.MDTXTRTEditorCore?.createEditorCore;
-  if(typeof factory!=='function')throw new Error('Núcleo de edição indisponível');
-  editorCore=factory({
-    element:editor,
-    onChange:()=>{markDirty();restoreActiveMediaVisual();},
-    onSelectionChange:()=>queueMicrotask(syncEditorSelectionUI)
-  });
   setDestination(dest,false,false);syncEditorSelectionUI();
   if(createdNew){
     const persisted=saveLocal();
@@ -1851,9 +1851,11 @@ function boot(){
           }
         }catch(error){
           console.error('Persistent draft recovery',error);
-          showToast('Não foi possível recuperar a cópia persistente; um novo rascunho local foi aberto');
+          draftWriteBlocked=true;
+          editor.setAttribute('contenteditable','false');
+          showToast('Não foi possível recuperar a cópia persistente; edição bloqueada para não substituir um rascunho remoto');
         }finally{
-          editor.setAttribute('contenteditable','true');
+          if(!draftWriteBlocked)editor.setAttribute('contenteditable','true');
         }
       }
       await restoreMedia();
