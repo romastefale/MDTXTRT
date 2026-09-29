@@ -450,7 +450,8 @@ test('UI preserves compact portrait contract, unified chrome scale and anchored 
   assert.match(html,/id="deviceGate" role="status" aria-live="polite"/);
   assert.doesNotMatch(html,/id="deviceGate"[^>]*aria-modal=/);
   assert.match(html,/Você pode continuar nesta tela\./);
-  assert.match(html,/const initialDeviceNotice=matchMedia\('\(orientation:landscape\)'\)\.matches\|\|matchMedia\('\(min-width:760px\)'\)\.matches/);
+  assert.match(html,/const telegramMiniApp=Boolean\(window\.Telegram\?\.WebApp\?\.initData\)/);
+  assert.match(html,/const initialDeviceNotice=!telegramMiniApp&&\(matchMedia\('\(orientation:landscape\)'\)\.matches\|\|matchMedia\('\(min-width:760px\)'\)\.matches\)/);
   assert.match(html,/root\.setAttribute\('data-device-gate',''\)/);
   assert.match(html,/setTimeout\(\(\)=>root\.removeAttribute\('data-device-gate'\),4300\)/);
   assert.match(html,/@keyframes device-gate-out\{to\{opacity:0;visibility:hidden\}\}/);
@@ -540,13 +541,19 @@ test('Glass wrappers keep chrome controls horizontal instead of package inline-b
   assert.equal((html.match(/--accent:#2B88D8;/g)||[]).length,2);
 });
 
-test('Telegram Mini App requires phone platform and locks portrait through the official API',()=>{
+test('Telegram Mini App waits for stable viewport before validating and locking portrait',()=>{
   const app=read('app.js');
   assert.match(app,/telegramPhonePlatforms=new Set\(\['android','ios'\]\)/);
-  assert.match(app,/tg\.isVersionAtLeast\('8\.0'\)/);
-  assert.match(app,/typeof tg\.lockOrientation!=='function'/);
+  assert.match(app,/function telegramViewportIsStable\(tg=getTg\(\)\)/);
+  assert.match(app,/tg\?\.viewportHeight/);
+  assert.match(app,/tg\?\.viewportStableHeight/);
+  assert.match(app,/event\?\.isStateStable===true/);
+  assert.match(app,/tg\.onEvent\('viewportChanged',handleTelegramViewportChange\)/);
+  assert.match(app,/portraitQuery\.addEventListener\('change',handleTelegramOrientationChange\)/);
+  assert.match(app,/if\(!telegramViewportStable\)[\s\S]*?setDeviceGate\(\);return;/);
+  assert.match(app,/if\(!portraitQuery\.matches\)\{setDeviceGate\('portrait'\);return;\}/);
   assert.match(app,/if\(!tg\.isOrientationLocked\)tg\.lockOrientation\(\)/);
-  assert.match(app,/portraitQuery\.addEventListener\('change',syncDeviceContract\)/);
+  assert.ok(app.indexOf("if(!portraitQuery.matches)")<app.indexOf("tg.lockOrientation()"));
 });
 
 test('Telegraph supports explicit Telegram or browser capability ownership without identity fallback',()=>{
