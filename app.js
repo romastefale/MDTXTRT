@@ -22,7 +22,7 @@ const FORMAT_CONTRACT=Object.freeze({
 let dest = 'telegram';
 let session='browser',busy=false;
 const plusSubmenus=['#plus-file-menu','#plus-format-menu','#plus-structure-menu','#plus-media-menu','#plus-interaction-menu'];
-const sheets=['#plusMenu',...plusSubmenus,'#headingMenu','#quoteMenu','#listMenu','#exportMenu','#findMenu'];
+const sheets=['#plusMenu',...plusSubmenus,'#linkMenu','#headingMenu','#quoteMenu','#listMenu','#exportMenu','#findMenu'];
 let savedRange = null, editorCore = null, composing = false, saveTimer = null, telegraphPath = '', docId = crypto.randomUUID(), docRevision = 0, importedMd = '', importedTxt = '', importedHtml = '', mediaFile = null, mediaChoice = null, draftWriteBlocked = false, draftBlockNoticeShown = false, activeHandoff = '', handoffAction = null;
 function applyAssets(){
   all('[data-icon]').forEach(el => {
@@ -675,6 +675,7 @@ function finishDialog(value){
   dialogResolve=null;dialogReturnFocus=null;
   const dialog=one('#dialogMenu');
   if(dialog.matches(':popover-open'))dialog.hidePopover();
+  panelAnchors.delete(dialog);
   setDialogModality(false);
   syncBackButton();
   focusControl(target);
@@ -687,6 +688,9 @@ function dialogOpen(label,value='',rows=1,confirmMode=false){
   closePanels();
   const dialog=one('#dialogMenu');
   const input=one('#dialogInput');
+  const anchor=dialogReturnFocus?.isConnected?dialogReturnFocus:null;
+  if(anchor)panelAnchors.set(dialog,anchor);else panelAnchors.delete(dialog);
+  const anchorRect=anchor?.getBoundingClientRect()||null;
   one('#dialogLabel').textContent=label;
   dialogConfirm=confirmMode;
   input.hidden=confirmMode;
@@ -695,7 +699,7 @@ function dialogOpen(label,value='',rows=1,confirmMode=false){
   one('#dialogOk').textContent=confirmMode?'Continuar':'OK';
   dialog.showPopover();
   setDialogModality(true);
-  placePanel(dialog);
+  placePanel(dialog,anchorRect);
   syncBackButton();
   return new Promise(resolve=>{
     dialogResolve=resolve;
@@ -828,6 +832,50 @@ async function askUrl(label,value='https://',protocols=['http:','https:','tg:'])
     showToast(protocols.length===2?'A mídia precisa usar HTTP ou HTTPS':'Use um link válido');
     return '';
   }
+}
+function inlineLinkProtocols(){
+  return dest==='telegraph'?['http:','https:']:['http:','https:','mailto:','tel:','tg:'];
+}
+async function askInlineLink(label,value='https://',protocols=inlineLinkProtocols()){
+  const answer=await ask(label,value);
+  if(answer===null||!answer.trim())return null;
+  const text=answer.trim();
+  try{
+    const url=new URL(text);
+    if(!protocols.includes(url.protocol))throw new Error();
+    return {href:url.href,text};
+  }catch{
+    showToast(dest==='telegraph'?'O Telegraph exige link HTTP ou HTTPS':'Use um link válido');
+    return null;
+  }
+}
+async function insertHyperlink(){
+  restoreSel();
+  if(editorCore?.selectionEmpty())editorCore.expandWord();
+  if(editorCore?.selectionEmpty())return showToast('Selecione um texto para criar o hyperlink');
+  const current=editorCore?.linkHref()||'https://';
+  const link=await askInlineLink('URL do hyperlink',current);
+  if(!link)return;
+  restoreSel();
+  if(editorCore?.selectionEmpty())return showToast('Selecione um texto para criar o hyperlink');
+  exec('createLink',link.href);
+}
+async function insertVisibleLink(){
+  const link=await askInlineLink('Link','https://');
+  if(!link)return;
+  restoreSel();
+  insertHTML('<a href="'+escapeHTML(link.href)+'">'+escapeHTML(link.text)+'</a>');
+}
+async function insertLinkButton(){
+  if(dest!=='telegram')return showToast('Botões com link estão disponíveis apenas no Telegram');
+  const labelAnswer=await ask('Texto do botão','Abrir');
+  if(labelAnswer===null)return;
+  const label=labelAnswer.trim();
+  if(!label)return;
+  const link=await askInlineLink('Link do botão','https://',['http:','https:','tg:']);
+  if(!link)return;
+  restoreSel();
+  insertHTML('<tg-button-row align="center"><tg-button type="url" url="'+escapeHTML(link.href)+'">'+escapeHTML(label)+'</tg-button></tg-button-row>',true);
 }
 async function mediaUrl(){
   return askUrl('Link da mídia','https://',['http:','https:']);
@@ -1255,7 +1303,7 @@ function syncEditorSelectionUI(){
   toggleToolbarState(one('#listBtn'),Boolean(editorCore?.inBlock('li'))||one('#listMenu').matches(':popover-open'));
   toggleToolbarState(one('#quoteBtn'),Boolean(editorCore?.inBlock('blockquote')||editorCore?.inBlock('aside'))||one('#quoteMenu')?.matches(':popover-open'));
   toggleToolbarState(one('#headingBtn'),/^(h[1-6]|footer)$/.test(kind)||one('#headingMenu')?.matches(':popover-open'));
-  toggleToolbarState(one('#linkBtn'),Boolean(editorCore?.linkHref()));
+  toggleToolbarState(one('#linkBtn'),Boolean(editorCore?.linkHref())||Boolean(one('#linkMenu')?.matches(':popover-open')));
   one('#plusBtn')?.classList.toggle('on',one('#plusMenu')?.matches(':popover-open')||plusSubmenus.some(sel=>one(sel).matches(':popover-open')));
   all('#headingMenu [data-block]').forEach(btn=>btn.classList.toggle('is-current',btn.dataset.block===kind));
 }
@@ -1266,23 +1314,13 @@ all('#typebar [data-block], #headingMenu [data-block], #quoteMenu [data-block]')
 document.querySelectorAll('[data-plus-submenu] [data-insert], #quoteMenu [data-insert], #listMenu [data-insert]').forEach(btn => btn.addEventListener('click', ()=>{void insertFeature(btn.dataset.insert).catch(err=>showToast(err.message));}));
 all('#plusMenu [data-plus-category]').forEach(btn=>btn.addEventListener('click',()=>openPlusSubmenu(btn.dataset.plusCategory)));
 all('[data-plus-submenu] [data-plus-back]').forEach(btn=>btn.addEventListener('click',()=>openPlusRoot()));
-one('#linkBtn').addEventListener('click',async()=>{
-  restoreSel();editorCore?.expandWord();
-  const current=editorCore?.linkHref()||'https://';
-  const value=await ask('Link',current);
-  if(value===null||!value.trim())return;
-  let url;
-  try{
-    url=new URL(value.trim(),location.href);
-    const protocols=dest==='telegraph'?['http:','https:']:['http:','https:','mailto:','tel:','tg:'];
-    if(!protocols.includes(url.protocol))throw new Error(dest==='telegraph'?'O Telegraph exige link HTTP ou HTTPS':'Use um link válido');
-  }catch(err){showToast(err.message||'Link inválido');return;}
-  try{
-    restoreSel();
-    if(editorCore?.selectionEmpty())insertHTML('<a href="'+escapeHTML(url.href)+'">'+escapeHTML(value.trim())+'</a>');
-    else exec('createLink',url.href);
-  }catch(err){showToast(err.message||'Não foi possível criar o link');}
-});
+one('#linkBtn').addEventListener('click',()=>openPanel('#linkMenu'));
+all('#linkMenu [data-link-kind]').forEach(btn=>btn.addEventListener('click',()=>{
+  const kind=btn.dataset.linkKind;
+  closePanel(one('#linkMenu'));
+  const action=kind==='hyperlink'?insertHyperlink:kind==='url'?insertVisibleLink:kind==='button'?insertLinkButton:null;
+  if(action)void action().catch(err=>showToast(err.message||'Não foi possível inserir o link'));
+}));
 function flashBtn(btn){
   if(!btn) return;
   btn.classList.remove('is-flash');

@@ -56,6 +56,9 @@ function mountReactContract(document){
     <div id="quoteMenu" popover="auto" data-anchor="quoteBtn" data-placement="top"><div class="menu-list">
       <button data-block="blockquote"></button><button data-insert="pullquote"></button><button data-insert="expandquote"></button>
     </div></div>
+    <div id="linkMenu" class="glass-menu" popover="auto" data-anchor="linkBtn" data-placement="top"><div class="menu-list">
+      <button data-link-kind="hyperlink"></button><button data-link-kind="url"></button><button data-link-kind="button" data-telegram-only></button>
+    </div></div>
     <div id="exportMenu" popover="auto" data-anchor="exportBtn" data-placement="auto">
       <button id="openAppBtn"><span data-icon="telegram"></span><span id="openAppLabel">Publicar no Telegram</span></button>
       <button id="exportMdBtn"></button><button id="exportTxtBtn"></button>
@@ -1237,6 +1240,88 @@ test('visual viewport constrains overlays and Find stays anchored to a visible c
   assert.equal(parseFloat(dialog.style.getPropertyValue('--menu-top')),250);
   d.querySelector('#dialogCancel').click();
   assert.equal(await prompt,null);
+  w.close();
+});
+
+test('link interactions stay above the bottom trigger and expose only destination-supported actions',async()=>{
+  const w=page({visualViewport:{offsetLeft:0,offsetTop:100,width:390,height:300}}),d=w.document;
+  const linkBtn=d.querySelector('#linkBtn'),linkMenu=d.querySelector('#linkMenu'),dialog=d.querySelector('#dialogMenu');
+  linkBtn.getBoundingClientRect=()=>({left:130,top:340,width:40,height:40,right:170,bottom:380});
+  linkMenu.getBoundingClientRect=()=>{
+    const limit=parseFloat(linkMenu.style.getPropertyValue('--menu-max-height'))||72;
+    const height=Math.min(72,limit);
+    return {left:0,top:0,width:210,height,right:210,bottom:height};
+  };
+  dialog.getBoundingClientRect=()=>{
+    const limit=parseFloat(dialog.style.getPropertyValue('--menu-max-height'))||100;
+    const height=Math.min(100,limit);
+    return {left:0,top:0,width:280,height,right:280,bottom:height};
+  };
+
+  w.eval("openPanel('#linkMenu')");
+  assert.equal(linkMenu.matches(':popover-open'),true);
+  assert.equal(w.eval("panelAnchor(document.querySelector('#linkMenu'))===document.querySelector('#linkBtn')"),true);
+  assert.ok(parseFloat(linkMenu.style.getPropertyValue('--menu-top'))<340);
+
+  const buttonChoice=linkMenu.querySelector('[data-link-kind="button"]');
+  assert.equal(buttonChoice.hidden,false);
+  w.eval("setDestination('telegraph',false,false)");
+  assert.equal(buttonChoice.hidden,true);
+  w.eval("setDestination('telegram',false,false)");
+  assert.equal(buttonChoice.hidden,false);
+
+  linkBtn.focus();
+  const prompt=w.eval("ask('URL','https://')");
+  await wait(0);
+  assert.equal(w.eval("panelAnchor(document.querySelector('#dialogMenu'))===document.querySelector('#linkBtn')"),true);
+  assert.ok(parseFloat(dialog.style.getPropertyValue('--menu-top'))<340);
+  d.querySelector('#dialogCancel').click();
+  assert.equal(await prompt,null);
+  w.close();
+});
+
+test('link actions distinguish hyperlink, visible URL and Telegram URL button',async()=>{
+  const w=page(),d=w.document,e=d.querySelector('#editor'),dialog=d.querySelector('#dialogInput'),ok=d.querySelector('#dialogOk'),linkBtn=d.querySelector('#linkBtn');
+  w.eval("currentEditorCore().resetHTML('<p>alpha beta</p>',{silent:true})");
+  w.eval("(()=>{const r=currentEditorCore().findLiteral('alpha')[0];currentEditorCore().selectRange({from:r.from,to:r.to},{focus:true});saveSel()})()");
+  linkBtn.focus();
+  let action=w.eval("insertHyperlink()");
+  await wait(0);
+  dialog.value='https://example.com/hyper';
+  ok.click();
+  await action;
+  assert.equal(e.querySelector('a')?.textContent,'alpha');
+  assert.equal(e.querySelector('a')?.getAttribute('href'),'https://example.com/hyper');
+
+  w.eval("(()=>{const pos=currentEditorCore().state.doc.content.size-1;currentEditorCore().selectRange({from:pos,to:pos},{focus:true});saveSel()})()");
+  linkBtn.focus();
+  action=w.eval("insertVisibleLink()");
+  await wait(0);
+  dialog.value='https://example.com/visible';
+  ok.click();
+  await action;
+  const links=[...e.querySelectorAll('a')];
+  assert.equal(links.at(-1)?.textContent,'https://example.com/visible');
+  assert.equal(links.at(-1)?.getAttribute('href'),'https://example.com/visible');
+
+  w.eval("setDestination('telegram',false,false)");
+  w.eval("(()=>{const pos=currentEditorCore().state.doc.content.size-1;currentEditorCore().selectRange({from:pos,to:pos},{focus:true});saveSel()})()");
+  linkBtn.focus();
+  action=w.eval("insertLinkButton()");
+  for(let i=0;i<10&&d.querySelector('#dialogLabel').textContent!=='Texto do botão';i++)await wait(0);
+  assert.equal(d.querySelector('#dialogLabel').textContent,'Texto do botão');
+  dialog.value='Abrir site';
+  ok.click();
+  for(let i=0;i<10&&d.querySelector('#dialogLabel').textContent!=='Link do botão';i++)await wait(0);
+  assert.equal(d.querySelector('#dialogLabel').textContent,'Link do botão');
+  dialog.value='https://example.com/button';
+  ok.click();
+  await action;
+  const button=e.querySelector('tg-button');
+  assert.equal(button?.textContent,'Abrir site');
+  assert.equal(button?.getAttribute('type'),'url');
+  assert.equal(button?.getAttribute('url'),'https://example.com/button');
+  assert.equal(button?.hasAttribute('style'),false);
   w.close();
 });
 
