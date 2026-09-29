@@ -135,8 +135,10 @@ function QuoteMenu() {
 function ExportMenu() {
   return (
     <GlassContextMenu id="exportMenu" className="wide-menu" anchorId="exportBtn" placement="auto">
-      <p className="hint">Exporte um arquivo ou publique no destino selecionado.</p>
+      <p className="hint">Publique, exporte ou acesse seus rascunhos e publicações.</p>
       <div className="menu-list">
+        <MenuItem icon="file" id="libraryBtn">Rascunhos e publicações</MenuItem>
+        <div className="menu-divider" role="separator" />
         <MenuItem icon="telegram" id="openAppBtn"><span id="openAppLabel">Publicar no Telegram</span></MenuItem>
         <MenuItem icon="markdown" id="exportMdBtn">Baixar Markdown</MenuItem>
         <MenuItem icon="text_fields" id="exportTxtBtn">Baixar TXT</MenuItem>
@@ -151,7 +153,6 @@ const plusSections = [
     icon: "markdown",
     label: "Arquivo",
     items: [
-      ["file", "Rascunhos e Telegraph", { id: "libraryBtn" }],
       ["markdown", "Importar Markdown", { id: "importMdBtn" }],
       ["text_fields", "Importar TXT", { id: "importTxtBtn" }],
       ["search", "Localizar e substituir", { id: "findBtn" }],
@@ -306,16 +307,26 @@ function LibraryScreen() {
       <Glass optics={MENU_LENS} className="library-material" style={{ display: "block", width: "100%", height: "100%" }}>
         <div className="library-shell">
           <div className="library-head">
-            <div>
-              <h2 id="libraryTitle">Rascunhos e Telegraph</h2>
-              <p className="hint">Rascunhos ficam no volume. Publicações Telegram permanecem no chat privado; aqui você gerencia páginas Telegraph.</p>
+            <GlassControl className="seg top-pill library-back-pill">
+              <button type="button" id="libraryClose" aria-label="Voltar ao editor" title="Voltar ao editor"><Icon name="arrow_back" /></button>
+            </GlassControl>
+            <div className="library-heading">
+              <h2 id="libraryTitle">Rascunhos e publicações</h2>
+              <p className="hint">Conteúdo persistido no volume, com acesso de edição para Telegram e Telegraph.</p>
             </div>
-            <button type="button" id="libraryClose" aria-label="Fechar biblioteca" title="Fechar biblioteca"><Icon name="arrow_back" /></button>
+            <GlassControl className="seg top-pill library-manage-pill">
+              <button type="button" id="libraryRefresh" aria-label="Atualizar biblioteca" title="Atualizar biblioteca"><Icon name="redo" /></button>
+              <button type="button" id="libraryNew" aria-label="Novo documento" title="Novo documento"><Icon name="plus" /></button>
+            </GlassControl>
           </div>
-          <div id="libraryStatus" className="hint" role="status" aria-live="polite" />
+          <div id="libraryStatus" className="hint library-status" role="status" aria-live="polite" />
           <section className="library-section" id="draftLibrarySection" aria-labelledby="draftLibraryTitle">
             <h3 id="draftLibraryTitle">Rascunhos</h3>
             <div id="draftList" className="library-list" />
+          </section>
+          <section className="library-section" id="telegramLibrarySection" aria-labelledby="telegramLibraryTitle">
+            <h3 id="telegramLibraryTitle">Publicações Telegram</h3>
+            <div id="telegramList" className="library-list" />
           </section>
           <section className="library-section" id="telegraphLibrarySection" aria-labelledby="telegraphLibraryTitle">
             <h3 id="telegraphLibraryTitle">Publicações Telegraph</h3>
@@ -359,7 +370,7 @@ function Chrome() {
           <GlassControl className="seg top-pill">
             <button type="button" id="destBtn" aria-label="Destino: Telegram" title="Destino: Telegram"><Icon name="telegram" /></button>
             <button type="button" className="export" id="exportBtn" aria-label="Publicar ou exportar" title="Publicar ou exportar">
-              <span className="action-dot"><Icon name="export" /></span>
+              <span className="action-dot"><Icon name="menu" /></span>
             </button>
           </GlassControl>
         </div>
