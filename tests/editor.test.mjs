@@ -490,7 +490,7 @@ test('Mini App exposes the export menu and keeps publication as an explicit menu
   await wait(10);
   assert.equal(d.querySelector('#openAppLabel').textContent,'Publicar no Telegram');
   assert.equal(d.querySelector('#openAppBtn').getAttribute('aria-label'),'Publicar no Telegram');
-  assert.equal(d.querySelector('#exportBtn').getAttribute('aria-label'),'Abrir opções de publicação e exportação');
+  assert.equal(d.querySelector('#exportBtn').getAttribute('aria-label'),'Abrir menu de publicação, exportação e biblioteca');
   assert.equal(d.querySelector('#destBtn').getAttribute('aria-label'),'Alternar destino. Atual: Telegram');
   d.querySelector('#exportBtn').click();
   assert.equal(d.querySelector('#exportMenu').hasAttribute('data-test-popover-open'),true);
@@ -504,7 +504,7 @@ test('browser export flow labels Telegram transfer as opening the Mini App rathe
   const w=page(),d=w.document;
   assert.equal(d.querySelector('#openAppLabel').textContent,'Abrir no Mini App');
   assert.equal(d.querySelector('#openAppBtn').getAttribute('aria-label'),'Abrir no Mini App');
-  assert.equal(d.querySelector('#exportBtn').title,'Abrir opções de publicação e exportação');
+  assert.equal(d.querySelector('#exportBtn').title,'Abrir menu de publicação, exportação e biblioteca');
   w.close();
 });
 
