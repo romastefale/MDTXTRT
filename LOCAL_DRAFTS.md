@@ -27,7 +27,9 @@ Each owner receives an isolated directory derived from a SHA-256 fingerprint of 
 
 Metadata and the active-document pointer are written through a temporary file followed by rename. A stale revision cannot replace a newer persisted revision.
 
-The volume copy is updated after ordinary draft saves. Local storage remains the immediate working copy so editing does not depend on a network round trip. If a volume write fails, the failure is surfaced and the local working copy remains available when browser storage is usable.
+The volume copy is updated after ordinary draft saves. Draft serialization starts from the canonical editor model rather than the live ProseMirror rendering DOM. Runtime-only ProseMirror classes, helper nodes and editing attributes are removed before strict draft validation; the same migration is applied when older locally/volume-saved HTML is read. This prevents editor decorations such as selection/trailing-break markers from being misreported as unsupported document content.
+
+Local storage remains the immediate working copy so editing does not depend on a network round trip. If a volume write fails, the failure is surfaced and the local working copy remains available when browser storage is usable.
 
 ## Owner identity
 
@@ -73,13 +75,13 @@ For Telegram Mini App publication, the server binds the document to the verified
 
 The first publication persists a `pending` record before calling Telegram. A confirmed success stores the returned message id before the HTTP success is returned. A transport-ambiguous result becomes `uncertain` and blocks blind resending.
 
-When the same verified Telegram user later publishes the same document after editing it, MDTXTRT uses the stored chat/message linkage to edit that existing Rich Message instead of creating a second publication. Another Telegram user with the same document UUID is a different owner and cannot reuse that linkage.
+When the same verified Telegram user later publishes the same document after editing it, MDTXTRT does **not** rewrite the earlier chat message. It first sends a revision notice as a reply to the previous publication, then sends the new Rich Message as another message. The durable record advances to the newest message while retaining a bounded publication history (message id, revision, timestamp and notice id). This keeps the private bot chat itself as the human-readable Telegram provenance trail. Another Telegram user with the same document UUID is a different owner and cannot reuse that linkage.
 
 The handoff publication path uses the same durable publication function, so browser → Mini App publication does not bypass publisher provenance.
 
 ## Durability limits
 
-The Railway volume is the durable application copy for active saved drafts, but it is not an unlimited version history or a substitute for external backup. The current product keeps the current persisted state for a document and the publication linkage needed for safe continuation.
+The Railway volume is the durable application copy for saved drafts, but it is not an unlimited content-version backup. The library can enumerate the owner's persisted draft records and the Telegraph pages linked to them. Telegram publication history is intentionally surfaced in the private bot conversation instead of as a separate in-app Telegram-publication editor.
 
 Browser-local `/novo` archives are still local-only snapshots. Standalone browser server recovery also depends on retaining the browser capability key. Telegram-owned recovery does not depend on that browser key.
 

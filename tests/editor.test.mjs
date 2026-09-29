@@ -317,7 +317,7 @@ test('remote draft save sends the active canonical document and stable browser i
   w.close();
 });
 
-test('Telegram publish sends document identity and accepts editing the previously linked message',async()=>{
+test('Telegram publish sends document identity and accepts a new revision while preserving the prior message',async()=>{
   const doc='92929292-9292-4292-8292-929292929292';
   const local=JSON.stringify({version:2,name:'Publicável',html:'<p>versão nova</p>',dest:'telegram',telegraphPath:'',docId:doc,revision:5,importedMd:'',importedTxt:'',importedHtml:'',media:null});
   let publishForm=null;
@@ -327,7 +327,7 @@ test('Telegram publish sends document identity and accepts editing the previousl
     if(target.endsWith('/api/telegraph/recover'))return {ok:false,status:404,json:async()=>({error:'Página não encontrada'})};
     if(target.endsWith('/api/telegram/send')){
       publishForm=options.body;
-      return {ok:true,status:200,json:async()=>({via:'editMessageText',messageId:42,edited:true})};
+      return {ok:true,status:200,json:async()=>({via:'sendRichMessage',messageId:44,previousMessageId:42,noticeMessageId:43,revision:5})};
     }
     return {ok:false,status:404,json:async()=>({error:'not found'})};
   };
@@ -340,7 +340,7 @@ test('Telegram publish sends document identity and accepts editing the previousl
   assert.equal(sentDraft.docId,doc);
   assert.equal(sentDraft.revision,5);
   assert.equal(sentDraft.name,'Publicável');
-  assert.match(d.querySelector('#toast').textContent,/atualizada/i);
+  assert.match(d.querySelector('#toast').textContent,/anterior foi preservada/i);
   w.close();
 });
 

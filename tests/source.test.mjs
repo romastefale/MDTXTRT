@@ -587,7 +587,9 @@ test('server follows Bot API 10.3 Rich Message contracts without message downgra
   assert.match(server,/"mailto:","tel:"/);
   assert.match(server,/allowedByType=\{/);
   assert.match(server,/URL de botão deve usar HTTP, HTTPS ou tg:\/\//);
-  assert.match(server,/messageId>0\?"editMessageText":"sendRichMessage"/);
+  assert.match(server,/const msg = await telegramCall\("sendRichMessage", body\)/);
+  assert.match(server,/sendTelegramRevisionNotice/);
+  assert.doesNotMatch(server,/telegramCall\("editMessageText"/);
   assert.doesNotMatch(server,/telegramCall\("sendMessage"/);
 });
 
@@ -640,15 +642,20 @@ test('stage 6/7 persists active drafts and Telegram provenance without changing 
   assert.match(server,/function savePersistentDraft\(owner,draft,file=null\)/);
   assert.match(server,/status:"pending"[\s\S]*?telegramUserId:owner\.telegramUserId/);
   assert.match(server,/async function publishTelegramPersistent/);
-  assert.match(server,/editMessageText/);
+  assert.match(server,/sendTelegramRevisionNotice/);
+  assert.match(server,/history:nextHistory/);
+  assert.doesNotMatch(server,/telegramCall\("editMessageText"/);
+  assert.match(app,/function sanitizeDraftRuntimeDOM\(box\)/);
+  assert.match(app,/editorCore\?editorCore\.html\(\):editor\.innerHTML/);
   assert.match(app,/function persistRemoteDraft\(pagehide=false\)/);
-  assert.match(app,/function loadRemoteDraft\(\)/);
+  assert.match(app,/function loadRemoteDraft\(doc=''\)/);
   assert.match(app,/form\.set\('draft',JSON\.stringify\(draftState\(\)\)\)/);
   assert.match(architecture,/Persistent draft and Telegram provenance boundary/);
   assert.match(architecture,/Railway volume/);
   assert.match(drafts,/mounted Railway volume/);
   assert.match(drafts,/verified Telegram user identifier/);
-  assert.match(drafts,/edit that existing Rich Message/);
+  assert.match(drafts,/does \*\*not\*\* rewrite the earlier chat message/);
+  assert.match(drafts,/Runtime-only ProseMirror/);
   assert.match(baseline,/aac423e012745c7873908ddc4a76371fb8218aa3/);
   assert.match(baseline,/dde30467ed9b0d108bac2ae7ad9bcac1137c169e/);
 });
@@ -676,10 +683,14 @@ test('step 6 persists drafts on the Railway volume, binds Telegram publication p
   assert.match(server,/url\.pathname === "\/api\/drafts\/load"/);
   assert.match(server,/url\.pathname === "\/api\/drafts\/file"/);
   assert.match(server,/telegramUserId/);
-  assert.match(server,/editMessageText/);
+  assert.match(server,/sendTelegramRevisionNotice/);
   assert.match(server,/publishTelegramPersistent/);
+  assert.match(server,/url\.pathname === "\/api\/library\/list"/);
+  assert.match(server,/url\.pathname === "\/api\/telegraph\/load"/);
+  assert.match(app,/function openLibrary\(preferred=''\)/);
+  assert.match(app,/API\+'\/api\/telegraph\/load'/);
   assert.match(app,/function persistRemoteDraft\(pagehide=false\)/);
-  assert.match(app,/function loadRemoteDraft\(\)/);
+  assert.match(app,/function loadRemoteDraft\(doc=''\)/);
   assert.match(app,/form\.set\('draft',JSON\.stringify\(draftState\(\)\)\)/);
   assert.match(app,/function panelViewportBounds\(base=visualViewportBounds\(\)\)/);
   assert.match(app,/bar\?\.getBoundingClientRect/);
@@ -688,6 +699,11 @@ test('step 6 persists drafts on the Railway volume, binds Telegram publication p
   assert.match(html,/\.document-tools::before\{content:attr\(data-field-label\)/);
   assert.match(html,/Título do documento/);
   assert.match(html,/Título da página no Telegraph/);
+  assert.match(html,/\.library-screen\{/);
+  const ui=read('src/liquid-glass-ui.jsx');
+  assert.match(ui,/id="libraryScreen"/);
+  assert.match(ui,/id="draftList"/);
+  assert.match(ui,/id="telegraphList"/);
 });
 
 test('step 5 overlays use the visual viewport without changing the baseline material contract',()=>{
@@ -756,7 +772,7 @@ test('final release gap analysis, surface audit and final-only anchor gates are 
   assert.match(evidence,/Draft persistence/);
   assert.match(evidence,/Import\/export/);
   assert.match(evidence,/Railway draft-volume write failure/);
-  assert.match(evidence,/Telegram edit timeout/);
+  assert.match(evidence,/Telegram revision notice\/content timeout/);
   assert.match(evidence,/stale persistent draft revision/);
 
   assert.equal(manifest.visualBaseline,'aac423e012745c7873908ddc4a76371fb8218aa3');
@@ -770,7 +786,7 @@ test('final release gap analysis, surface audit and final-only anchor gates are 
 
   assert.match(gap,/G-04 — exact production deployment/);
   assert.match(gap,/G-05 — physical draft persistence\/restart evidence/);
-  assert.match(gap,/G-07 — real Telegram send\/edit path/);
+  assert.match(gap,/G-07 — real Telegram send\/revision-history path/);
   assert.match(gap,/G-08 — physical Web\/PWA\/Mini App matrix/);
   assert.match(gap,/G-11 — rollback exercise/);
   assert.match(gap,/there are \*\*no open engineering implementation gaps\*\*/);
@@ -786,7 +802,7 @@ test('final release gap analysis, surface audit and final-only anchor gates are 
   assert.match(validation,/RELEASE APPROVED/);
   assert.match(validation,/synthetic PR merge ref/);
   assert.match(validation,/Railway draft-volume persistence and restart/);
-  assert.match(validation,/real Telegram Rich Message send and later edit/i);
+  assert.match(validation,/real Telegram Rich Message send and revision history/i);
   assert.match(validation,/Web \/ PWA \/ Mini App and physical-device matrix/);
 
   assert.match(anchor,/canonical release identity is a \*\*full 40-character Git commit SHA\*\*/);

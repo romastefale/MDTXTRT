@@ -12,6 +12,6 @@ test('every announced Web/PWA/Mini App and bot surface has a static functional p
   assert.ok(result.uiControls>=20);
   assert.ok(result.insertions>=20);
   assert.ok(result.commands>=10);
-  assert.deepEqual(result.botCommands,['start','app','novo','ajuda','enviar','exportar','importar']);
+  assert.deepEqual(result.botCommands,['start','app','novo','rascunhos','telegraph','ajuda','enviar','exportar','importar']);
   assert.equal(result.pwa.display,'standalone');
 });

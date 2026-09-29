@@ -24,12 +24,13 @@ A auditoria estática e a regressão cobrem:
 - fidelidade semântica editor → publicação sem conteúdo fictício;
 - importação/exportação Markdown e TXT na interface;
 - importação/exportação pela conversa privada com o bot;
-- comandos privados `/start`, `/app`, `/novo`, `/ajuda`, `/enviar`, `/exportar`, `/importar`;
+- comandos privados `/start`, `/app`, `/novo`, `/rascunhos`, `/telegraph`, `/ajuda`, `/enviar`, `/exportar`, `/importar`;
 - menus, submenus, links, estruturas, interações e mídia declaradas, filtrados por destino;
 - handoff browser/PWA → Mini App sem publicação implícita;
 - publicação Telegram/Telegraph com validação de contrato;
 - persistência de rascunho no Railway volume e recuperação sintética após reinício;
-- vínculo Telegram usuário/documento/chat/messageId e edição posterior da mesma publicação;
+- vínculo Telegram usuário/documento/chat/messageId, aviso explícito de revisão e nova mensagem para preservar o histórico;
+- biblioteca de rascunhos persistidos e páginas Telegraph editáveis no browser e Mini App;
 - PWA standalone;
 - fullscreen/viewport/safe areas oficiais no Mini App e `visualViewport` no browser;
 - posicionamento de menus/diálogos acima da barra inferior;

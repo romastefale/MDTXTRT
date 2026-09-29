@@ -12,7 +12,7 @@ const pwa=JSON.parse(read('manifest.webmanifest'));
 
 const requiredIds=[
   'undoBtn','redoBtn','themeBtn','destBtn','exportBtn','openAppBtn','exportMdBtn','exportTxtBtn',
-  'plusBtn','linkBtn','headingBtn','listBtn','quoteBtn','docName','importMdBtn','importTxtBtn','findBtn',
+  'plusBtn','linkBtn','headingBtn','listBtn','quoteBtn','docName','libraryBtn','libraryScreen','libraryClose','draftList','telegraphList','importMdBtn','importTxtBtn','findBtn',
   'mediaBtn','voiceBtn','dialogMenu','findMenu','fileInput','mediaInput'
 ];
 for(const id of requiredIds){
@@ -30,6 +30,8 @@ for(const [id,fragment] of Object.entries({
   exportTxtBtn:"one('#exportTxtBtn').addEventListener",
   importMdBtn:"one('#importMdBtn').addEventListener",
   importTxtBtn:"one('#importTxtBtn').addEventListener",
+  libraryBtn:"one('#libraryBtn')?.addEventListener",
+  libraryClose:"one('#libraryClose')?.addEventListener",
   findBtn:"one('#findBtn').addEventListener",
   mediaBtn:"one('#mediaBtn').addEventListener",
   voiceBtn:"one('#voiceBtn').addEventListener"
@@ -57,22 +59,26 @@ for(const cmd of declaredCommands){
 }
 
 const botCommands=[...server.matchAll(/\{ command: "([^"]+)"/g)].map(match=>match[1]);
-const expectedBot=['start','app','novo','ajuda','enviar','exportar','importar'];
+const expectedBot=['start','app','novo','rascunhos','telegraph','ajuda','enviar','exportar','importar'];
 if(JSON.stringify(botCommands)!==JSON.stringify(expectedBot))fail('Comandos anunciados do bot divergentes');
-for(const command of ['start','app','novo','ajuda','enviar','exportar'])requireText(server,'command === "'+command+'"','bot /'+command);
+for(const command of ['start','app','novo','rascunhos','telegraph','ajuda','enviar','exportar'])requireText(server,'command === "'+command+'"','bot /'+command);
 requireText(server,'command==="importar"','bot /importar');
 requireText(server,'importIntent','fluxo de importação do bot');
 
 for(const route of [
-  '/api/telegram/session','/api/telegram/send','/api/telegraph/publish','/api/telegraph/recover',
-  '/api/handoff','/api/handoff/claim','/api/handoff/publish','/api/drafts/save','/api/drafts/load','/api/drafts/file'
+  '/api/telegram/session','/api/telegram/send','/api/telegraph/publish','/api/telegraph/recover','/api/telegraph/load',
+  '/api/library/list','/api/handoff','/api/handoff/claim','/api/handoff/publish','/api/drafts/save','/api/drafts/load','/api/drafts/file'
 ])requireText(server,route,'rota '+route);
 
 requireText(app,"void openMiniApp()","handoff browser/PWA → Mini App");
 requireText(app,"await publishTelegram()","publicação Telegram");
 requireText(app,"await publishTelegraph()","publicação Telegraph");
-requireText(server,'"editMessageText"','edição de publicação Telegram');
+requireText(server,'sendTelegramRevisionNotice','aviso de revisão Telegram');
+requireText(server,'history:nextHistory','histórico de publicação Telegram');
+if(server.includes('telegramCall("editMessageText"'))fail('publicação Telegram ainda edita mensagem existente');
 requireText(server,'publishTelegramPersistent','proveniência Telegram');
+requireText(app,'function openLibrary','biblioteca de rascunhos/Telegraph');
+requireText(app,"API+'/api/telegraph/load'",'edição Telegraph pela biblioteca');
 requireText(server,'const DRAFT_DIR = DATA + "/drafts"','persistência de rascunhos');
 
 if(pwa.display!=='standalone'||pwa.start_url!=='./'||pwa.scope!=='./')fail('Manifesto PWA não declara a superfície standalone esperada');

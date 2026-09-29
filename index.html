@@ -378,6 +378,31 @@
       min-height:30px;border:0;border-radius:6px;background:color-mix(in srgb,var(--accent) 18%,transparent);
       padding:0 9px;color:inherit;font-size:12px
     }
+    .library-screen{
+      position:fixed;z-index:60;left:max(10px,var(--safe-left));right:max(10px,var(--safe-right));
+      top:calc(var(--vv-top) + var(--safe-top) + 10px);
+      bottom:calc(var(--vv-bottom) + var(--foot-inset) + 10px);
+      width:auto;height:auto;margin:0;padding:0;border:0;background:transparent;color:var(--text)
+    }
+    .library-screen:not(:popover-open){display:none}
+    .library-screen:popover-open{display:block}
+    .library-screen:popover-open::backdrop{background:color-mix(in srgb,var(--bg) 34%,transparent);backdrop-filter:blur(2px)}
+    .library-material{height:100%;border-radius:18px;background:var(--glass-tint);overflow:hidden}
+    .library-shell{display:flex;flex-direction:column;gap:12px;height:100%;min-height:0;padding:12px;overflow-y:auto;overscroll-behavior:contain}
+    .library-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;position:sticky;top:-12px;z-index:2;padding:12px 0 7px;background:linear-gradient(180deg,var(--glass-tint) 78%,transparent)}
+    .library-head h2{margin:0;font-size:18px;line-height:1.2}
+    .library-head .hint{max-width:520px;margin:4px 0 0}
+    .library-head>button{flex:none;width:34px;height:34px;border:0;border-radius:999px;background:var(--glass-field);color:inherit;display:grid;place-items:center}
+    .library-section{display:flex;flex-direction:column;gap:6px;min-width:0}
+    .library-section h3{margin:0;font-size:13px;line-height:1.3;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+    .library-list{display:flex;flex-direction:column;gap:6px;min-width:0}
+    .library-entry{display:flex;align-items:center;gap:10px;min-width:0;padding:9px 10px;border-radius:12px;background:var(--glass-field-soft);border:1px solid var(--line)}
+    .library-entry-text{display:flex;flex:1 1 auto;min-width:0;flex-direction:column;gap:2px}
+    .library-entry-text strong{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}
+    .library-entry-text span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);font-size:11px}
+    .library-entry>button{flex:none;min-height:31px;border:0;border-radius:9px;padding:0 11px;background:color-mix(in srgb,var(--accent) 16%,transparent);color:var(--accent);font-size:12px;font-weight:650}
+    .library-entry>button:disabled{opacity:.45}
+    .library-empty{padding:10px;border-radius:12px;background:var(--glass-field-soft);color:var(--muted);font-size:12px}
     .dialog{display:flex;flex-direction:column;gap:7px;width:100%;min-height:0;max-height:100%;overflow-y:auto;overscroll-behavior:contain;padding:3px}
     .dialog-label{font-size:12px;line-height:1.35;color:var(--muted);padding:2px 4px}
     #dialogInput{
@@ -419,7 +444,7 @@
   <script src="marked.js"></script>
   <script src="turndown.js"></script>
   <script src="editor-core.js?v=29846a6f4a7d"></script>
-  <script type="module" src="ui.js?v=637538196b71"></script>
+  <script type="module" src="ui.js?v=69f20c35fc98"></script>
   <script>
     document.addEventListener('DOMContentLoaded',()=>{
       const root=document.documentElement;

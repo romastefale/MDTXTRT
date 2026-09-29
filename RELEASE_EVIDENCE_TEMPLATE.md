@@ -66,7 +66,7 @@ Do not place tokens, raw Telegram initData, raw browser capabilities, passwords 
 - Final path unchanged:
 - Telegraph evidence reference:
 
-## Telegram Rich Message send/edit test
+## Telegram Rich Message send/revision-history test
 
 - Test fixture/feature matrix:
 - Document UUID:
@@ -75,9 +75,12 @@ Do not place tokens, raw Telegram initData, raw browser capabilities, passwords 
 - Delivery timestamp:
 - Receiving device/client:
 - Rendering result:
-- Later edited revision:
-- Edit returned/observed same messageId:
-- Second-message duplicate check:
+- Later revised revision:
+- Original message preserved:
+- Revision notice messageId:
+- Revised content messageId:
+- Revision notice linked to original:
+- Unintended duplicate check:
 - Media upload result, when applicable:
 - Reload/reopen duplicate check:
 - Cross-owner/document binding isolation:
@@ -121,7 +124,7 @@ For every row record menu/dialog reachability, bottom-bar clearance, internal sc
 | Railway draft unavailable after restart |  | explicit recovery failure |  |  |  |
 | offline before request |  | explicit failure |  |  |  |
 | Telegram unknown timeout on first send |  | uncertain/no new send |  |  |  |
-| Telegram edit timeout |  | same binding/no duplicate message |  |  |  |
+| Telegram revision notice/content timeout |  | pending/uncertain phase without blind duplicate |  |  |  |
 | backend restart during sending |  | uncertain/no retry |  |  |  |
 | response lost after possible acceptance |  | persisted result or uncertain |  |  |  |
 | Telegraph ownership without credential |  | fail closed |  |  |  |

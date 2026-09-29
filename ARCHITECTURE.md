@@ -33,8 +33,10 @@ This document records the implementation boundaries that are authoritative for M
 - Draft metadata, active-document pointers and attachment bytes use volume-backed files. Metadata/pointers are replaced atomically by rename, and a lower revision cannot overwrite a newer persisted revision.
 - When the local active slot is absent, startup may recover the owner's active volume-backed draft. The transactional editor is created before asynchronous recovery; editing is temporarily disabled until that recovery decision completes, and recovered HTML is applied through the editor core rather than by mutating the live DOM behind ProseMirror.
 - Telegram publication state is stored with the same owner/document record. The first Rich Message records `pending` before the network call and stores verified publisher id, chat id, Telegram message id and revision on success. Ambiguous transport/storage outcomes become `uncertain` and block blind duplication.
-- A later explicit publication of the same document by the same verified Telegram user edits the stored Rich Message through `editMessageText` instead of creating another message. The browser → Mini App handoff publication path delegates to the same durable function.
-- Browser-local `rmdtxtml-document:...` archives created by `/novo` remain local recovery snapshots. The volume layer does not pretend to be a version-history UI or synchronized document picker.
+- A later explicit publication of the same document by the same verified Telegram user preserves the previous Rich Message. The server sends a revision notice replying to the previous publication, then sends the new content as a new Rich Message and appends both message provenance and revision metadata to the durable record. No current publication path calls `editMessageText`.
+- Draft persistence serializes the canonical ProseMirror document, not transient rendering DOM. Runtime-only ProseMirror helper nodes/classes and editing attributes are stripped both client-side and server-side so older contaminated snapshots can migrate through the strict semantic allow-list.
+- The owner-scoped library lists volume-backed drafts and Telegraph page bindings. It is reachable from Web/PWA and the Telegram Mini App; private bot commands `/rascunhos` and `/telegraph` deep-link to the corresponding library view. Telegram publications themselves remain a private-chat history, not an in-app editable-message list.
+- Browser-local `rmdtxtml-document:...` archives created by `/novo` remain local recovery snapshots; persisted server documents are the library source.
 
 ## Browser → Mini App handoff
 
@@ -46,7 +48,7 @@ This document records the implementation boundaries that are authoritative for M
 ## Telegram
 
 - The protocol baseline is Telegram Bot API 10.3, released on 2026-08-24.
-- New rich content is sent through `sendRichMessage` and `InputRichMessage`. A previously bound publication is updated through the Bot API `editMessageText` `rich_message` parameter using the stored message ID.
+- Rich content and later revisions are sent through `sendRichMessage` and `InputRichMessage`. A later revision never rewrites the earlier Telegram message: an explicit update notice replies to the previous publication and the revised content follows as a new message.
 - Rich-message HTML is validated against the documented tag, nesting, media, table, and `RichMessageButton` contracts before Telegram is called.
 - The 32,768-character preflight counts Unicode text and custom-emoji alternative text, and RichText-only containers reject nested block markup locally rather than relying on Telegram to reject it.
 - There is no `sendMessage` downgrade path for rich content. Unsupported rich input fails explicitly instead of being silently translated to a legacy message.
@@ -61,7 +63,7 @@ This document records the implementation boundaries that are authoritative for M
 ## Telegra.ph
 
 - Publishing uses the official Telegra.ph API and its `Node` / `NodeElement` content model.
-- Page creation and editing use `createPage` and `editPage`; persisted paths are verified with `getPage`.
+- Page creation and editing use `createPage` and `editPage`; persisted paths are verified with `getPage`. The owner-scoped library can fetch the authoritative page content with `getPage`, convert the validated Telegraph node tree back into editor HTML and reopen the same document/path for editing in browser or Mini App.
 - The server enforces the documented 64 KB content limit before publication.
 - A Telegraph page path is bound to an explicit owner plus the MDTXTRT document identifier so an edit cannot be redirected to an unrelated page. Inside the Mini App, the owner is the Telegram identity verified from `initData`; in a standalone browser, the owner is the SHA-256 digest of a locally generated 256-bit capability key. The raw browser capability is never persisted by the server.
 - The Telegraph access token and page ownership mapping are durable state and must not be moved to an ephemeral filesystem.
