@@ -1,5 +1,10 @@
 {
   "schema": 1,
+  "roadmap": {
+    "totalSteps": 7,
+    "implementationSteps": 6,
+    "finalVerificationStep": 7
+  },
   "visualBaseline": "aac423e012745c7873908ddc4a76371fb8218aa3",
   "runtime": {
     "node": "24.21.0",
@@ -8,41 +13,52 @@
   "stages": [
     {
       "step": 1,
-      "name": "integrity",
-      "pr": 56,
-      "head": "2e4754729eb0c4ff8de9fe3e5334291535a0947c"
+      "name": "bot-import",
+      "pr": 84,
+      "reportIssue": 85,
+      "head": "8b6686eda179f8bed4c1e16ce9115a602b17fdf6"
     },
     {
       "step": 2,
-      "name": "handoff-publication",
-      "pr": 58,
-      "head": "e975e80e355d25a671c8343619cf90a4719e9379"
+      "name": "bot-consolidation",
+      "pr": 86,
+      "reportIssue": 87,
+      "head": "508bdcdbe97d98805ffc4f243326b67daa81319a"
     },
     {
       "step": 3,
-      "name": "editor-core",
-      "pr": 61,
-      "head": "1f8a7658f210f9f8c68874b8559537fcc4645562"
+      "name": "telegram-platform-state",
+      "pr": 88,
+      "reportIssue": 89,
+      "head": "e42701b002f86dffa44905eae3da18d2e4262d60"
     },
     {
       "step": 4,
-      "name": "format-contract",
-      "pr": 63,
-      "head": "1049fed8a388c8458f3e3a57a3ebc6081b35a613"
+      "name": "mobile-keyboard-focus",
+      "pr": 90,
+      "reportIssue": 91,
+      "head": "dd8b9da6273548af98dacec548c0b0cab2855139"
     },
     {
       "step": 5,
-      "name": "mobile-interaction",
-      "pr": 66,
-      "head": "63a9477305b8a507117b54d9941b8b47c8a2bf97"
+      "name": "external-publication-persistence",
+      "pr": 92,
+      "reportIssue": 93,
+      "head": "854a20fd635dc0d55ea9c7294f13bb0313118297"
     },
     {
       "step": 6,
-      "name": "semantics-docs",
-      "pr": 68,
-      "head": "e20d115b18424ab5c9abfa7e175b5376fe0633fb"
+      "name": "volume-draft-provenance-ui",
+      "pr": 95,
+      "reportIssue": 96,
+      "head": "ad2b05d82770a5057d22b2f92d7fc02255bdfb1c"
     }
   ],
+  "stage7": {
+    "name": "final-verification-update-release",
+    "addsFeatures": false,
+    "requiresProductionShaParity": true
+  },
   "releaseGates": {
     "automated": [
       "regression",
@@ -55,8 +71,10 @@
     ],
     "external": [
       "authorized-test-environment",
+      "production-sha-parity",
+      "volume-draft-persistence-restart",
+      "telegram-rich-message-receipt-and-edit",
       "telegraph-restart",
-      "telegram-rich-message-receipt",
       "physical-device-matrix",
       "network-storage-fault-matrix",
       "rollback",
