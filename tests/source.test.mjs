@@ -34,7 +34,10 @@ test('official Liquid Glass React dependencies and deterministic build are pinne
   assert.equal(pkg.scripts.build,'npm run build:editor && npm run build:ui');
   assert.match(pkg.scripts['build:ui'],/src\/liquid-glass-ui\.jsx/);
   assert.match(pkg.scripts['build:ui'],/--outfile=ui\.js/);
-  assert.match(pkg.scripts['build:ui'],/(?:^|\s)--minify(?:\s|$)/);
+  assert.match(pkg.scripts['build:ui'],/--define:process\.env\.NODE_ENV='\\\"production\\\"'/);
+  assert.match(pkg.scripts['build:ui'],/(?:^|\s)--minify-syntax(?:\s|$)/);
+  assert.match(pkg.scripts['build:ui'],/(?:^|\s)--minify-whitespace(?:\s|$)/);
+  assert.doesNotMatch(pkg.scripts['build:ui'],/(?:^|\s)--minify(?:\s|$)|--minify-identifiers/);
   assert.match(pkg.scripts['build:editor'],/src\/editor-core\.mjs/);
   assert.match(pkg.scripts['build:editor'],/--outfile=editor-core\.js/);
   assert.equal(lock.packages['node_modules/@samasante/liquid-glass'].version,'0.1.1');
