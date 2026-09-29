@@ -330,6 +330,30 @@ test('optional fullscreen unavailable does not block Mini App editing',async()=>
   w.close();
 });
 
+test('Telegram launch already fullscreen and a rejected optional request keep the editor available',async()=>{
+  const fetch=async(url)=>{
+    const target=String(url);
+    if(target.endsWith('/api/telegram/session'))return {ok:true,status:200,json:async()=>({ok:true})};
+    if(target.endsWith('/api/telegraph/recover'))return {ok:false,status:404,json:async()=>({})};
+    return {ok:false,status:404,json:async()=>({error:'not found'})};
+  };
+  let requests=0;
+  const shared={platform:'ios',viewportStableHeight:700,isVersionAtLeast:version=>version==='8.0',onEvent(){}};
+  const full=page({fetch,tg:{...shared,isFullscreen:true,requestFullscreen(){requests++;}}});
+  await wait(40);
+  assert.equal(requests,0);
+  assert.equal(full.document.body.classList.contains('tg'),true);
+  assert.equal(full.document.documentElement.hasAttribute('data-device-gate'),false);
+  full.close();
+
+  const rejected=page({fetch,tg:{...shared,isFullscreen:false,requestFullscreen(){requests++;throw new Error('platform refusal');}}});
+  await wait(40);
+  assert.equal(requests,1);
+  assert.equal(rejected.document.body.classList.contains('tg'),true);
+  assert.match(rejected.document.querySelector('#toast').textContent,/Não foi possível abrir em fullscreen/);
+  rejected.close();
+});
+
 test('Mini App exposes the export menu and keeps publication as an explicit menu action',async()=>{
   const requests=[];
   const fetch=async(url)=>{
