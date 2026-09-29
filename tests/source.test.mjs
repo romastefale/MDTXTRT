@@ -633,7 +633,7 @@ test('architecture provenance records official package use and copied example ow
 });
 
 
-test('stage 6/7 persists active drafts and Telegram provenance without changing the pinned visual baseline',()=>{
+test('draft persistence, Telegram provenance and explicit visual-baseline history stay documented',()=>{
   const app=read('app.js'),server=read('server.mjs'),architecture=read('ARCHITECTURE.md'),drafts=read('LOCAL_DRAFTS.md'),baseline=read('BASELINE.md');
   assert.match(server,/const DRAFT_DIR = DATA \+ "\/drafts"/);
   assert.match(server,/url\.pathname === "\/api\/drafts\/save"/);
@@ -659,6 +659,7 @@ test('stage 6/7 persists active drafts and Telegram provenance without changing 
   assert.match(drafts,/verified Telegram user identifier/);
   assert.match(drafts,/does \*\*not\*\* rewrite the earlier chat message/);
   assert.match(drafts,/Runtime-only ProseMirror/);
+  assert.match(baseline,/1dbbdb2dfaeafbd8ef52cea859611ffa5f6699ad/);
   assert.match(baseline,/aac423e012745c7873908ddc4a76371fb8218aa3/);
   assert.match(baseline,/dde30467ed9b0d108bac2ae7ad9bcac1137c169e/);
 });
@@ -787,7 +788,7 @@ test('final release gap analysis, surface audit and final-only anchor gates are 
   assert.match(evidence,/Telegram revision notice\/content timeout/);
   assert.match(evidence,/stale persistent draft revision/);
 
-  assert.equal(manifest.visualBaseline,'aac423e012745c7873908ddc4a76371fb8218aa3');
+  assert.equal(manifest.visualBaseline,'1dbbdb2dfaeafbd8ef52cea859611ffa5f6699ad');
   assert.deepEqual(manifest.runtime,{node:'24.21.0',npm:'11.19.0'});
   assert.deepEqual(manifest.stages.map(stage=>stage.pr),[84,86,88,90,92,95]);
   assert.equal(manifest.stages.at(-1).head,'ec3def6622818c0411bbeb94165716c7f30fa927');
