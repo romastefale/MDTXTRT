@@ -30,7 +30,7 @@ The editor is a semantic preview of the selected publication target. A one-click
 
 Presentation-only cues may distinguish structures in the editor, but they are CSS/runtime affordances rather than serialized content. In particular, normal quotes, expandable quotes and pull quotes have distinct editor treatments that track their distinct publication semantics without adding labels to the exported or published payload.
 
-This is intentionally a semantic, not pixel-identical, WYSIWYG contract: native Telegram/Telegraph clients control final typography and spacing, while MDTXTRT must preserve structure, emphasis and authored text closely enough that publication does not reveal unexpected content.
+This is intentionally a semantic, not pixel-identical, WYSIWYG contract: native Telegram/Telegraph clients control final typography and spacing, while MDTXTRT must preserve structure, emphasis and authored text closely enough that publication does not reveal unexpected content. The rule applies at insertion time as well as at export/publication time.
 
 ## Shared normalization boundary
 
