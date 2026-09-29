@@ -1258,65 +1258,78 @@ test('link interactions stay above the bottom trigger and expose only destinatio
     return {left:0,top:0,width:280,height,right:280,bottom:height};
   };
 
-  w.eval("openPanel('#linkMenu')");
+  linkBtn.click();
   assert.equal(linkMenu.matches(':popover-open'),true);
   assert.equal(w.eval("panelAnchor(document.querySelector('#linkMenu'))===document.querySelector('#linkBtn')"),true);
   assert.ok(parseFloat(linkMenu.style.getPropertyValue('--menu-top'))<340);
 
   const buttonChoice=linkMenu.querySelector('[data-link-kind="button"]');
-  assert.equal(buttonChoice.hidden,false);
-  w.eval("setDestination('telegraph',false,false)");
-  assert.equal(buttonChoice.hidden,true);
-  w.eval("setDestination('telegram',false,false)");
+  const urlChoice=linkMenu.querySelector('[data-link-kind="url"]');
   assert.equal(buttonChoice.hidden,false);
 
-  linkBtn.focus();
-  const prompt=w.eval("ask('URL','https://')");
-  await wait(0);
+  w.eval("setDestination('telegraph',false,false)");
+  assert.equal(buttonChoice.hidden,true);
+  urlChoice.click();
+  for(let i=0;i<10&&d.querySelector('#dialogLabel').textContent!=='Link';i++)await wait(0);
+  assert.equal(d.querySelector('#dialogLabel').textContent,'Link');
   assert.equal(w.eval("panelAnchor(document.querySelector('#dialogMenu'))===document.querySelector('#linkBtn')"),true);
   assert.ok(parseFloat(dialog.style.getPropertyValue('--menu-top'))<340);
-  d.querySelector('#dialogCancel').click();
-  assert.equal(await prompt,null);
+  d.querySelector('#dialogInput').value='tg://resolve?domain=example';
+  d.querySelector('#dialogOk').click();
+  for(let i=0;i<10&&!/Telegraph exige link HTTP ou HTTPS/.test(d.querySelector('#toast').textContent);i++)await wait(0);
+  assert.match(d.querySelector('#toast').textContent,/Telegraph exige link HTTP ou HTTPS/);
+
+  w.eval("setDestination('telegram',false,false)");
+  linkBtn.click();
+  assert.equal(buttonChoice.hidden,false);
+  w.eval("closePanel(document.querySelector('#linkMenu'))");
   w.close();
 });
 
-test('link actions distinguish hyperlink, visible URL and Telegram URL button',async()=>{
-  const w=page(),d=w.document,e=d.querySelector('#editor'),dialog=d.querySelector('#dialogInput'),ok=d.querySelector('#dialogOk'),linkBtn=d.querySelector('#linkBtn');
+test('link actions distinguish hyperlink, visible URL and Telegram URL button through the user-facing menu',async()=>{
+  const w=page(),d=w.document,e=d.querySelector('#editor'),dialog=d.querySelector('#dialogInput'),ok=d.querySelector('#dialogOk');
+  const linkBtn=d.querySelector('#linkBtn'),linkMenu=d.querySelector('#linkMenu');
+
+  const choose=async(kind,label)=>{
+    linkBtn.click();
+    assert.equal(linkMenu.matches(':popover-open'),true);
+    const choice=linkMenu.querySelector('[data-link-kind="'+kind+'"]');
+    assert.ok(choice&&!choice.hidden);
+    choice.click();
+    for(let i=0;i<10&&d.querySelector('#dialogLabel').textContent!==label;i++)await wait(0);
+    assert.equal(d.querySelector('#dialogLabel').textContent,label);
+    assert.equal(w.eval("panelAnchor(document.querySelector('#dialogMenu'))===document.querySelector('#linkBtn')"),true);
+  };
+
   w.eval("currentEditorCore().resetHTML('<p>alpha beta</p>',{silent:true})");
   w.eval("(()=>{const r=currentEditorCore().findLiteral('alpha')[0];currentEditorCore().selectRange({from:r.from,to:r.to},{focus:true});saveSel()})()");
-  linkBtn.focus();
-  let action=w.eval("insertHyperlink()");
-  await wait(0);
+  await choose('hyperlink','URL do hyperlink');
   dialog.value='https://example.com/hyper';
   ok.click();
-  await action;
+  for(let i=0;i<10&&e.querySelector('a')?.textContent!=='alpha';i++)await wait(0);
   assert.equal(e.querySelector('a')?.textContent,'alpha');
   assert.equal(e.querySelector('a')?.getAttribute('href'),'https://example.com/hyper');
 
   w.eval("(()=>{const pos=currentEditorCore().state.doc.content.size-1;currentEditorCore().selectRange({from:pos,to:pos},{focus:true});saveSel()})()");
-  linkBtn.focus();
-  action=w.eval("insertVisibleLink()");
-  await wait(0);
+  await choose('url','Link');
   dialog.value='https://example.com/visible';
   ok.click();
-  await action;
+  for(let i=0;i<10&&[...e.querySelectorAll('a')].at(-1)?.textContent!=='https://example.com/visible';i++)await wait(0);
   const links=[...e.querySelectorAll('a')];
   assert.equal(links.at(-1)?.textContent,'https://example.com/visible');
   assert.equal(links.at(-1)?.getAttribute('href'),'https://example.com/visible');
 
   w.eval("setDestination('telegram',false,false)");
   w.eval("(()=>{const pos=currentEditorCore().state.doc.content.size-1;currentEditorCore().selectRange({from:pos,to:pos},{focus:true});saveSel()})()");
-  linkBtn.focus();
-  action=w.eval("insertLinkButton()");
-  for(let i=0;i<10&&d.querySelector('#dialogLabel').textContent!=='Texto do botão';i++)await wait(0);
-  assert.equal(d.querySelector('#dialogLabel').textContent,'Texto do botão');
+  await choose('button','Texto do botão');
   dialog.value='Abrir site';
   ok.click();
   for(let i=0;i<10&&d.querySelector('#dialogLabel').textContent!=='Link do botão';i++)await wait(0);
   assert.equal(d.querySelector('#dialogLabel').textContent,'Link do botão');
+  assert.equal(w.eval("panelAnchor(document.querySelector('#dialogMenu'))===document.querySelector('#linkBtn')"),true);
   dialog.value='https://example.com/button';
   ok.click();
-  await action;
+  for(let i=0;i<10&&!e.querySelector('tg-button');i++)await wait(0);
   const button=e.querySelector('tg-button');
   assert.equal(button?.textContent,'Abrir site');
   assert.equal(button?.getAttribute('type'),'url');

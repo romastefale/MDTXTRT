@@ -251,7 +251,8 @@ test('editor emits Bot API 10.3 RichText-compatible expandable quotes',()=>{
 test('editor keeps target-specific publishing validation and code metadata',()=>{
   const app=read('app.js');
   assert.match(app,/a:\['href','name'\],code:\['class'\]/);
-  assert.match(app,/dest==='telegraph'\?\['http:','https:'\]/);
+  assert.match(app,/\['http:','https:'\]/);
+  assert.match(app,/\['http:','https:','mailto:','tel:','tg:'\]/);
   assert.match(app,/slice\(0,64\)/);
   assert.match(app,/Formato de data inválido/);
   assert.match(app,/function activeMedia\(\)/);
@@ -476,23 +477,13 @@ test('UI preserves compact portrait contract, unified chrome scale and anchored 
   assert.match(src,/id="dialogMenu"[\s\S]*?popover="manual"[\s\S]*?role="dialog"[\s\S]*?aria-modal="true"/);
 });
 
-test('link control exposes destination-aware choices and anchors follow-up dialogs to the trigger',()=>{
-  const app=read('app.js'),src=uiSource();
+test('link control exposes the three destination-aware choices in an anchored menu',()=>{
+  const src=uiSource();
   assert.match(src,/function LinkMenu\(\)/);
   assert.match(src,/id="linkMenu" anchorId="linkBtn" placement="top"/);
   assert.match(src,/data-link-kind="hyperlink">Hiperlink/);
   assert.match(src,/data-link-kind="url">Link/);
   assert.match(src,/data-link-kind="button" data-telegram-only="">Botão com link/);
-  assert.match(app,/const sheets=\[[^\]]*'#linkMenu'/);
-  assert.match(app,/function inlineLinkProtocols\(\)[\s\S]*?dest==='telegraph'\?\['http:','https:'\]:\['http:','https:','mailto:','tel:','tg:'\]/);
-  assert.match(app,/async function insertHyperlink\(\)/);
-  assert.match(app,/async function insertVisibleLink\(\)/);
-  assert.match(app,/async function insertLinkButton\(\)[\s\S]*?dest!=='telegram'/);
-  assert.match(read('src/editor-core.mjs'),/textAttrs\("type","style","url","data","query","text","forward-text"\)/);
-  assert.match(app,/one\('#linkBtn'\)\.addEventListener\('click',\(\)=>openPanel\('#linkMenu'\)\)/);
-  assert.match(app,/panelAnchors\.set\(dialog,anchor\)/);
-  assert.match(app,/placePanel\(dialog,anchorRect\)/);
-  assert.doesNotMatch(app,/one\('#linkBtn'\)\.addEventListener\('click',async\(\)=>[\s\S]*?ask\('Link',current\)/);
 });
 
 test('plus menu keeps normative compact geometry and opens categorized submenus over the leftmost trigger',()=>{
