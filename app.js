@@ -503,8 +503,12 @@ function setDestination(value, notify=true, persist=true){
   if(persist)saveLocal();
   if(notify) showToast('Destino: ' + name);
 }
+function librarySubmenuOpen(){
+  const menu=one('#exportMenu'),view=one('#librarySubmenu');
+  return Boolean(menu?.matches(':popover-open')&&view&&!view.hidden);
+}
 function hasOpenLayer(){
-  return one('#libraryScreen')?.matches(':popover-open')||one('#dialogMenu').matches(':popover-open')||sheets.some(sel=>one(sel).matches(':popover-open'));
+  return one('#dialogMenu').matches(':popover-open')||sheets.some(sel=>one(sel).matches(':popover-open'));
 }
 function syncBackButton(){
   if(session!=='ready')return;
@@ -514,15 +518,14 @@ function syncBackButton(){
 function closeTopLayer(){
   const dialog=one('#dialogMenu');
   if(dialog.matches(':popover-open')){finishDialog(dialogConfirm?false:null);return;}
-  const library=one('#libraryScreen');
-  if(library?.matches(':popover-open')){closeLibrary();return;}
+  if(librarySubmenuOpen()){closeLibrary();return;}
   const sel=sheets.find(name=>one(name).matches(':popover-open'));
   if(sel)closePanel(one(sel),true);
 }
 function clamp(value,min,max){return Math.max(min,Math.min(max,value));}
 const panelAnchors=new WeakMap(),panelOpeners=new WeakMap();
 let dialogReturnFocus=null,dialogInerted=[];
-let libraryReturnFocus=null,libraryInerted=[];
+let libraryInerted=[];
 function visualViewportBounds(){
   const root=document.documentElement,viewport=window.visualViewport;
   if(session==='ready'){
@@ -568,7 +571,10 @@ function placePanel(panel,anchorRect=null){
   panel.setAttribute('data-runtime-positioned','');
   const viewport=visualViewportBounds(),bounds=panelViewportBounds(viewport),edge=8,gap=8;
   const fullHeight=Math.max(0,bounds.height-edge*2);
-  const baseMax=Math.max(0,Math.min(420,bounds.height*.55,fullHeight));
+  const libraryMode=panel.id==='exportMenu'&&panel.classList.contains('library-open');
+  const baseMax=Math.max(0,libraryMode
+    ?Math.min(520,bounds.height*.78,fullHeight)
+    :Math.min(420,bounds.height*.55,fullHeight));
   const maxWidth=Math.max(0,bounds.width-edge*2);
   panel.style.setProperty('--menu-max-height',baseMax+'px');
   panel.style.setProperty('--menu-max-width',maxWidth+'px');
@@ -634,7 +640,10 @@ function openPlusRoot(){
 function closePanels(){
   for(const sel of sheets){
     const panel=one(sel);
-    if(panel.matches(':popover-open'))panel.hidePopover();
+    if(panel.matches(':popover-open')){
+      if(panel.id==='exportMenu'&&librarySubmenuOpen())resetLibrarySubmenu();
+      panel.hidePopover();
+    }
   }
 }
 function dialogOutsideBranches(dialog){
@@ -663,10 +672,11 @@ function setDialogModality(active){
   }
 }
 function setLibraryModality(active){
-  const library=one('#libraryScreen');
-  if(!library)return;
+  const menu=one('#exportMenu');
+  if(!menu)return;
   if(active){
-    libraryInerted=dialogOutsideBranches(library).map(element=>[element,element.hasAttribute('inert')]);
+    if(libraryInerted.length)return;
+    libraryInerted=dialogOutsideBranches(menu).map(element=>[element,element.hasAttribute('inert')]);
     for(const [element] of libraryInerted)element.setAttribute('inert','');
   }else{
     for(const [element,wasInert] of libraryInerted){
@@ -676,8 +686,8 @@ function setLibraryModality(active){
   }
 }
 function libraryFocusables(){
-  const library=one('#libraryScreen');
-  return library?[...library.querySelectorAll('button:not([disabled]):not([hidden]):not([tabindex="-1"]),input:not([disabled]):not([hidden]),textarea:not([disabled]):not([hidden]),select:not([disabled]):not([hidden]),[tabindex]:not([tabindex="-1"])')]:[];
+  const view=one('#librarySubmenu');
+  return view?[...view.querySelectorAll('button:not([disabled]):not([hidden]):not([tabindex="-1"]),input:not([disabled]):not([hidden]),textarea:not([disabled]):not([hidden]),select:not([disabled]):not([hidden]),[tabindex]:not([tabindex="-1"])')]:[];
 }
 function focusLibraryStart(){focusControl(one('#libraryClose'));}
 function dialogFocusables(){
@@ -753,8 +763,8 @@ one('#dialogMenu').addEventListener('keydown',event=>{
 document.addEventListener('focusin',event=>{
   const dialog=one('#dialogMenu');
   if(dialog.matches(':popover-open')&&!dialog.contains(event.target)){queueMicrotask(()=>focusDialogStart(false));return;}
-  const library=one('#libraryScreen');
-  if(library?.matches(':popover-open')&&!library.contains(event.target))queueMicrotask(focusLibraryStart);
+  const menu=one('#exportMenu');
+  if(librarySubmenuOpen()&&!menu.contains(event.target))queueMicrotask(focusLibraryStart);
 });
 for(const sel of sheets){
   one(sel).addEventListener('toggle',event=>{
@@ -766,6 +776,7 @@ for(const sel of sheets){
       if(list)list.scrollTop=0;
       placePanel(event.currentTarget);
     }else{
+      if(event.currentTarget.id==='exportMenu')resetLibrarySubmenu();
       panelAnchors.delete(event.currentTarget);
     }
     syncBackButton();
@@ -776,8 +787,7 @@ document.addEventListener('keydown',event=>{
   if(event.key!=='Escape')return;
   const dialog=one('#dialogMenu');
   if(dialog.matches(':popover-open')){event.preventDefault();finishDialog(dialogConfirm?false:null);return;}
-  const library=one('#libraryScreen');
-  if(library?.matches(':popover-open')){event.preventDefault();closeLibrary();return;}
+  if(librarySubmenuOpen()){event.preventDefault();closeLibrary();return;}
   const sel=sheets.find(name=>one(name).matches(':popover-open'));
   if(sel){event.preventDefault();closePanel(one(sel),true);}
 });
@@ -1278,7 +1288,7 @@ async function openLibraryDraft(doc){
   try{
     const loaded=await loadRemoteDraft(doc);
     if(!loaded)throw new Error('Rascunho não encontrado');
-    closeLibrary();
+    dismissLibraryMenu();
     showToast('Rascunho aberto');
   }catch(error){status.textContent=error.message||'Não foi possível abrir o rascunho';}
 }
@@ -1309,7 +1319,7 @@ async function openTelegraphDocument(doc){
     draftWriteBlocked=false;
     setDestination('telegraph',false,false);
     saveLocal();
-    closeLibrary();
+    dismissLibraryMenu();
     showToast('Página Telegraph aberta para edição');
   }catch(error){status.textContent=error.message||'Não foi possível abrir a página';}
 }
@@ -1356,8 +1366,8 @@ async function renderLibrary(preferred=''){
     const publicationTotal=data.telegram.length+data.telegraph.length;
     status.textContent=publicationTotal+' '+(publicationTotal===1?'publicação':'publicações')+' · '+data.drafts.length+' '+(data.drafts.length===1?'rascunho':'rascunhos');
     if(preferred==='telegram'||preferred==='telegraph')setPublicationsExpanded(true);
-    if(preferred==='telegram')one('#telegramLibrarySection')?.scrollIntoView({block:'start'});
-    if(preferred==='telegraph')one('#telegraphLibrarySection')?.scrollIntoView({block:'start'});
+    if(preferred==='telegram')one('#telegramLibrarySection')?.scrollIntoView({block:'nearest'});
+    if(preferred==='telegraph')one('#telegraphLibrarySection')?.scrollIntoView({block:'nearest'});
   }catch(error){
     status.textContent=error.message||'Não foi possível carregar a biblioteca';
     draftList.append(emptyLibraryItem('Biblioteca indisponível.'));
@@ -1372,28 +1382,51 @@ function setPublicationsExpanded(expanded){
   toggle.setAttribute('aria-expanded',String(open));
   lists.hidden=!open;
 }
+function setLibraryView(open){
+  const menu=one('#exportMenu'),root=one('#exportRootView'),view=one('#librarySubmenu');
+  if(!menu||!root||!view)return;
+  root.hidden=Boolean(open);
+  view.hidden=!open;
+  menu.classList.toggle('library-open',Boolean(open));
+}
+function resetLibrarySubmenu(){
+  setLibraryModality(false);
+  setLibraryView(false);
+  setPublicationsExpanded(true);
+}
 function openLibrary(preferred=''){
-  libraryReturnFocus=one('#exportBtn');
-  closePanels();
-  const library=one('#libraryScreen');
-  if(!library.matches(':popover-open'))library.showPopover();
+  const menu=one('#exportMenu');
+  if(!menu.matches(':popover-open')){
+    closePanels();
+    openPanel('#exportMenu');
+  }
+  setLibraryView(true);
   setPublicationsExpanded(true);
   setLibraryModality(true);
-  const shell=library.querySelector('.library-shell');
-  if(shell)shell.scrollTop=0;
+  const scroll=one('.library-submenu-scroll');
+  if(scroll)scroll.scrollTop=0;
+  placePanel(menu);
   syncBackButton();
   queueMicrotask(focusLibraryStart);
   void renderLibrary(preferred);
 }
 function closeLibrary(){
-  const library=one('#libraryScreen');
-  if(!library?.matches(':popover-open'))return;
-  library.hidePopover();
+  if(!librarySubmenuOpen())return;
+  const menu=one('#exportMenu');
   setLibraryModality(false);
+  setLibraryView(false);
+  setPublicationsExpanded(true);
+  placePanel(menu);
   syncBackButton();
-  const target=libraryReturnFocus;
-  libraryReturnFocus=null;
-  focusControl(target);
+  queueMicrotask(()=>focusControl(one('#libraryBtn')));
+}
+function dismissLibraryMenu(){
+  const menu=one('#exportMenu');
+  setLibraryModality(false);
+  setLibraryView(false);
+  if(menu?.matches(':popover-open'))menu.hidePopover();
+  syncBackButton();
+  queueMicrotask(()=>focusControl(editor));
 }
 
 function createNewDocumentLaunch(){
@@ -1726,12 +1759,10 @@ one('#mediaInput').addEventListener('change',async()=>{
 });
 one('#libraryBtn')?.addEventListener('click',()=>openLibrary());
 one('#libraryClose')?.addEventListener('click',closeLibrary);
-one('#libraryDismiss')?.addEventListener('click',closeLibrary);
-one('#libraryScreen')?.addEventListener('click',event=>{if(event.target===event.currentTarget)closeLibrary();});
 one('#libraryNew')?.addEventListener('click',createNewDocumentLaunch);
 one('#publicationToggle')?.addEventListener('click',event=>setPublicationsExpanded(event.currentTarget.getAttribute('aria-expanded')!=='true'));
-one('#libraryScreen')?.addEventListener('keydown',event=>{
-  if(event.key!=='Tab')return;
+one('#exportMenu')?.addEventListener('keydown',event=>{
+  if(!librarySubmenuOpen()||event.key!=='Tab')return;
   const items=libraryFocusables();
   if(!items.length){event.preventDefault();return;}
   const at=items.indexOf(document.activeElement);
@@ -1739,10 +1770,16 @@ one('#libraryScreen')?.addEventListener('keydown',event=>{
   event.preventDefault();
   focusControl(items[next]);
 });
-one('#libraryScreen')?.addEventListener('toggle',event=>{
-  if(event.newState==='closed')setLibraryModality(false);
+document.addEventListener('pointerdown',event=>{
+  if(!librarySubmenuOpen())return;
+  const menu=one('#exportMenu');
+  if(menu.contains(event.target))return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  resetLibrarySubmenu();
+  if(menu.matches(':popover-open'))menu.hidePopover();
   syncBackButton();
-});
+},true);
 one('#findBtn').addEventListener('click', ()=>{saveSel();const anchor=one('#plusBtn');closePanels();openPanel('#findMenu',anchor);one('#findText').focus({preventScroll:true});});
 function literalMatches(term){return requireEditorCore().findLiteral(term);}
 one('#findNext').addEventListener('click',()=>{
