@@ -35,6 +35,11 @@ globalThis.fetch = async (url,options={}) => {
       if(probe.rich_message?.html?.includes('UPSTREAM_TIMEOUT'))throw new TypeError('simulated transport timeout');
       if(probe.rich_message?.html?.includes('UPSTREAM_DELAY'))await new Promise(resolve=>setTimeout(resolve,150));
       if(probe.rich_message?.html?.includes('UPSTREAM_REJECT'))return Response.json({ok:false,description:'test rejection'},{status:400});
+      if(method==='sendRichMessage'){
+        const html=String(probe.rich_message?.html||'');
+        if(html.includes('Atualização de publicação'))return Response.json({ok:true,result:{message_id:43}});
+        if(probe.reply_parameters?.message_id)return Response.json({ok:true,result:{message_id:44}});
+      }
     }
     return Response.json({ok:true,result:{message_id:42}});
   }
@@ -45,7 +50,7 @@ globalThis.fetch = async (url,options={}) => {
     if(method==='createAccount')return Response.json({ok:true,result:{access_token:'persistent-test-token'}});
     if(method==='getPage'){
       const path=data.get('path');
-      return Response.json({ok:true,result:{url:'https://telegra.ph/'+path,path,content:[]}});
+      return Response.json({ok:true,result:{url:'https://telegra.ph/'+path,path,title:'Página Telegraph',content:[{tag:'p',children:['Conteúdo Telegraph']}] }});
     }
     if(data.get('access_token')!=='persistent-test-token')return Response.json({ok:false,error:'invalid token'},{status:401});
     if(method==='getAccountInfo')return Response.json({ok:true,result:{short_name:'MDTXTRT',page_count:1}});
