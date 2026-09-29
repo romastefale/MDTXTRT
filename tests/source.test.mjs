@@ -722,6 +722,7 @@ test('final release gap analysis, surface audit and final-only anchor gates are 
   const manifest=JSON.parse(read('RELEASE_MANIFEST.json'));
   const evidence=read('scripts/validate-release-evidence.mjs');
 
+  assert.match(workflow,/push:\s*\n\s*branches:\s*\n\s*- main/);
   assert.match(workflow,/workflow_dispatch:/);
   assert.match(workflow,/RELEASE_CANDIDATE_SHA: \$\{\{ github\.event_name == 'pull_request' && github\.event\.pull_request\.head\.sha \|\| github\.sha \}\}/);
   assert.equal((workflow.match(/ref: \$\{\{ env\.RELEASE_CANDIDATE_SHA \}\}/g)||[]).length,2);
