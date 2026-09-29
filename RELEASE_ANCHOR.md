@@ -17,7 +17,7 @@ The **final immutable Release Anchor is created only after every mandatory crite
 - exact candidate deployment;
 - Railway draft persistence/restart;
 - Telegraph real restart flow;
-- Telegram real send + later edit of the same message;
+- Telegram real send + revision notice + new revised message while preserving the prior message;
 - Web/PWA/Mini App physical matrix on iOS and Android;
 - real import/export matrix;
 - network/storage fault matrix;
