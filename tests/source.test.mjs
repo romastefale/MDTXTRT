@@ -754,7 +754,8 @@ test('final release gap analysis, surface audit and final-only anchor gates are 
   assert.equal(manifest.visualBaseline,'aac423e012745c7873908ddc4a76371fb8218aa3');
   assert.deepEqual(manifest.runtime,{node:'24.21.0',npm:'11.19.0'});
   assert.deepEqual(manifest.stages.map(stage=>stage.pr),[84,86,88,90,92,95]);
-  assert.equal(manifest.stages.at(-1).head,'ad2b05d82770a5057d22b2f92d7fc02255bdfb1c');
+  assert.equal(manifest.stages.at(-1).head,'ec3def6622818c0411bbeb94165716c7f30fa927');
+  assert.equal(manifest.stages.at(-1).validatedHead,'ad2b05d82770a5057d22b2f92d7fc02255bdfb1c');
   assert.equal(manifest.anchorPolicy.authority,'full-git-commit-sha');
   assert.equal(manifest.anchorPolicy.immutable,true);
   assert.equal(manifest.anchorPolicy.sealAfter,'release-approved');
@@ -776,6 +777,6 @@ test('final release gap analysis, surface audit and final-only anchor gates are 
 
   assert.match(anchor,/canonical release identity is a \*\*full 40-character Git commit SHA\*\*/);
   assert.match(anchor,/final immutable Release Anchor is created only after every mandatory criterion/i);
-  assert.match(anchor,/optional branch\/tag[\s\S]*only after approval/i);
+  assert.match(anchor,/Only after approval,[\s\S]*optional branch\/tag/i);
 });
 
