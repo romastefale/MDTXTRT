@@ -343,6 +343,9 @@ test('Telegram keeps a real stable landscape viewport unlocked and shows the por
     onEvent(type,fn){handlers.set(type,fn);}
   }});
   await wait(10);
+  assert.equal(typeof handlers.get('viewportChanged'),'function');
+  handlers.get('viewportChanged')({isStateStable:true});
+  await wait(0);
   assert.equal(w.document.documentElement.getAttribute('data-device-gate'),'portrait');
   assert.equal(locks,0);
   w.close();
