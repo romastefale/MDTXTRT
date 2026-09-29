@@ -211,6 +211,17 @@ test('Telegram revisions preserve chat history with an update notice and a new m
   assert.deepEqual(afterRevision.data.publication.history.map(item=>item.messageId),[42,44]);
   assert.deepEqual(afterRevision.data.publication.history.map(item=>item.noticeMessageId),[0,43]);
 
+  const publicationLibrary=await jsonPost('/api/library/list',{initData:init(7)});
+  assert.equal(publicationLibrary.status,200,publicationLibrary.data.error);
+  const publicationCard=publicationLibrary.data.telegram.find(item=>item.docId===doc);
+  assert.ok(publicationCard);
+  assert.equal(publicationCard.messageId,44);
+  assert.equal(publicationCard.revision,2);
+  assert.equal(publicationCard.historyCount,2);
+  assert.equal(publicationCard.preview,'Segunda versão');
+  assert.ok(publicationCard.createdAt>0);
+  assert.ok(publicationCard.updatedAt>=publicationCard.createdAt);
+
   const other={...second,revision:3,html:'<p>Outro usuário</p>'};
   const otherUser=await formPost('/api/telegram/send',{initData:init(8),html:other.html,draft:JSON.stringify(other)});
   assert.equal(otherUser.status,200,otherUser.data.error);
@@ -647,7 +658,7 @@ test('Telegraph ownership mapping survives create and edit on same document',asy
 });
 
 
-test('library lists owned drafts and Telegraph pages and loads Telegraph content for editing',async()=>{
+test('library lists owned drafts and Telegraph pages with card metadata and loads Telegraph content for editing',async()=>{
   const browserKey='91'.repeat(32);
   const otherKey='92'.repeat(32);
   const doc=randomUUID();
@@ -664,9 +675,18 @@ test('library lists owned drafts and Telegraph pages and loads Telegraph content
 
   const library=await jsonPost('/api/library/list',{browserKey});
   assert.equal(library.status,200,library.data.error);
-  assert.ok(library.data.drafts.some(item=>item.docId===doc&&item.name==='Biblioteca'));
+  const draftCard=library.data.drafts.find(item=>item.docId===doc);
+  assert.ok(draftCard);
+  assert.equal(draftCard.name,'Biblioteca');
+  assert.equal(draftCard.preview,'Biblioteca');
+  assert.ok(draftCard.createdAt>0);
+  assert.ok(draftCard.updatedAt>=draftCard.createdAt);
   assert.equal(library.data.drafts.some(item=>item.docId===otherDoc),false);
-  assert.ok(library.data.telegraph.some(item=>item.docId===doc&&item.path===published.data.path));
+  assert.deepEqual(library.data.telegram,[]);
+  const telegraphCard=library.data.telegraph.find(item=>item.docId===doc&&item.path===published.data.path);
+  assert.ok(telegraphCard);
+  assert.equal(telegraphCard.preview,'Biblioteca');
+  assert.equal(telegraphCard.createdAt,draftCard.createdAt);
 
   const page=await jsonPost('/api/telegraph/load',{browserKey,doc});
   assert.equal(page.status,200,page.data.error);
