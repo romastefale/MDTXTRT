@@ -676,6 +676,8 @@ test('step 6 persists drafts on the Railway volume, binds Telegram publication p
   assert.match(app,/form\.set\('draft',JSON\.stringify\(draftState\(\)\)\)/);
   assert.match(app,/function panelViewportBounds\(base=visualViewportBounds\(\)\)/);
   assert.match(app,/bar\?\.getBoundingClientRect/);
+  assert.match(app,/panel\.setAttribute\('data-runtime-positioned',''\)/);
+  assert.match(html,/\.glass-menu\[data-anchor\],\.glass-menu\[data-runtime-positioned\]/);
   assert.match(html,/\.document-tools::before\{content:attr\(data-field-label\)/);
   assert.match(html,/Título do documento/);
   assert.match(html,/Título da página no Telegraph/);
