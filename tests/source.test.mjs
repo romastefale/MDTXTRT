@@ -772,7 +772,7 @@ test('final release gap analysis, surface audit and final-only anchor gates are 
   assert.match(evidence,/Draft persistence/);
   assert.match(evidence,/Import\/export/);
   assert.match(evidence,/Railway draft-volume write failure/);
-  assert.match(evidence,/Telegram edit timeout/);
+  assert.match(evidence,/Telegram revision notice\/content timeout/);
   assert.match(evidence,/stale persistent draft revision/);
 
   assert.equal(manifest.visualBaseline,'aac423e012745c7873908ddc4a76371fb8218aa3');
@@ -786,7 +786,7 @@ test('final release gap analysis, surface audit and final-only anchor gates are 
 
   assert.match(gap,/G-04 — exact production deployment/);
   assert.match(gap,/G-05 — physical draft persistence\/restart evidence/);
-  assert.match(gap,/G-07 — real Telegram send\/edit path/);
+  assert.match(gap,/G-07 — real Telegram send\/revision-history path/);
   assert.match(gap,/G-08 — physical Web\/PWA\/Mini App matrix/);
   assert.match(gap,/G-11 — rollback exercise/);
   assert.match(gap,/there are \*\*no open engineering implementation gaps\*\*/);
@@ -802,7 +802,7 @@ test('final release gap analysis, surface audit and final-only anchor gates are 
   assert.match(validation,/RELEASE APPROVED/);
   assert.match(validation,/synthetic PR merge ref/);
   assert.match(validation,/Railway draft-volume persistence and restart/);
-  assert.match(validation,/real Telegram Rich Message send and later edit/i);
+  assert.match(validation,/real Telegram Rich Message send and revision history/i);
   assert.match(validation,/Web \/ PWA \/ Mini App and physical-device matrix/);
 
   assert.match(anchor,/canonical release identity is a \*\*full 40-character Git commit SHA\*\*/);
