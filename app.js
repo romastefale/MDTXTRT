@@ -562,13 +562,10 @@ function placePanel(panel,anchorRect=null){
   const rect=anchorRect||anchor?.getBoundingClientRect()||null;
   let box=panel.getBoundingClientRect();
   if(!usableAnchorRect(rect,viewport)){
-    if(panel.dataset.anchor){
-      panel.style.setProperty('--menu-left',clamp(bounds.left+(bounds.width-box.width)/2,bounds.left+edge,Math.max(bounds.left+edge,bounds.right-edge-box.width))+'px');
-      panel.style.setProperty('--menu-top',clamp(bounds.top+(bounds.height-box.height)/2,bounds.top+edge,Math.max(bounds.top+edge,bounds.bottom-edge-box.height))+'px');
-    }else{
-      panel.style.setProperty('--menu-left',(bounds.left+bounds.width/2)+'px');
-      panel.style.setProperty('--menu-top',(bounds.top+bounds.height/2)+'px');
-    }
+    const minLeft=bounds.left+edge,maxLeft=Math.max(minLeft,bounds.right-edge-box.width);
+    const minTop=bounds.top+edge,maxTop=Math.max(minTop,bounds.bottom-edge-box.height);
+    panel.style.setProperty('--menu-left',clamp(bounds.left+(bounds.width-box.width)/2,minLeft,maxLeft)+'px');
+    panel.style.setProperty('--menu-top',clamp(bounds.top+(bounds.height-box.height)/2,minTop,maxTop)+'px');
     return;
   }
   const aboveSpace=Math.max(0,rect.top-gap-(bounds.top+edge));
