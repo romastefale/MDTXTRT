@@ -670,6 +670,16 @@ test('bot import rejects invalid file input before creating a continuation',asyn
   assert.equal(res.status,200);
   assert.match(lastBotHTML(),/20 MB/);
   assert.equal(callCount('getFile'),beforeGet);
+
+  res=await webhook({message:{message_id:587,chat:{id:7,type:'private'},document:{file_id:'bad-name',file_name:'../notas.txt',file_size:10}}});
+  assert.equal(res.status,200);
+  assert.match(lastBotHTML(),/Nome de arquivo inválido/);
+  assert.equal(callCount('getFile'),beforeGet);
+
+  res=await webhook({message:{message_id:588,chat:{id:7,type:'private'},document:{file_id:'product-too-large',file_name:'origem.txt',file_size:240_001}}});
+  assert.equal(res.status,200);
+  assert.match(lastBotHTML(),/contrato de importação/);
+  assert.equal(callCount('getFile'),beforeGet);
 });
 
 test('bot import reports missing paths, confirmed download failures, network failure and invalid UTF-8 explicitly',async()=>{
