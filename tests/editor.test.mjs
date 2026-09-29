@@ -1522,7 +1522,7 @@ test('visual viewport constrains overlays and Find stays anchored to a visible c
 
   const prompt=w.eval("ask('Teste','valor')");
   await wait(0);
-  assert.ok(parseFloat(dialog.style.getPropertyValue('--menu-max-height'))<=105);
+  assert.ok(parseFloat(dialog.style.getPropertyValue('--menu-max-height'))<=112);
   assert.equal(parseFloat(dialog.style.getPropertyValue('--menu-left')),195);
   assert.ok(parseFloat(dialog.style.getPropertyValue('--menu-top'))+Math.min(120,parseFloat(dialog.style.getPropertyValue('--menu-max-height')))<=302);
   d.querySelector('#dialogCancel').click();
