@@ -192,7 +192,7 @@ test('editor uses incremental Markdown input rules on the transactional core',()
     'editorCore.applyMarkdownInlineRule()',
     "editorCore.normalizeEmptyFormattedBlock(event?.inputType||'')",
     'editorCore.exitFormattedBlock()',
-    "editorCore?.inBlock('blockquote')",
+    "core.inBlock('blockquote')",
     "editor.addEventListener('beforeinput',exitFormattedBlockOnParagraph);",
     'function syncEditorSelectionUI()',
     "btn.setAttribute('aria-pressed',String(on));"
@@ -266,7 +266,7 @@ test('editor keeps target-specific publishing validation and code metadata',()=>
   assert.match(app,/slice\(0,64\)/);
   assert.match(app,/Formato de data inválido/);
   assert.match(app,/function activeMedia\(\)/);
-  assert.match(app,/editorCore\.patchMedia/);
+  assert.match(app,/requireEditorCore\(\)\.patchMedia/);
   assert.doesNotMatch(app,/\bhistI\b|\bhistLock\b/);
   assert.doesNotMatch(app,/toast\.textContent\s*=/);
   assert.match(app,/toastTextHost/);
