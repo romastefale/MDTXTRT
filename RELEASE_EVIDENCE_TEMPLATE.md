@@ -45,11 +45,11 @@ Do not place tokens, raw Telegram initData, raw browser capabilities, passwords 
 - Attachment fixture/result, if applicable:
 - Recovery with local active slot absent:
 - Backend restart/deploy timestamp:
-- Persistent volume retained:
+- Draft persistent volume retained:
 - Recovery result after restart:
 - Cross-owner isolation result:
 - Final document/revision unchanged as expected:
-- Evidence reference:
+- Draft evidence reference:
 
 ## Telegraph restart test
 
@@ -64,7 +64,7 @@ Do not place tokens, raw Telegram initData, raw browser capabilities, passwords 
 - Recovery result after restart:
 - Edit result after restart:
 - Final path unchanged:
-- Evidence reference:
+- Telegraph evidence reference:
 
 ## Telegram Rich Message send/edit test
 
@@ -81,7 +81,7 @@ Do not place tokens, raw Telegram initData, raw browser capabilities, passwords 
 - Media upload result, when applicable:
 - Reload/reopen duplicate check:
 - Cross-owner/document binding isolation:
-- Evidence reference:
+- Telegram evidence reference:
 
 ## Web / PWA / Mini App physical matrix
 
@@ -152,7 +152,7 @@ For every row record menu/dialog reachability, bottom-bar clearance, internal sc
 - Forward redeploy procedure exercised:
 - Irreversible migration present?:
 - If yes, reverse/forward migration evidence:
-- Evidence reference:
+- Rollback evidence reference:
 - PASS/FAIL:
 
 ## Final decision
