@@ -652,6 +652,26 @@ test('step 4 format contract is explicit and conversion code uses the shared por
 });
 
 
+test('step 6 persists drafts on the Railway volume, binds Telegram publication provenance and labels the document title explicitly',()=>{
+  const html=read('index.html'),app=read('app.js'),server=read('server.mjs');
+  assert.match(server,/const DRAFT_DIR = DATA \+ "\/drafts"/);
+  assert.match(server,/function savePersistentDraft\(owner,draft,file=null\)/);
+  assert.match(server,/url\.pathname === "\/api\/drafts\/save"/);
+  assert.match(server,/url\.pathname === "\/api\/drafts\/load"/);
+  assert.match(server,/url\.pathname === "\/api\/drafts\/file"/);
+  assert.match(server,/telegramUserId/);
+  assert.match(server,/editMessageText/);
+  assert.match(server,/publishTelegramPersistent/);
+  assert.match(app,/function persistRemoteDraft\(pagehide=false\)/);
+  assert.match(app,/function loadRemoteDraft\(\)/);
+  assert.match(app,/form\.set\('draft',JSON\.stringify\(draftState\(\)\)\)/);
+  assert.match(app,/function panelViewportBounds\(base=visualViewportBounds\(\)\)/);
+  assert.match(app,/bar\?\.getBoundingClientRect/);
+  assert.match(html,/\.document-tools::before\{content:attr\(data-field-label\)/);
+  assert.match(html,/Título do documento/);
+  assert.match(html,/Título da página no Telegraph/);
+});
+
 test('step 5 overlays use the visual viewport without changing the baseline material contract',()=>{
   const html=read('index.html'),app=read('app.js'),src=uiSource();
   assert.match(html,/max-height:var\(--menu-max-height,min\(55vh,420px\)\)/);
