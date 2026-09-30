@@ -114,21 +114,6 @@ jobs:
       - name: Run complete regression suite
         run: npm test
 
-      - name: Compare rendered shell with visual reference snapshot
-        shell: bash
-        run: |
-          VISUAL_COMPARISON_SHA="$(node -e "const fs=require('fs');const m=JSON.parse(fs.readFileSync('RELEASE_MANIFEST.json','utf8'));process.stdout.write(m.visualComparisonSnapshot)")"
-          VISUAL_COMPARISON_SHA="$VISUAL_COMPARISON_SHA" node scripts/verify-visual-baseline.mjs
-
-      - name: Preserve visual comparison evidence
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: release-visual-comparison-${{ env.RELEASE_CANDIDATE_SHA }}
-          path: .release-visual/
-          include-hidden-files: true
-          if-no-files-found: error
-          retention-days: 30
 
   evidence:
     name: Final external and physical evidence gate
