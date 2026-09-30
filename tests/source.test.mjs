@@ -608,7 +608,7 @@ test('architecture provenance records official package use and copied example ow
 });
 
 
-test('draft persistence, Telegram provenance and explicit visual-baseline history stay documented',()=>{
+test('draft persistence, Telegram provenance and permanent evolution policy stay documented',()=>{
   const app=read('app.js'),server=read('server.mjs'),architecture=read('ARCHITECTURE.md'),drafts=read('LOCAL_DRAFTS.md'),baseline=read('BASELINE.md');
   assert.match(server,/const DRAFT_DIR = DATA \+ "\/drafts"/);
   assert.match(server,/url\.pathname === "\/api\/drafts\/save"/);
@@ -634,7 +634,9 @@ test('draft persistence, Telegram provenance and explicit visual-baseline histor
   assert.match(drafts,/verified Telegram user identifier/);
   assert.match(drafts,/does \*\*not\*\* rewrite the earlier chat message/);
   const manifest=JSON.parse(read('RELEASE_MANIFEST.json'));
-  assert.equal(manifest.evolutionPolicy.currentStateRole,'starting-point-for-next-evolution');
+  assert.equal(manifest.evolutionPolicy.temporalScope,'permanent');
+  assert.equal(manifest.evolutionPolicy.everyProductStateRemainsMutable,true);
+  assert.equal(manifest.evolutionPolicy.anyAcceptedStateMayBeSuperseded,true);
   assert.equal(manifest.evolutionPolicy.historicalStateAuthority,'none');
   assert.equal(manifest.evolutionPolicy.preservationByHistoricalParity,false);
   assert.match(baseline,/não deve ser preservada contra solicitações de correção ou implementação/i);
@@ -814,6 +816,10 @@ test('final release gap analysis, surface audit and final-only anchor gates are 
   assert.equal(manifest.evolutionPolicy.preservationByHistoricalParity,false);
   assert.equal(manifest.evolutionPolicy.divergenceFromHistoricalStateFails,false);
   assert.equal(manifest.evolutionPolicy.visualComparisonRole,'optional-diagnostic-only');
+  assert.equal(manifest.evolutionPolicy.temporalScope,'permanent');
+  assert.equal(manifest.evolutionPolicy.everyProductStateRemainsMutable,true);
+  assert.equal(manifest.evolutionPolicy.futureCertificationMayFreezeProduct,false);
+  assert.equal(manifest.evolutionPolicy.evolutionPromotionMayBeBlockedByHistoricalState,false);
   assert.match(workflow,/draft_persistence_evidence_ref:/);
   assert.match(workflow,/import_export_evidence_ref:/);
   assert.match(workflow,/DRAFT_PERSISTENCE_EVIDENCE_REF:/);
@@ -835,9 +841,7 @@ test('final release gap analysis, surface audit and final-only anchor gates are 
   assert.equal(manifest.evolutionPolicy.preservationByHistoricalParity,false);
   assert.equal(manifest.evolutionPolicy.divergenceFromHistoricalStateFails,false);
   assert.deepEqual(manifest.runtime,{node:'24.21.0',npm:'11.19.0'});
-  assert.deepEqual(manifest.stages.map(stage=>stage.pr),[84,86,88,90,92,95]);
-  assert.equal(manifest.stages.at(-1).head,'ec3def6622818c0411bbeb94165716c7f30fa927');
-  assert.equal(manifest.stages.at(-1).validatedHead,'ad2b05d82770a5057d22b2f92d7fc02255bdfb1c');
+  assert.deepEqual(manifest.historicalEvidence.implementationStages.map(stage=>stage.pr),[84,86,88,90,92,95]);
   assert.equal(manifest.releaseEvidencePolicy.authority,'historical-release-evidence-sha');
   assert.equal(manifest.releaseEvidencePolicy.immutableProductState,false);
   assert.equal(manifest.releaseEvidencePolicy.preservationRequired,false);
@@ -879,7 +883,8 @@ test('final release gap analysis, surface audit and final-only anchor gates are 
 
   assert.match(anchor,/Engineering completion does not require an immutable Release Anchor/);
   assert.match(anchor,/canonical release identity is a \*\*full 40-character Git commit SHA\*\*/);
-  assert.match(anchor,/final immutable Release Anchor is created only after every mandatory criterion/i);
+  assert.doesNotMatch(anchor,/final immutable Release Anchor/i);
+  assert.match(anchor,/Certification does not freeze that state/i);
   assert.match(anchor,/Only after approval,[\s\S]*optional branch\/tag/i);
 });
 
