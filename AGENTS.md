@@ -6,7 +6,7 @@ This file is written for future coding agents and assistants operating on this r
 
 MDTXTRT is an evolving product. It is **not finished**.
 
-Current working baseline: `b22aee80bbaa79db63d12ef62ae523d968218aa5`.
+Current working baseline: `7fe51e8401012232281db416ac0d9bd080c18ebf`.
 
 The baseline is a comparison snapshot only. It is not a requirement to preserve existing behavior.
 
