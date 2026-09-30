@@ -59,7 +59,7 @@ PR #105 added the final runtime hardening: mandatory transactional editor paths,
 
 ### G-08 — physical Web/PWA/Mini App matrix
 
-**Status: POST-DELIVERY CERTIFICATION.** Automated viewport/focus/baseline tests are complete; physical iOS/Android evidence is post-delivery.
+**Status: POST-DELIVERY CERTIFICATION.** Automated viewport/focus/current-contract tests are complete; physical iOS/Android evidence is post-delivery.
 
 ### G-09 — real import/export matrix
 
