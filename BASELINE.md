@@ -82,18 +82,6 @@ Não use `main`, o SHA da baseline, testes existentes, screenshots, documentaç�
 
 ## Uso técnico
 
-## Histórico
-
-- `ac0f66ccb5bdd49fb4cd744403dac79d8d1965ce` — candidato funcional usado durante o PR #126; substituído pelo merge publicado e validado em produção `977d61554f75c943b626f89fe871bb3becae75f1`.
-- `6742ec104de353d2f19507436fe352b0e0fd1a71` — baseline anterior do editor nativo pós-PR #125; substituída após tornar obrigatório o recarregamento completo na troca de tema e eliminar referências operacionais concorrentes de baseline.
-- `9c9f8d38313d5f0043283daf06d6ac015f90bded` — baseline anterior após o PR #123; substituída pelo estado funcional candidato do PR #125, que removeu o motor de edição legado e consolidou os contratos nativos/oficiais sem preservar as limitações anteriores.
-- `7fe51e8401012232281db416ac0d9bd080c18ebf` — baseline anterior após o PR #120; substituída após a evolução dos comandos privados do bot nos PRs #122 e #123, incluindo remoção dos caminhos legados e consolidação dos botões `web_app`.
-- `b22aee80bbaa79db63d12ef62ae523d968218aa5` — baseline anterior após o PR #118; substituída após tornar Rascunhos recolhível com a mesma normativa de Publicações no PR #120.
-- `db6ae2240cbe2792bd7edb1a9c26399f068ea807` — baseline anterior após a correção do toque móvel real no PR #118.
-- `1dbbdb2dfaeafbd8ef52cea859611ffa5f6699ad` — baseline histórica após o PR #107.
-- `aac423e012745c7873908ddc4a76371fb8218aa3` — shell translúcido consolidado após a etapa 2/6, PR #86.
-- `dde30467ed9b0d108bac2ae7ad9bcac1137c169e` — referência histórica anterior, merge do PR #53.
-
 ## Relação com evidência de release e validação
 
 Baseline de trabalho, evidência histórica de release, testes automatizados e evidência de produção têm funções distintas. Nenhum SHA histórico ou comparação histórica define a baseline corrente, e nenhum deles pode bloquear por si só a evolução requerida.

@@ -33,7 +33,7 @@ For this increment, engineering delivery is formally concluded only after the ex
 
 ### G-02 — no unified announced-surface audit
 
-**Status: CLOSED.** `SURFACE_CONTRACT.md` and `scripts/verify-surface-contract.mjs` are part of regression/release validation.
+**Status: CLOSED.** `SURFACE_CONTRACT.md` documents the surfaces; they are now exercised by the browser tests in `tests/browser/`.
 
 ### G-03 — incomplete evidence schema
 

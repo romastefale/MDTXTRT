@@ -8,14 +8,13 @@
     "build": "npm run build:editor && npm run build:ui",
     "build:editor": "esbuild src/editor-core.mjs --bundle --format=iife --global-name=MDTXTRTEditorCore --platform=browser --target=es2022 --minify --legal-comments=eof --outfile=editor-core.js",
     "build:ui": "esbuild src/liquid-glass-ui.jsx --bundle --format=esm --platform=browser --target=es2022 --define:process.env.NODE_ENV='\"production\"' --minify-syntax --minify-whitespace --legal-comments=eof --outfile=ui.js",
-    "verify:evolution-policy": "node scripts/verify-evolution-policy.mjs",
-    "compare:historical-visual": "node scripts/compare-historical-visual.mjs"
+    "test:browser": "playwright test"
   },
   "engines": {
     "node": "24.21.0"
   },
   "dependencies": {
-    "@samasante/liquid-glass": "0.1.1",
+    "@samasante/liquid-glass": "github:romastefale/liquid-glass#9df1c6b91f569bfc8e4904e9686af640acc1f6be",
     "busboy": "^1.6.0",
     "htmlparser2": "^10.0.0",
     "marked": "^18.0.14",
@@ -24,6 +23,7 @@
     "turndown": "^7.2.2"
   },
   "devDependencies": {
+    "@playwright/test": "1.63.0",
     "esbuild": "0.28.2",
     "jsdom": "^27.0.0"
   },
