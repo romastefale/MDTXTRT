@@ -826,7 +826,7 @@ function requireEditorCore(){
   return editorCore;
 }
 function currentEditorCore(){return requireEditorCore();}
-function saveSel(){savedRange=requireEditorCore().saveSelection();}
+function saveSel(){savedRange=requireEditorCore().saveSelection();requireEditorCore().rememberSelection?.();}
 function restoreSel(){return savedRange?requireEditorCore().restoreSelection(savedRange):false;}
 function pushHist(){requireEditorCore().syncFromDOM({addToHistory:true});}
 function histUndo(){if(requireEditorCore().undo()){restoreActiveMediaVisual();syncEditorSelectionUI();}}
@@ -846,6 +846,7 @@ function expandWord(){
 }
 function exec(cmd,value=null){
   if(!editorCore)throw new Error('Núcleo de edição indisponível');
+  restoreSel();
   if(cmd==='insertUnorderedList')return toggleList();
   editorCore.exec(cmd,value);
   syncEditorSelectionUI();
@@ -869,11 +870,13 @@ function normalizeBlocks(){
 }
 function toggleList(type='ul'){
   if(!editorCore)throw new Error('Núcleo de edição indisponível');
+  restoreSel();
   if(!editorCore.toggleList(type))throw new Error('Selecione parágrafos para criar a lista');
   syncEditorSelectionUI();closePanels();
 }
 function formatBlock(tag){
   if(!editorCore)throw new Error('Núcleo de edição indisponível');
+  restoreSel();
   if(!editorCore.formatBlock(tag))throw new Error('Não foi possível alterar o bloco');
   syncEditorSelectionUI();closePanels();
 }
@@ -1711,13 +1714,6 @@ function buildTelegraph(){
   const identity=session==='ready'?{initData:getTg().initData}:{browserKey:browserOwnerKey()};
   return {title, content: telegraphNodes(editor), path: telegraphPath, doc: docId, revision: docRevision, ...identity};
 }
-function exitFormattedBlockOnParagraph(event){
-  if(composing||event.inputType!=='insertParagraph'||!editorCore)return;
-  if(editorCore.exitFormattedBlock()){
-    event.preventDefault();
-    syncEditorSelectionUI();
-  }
-}
 function commitEditorInput(event){
   if(!editorCore)return;
   editorCore.syncFromDOM({addToHistory:true});
@@ -1728,8 +1724,7 @@ function commitEditorInput(event){
 }
 editor.addEventListener('beforeinput',event=>{
   if(!editorCore||composing)return;
-  if(editorCore.handleBeforeInput(event))return;
-  exitFormattedBlockOnParagraph(event);
+  editorCore.handleBeforeInput(event);
 });
 editor.addEventListener('keydown',event=>{if(editorCore)editorCore.handleKeydown(event);});
 editor.addEventListener('input', event=>{ if(!composing)commitEditorInput(event); });
