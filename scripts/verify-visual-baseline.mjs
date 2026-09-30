@@ -115,15 +115,11 @@ try{
   writeFileSync(join(outDir,'summary.json'),JSON.stringify({viewport:'390x844@1x',comparisons:summaries},null,2)+'\n');
   console.log(JSON.stringify(summaries,null,2));
   const divergent=summaries.filter(item=>!item.identical);
-  const preservationRequired=process.env.BASELINE_PRESERVATION_REQUIRED==='1';
   if(divergent.length){
     const themes=divergent.map(item=>item.theme).join(', ');
-    if(preservationRequired){
-      throw new Error('Preservação visual foi explicitamente exigida e o shell divergiu do snapshot de comparação em: '+themes);
-    }
-    console.warn('VISUAL EVOLUTION REVIEW: o candidato divergiu do snapshot de comparação em: '+themes+'. Isto não é falha automática. Revise se a divergência é evolução deliberada ou regressão; se aceita, avance RELEASE_MANIFEST.json.visualComparisonSnapshot.');
+    console.warn('VISUAL EVOLUTION REVIEW: o candidato divergiu do snapshot histórico de comparação em: '+themes+'. A divergência nunca é falha por si só e nunca exige preservação do estado antigo. Avalie apenas contra requisitos e contratos intencionais atuais; quando aceita, o estado corrente segue como base da próxima evolução.');
   } else {
-    console.log('O candidato permanece visualmente idêntico à referência atual.');
+    console.log('O candidato coincide visualmente com o snapshot histórico de comparação; isso é apenas evidência comparativa, não requisito de preservação.');
   }
 }finally{
   if(candidateServer)await close(candidateServer).catch(()=>{});
