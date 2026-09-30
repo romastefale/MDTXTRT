@@ -33,7 +33,7 @@ Do not place tokens, raw Telegram initData, raw browser capabilities, passwords 
 | Fresh npm ci |  |  |
 | editor-core.js reproducible |  |  |
 | ui.js reproducible |  |  |
-| Historical implementation-stage record shape (traceability only; no ancestry gate) |  |  |
+| Optional historical implementation-stage record (if retained; traceability only) | N/A or result | evidence ref if applicable |
 | Surface contract |  |  |
 | Optional historical visual diagnostic (if performed) | N/A or result | evidence ref if applicable |
 
