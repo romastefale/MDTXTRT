@@ -4,7 +4,7 @@
 
 A baseline de trabalho vigente do MDTXTRT é:
 
-`ac0f66ccb5bdd49fb4cd744403dac79d8d1965ce`
+`977d61554f75c943b626f89fe871bb3becae75f1`
 
 - Data de adoção: 2026-09-30.
 - Origem: estado atual com o editor nativo consolidado, troca de tema por recarregamento completo da página e baseline operacional centralizada em `RELEASE_MANIFEST.json.visualBaseline`, sem referências operacionais concorrentes.
@@ -48,17 +48,18 @@ Para inspecionar exatamente o estado desta baseline:
 
 ```bash
 git fetch origin
-git checkout ac0f66ccb5bdd49fb4cd744403dac79d8d1965ce
+git checkout 977d61554f75c943b626f89fe871bb3becae75f1
 ```
 
 Para comparar um estado posterior:
 
 ```bash
-git diff ac0f66ccb5bdd49fb4cd744403dac79d8d1965ce..HEAD
+git diff 977d61554f75c943b626f89fe871bb3becae75f1..HEAD
 ```
 
 ## Histórico
 
+- `ac0f66ccb5bdd49fb4cd744403dac79d8d1965ce` — candidato funcional usado durante o PR #126; substituído pelo merge publicado e validado em produção `977d61554f75c943b626f89fe871bb3becae75f1`.
 - `6742ec104de353d2f19507436fe352b0e0fd1a71` — baseline anterior do editor nativo pós-PR #125; substituída após tornar obrigatório o recarregamento completo na troca de tema e eliminar referências operacionais concorrentes de baseline.
 - `9c9f8d38313d5f0043283daf06d6ac015f90bded` — baseline anterior após o PR #123; substituída pelo estado funcional candidato do PR #125, que removeu o motor de edição legado e consolidou os contratos nativos/oficiais sem preservar as limitações anteriores.
 - `7fe51e8401012232281db416ac0d9bd080c18ebf` — baseline anterior após o PR #120; substituída após a evolução dos comandos privados do bot nos PRs #122 e #123, incluindo remoção dos caminhos legados e consolidação dos botões `web_app`.
