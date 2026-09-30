@@ -2,7 +2,7 @@
 
 This document is the executable product contract for import, export and publication. It originated in the earlier format-contract evolution and remains the format-specific boundary of the current product after the six implementation stages. `ARCHITECTURE.md` records the broader system boundaries; Etapa 7/7 changes validation/evidence only, not these serialization semantics.
 
-The current visual baseline is the SHA in `RELEASE_MANIFEST.json.visualBaseline`; `BASELINE.md` records its provenance and superseded historical references.
+The current product state is the starting point for the next evolution. Historical SHAs and optional visual comparisons are diagnostic evidence only: they do not define the current baseline, impose parity, or constrain requested evolution. `BASELINE.md` defines this evolution policy.
 
 ## File matrix
 
