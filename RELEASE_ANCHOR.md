@@ -6,7 +6,7 @@ A release SHA identifies the exact code state against which a particular certifi
 
 It is **not an immutable product baseline**, **not a preservation target**, and **not authority over subsequent development**. A later correction or evolution is expected to create a later state. Historical release evidence remains attached to the SHA it actually tested, while development continues from the current product state.
 
-`RELEASE_MANIFEST.json.visualComparisonSnapshot` is separately a replaceable visual-comparison snapshot. Neither that snapshot nor a release-evidence SHA defines required future behavior.
+Historical visual comparisons are optional diagnostics against explicitly selected SHAs. Neither such a comparison nor a release-evidence SHA defines required future behavior.
 
 ## Engineering completion versus release certification
 
