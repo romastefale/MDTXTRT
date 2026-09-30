@@ -10,6 +10,9 @@ A baseline de trabalho vigente do MDTXTRT é:
 - Origem: estado atual com o editor nativo consolidado, troca de tema por recarregamento completo da página e baseline operacional centralizada em `RELEASE_MANIFEST.json.visualBaseline`, sem referências operacionais concorrentes.
 - Natureza: snapshot operacional do novo estado deliberadamente evoluído e aceito como referência visual/funcional para esta linha de desenvolvimento.
 - Esta baseline **não é o produto final**, **não é uma especificação imutável** e **não deve ser preservada contra solicitações de correção ou implementação**.
+- Esta baseline é **explicitamente uma base de evolução**: serve como ponto de partida para o próximo estado melhorado do produto e deve ser substituída sempre que uma evolução deliberada, corrigida e aceita tornar o estado anterior obsoleto.
+
+> **Princípio normativo:** baseline significa referência atual para evoluir a partir dela, e não referência imutável para conservar. Preservar a baseline nunca é objetivo por si só quando isso conflita com correção, melhoria, refinamento ou implementação de requisitos.
 
 ## Regra de evolução
 
@@ -64,7 +67,7 @@ git diff 977d61554f75c943b626f89fe871bb3becae75f1..HEAD
 - `9c9f8d38313d5f0043283daf06d6ac015f90bded` — baseline anterior após o PR #123; substituída pelo estado funcional candidato do PR #125, que removeu o motor de edição legado e consolidou os contratos nativos/oficiais sem preservar as limitações anteriores.
 - `7fe51e8401012232281db416ac0d9bd080c18ebf` — baseline anterior após o PR #120; substituída após a evolução dos comandos privados do bot nos PRs #122 e #123, incluindo remoção dos caminhos legados e consolidação dos botões `web_app`.
 - `b22aee80bbaa79db63d12ef62ae523d968218aa5` — baseline anterior após o PR #118; substituída após tornar Rascunhos recolhível com a mesma normativa de Publicações no PR #120.
-- `db6ae2240cbe2792bd7edb1a9c26399f068ea807` — baseline anterior após o PR #116; substituída após a correção do toque móvel real no PR #118.
+- `db6ae2240cbe2792bd7edb1a9c26399f068ea807` — baseline anterior após a correção do toque móvel real no PR #118.
 - `1dbbdb2dfaeafbd8ef52cea859611ffa5f6699ad` — baseline histórica após o PR #107.
 - `aac423e012745c7873908ddc4a76371fb8218aa3` — shell translúcido consolidado após a etapa 2/6, PR #86.
 - `dde30467ed9b0d108bac2ae7ad9bcac1137c169e` — referência histórica anterior, merge do PR #53.
