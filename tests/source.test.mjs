@@ -6,7 +6,8 @@ import vm from 'node:vm';
 
 const root=new URL('../',import.meta.url);
 const read=name=>readFileSync(new URL(name,root),'utf8');
-const uiSource=()=>read('src/liquid-glass-ui.jsx');
+// A interface React: ponto de entrada, componentes e estado dos menus.
+const uiSource=()=>['src/liquid-glass-ui.jsx','src/chrome.jsx','src/ui-store.mjs'].map(read).join('\n');
 // A página é o HTML mais a folha de estilos que ele carrega.
 const page=()=>read('index.html')+'\n'+read('styles.css');
 
@@ -213,12 +214,14 @@ test('UI keeps zoom locked and context menus anchored to their triggers',()=>{
   assert.match(src,/id="plusBtn"[\s\S]*aria-haspopup="menu"/);
   assert.doesNotMatch(src,/popoverTarget=/);
   const typebar=src.slice(src.indexOf('<GlassControl className="bar"'),src.indexOf('</GlassControl>',src.indexOf('<GlassControl className="bar"')));
-  assert.ok(typebar.indexOf('id="plusBtn"')<typebar.indexOf('data-cmd="bold"'));
+  assert.ok(typebar.indexOf('<PlusButton />')>=0);
+  assert.ok(typebar.indexOf('<PlusButton />')<typebar.indexOf('data-cmd="bold"'));
   for(const pair of [['headingMenu','headingBtn'],['listMenu','listBtn'],['quoteMenu','quoteBtn'],['plusMenu','plusBtn'],['exportMenu','exportBtn']]){
     assert.match(src,new RegExp('id="'+pair[0]+'"[^>]*anchorId="'+pair[1]+'"'));
   }
   assert.match(app,/function placePanel\(panel,anchorRect=null\)/);
-  assert.match(app,/panel\.style\.setProperty\('--menu-left'/);
+  assert.match(app,/ui\.setMenu\(id,\{left,top:clamp\(proposed,minTop,maxTop\)\}\)/);
+  assert.match(src,/style\["--menu-left"\] = px\(menu\.left\)/);
   assert.match(src,/id="toast" role="status" aria-live="polite" aria-atomic="true"/);
   assert.match(src,/id="dialogMenu"[\s\S]*?popover="manual"[\s\S]*?role="dialog"[\s\S]*?aria-modal="true"/);
 });
@@ -245,7 +248,8 @@ test('plus menu opens categorized submenus over its trigger',()=>{
   assert.match(app,/const plusSubmenus=\['#plus-file-menu','#plus-format-menu','#plus-structure-menu','#plus-media-menu','#plus-interaction-menu'\]/);
   assert.match(app,/function openPlusSubmenu\(key\)/);
   assert.match(app,/function openPlusRoot\(\)/);
-  assert.match(app,/plusSubmenus\.some\(sel=>panelIsOpen\(one\(sel\)\)\)/);
+  assert.match(src,/const plusOpen = useUI\([\s\S]*?id === "plusMenu" \|\| id\.startsWith\("plus-"\)/);
+  assert.match(src,/className=\{plusOpen \? "more on" : "more"\} id="plusBtn"/);
 });
 
 test('editorial pointer retention has one owner and standard menus never depend on native popover focus',()=>{
@@ -256,12 +260,13 @@ test('editorial pointer retention has one owner and standard menus never depend 
   assert.match(app,/function focusMenuControl\(element,outsidePanel=null\)[\s\S]*?if\(typingFocusActive\(outsidePanel\)\)return false;[\s\S]*?focusControl\(element\)/);
   assert.doesNotMatch(app,/retainedTouch|touchActivating|gesture\.target\.click\(\)/);
   assert.doesNotMatch(app,/document\.addEventListener\('touchstart'|document\.addEventListener\('touchend'/);
-  assert.match(app,/function panelIsOpen\(panel\)[\s\S]*?data-menu-open/);
-  assert.match(app,/function openPanel\(sel,anchorOverride=null\)[\s\S]*?panel\.setAttribute\('data-menu-open',''\)/);
-  assert.match(app,/function closePanel\(panel,returnFocus=false\)[\s\S]*?panel\.removeAttribute\('data-menu-open'\)/);
+  assert.match(app,/function panelIsOpen\(panel\)[\s\S]*?ui\.menu\(panel\.id\)\.open/);
+  assert.match(app,/function openPanel\(sel,anchorOverride=null\)[\s\S]*?ui\.setMenu\(panel\.id,\{open:true,anchor:anchor\?\.id\|\|null\}\)/);
+  assert.match(app,/function closePanel\(panel,returnFocus=false\)[\s\S]*?ui\.setMenu\(panel\.id,\{open:false\}\)/);
+  assert.match(src,/data-menu-open=\{open \? "" : undefined\}/);
   assert.match(app,/menuDismissLayer\?\.addEventListener\('pointerdown'[\s\S]*?event\.preventDefault\(\)/);
   assert.match(app,/menuDismissLayer\?\.addEventListener\('click'[\s\S]*?closePanels\(\)/);
-  assert.match(src,/id="menuDismissLayer" className="menu-dismiss-layer" hidden/);
+  assert.match(src,/id="menuDismissLayer" className="menu-dismiss-layer" hidden=\{!menuOpen\}/);
   assert.doesNotMatch(src,/popoverTarget=/);
   assert.match(src,/popover = null/);
   assert.match(src,/popover=\{popover \|\| undefined\}/);
@@ -341,7 +346,7 @@ test('execution toolchain is pinned and CI verifies committed browser bundles wi
   assert.match(workflow,/test "\$\(npm --version\)" = "11\.19\.0"/);
   assert.match(workflow,/name: Rebuild transactional editor bundle[\s\S]*?npm run build:editor/);
   assert.match(workflow,/name: Verify transactional editor bundle[\s\S]*?git diff --exit-code -- editor-core\.js/);
-  assert.match(workflow,/name: Detect React UI bundle input changes[\s\S]*?src\/liquid-glass-ui\.jsx app\.js package\.json package-lock\.json/);
+  assert.match(workflow,/name: Detect React UI bundle input changes[\s\S]*?src app\.js package\.json package-lock\.json/);
   assert.match(workflow,/name: Rebuild React UI bundle[\s\S]*?steps\.ui_inputs\.outputs\.changed == 'true'[\s\S]*?npm run build:ui/);
   assert.match(workflow,/name: Verify React UI bundle[\s\S]*?git diff --exit-code -- ui\.js/);
   assert.doesNotMatch(workflow,/git push|contents: write/);
@@ -466,12 +471,13 @@ test('step 6 persists drafts on the Railway volume, binds Telegram publication p
   assert.match(app,/form\.set\('draft',JSON\.stringify\(draftState\(\)\)\)/);
   assert.match(app,/function panelViewportBounds\(base=visualViewportBounds\(\)\)/);
   assert.match(app,/bar\?\.getBoundingClientRect/);
-  assert.match(app,/panel\.setAttribute\('data-runtime-positioned',''\)/);
+  assert.match(app,/ui\.setMenu\(id,\{positioned:true,maxHeight:baseMax,maxWidth\}\)/);
+  assert.match(uiSource(),/data-runtime-positioned=\{menu\?\.positioned \? "" : undefined\}/);
   assert.match(html,/\.glass-menu\[data-anchor\],\.glass-menu\[data-runtime-positioned\]/);
   assert.match(html,/\.document-tools::before\{content:attr\(data-field-label\)/);
   assert.match(html,/Título do documento/);
   assert.match(html,/Título da página no Telegraph/);
-  const ui=read('src/liquid-glass-ui.jsx');
+  const ui=uiSource();
   assert.match(ui,/id="exportMenu"[\s\S]*?id="libraryBtn"/);
   assert.match(ui,/id="libraryMenu"[\s\S]*?className="wide-menu plus-submenu library-menu"/);
   assert.doesNotMatch(ui,/id="libraryScreen"/);
@@ -483,8 +489,9 @@ test('step 6 persists drafts on the Railway volume, binds Telegram publication p
   assert.doesNotMatch(ui,/id="libraryRefresh"/);
   assert.match(ui,/<MenuItem icon="arrow_back" className="submenu-back" id="libraryClose">/);
   assert.match(ui,/<MenuItem icon="sticky_note_2" id="libraryNew">Novo documento<\/MenuItem>/);
-  assert.match(ui,/id="publicationToggle"[\s\S]*?aria-expanded="false"/);
-  assert.match(ui,/id="draftToggle"[\s\S]*?aria-expanded="false"[\s\S]*?aria-controls="draftLists"/);
+  assert.match(ui,/function LibraryToggle\(\{ field, children, \.\.\.props \}\)[\s\S]*?aria-expanded=\{String\(open\)\}/);
+  assert.match(ui,/id="publicationToggle" field="publicationsOpen" aria-controls="publicationLists"/);
+  assert.match(ui,/id="draftToggle" field="draftsOpen" aria-controls="draftLists"/);
   assert.ok(ui.indexOf('id="publicationToggle"')<ui.indexOf('id="draftToggle"'));
   assert.doesNotMatch(ui,/Conteúdo persistido no volume/);
   assert.match(ui,/Icon name="menu"/);
@@ -494,9 +501,8 @@ test('step 6 persists drafts on the Railway volume, binds Telegram publication p
   assert.match(app,/function togglePanel\(sel,anchorOverride=null\)/);
   assert.match(html,/\.menu-dismiss-layer\{[\s\S]*?position:fixed[\s\S]*?z-index:39/);
   assert.match(html,/\.glass-menu\[data-menu-open\],\.glass-menu\[popover\]:popover-open/);
-  assert.match(app,/function setLibrarySectionExpanded\(toggleId,contentId,expanded\)/);
-  assert.match(app,/function setPublicationsExpanded\(expanded\)/);
-  assert.match(app,/function setDraftsExpanded\(expanded\)/);
+  assert.match(app,/function setPublicationsExpanded\(expanded\)\{ui\.setLibrary\(\{publicationsOpen:Boolean\(expanded\)\}\);\}/);
+  assert.match(app,/function setDraftsExpanded\(expanded\)\{ui\.setLibrary\(\{draftsOpen:Boolean\(expanded\)\}\);\}/);
   assert.match(html,/\.library-publication-groups,\.library-draft-groups\{/);
   assert.match(html,/\.library-publication-groups\[hidden\],\.library-draft-groups\[hidden\]\{display:none\}/);
   assert.doesNotMatch(app,/function setLibraryView\(open\)/);
@@ -514,12 +520,38 @@ test('step 5 overlays use the visual viewport',()=>{
   assert.match(html,/#dialogMenu:popover-open::backdrop\{background:transparent;pointer-events:auto\}/);
   assert.match(app,/function visualViewportBounds\(\)/);
   assert.match(app,/function panelViewportBounds\(base=visualViewportBounds\(\)\)[\s\S]*?\.bar-wrap/);
-  assert.match(app,/function placePanel\(panel,anchorRect=null\)[\s\S]*?panelViewportBounds\(viewport\)[\s\S]*?--menu-max-height[\s\S]*?--menu-max-width/);
+  assert.match(app,/function placePanel\(panel,anchorRect=null\)[\s\S]*?panelViewportBounds\(viewport\)[\s\S]*?ui\.setMenu\(id,\{positioned:true,maxHeight:baseMax,maxWidth\}\)/);
+  assert.match(src,/style\["--menu-max-height"\] = px\(menu\.maxHeight\)[\s\S]*?style\["--menu-max-width"\] = px\(menu\.maxWidth\)/);
   assert.match(app,/openPanel\('#findMenu',anchor\)/);
   assert.match(app,/const anchor=one\('#plusBtn'\)/);
   assert.match(app,/function setDialogModality\(active\)[\s\S]*?setAttribute\('inert',''\)/);
   assert.match(app,/one\('#dialogMenu'\)\.addEventListener\('keydown'[\s\S]*?event\.key!=='Tab'/);
   assert.match(app,/if\(dialog\?\.matches\(':popover-open'\)\)placePanel\(dialog\)/);
   assert.match(src,/id="dialogMenu"[\s\S]*?role="dialog"[\s\S]*?aria-modal="true"/);
+});
+
+test('menus, dialog and library are React state: app.js never rewrites their markup',()=>{
+  const app=read('app.js'),src=uiSource();
+  assert.match(app,/const ui = window\.MDTXTRT_UI;/);
+  assert.match(src,/window\.MDTXTRT_UI = uiStore;/);
+  assert.match(src,/useSyncExternalStore\(subscribeUI, read, read\)/);
+  for(const forbidden of [
+    /setAttribute\('data-menu-open'|removeAttribute\('data-menu-open'/,
+    /data-runtime-positioned'/,
+    /style\.setProperty\('--menu-/,
+    /setAttribute\('aria-expanded'/,
+    /classList\.toggle\('is-current'/,
+    /menuDismissLayer\.hidden/,
+    /\[data-telegram-only\]'\)\.forEach|\[data-telegraph-only\]'\)\.forEach/,
+    /#dialogLabel'\)\.textContent|#dialogOk'\)\.textContent|#dialogCancel'\)\.textContent/,
+    /\.showPopover\(\)|\.hidePopover\(\)/,
+    /replaceChildren\(/,
+    /createElement\('article'\)/,
+    /#libraryStatus'\)[\s\S]{0,40}textContent/,
+    /openLabel\.textContent/
+  ])assert.doesNotMatch(app,forbidden);
+  // A delegação que mantém o teclado aberto continua no documento.
+  assert.match(app,/document\.addEventListener\('pointerdown',retainTypingFocus,true\);/);
+  assert.match(app,/document\.addEventListener\('mousedown',retainTypingFocus,true\);/);
 });
 
