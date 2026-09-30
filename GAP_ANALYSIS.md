@@ -84,4 +84,4 @@ Engineering delivery is concluded when:
 
 After those four conditions, there are **no open engineering implementation gaps** in this cycle.
 
-Physical/external/rollback checks remain visible as post-delivery certification evidence, not hidden or falsely marked PASS. They gate only the optional `RELEASE APPROVED` exact-SHA evidence record defined by `RELEASE_ANCHOR.md`; they do not gate engineering completion or product deployment.
+Physical/external/rollback checks remain visible as post-delivery certification evidence, not hidden or falsely marked PASS. They gate only the optional `RELEASE APPROVED` exact-SHA evidence record defined by `RELEASE_EVIDENCE_POLICY.md`; they do not gate engineering completion or product deployment.
