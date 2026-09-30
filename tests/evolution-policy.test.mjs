@@ -78,7 +78,7 @@ test('release evidence can never freeze or block a later evolution', () => {
 
 test('repository contains no legacy freeze-policy tokens or executable historical-ancestry gates', () => {
   const root = new URL('../', import.meta.url);
-  const allowedExtensions = new Set(['.js','.mjs','.jsx','.json','.md','.yml','.yaml','.html','.webmanifest']);
+  const binaryExtensions = new Set(['.jpg','.jpeg','.png','.gif','.webp','.ico','.zip','.pdf','.woff','.woff2','.ttf']);
   const skip = new Set(['node_modules','.git','.historical-visual-comparison']);
   const files = [];
   const walk = dir => {
@@ -86,7 +86,7 @@ test('repository contains no legacy freeze-policy tokens or executable historica
       if (skip.has(entry.name)) continue;
       const path = join(dir,entry.name);
       if (entry.isDirectory()) walk(path);
-      else if (allowedExtensions.has(extname(entry.name))) files.push(path);
+      else if (entry.isFile() && !binaryExtensions.has(extname(entry.name).toLowerCase())) files.push(path);
     }
   };
   walk(new URL('../', import.meta.url).pathname);
