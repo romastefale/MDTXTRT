@@ -1,6 +1,6 @@
 # Release validation contract — Etapa 7/7
 
-This document defines the optional **release-certification** gate used to award the `RELEASE APPROVED` label and seal an immutable Release Anchor. It is separate from engineering delivery completion. Neither engineering completion nor `RELEASE APPROVED` means the product is final or must stop evolving; later corrections and implementations supersede older behavior when intentionally accepted.
+This document defines the optional **release-certification** gate used to award the `RELEASE APPROVED` label and record exact-SHA release evidence. It is separate from engineering delivery completion. Neither engineering completion nor `RELEASE APPROVED` means the product is final or must stop evolving; later corrections and implementations supersede older behavior when intentionally accepted.
 
 Engineering work is complete when the implementation is integrated, exact-main automated gates pass and that exact SHA is successfully deployed. The additional external/physical evidence below may be collected post-delivery; its absence does not represent unfinished code.
 
@@ -195,7 +195,7 @@ Before external testing:
 - redact tokens, raw `initData`, browser capability keys and secrets.
 
 Rollback:
-- identify last known-good immutable deployment SHA;
+- identify last known-good deployment SHA;
 - exercise deployment rollback/redeploy procedure;
 - verify persistent Railway volume is retained;
 - verify rollback does not delete draft/Telegraph ownership/provenance files;
@@ -211,6 +211,6 @@ Evidence completeness:
 
 - **BLOCKED** — at least one mandatory gate failed or lacks evidence.
 - **CANDIDATE VALIDATED** — all automated gates pass, but one or more external/physical/rollback evidence gates remain.
-- **RELEASE APPROVED** — Gates A–K all pass against the same immutable Release Anchor SHA.
+- **RELEASE APPROVED** — Gates A–K all pass against the same exact release-evidence SHA.
 
-Only **RELEASE APPROVED** authorizes the candidate SHA to be established as the final immutable product release.
+Only **RELEASE APPROVED** authorizes the candidate SHA to be recorded as the release state certified by that evidence.
