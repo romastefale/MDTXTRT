@@ -1,5 +1,11 @@
 export const REQUIRED_EVOLUTION_POLICY = Object.freeze({
   model: 'current-state-is-evolution-base',
+  temporalScope: 'permanent',
+  everyProductStateRemainsMutable: true,
+  anyAcceptedStateMayBeSuperseded: true,
+  futureCertificationMayFreezeProduct: false,
+  changePermissionDependsOnHistoricalState: false,
+  evolutionPromotionMayBeBlockedByHistoricalState: false,
   authority: 'current-requirements-and-intentional-contracts',
   historicalStateAuthority: 'none',
   historicalBehaviorIsNormative: false,
