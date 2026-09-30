@@ -6,7 +6,7 @@
 
 - **Fase 0 concluída (#129):** fork `romastefale/liquid-glass` instalado de verdade, testes que congelavam o design removidos e testes em navegador real (Playwright, Chromium e WebKit, 390px e 1280px, claro e escuro).
 - **Correções urgentes concluídas:** o servidor do Railway voltou a entregar o `editor-core.js`, que deixava o Mini App sem editor (#130). A falha ao buscar o rascunho no servidor oferece tentar de novo ou começar outro rascunho sem sobrescrever a cópia (#131). O botão Voltar do Telegram fecha essa escolha sem descartar nada (#132).
-- **Próximo, fase 1:** vidro igual ao do site de referência [romastefale/HTML](https://romastefale.github.io/HTML/), com lentes com refração WebGL 2, material neutro translúcido, aro fino, sem contorno azul, espaçamento uniforme e sem o aviso de retrato. As decisões de interface são tomadas com o proprietário.
+- **Próximo, fase 1:** vidro igual ao do site de referência [romastefale/HTML](https://romastefale.github.io/HTML/), com lentes com refração WebGL 2, material neutro translúcido, aro fino, sem contorno azul, espaçamento uniforme, teclado aberto enquanto se usa os menus e nenhum menu cortado na tela. O aviso efêmero de tela vertical continua, por decisão do proprietário. As decisões de interface são tomadas com o proprietário.
 - **Depois, fase 2:** estado dos menus no React, fim da mutação manual de DOM, CSS fora do `index.html` e divisão do `app.js` e do `server.mjs`.
 
 Panfleto do produto, com tutorial e roteiro: [romastefale.github.io/MDTXTRT/produto/](https://romastefale.github.io/MDTXTRT/produto/).
