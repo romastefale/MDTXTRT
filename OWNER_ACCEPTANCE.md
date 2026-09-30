@@ -109,4 +109,4 @@ Only perform when intentionally authorized for the production/staging environmen
 
 ## Completion
 
-When all owner-acceptance rows are PASS against the same exact SHA, attach the evidence to the release record and run the final external/physical evidence workflow. Only then may the SHA be labeled `RELEASE APPROVED` and recorded as the exact release-evidence SHA under `RELEASE_ANCHOR.md`.
+When all owner-acceptance rows are PASS against the same exact SHA, attach the evidence to the release record and run the final external/physical evidence workflow. Only then may the SHA be labeled `RELEASE APPROVED` and recorded as the exact release-evidence SHA under `RELEASE_EVIDENCE_POLICY.md`.
