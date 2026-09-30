@@ -136,7 +136,6 @@ function QuoteMenu() {
 function ExportMenu() {
   return (
     <GlassContextMenu id="exportMenu" className="wide-menu export-menu" anchorId="exportBtn" placement="auto">
-      <p className="hint">Publique, exporte ou acesse seus rascunhos e publicações.</p>
       <div className="menu-list">
         <MenuItem icon="file" id="libraryBtn">Rascunhos e publicações</MenuItem>
         <div className="menu-divider" role="separator" />
@@ -181,6 +180,11 @@ const plusSections = [
       ["calculate", "Fórmula em bloco", { "data-insert": "mathblock", "data-telegram-only": "" }],
       ["horizontal_rule", "Divisor", { "data-insert": "divider" }],
       ["table", "Tabela", { "data-insert": "table", "data-telegram-only": "" }],
+      ["add_row_below", "Adicionar linha", { "data-table-action": "add-row", "data-telegram-only": "" }],
+      ["delete", "Remover linha", { "data-table-action": "remove-row", "data-telegram-only": "" }],
+      ["view_column", "Adicionar coluna", { "data-table-action": "add-column", "data-telegram-only": "" }],
+      ["delete", "Remover coluna", { "data-table-action": "remove-column", "data-telegram-only": "" }],
+      ["delete_forever", "Apagar tabela", { "data-table-action": "delete-table", "data-telegram-only": "" }],
       ["details", "Conteúdo expansível", { "data-insert": "details", "data-telegram-only": "" }],
     ],
   },
@@ -322,14 +326,14 @@ function LibrarySubmenu() {
           icon="file"
           id="publicationToggle"
           className="library-section-toggle"
-          aria-expanded="true"
+          aria-expanded="false"
           aria-controls="publicationLists"
         >
           <span id="publicationLibraryTitle" className="menu-label">Publicações</span>
           <span id="publicationCount" className="library-section-count">0</span>
           <span className="menu-chevron"><Icon name="chevron_right" /></span>
         </MenuItem>
-        <div id="publicationLists" className="library-publication-groups">
+        <div id="publicationLists" className="library-publication-groups" hidden>
           <section className="library-platform-group" id="telegramLibrarySection" aria-labelledby="telegramLibraryTitle">
             <h3 id="telegramLibraryTitle">Telegram</h3>
             <div id="telegramList" className="library-list" />
@@ -344,14 +348,14 @@ function LibrarySubmenu() {
           icon="sticky_note_2"
           id="draftToggle"
           className="library-section-toggle"
-          aria-expanded="true"
+          aria-expanded="false"
           aria-controls="draftLists"
         >
           <span id="draftLibraryTitle" className="menu-label">Rascunhos</span>
           <span id="draftCount" className="library-section-count">0</span>
           <span className="menu-chevron"><Icon name="chevron_right" /></span>
         </MenuItem>
-        <div id="draftLists" className="library-draft-groups">
+        <div id="draftLists" className="library-draft-groups" hidden>
           <div id="draftList" className="library-list" aria-labelledby="draftLibraryTitle" />
         </div>
       </div>
