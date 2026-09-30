@@ -25,7 +25,7 @@ let dest = 'telegram';
 let session='browser',busy=false;
 const plusSubmenus=['#plus-file-menu','#plus-format-menu','#plus-structure-menu','#plus-media-menu','#plus-interaction-menu'];
 const sheets=['#plusMenu',...plusSubmenus,'#linkMenu','#headingMenu','#quoteMenu','#listMenu','#exportMenu','#libraryMenu','#findMenu'];
-let savedRange = null, editorCore = null, composing = false, saveTimer = null, remoteSaveTimer = null, remoteSaveQueue = Promise.resolve(), remoteMediaSyncedId = '', remoteSaveNoticeShown = false, telegraphPath = '', docId = crypto.randomUUID(), docRevision = 0, importedMd = '', importedTxt = '', importedHtml = '', mediaFile = null, mediaChoice = null, draftWriteBlocked = false, draftBlockNoticeShown = false, activeHandoff = '', handoffAction = null, exportOverride = null;
+let savedRange = null, editorCore = null, composing = false, saveTimer = null, remoteSaveTimer = null, remoteSaveQueue = Promise.resolve(), remoteMediaSyncedIds = new Set(), remoteSaveNoticeShown = false, telegraphPath = '', docId = crypto.randomUUID(), docRevision = 0, importedMd = '', importedTxt = '', importedHtml = '', mediaFiles = new Map(), mediaChoice = null, draftWriteBlocked = false, draftBlockNoticeShown = false, activeHandoff = '', handoffAction = null, exportOverride = null;
 function applyAssets(){
   all('[data-icon]').forEach(el => {
     const name = el.getAttribute('data-icon');
@@ -177,12 +177,17 @@ function draftHTML(){
   return box.innerHTML;
 }
 function activeMedia(){
-  const node=editor.querySelector('[data-media-id]');
-  return node&&mediaFile&&node.getAttribute('data-media-id')===mediaFile.id?mediaFile:null;
+  const result=[];
+  for(const node of editor.querySelectorAll('[data-media-id]')){
+    const id=node.getAttribute('data-media-id')||'';
+    const media=mediaFiles.get(id);
+    if(media)result.push(media);
+  }
+  return result;
 }
 function draftState(action=''){
   const active=activeMedia();
-  const state={version:STATE_VERSION,name:docName.value,html:draftHTML(),dest,telegraphPath,docId,revision:docRevision,importedMd,importedTxt,importedHtml,media:active?{id:active.id,kind:active.kind}:null};
+  const state={version:STATE_VERSION,name:docName.value,html:draftHTML(),dest,telegraphPath,docId,revision:docRevision,importedMd,importedTxt,importedHtml,media:active.map(item=>({id:item.id,kind:item.kind}))};
   if(action)state.action=action;
   return state;
 }
@@ -193,7 +198,8 @@ function cleanDraftHTML(html){
   const allowed=new Set('a b strong i em u ins s strike del code mark sub sup tg-spoiler tg-reference tg-emoji tg-time tg-math h1 h2 h3 h4 h5 h6 p pre footer hr ul ol li input blockquote aside cite img video audio tg-document figure figcaption iframe tg-map tg-collage tg-slideshow table caption thead tbody tfoot tr th td details summary tg-math-block tg-button tg-button-row br div'.split(' '));
   const attrs=new Set('href name class style src alt tg-spoiler start type reversed value checked disabled controls expandable unix format emoji-id lat long zoom width height bordered striped compact colspan rowspan align valign open url data query text forward-text request-write-access allow-user-chats allow-bot-chats allow-group-chats allow-channel-chats data-media-id data-media-missing'.split(' '));
   const localMedia=[...box.querySelectorAll('[data-media-id]')];
-  if(localMedia.length>1)throw new Error('O rascunho contém mais de um anexo local');
+  if(localMedia.length>50)throw new Error('O Telegram aceita no máximo 50 mídias por Rich Message');
+  if(new Set(localMedia.map(node=>node.getAttribute('data-media-id'))).size!==localMedia.length)throw new Error('O rascunho contém identificadores de mídia duplicados');
   for(const el of [...box.querySelectorAll('*')]){
     if(!allowed.has(el.localName))throw new Error('O rascunho contém um elemento não suportado');
     for(const a of [...el.attributes]){
@@ -211,38 +217,48 @@ function cleanDraftHTML(html){
   return box.innerHTML;
 }
 function mediaNode(id){return [...editor.querySelectorAll('[data-media-id]')].find(node=>node.getAttribute('data-media-id')===id)||null;}
+function clearRuntimeMedia(){
+  for(const media of mediaFiles.values())if(media.url)URL.revokeObjectURL(media.url);
+  mediaFiles.clear();
+  remoteMediaSyncedIds.clear();
+}
 function restoreActiveMediaVisual(){
-  if(!mediaFile?.id||!mediaFile.url)return false;
-  return requireEditorCore().patchMedia(mediaFile.id,{src:mediaFile.url,'data-media-missing':''});
+  let restored=false;
+  for(const media of activeMedia()){
+    if(!media.url)continue;
+    restored=requireEditorCore().patchMedia(media.id,{src:media.url,'data-media-missing':''})||restored;
+  }
+  return restored;
 }
 async function restoreMedia(){
-  const node=editor.querySelector('[data-media-id]');
-  if(!node)return;
-  const id=node.getAttribute('data-media-id');
-  try{
-    const saved=await mediaLoad(id);
-    if(!saved||saved.id!==id||!['image','video','audio','voice','document'].includes(saved.kind)||typeof saved.name!=='string'||!saved.name||typeof saved.type!=='string'||!saved.type||!(saved.file instanceof Blob))throw new Error('Anexo persistido incompatível');
-    if(mediaFile?.url)URL.revokeObjectURL(mediaFile.url);
-    const file=saved.file instanceof File?saved.file:new File([saved.file],saved.name,{type:saved.type,lastModified:Number.isFinite(saved.lastModified)?saved.lastModified:0});
-    const url=URL.createObjectURL(file);
-    mediaFile={file,id,kind:saved.kind,url};
-    restoreActiveMediaVisual();
-    decorateSpecials();
-  }catch(err){
-    try{await mediaDelete(id);}catch(cleanupError){console.error('Media cleanup',cleanupError);}
-    requireEditorCore().patchMedia(id,{src:'','data-media-missing':'true'});
-    showToast(err.message||'Não foi possível recuperar o anexo');
+  const nodes=[...editor.querySelectorAll('[data-media-id]')];
+  for(const node of nodes){
+    const id=node.getAttribute('data-media-id')||'';
+    try{
+      const saved=await mediaLoad(id);
+      if(!saved||saved.id!==id||!['image','video','audio','voice','document'].includes(saved.kind)||typeof saved.name!=='string'||!saved.name||typeof saved.type!=='string'||!saved.type||!(saved.file instanceof Blob))throw new Error('Anexo persistido incompatível');
+      const prior=mediaFiles.get(id);if(prior?.url)URL.revokeObjectURL(prior.url);
+      const file=saved.file instanceof File?saved.file:new File([saved.file],saved.name,{type:saved.type,lastModified:Number.isFinite(saved.lastModified)?saved.lastModified:0});
+      mediaFiles.set(id,{file,id,kind:saved.kind,url:URL.createObjectURL(file)});
+    }catch(err){
+      try{await mediaDelete(id);}catch(cleanupError){console.error('Media cleanup',cleanupError);}
+      requireEditorCore().patchMedia(id,{src:'','data-media-missing':'true'});
+      showToast(err.message||'Não foi possível recuperar o anexo');
+    }
   }
+  restoreActiveMediaVisual();decorateSpecials();
 }
 async function installMedia(file,id,kind){
-  if(mediaFile?.url)URL.revokeObjectURL(mediaFile.url);
-  const url=URL.createObjectURL(file);
-  mediaFile={file,id,kind,url};
+  const prior=mediaFiles.get(id);if(prior?.url)URL.revokeObjectURL(prior.url);
+  mediaFiles.set(id,{file,id,kind,url:URL.createObjectURL(file)});
   await mediaStore({id,file,kind,name:file.name,type:file.type,lastModified:file.lastModified});
   const node=mediaNode(id);
   if(!node)throw new Error('Anexo não encontrado no documento');
   restoreActiveMediaVisual();
   decorateSpecials();
+}
+function telegramUploadLimit(kind){
+  return kind==='image'?10_000_000:50_000_000;
 }
 function decorateSpecials(){
   requireEditorCore();
