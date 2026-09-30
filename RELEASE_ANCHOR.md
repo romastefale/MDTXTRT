@@ -4,7 +4,7 @@
 
 The canonical release identity is a **full 40-character Git commit SHA**. A convenience branch or tag may point to it, but never replaces the SHA as authority.
 
-`RELEASE_MANIFEST.json.visualBaseline` is a replaceable visual-comparison snapshot, mirrored by `BASELINE.md`. It is neither an approved behavioral baseline nor the release identity, and it does not constrain later product evolution.
+`RELEASE_MANIFEST.json.visualComparisonSnapshot` is a replaceable visual-comparison snapshot, mirrored by `BASELINE.md`. It is neither an approved behavioral baseline nor the release identity, and it does not constrain later product evolution.
 
 ## Engineering completion versus release certification
 
