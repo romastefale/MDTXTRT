@@ -86,6 +86,7 @@ const BOT_COMMANDS = [
 const MIME = {
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
   ".svg": "image/svg+xml",
   ".png": "image/png",
   ".jpg": "image/jpeg",
@@ -93,6 +94,7 @@ const MIME = {
 };
 const PUBLIC = new Set([
   "index.html",
+  "styles.css",
   "app.js",
   "ui.js",
   "editor-core.js",
@@ -2238,7 +2240,7 @@ const server = createServer(async (req, res) => {
     const ext = extname(file).toLowerCase();
     const type = MIME[ext];
     if (!type) throw new Error("Tipo de arquivo não configurado");
-    const live = ext === ".html" || ext === ".js";
+    const live = ext === ".html" || ext === ".js" || ext === ".css";
     res.writeHead(200, {
       "content-type": type,
       "cache-control": live ? "no-cache" : "public, max-age=600",
