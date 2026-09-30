@@ -902,85 +902,78 @@ function richEmojiImage(value){
   return url.protocol==="tg:"&&url.hostname==="emoji"&&/^\d+$/.test(url.searchParams.get("id")||"")&&[...url.searchParams.keys()].every(key=>key==="id");
 }
 
-async function sendRichToChat(chatId,html,file=null,replyTo=0){
+async function sendRichToChat(chatId,html,files=[],replyTo=0){
   let body;
   try{
     richValid(html);
     chatId=String(chatId||"");
     if(!/^\d+$/.test(chatId))throw new Error("Chat Telegram inválido");
+    if(!Array.isArray(files)||files.length>50)throw new Error("Mídias inválidas");
+    const fileMap=new Map();
+    for(const file of files){
+      if(fileMap.has(file.id))throw new Error("Mídias duplicadas");
+      validateTelegramUpload(file,file.kind);
+      fileMap.set(file.id,file);
+    }
     const replying=Number.isInteger(replyTo)&&replyTo>0;
-    const doc = parseDocument(String(html));
-    const media = [];
-    let attached = false;
-    const kinds = { img:"photo",video:"video",audio:"audio","tg-document":"document" };
-    const visit = node => {
-      if (node.type === "tag" && kinds[node.name]) {
-        const kind = kinds[node.name], src = node.attribs.src;
-        if(node.name==="img"&&richEmojiImage(src)){
-          node.children?.forEach(visit);
-          return;
-        }
-        let id, source;
-        if (/^https?:\/\//i.test(src)) {
-          id = randomUUID().replace(/-/g, "");
-          source = src;
-        } else if (src.startsWith("tg://")) {
-          const url = new URL(src);
-          id = url.searchParams.get("id") || "";
-          const fileKind=kind==="audio"&&file?.kind==="voice"?"voice":({photo:"image",video:"video",audio:"audio",document:"document"})[kind];
-          if(file&&id===file.id&&url.hostname===kind&&file.kind===fileKind){
-            source="attach://upload";
-            attached=true;
-          }else{
-            throw new Error("Anexe a mídia novamente antes de publicar");
-          }
-        } else {
-          throw new Error("Endereço de mídia inválido");
-        }
-        if (!/^[A-Za-z0-9_-]{1,64}$/.test(id)) throw new Error("Identificador de mídia inválido");
-        node.attribs.src = `tg://${kind}?id=${id}`;
-        const mediaType=kind==="audio"&&file?.kind==="voice"&&source==="attach://upload"?"voice_note":kind;
+    const doc=parseDocument(String(html));
+    const media=[],attached=new Set();
+    const kinds={img:"photo",video:"video",audio:"audio","tg-document":"document"};
+    const visit=node=>{
+      if(node.type==="tag"&&kinds[node.name]){
+        const kind=kinds[node.name],src=node.attribs.src||"";
+        if(node.name==="img"&&richEmojiImage(src)){node.children?.forEach(visit);return;}
+        let id,source,mediaType=kind;
+        if(/^https?:\/\//i.test(src)){
+          id=randomUUID().replace(/-/g,"");
+          source=src;
+        }else if(src.startsWith("tg://")){
+          const url=new URL(src);
+          id=url.searchParams.get("id")||"";
+          if(url.hostname!==kind)throw new Error("Tipo de mídia incompatível");
+          const file=fileMap.get(id);
+          if(!file)throw new Error("Anexe a mídia novamente antes de publicar");
+          const expected=kind==="audio"?(file.kind==="voice"?"voice":"audio"):({photo:"image",video:"video",document:"document"})[kind];
+          if(file.kind!==expected)throw new Error("Tipo de mídia incompatível");
+          source="attach://upload_"+id;
+          if(file.kind==="voice")mediaType="voice_note";
+          attached.add(id);
+        }else throw new Error("Endereço de mídia inválido");
+        if(!/^[A-Za-z0-9_-]{1,64}$/.test(id))throw new Error("Identificador de mídia inválido");
+        node.attribs.src="tg://"+kind+"?id="+id;
         media.push({id,media:{type:mediaType,media:source}});
       }
       node.children?.forEach(visit);
     };
     doc.children.forEach(visit);
-    if (file && !attached) throw new Error("A mídia anexada não está no documento");
-    const rich = { html: DomUtils.getInnerHTML(doc,{encodeEntities:"utf8"}) };
-    if (media.length) rich.media = media;
-    body = { chat_id: chatId, ...(replying?{reply_parameters:{message_id:replyTo}}:{}), rich_message: rich };
-    if (file) {
-      const kind={image:"photo",video:"video",audio:"audio",voice:"voice_note",document:"document"}[file.kind];
-      const mimeContract={
-        image:/^image\//,
-        video:/^video\//,
-        audio:/^audio\//,
-        voice:/^audio\//,
-        document:/^(?:image|video|audio|application|text)\//
-      }[file.kind];
-      if (!kind || !mimeContract?.test(file.mime) || !/^[A-Za-z0-9_-]{1,64}$/.test(file.id)) throw new Error("Mídia inválida");
-      if(file.kind==="image"&&file.bytes.length>10_000_000)throw new Error("Fotos devem ter no máximo 10 MB");
-      const form = new FormData();
-      form.set("chat_id", chatId);
+    if(attached.size!==fileMap.size||[...fileMap.keys()].some(id=>!attached.has(id)))throw new Error("Há mídia anexada que não está no documento");
+    const rich={html:DomUtils.getInnerHTML(doc,{encodeEntities:"utf8"})};
+    if(media.length)rich.media=media;
+    if(files.length){
+      const form=new FormData();
+      form.set("chat_id",chatId);
       if(replying)form.set("reply_parameters",JSON.stringify({message_id:replyTo}));
-      form.set("rich_message", JSON.stringify(body.rich_message));
-      form.set("upload", new Blob([file.bytes], {type:file.mime}), file.name);
-      body = form;
-    }
+      form.set("rich_message",JSON.stringify(rich));
+      for(const file of files){
+        const blob=await openAsBlob(file.path,{type:file.mime});
+        form.set("upload_"+file.id,blob,file.name);
+      }
+      body=form;
+    }else body={chat_id:chatId,...(replying?{reply_parameters:{message_id:replyTo}}:{}),rich_message:rich};
   }catch(error){
     throw asHttpError(error,400,"Dados inválidos para publicação");
   }
-  const msg = await telegramCall("sendRichMessage", body);
+  const msg=await telegramCall("sendRichMessage",body);
   const returnedId=Number(msg?.message_id||0);
   if(!Number.isInteger(returnedId)||returnedId<=0)throw new DeliveryError("O Telegram não confirmou o identificador da mensagem","uncertain");
-  return { via:"sendRichMessage", messageId:returnedId, ...(replyTo>0?{replyTo}:{}) };
+  return {via:"sendRichMessage",messageId:returnedId,...(replyTo>0?{replyTo}:{})};
 }
 
-async function sendRich(initData,html,file=null,replyTo=0){
+async function sendRich(initData,html,files=[],replyTo=0){
   let chatId;
   try{({chatId}=userFromInitData(String(initData||"")));}
   catch(error){throw asHttpError(error,400,"Dados inválidos para publicação");}
-  return sendRichToChat(chatId,html,file,replyTo);
+  return sendRichToChat(chatId,html,files,replyTo);
 }
 
 async function sendTelegramRevisionNotice(owner,draft,previousMessageId){
@@ -993,9 +986,9 @@ async function sendTelegramRevisionNotice(owner,draft,previousMessageId){
   return messageId;
 }
 
-async function publishTelegramPersistentForOwner(owner,draft,html,file=null){
+async function publishTelegramPersistentForOwner(owner,draft,html,files=[]){
   if(!owner||owner.kind!=="telegram"||!/^\d+$/.test(String(owner.telegramUserId||""))||!/^\d+$/.test(String(owner.chatId||"")))throw new HttpError(400,"Publicação Telegram exige identidade Telegram");
-  let record=savePersistentDraft(owner,draft,file);
+  let record=savePersistentDraft(owner,draft,files);
   let prior=record.publication.telegram;
   if(prior?.status==="pending"||prior?.status==="uncertain"){
     throw new HttpError(409,prior.error||"O resultado da publicação anterior é incerto; confira o chat antes de publicar novamente");
@@ -1044,7 +1037,7 @@ async function publishTelegramPersistentForOwner(owner,draft,html,file=null){
 
     let result;
     try{
-      result=await sendRichToChat(owner.chatId,html,file,pending.noticeMessageId);
+      result=await sendRichToChat(owner.chatId,html,files,pending.noticeMessageId);
     }catch(error){
       record=readPersistentDraft(owner,draft.docId)||record;
       prior=record.publication.telegram||prior;
@@ -1101,7 +1094,7 @@ async function publishTelegramPersistentForOwner(owner,draft,html,file=null){
   writePersistentRecord(owner,record);
   let result;
   try{
-    result=await sendRichToChat(owner.chatId,html,file);
+    result=await sendRichToChat(owner.chatId,html,files);
   }catch(error){
     record=readPersistentDraft(owner,draft.docId)||record;
     if(error instanceof DeliveryError&&error.outcome==="failed"||error instanceof HttpError){
@@ -1146,8 +1139,8 @@ async function publishTelegramPersistentForOwner(owner,draft,html,file=null){
   return result;
 }
 
-async function publishTelegramPersistent(initData,draft,html,file=null){
-  return publishTelegramPersistentForOwner(draftOwner({initData}),draft,html,file);
+async function publishTelegramPersistent(initData,draft,html,files=[]){
+  return publishTelegramPersistentForOwner(draftOwner({initData}),draft,html,files);
 }
 
 function webhookSecret(){
