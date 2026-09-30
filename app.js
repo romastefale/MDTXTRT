@@ -1204,7 +1204,7 @@ function scheduleRemoteDraftSave(delay=650){
 async function applyPersistentDraftData(data,identity){
   exportOverride=null;
   const d=data.draft;
-  if(!d||d.version!==STATE_VERSION||typeof d.html!=='string'||typeof d.name!=='string'||d.name.length>120||!['telegram','telegraph'].includes(d.dest)||typeof d.telegraphPath!=='string'||!/^[a-f0-9-]{36}$/i.test(d.docId)||(d.revision!==undefined&&(!Number.isSafeInteger(d.revision)||d.revision<0))||typeof d.importedMd!=='string'||typeof d.importedTxt!=='string'||typeof d.importedHtml!=='string'||!Array.isArray(d.media))throw new Error('Rascunho persistido incompatível');
+  if(!d||d.version!==STATE_VERSION||typeof d.html!=='string'||typeof d.name!=='string'||d.name.length>256||!['telegram','telegraph'].includes(d.dest)||typeof d.telegraphPath!=='string'||!/^[a-f0-9-]{36}$/i.test(d.docId)||(d.revision!==undefined&&(!Number.isSafeInteger(d.revision)||d.revision<0))||typeof d.importedMd!=='string'||typeof d.importedTxt!=='string'||typeof d.importedHtml!=='string'||!Array.isArray(d.media))throw new Error('Rascunho persistido incompatível');
   const html=cleanDraftHTML(d.html);
   clearRuntimeMedia();
   requireEditorCore().resetHTML(html,{silent:true});
@@ -1396,7 +1396,7 @@ async function openTelegraphDocument(doc){
     clearRuntimeMedia();
     if(!editorCore)throw new Error('Núcleo de edição indisponível');
     editorCore.resetHTML(html,{silent:true});
-    docName.value=data.title.slice(0,120);
+    docName.value=data.title.slice(0,256);
     docId=doc;
     docRevision=normalizedRevision(data.revision);
     telegraphPath=data.path;
@@ -1563,7 +1563,7 @@ function loadLocal(){
   let d;
   try{d=JSON.parse(raw);}
   catch{draftWriteBlocked=true;throw new Error('Rascunho local inválido preservado para recuperação');}
-  if(!d||d.version!==STATE_VERSION||typeof d.html!=='string'||typeof d.name!=='string'||d.name.length>120||!['telegram','telegraph'].includes(d.dest)||typeof d.telegraphPath!=='string'||!/^[a-f0-9-]{36}$/i.test(d.docId)||(d.revision!==undefined&&(!Number.isSafeInteger(d.revision)||d.revision<0))||typeof d.importedMd!=='string'||typeof d.importedTxt!=='string'||typeof d.importedHtml!=='string'){
+  if(!d||d.version!==STATE_VERSION||typeof d.html!=='string'||typeof d.name!=='string'||d.name.length>256||!['telegram','telegraph'].includes(d.dest)||typeof d.telegraphPath!=='string'||!/^[a-f0-9-]{36}$/i.test(d.docId)||(d.revision!==undefined&&(!Number.isSafeInteger(d.revision)||d.revision<0))||typeof d.importedMd!=='string'||typeof d.importedTxt!=='string'||typeof d.importedHtml!=='string'){
     draftWriteBlocked=true;
     throw new Error('Rascunho local incompatível preservado para recuperação');
   }
@@ -2102,7 +2102,7 @@ fileInput.addEventListener('change', async ()=>{
     const text = await file.text();
     const normalized=text.replace(/^\uFEFF/,'');
     const html = /\.md$/i.test(file.name) ? mdToBasicHTML(normalized) : '<p>'+escapeHTML(normalized).replace(/\n/g,'<br>')+'</p>';
-    const nextName=file.name.replace(/\.(md|txt)$/i,'').slice(0,120);
+    const nextName=file.name.replace(/\.(md|txt)$/i,'').slice(0,256);
     const priorMediaIds=[...mediaFiles.keys()];
     for(const id of priorMediaIds)await mediaDelete(id);
     clearRuntimeMedia();
