@@ -1903,23 +1903,31 @@ one('#exportMdBtn').addEventListener('click', ()=>exportFile('md'));
 one('#mediaBtn').addEventListener('click',()=>{mediaChoice=null;one('#mediaInput').accept='image/*,video/*,audio/*,.pdf,.zip';one('#mediaInput').click();closePanels();});
 one('#voiceBtn').addEventListener('click',()=>{mediaChoice='voice';one('#mediaInput').accept='audio/*,.ogg,.oga,.opus';one('#mediaInput').click();closePanels();});
 one('#mediaInput').addEventListener('change',async()=>{
-  const file=one('#mediaInput').files?.[0];if(!file){mediaChoice=null;return;}
-  one('#mediaInput').value='';
-  if(file.size>20_000_000){mediaChoice=null;showToast('Arquivo acima de 20 MB');return;}
-  if(editor.querySelector('[data-media-id]')){mediaChoice=null;showToast('Há um anexo no documento. Remova-o antes de anexar outro.');return;}
-  let kind=mediaChoice;
+  const input=one('#mediaInput'),files=[...(input.files||[])];
+  input.value='';
+  const requestedKind=mediaChoice;
   mediaChoice=null;
-  if(kind==='voice'&&!file.type.startsWith('audio/')){showToast('Escolha um arquivo de áudio para a mensagem de voz');return;}
-  if(!kind)kind=file.type.startsWith('image/')?'image':file.type.startsWith('video/')?'video':file.type.startsWith('audio/')?'audio':'document';
-  const id=crypto.randomUUID().replace(/-/g,'');
-  const tag={image:'img',video:'video',audio:'audio',voice:'audio',document:'tg-document'}[kind];
-  try{
-    insertHTML('<figure><'+tag+' data-media-id="'+id+'"></'+tag+'><figcaption>'+escapeHTML(file.name)+'</figcaption></figure>',true);
-    await installMedia(file,id,kind);saveLocal();
-  }catch(err){
-    mediaNode(id)?.closest('figure')?.remove();
-    showToast(err.message||'Não foi possível salvar o anexo');
+  if(!files.length)return;
+  const currentMedia=[...editor.querySelectorAll('img,video,audio,tg-document')].filter(node=>!(node.localName==='img'&&/^tg:\/\/emoji\?id=\d+$/.test(node.getAttribute('src')||''))).length;
+  if(currentMedia+files.length>50){showToast('O Telegram aceita no máximo 50 mídias por Rich Message');return;}
+  for(const file of files){
+    let kind=requestedKind;
+    if(kind==='voice'&&!file.type.startsWith('audio/')){showToast('Escolha arquivos de áudio para mensagens de voz');continue;}
+    if(!kind)kind=file.type.startsWith('image/')?'image':file.type.startsWith('video/')?'video':file.type.startsWith('audio/')?'audio':'document';
+    const limit=telegramUploadLimit(kind);
+    if(file.size>limit){showToast(kind==='image'?'Fotos enviadas por multipart podem ter até 10 MB':'Arquivos enviados por multipart podem ter até 50 MB');continue;}
+    const id=crypto.randomUUID().replace(/-/g,'');
+    const tag={image:'img',video:'video',audio:'audio',voice:'audio',document:'tg-document'}[kind];
+    try{
+      insertHTML('<figure><'+tag+' data-media-id="'+id+'"></'+tag+'><figcaption>'+escapeHTML(file.name)+'</figcaption></figure>',true);
+      await installMedia(file,id,kind);
+    }catch(err){
+      mediaNode(id)?.closest('figure')?.remove();
+      try{await mediaDelete(id);}catch{}
+      showToast(err.message||'Não foi possível salvar um anexo');
+    }
   }
+  saveLocal();
 });
 one('#libraryBtn')?.addEventListener('click',()=>openLibrary());
 one('#libraryClose')?.addEventListener('click',closeLibrary);
