@@ -779,19 +779,21 @@ test('Enter preserves heading and quote formatting until the empty formatted lin
 
 test('deleting the last character of a heading or quote returns the block to body',async()=>{
   const w=page(),d=w.document,e=d.querySelector('#editor');
-  const reset=async(html,pos)=>{
+  const reset=async html=>{
     w.eval('currentEditorCore().resetHTML('+JSON.stringify(html)+',{silent:true})');
-    w.eval('currentEditorCore().selectRange({from:'+pos+',to:'+pos+'},{focus:true})');
-    const event=new w.InputEvent('input',{bubbles:true,inputType:'deleteContentBackward'});
+    w.eval("currentEditorCore().selectRange(currentEditorCore().findLiteral('x')[0],{focus:true})");
+    const event=new w.InputEvent('beforeinput',{bubbles:true,cancelable:true,inputType:'deleteContentBackward'});
     e.dispatchEvent(event);
     await wait();
+    assert.equal(event.defaultPrevented,true);
     assert.equal(e.firstElementChild.tagName,'P');
+    assert.equal(e.textContent,'');
   };
-  await reset('<h2><br></h2>',1);
-  await reset('<blockquote><br></blockquote>',1);
+  await reset('<h2>x</h2>');
+  await reset('<blockquote>x</blockquote>');
   assert.equal(d.querySelector('#headingBtn').classList.contains('on'),false);
   assert.equal(d.querySelector('#quoteBtn').classList.contains('on'),false);
-  w.eval('currentEditorCore().destroy()');w.close();
+  w.close();
 });
 
 test('Markdown inline markers become semantic rich-text marks and support escaping',async()=>{
@@ -799,15 +801,20 @@ test('Markdown inline markers become semantic rich-text marks and support escapi
   const apply=async text=>{
     const escaped=text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     w.eval('currentEditorCore().resetHTML('+JSON.stringify('<p>'+escaped+'</p>')+',{silent:true})');
-    w.eval('(()=>{const core=currentEditorCore(),pos=core.state.doc.content.size-1;core.selectRange({from:pos,to:pos},{focus:true})})()');
+    w.eval('(()=>{const core=currentEditorCore(),r=core.findLiteral('+JSON.stringify('__TEXT__')+')[0];})()'.replace('__TEXT__',text.replace(/\\/g,'\\\\').replace(/'/g,"\\'"))); 
+  };
+  const run=async text=>{
+    const escaped=text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    w.eval('currentEditorCore().resetHTML('+JSON.stringify('<p>'+escaped+'</p>')+',{silent:true})');
+    w.eval('(()=>{const core=currentEditorCore(),r=core.findLiteral('+JSON.stringify(text)+')[0];core.selectRange({from:r.to,to:r.to},{focus:true})})()');
     e.dispatchEvent(new w.InputEvent('input',{bubbles:true,inputType:'insertText'}));
     await wait();
   };
-  await apply('**forte**');assert.equal(e.querySelector('strong')?.textContent,'forte');
-  await apply('*ênfase*');assert.equal(e.querySelector('em')?.textContent,'ênfase');
-  await apply('~~riscado~~');assert.equal(e.querySelector('s')?.textContent,'riscado');
-  await apply('`código`');assert.equal(e.querySelector('code')?.textContent,'código');
-  await apply('\\*literal*');assert.equal(e.querySelector('em'),null);assert.equal(e.textContent,'*literal*');
+  await run('**forte**');assert.equal(e.querySelector('strong')?.textContent,'forte');
+  await run('*ênfase*');assert.equal(e.querySelector('em')?.textContent,'ênfase');
+  await run('~~riscado~~');assert.equal(e.querySelector('s')?.textContent,'riscado');
+  await run('`código`');assert.equal(e.querySelector('code')?.textContent,'código');
+  await run('\\*literal*');assert.equal(e.querySelector('em'),null);assert.equal(e.textContent,'*literal*');
   w.close();
 });
 
@@ -934,7 +941,7 @@ test('multiple local attachments are retained up to the Telegram Rich Message me
   await wait(15);
   const media=[...d.querySelectorAll('[data-media-id]')];
   assert.equal(media.length,2);
-  assert.deepEqual(w.eval('draftState().media.map(item=>item.kind)'),['image','image']);
+  assert.equal(JSON.stringify(w.eval('draftState().media.map(item=>item.kind)')),JSON.stringify(['image','image']));
   assert.equal(new Set(media.map(node=>node.getAttribute('data-media-id'))).size,2);
   w.close();
 });
@@ -991,7 +998,7 @@ test('native table editing reaches Telegram 20-column capacity and selected tabl
   const w=page(),d=w.document,e=d.querySelector('#editor');
   w.eval("currentEditorCore().resetHTML('<table><tr><td>x</td></tr></table><p>after</p>',{silent:true})");
   const cell=e.querySelector('td'),selection=d.getSelection(),range=d.createRange();
-  range.selectNodeContents(cell);range.collapse(true);selection.removeAllRanges();selection.addRange(range);e.focus();
+  e.focus();range.selectNodeContents(cell);range.collapse(true);selection.removeAllRanges();selection.addRange(range);
   for(let i=1;i<20;i++)assert.equal(w.eval('currentEditorCore().addTableColumn()'),true);
   assert.equal(e.querySelector('tr').cells.length,20);
   assert.throws(()=>w.eval('currentEditorCore().addTableColumn()'),/20 colunas/);
@@ -1077,9 +1084,9 @@ test('find advances, wraps and replace-one survives focus moving to controls',()
   const starts=[];
   for(let i=0;i<4;i++){
     d.querySelector('#findNext').click();
-    starts.push(w.eval('currentEditorCore().state.selection.from'));
+    starts.push(w.eval('currentEditorCore().selectionOffsets().from'));
   }
-  assert.deepEqual(starts,[1,6,11,1]);
+  assert.deepEqual(starts,[0,5,10,0]);
   d.querySelector('#replaceText').focus();
   d.querySelector('#replaceText').value='feito';
   d.querySelector('#replaceOne').click();
@@ -1772,7 +1779,7 @@ test('link actions distinguish hyperlink, visible URL and Telegram URL button th
   assert.equal(e.querySelector('a')?.textContent,'alpha');
   assert.equal(e.querySelector('a')?.getAttribute('href'),'https://example.com/hyper');
 
-  w.eval("(()=>{const pos=currentEditorCore().state.doc.content.size-1;currentEditorCore().selectRange({from:pos,to:pos},{focus:true});saveSel()})()");
+  w.eval("(()=>{const core=currentEditorCore(),pos=document.querySelector('#editor').textContent.length;core.selectRange({from:pos,to:pos},{focus:true});saveSel()})()");
   await choose('url','Link');
   dialog.value='https://example.com/visible';
   ok.click();
@@ -1782,7 +1789,7 @@ test('link actions distinguish hyperlink, visible URL and Telegram URL button th
   assert.equal(links.at(-1)?.getAttribute('href'),'https://example.com/visible');
 
   w.eval("setDestination('telegram',false,false)");
-  w.eval("(()=>{const pos=currentEditorCore().state.doc.content.size-1;currentEditorCore().selectRange({from:pos,to:pos},{focus:true});saveSel()})()");
+  w.eval("(()=>{const core=currentEditorCore(),pos=document.querySelector('#editor').textContent.length;core.selectRange({from:pos,to:pos},{focus:true});saveSel()})()");
   await choose('button','Texto do botão');
   dialog.value='Abrir site';
   ok.click();
@@ -1804,7 +1811,7 @@ test('dialog modality traps focus, restores its origin and preserves editor sele
   const w=page(),d=w.document,canvas=d.querySelector('#canvas'),origin=d.querySelector('#linkBtn');
   w.eval("currentEditorCore().resetHTML('<p>alpha beta</p>',{silent:true})");
   w.eval("(()=>{const r=currentEditorCore().findLiteral('alpha')[0];currentEditorCore().selectRange({from:r.from,to:r.to},{focus:true});saveSel()})()");
-  const before=w.eval('currentEditorCore().state.selection.from');
+  const before=w.eval('currentEditorCore().selectionOffsets()?.from');
   origin.focus();
   const prompt=w.eval("ask('Link','https://')");
   await wait(0);
@@ -1812,7 +1819,7 @@ test('dialog modality traps focus, restores its origin and preserves editor sele
   const input=d.querySelector('#dialogInput');
   assert.equal(d.activeElement,input);
   assert.equal(canvas.hasAttribute('inert'),true);
-  assert.equal(w.eval('currentEditorCore().state.selection.from'),before);
+  assert.equal(w.eval('currentEditorCore().selectionOffsets()?.from'),before);
 
   origin.focus();
   await wait(0);
@@ -1824,7 +1831,7 @@ test('dialog modality traps focus, restores its origin and preserves editor sele
   assert.equal(await prompt,null);
   assert.equal(canvas.hasAttribute('inert'),false);
   assert.equal(d.activeElement,origin);
-  assert.equal(w.eval('currentEditorCore().state.selection.from'),before);
+  assert.equal(w.eval('currentEditorCore().selectionOffsets()?.from'),before);
   w.close();
 });
 
@@ -1832,15 +1839,15 @@ test('Escape closes a programmatic menu, restores its visible opener and keeps e
   const w=page(),d=w.document,plus=d.querySelector('#plusBtn'),menu=d.querySelector('#plusMenu');
   w.eval("currentEditorCore().resetHTML('<p>alpha beta</p>',{silent:true})");
   w.eval("(()=>{const r=currentEditorCore().findLiteral('beta')[0];currentEditorCore().selectRange({from:r.from,to:r.to},{focus:true});saveSel()})()");
-  const before=w.eval('currentEditorCore().state.selection.from');
+  const before=w.eval('currentEditorCore().selectionOffsets()?.from');
   plus.focus();
   w.eval("openPanel('#plusMenu')");
   d.querySelector('#docName').focus();
-  assert.equal(w.eval('currentEditorCore().state.selection.from'),before);
+  assert.equal(w.eval('currentEditorCore().selectionOffsets()?.from'),before);
   d.dispatchEvent(new w.KeyboardEvent('keydown',{key:'Escape',bubbles:true}));
   assert.equal(menu.hasAttribute('data-menu-open'),false);
   assert.equal(d.activeElement,plus);
-  assert.equal(w.eval('currentEditorCore().state.selection.from'),before);
+  assert.equal(w.eval('currentEditorCore().selectionOffsets()?.from'),before);
   w.close();
 });
 
