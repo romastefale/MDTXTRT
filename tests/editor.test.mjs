@@ -343,6 +343,33 @@ test('volume recovery failure pauses editing and offers retry or a new draft',as
   w.close();
 });
 
+test('Telegram back button closes the draft recovery choice without starting a new draft',async()=>{
+  let backHandler=null;
+  const fetch=async(url)=>{
+    if(String(url).endsWith('/api/drafts/load'))throw new TypeError('volume unavailable');
+    if(String(url).endsWith('/api/telegram/session'))return {ok:true,status:200,json:async()=>({ok:true})};
+    return {ok:false,status:404,json:async()=>({error:'not found'})};
+  };
+  const w=page({fetch,tg:{BackButton:{show(){},hide(){},onClick(handler){backHandler=handler;}}}}),d=w.document;
+  await wait(30);
+  let launched=0;
+  w.createNewDocumentLaunch=()=>{launched++;};
+  assert.equal(d.querySelector('#dialogCancel').textContent,'Começar rascunho novo');
+  assert.equal(typeof backHandler,'function');
+  backHandler();
+  await wait(30);
+  assert.equal(launched,0,'Voltar não pode escolher "Começar rascunho novo"');
+  assert.equal(d.querySelector('#dialogMenu').hasAttribute('data-test-popover-open'),false);
+  assert.equal(d.querySelector('#editor').getAttribute('contenteditable'),'false');
+  d.querySelector('#editor').dispatchEvent(new w.PointerEvent('pointerdown',{bubbles:true}));
+  await wait(10);
+  assert.equal(d.querySelector('#dialogOk').textContent,'Tentar de novo');
+  d.querySelector('#dialogCancel').click();
+  await wait(10);
+  assert.equal(launched,1,'o botão explícito continua começando um rascunho novo');
+  w.close();
+});
+
 test('remote draft save sends the active canonical document and stable browser identity',async()=>{
   const doc='91919191-9191-4191-8191-919191919191';
   const browserKey='cd'.repeat(32);
