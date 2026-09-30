@@ -114,7 +114,7 @@ jobs:
       - name: Run complete regression suite
         run: npm test
 
-      - name: Compare rendered shell with visual baseline
+      - name: Compare rendered shell with visual reference snapshot
         shell: bash
         run: |
           BASELINE_SHA="$(node -e "const fs=require('fs');const m=JSON.parse(fs.readFileSync('RELEASE_MANIFEST.json','utf8'));process.stdout.write(m.visualBaseline)")"
@@ -124,7 +124,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: release-visual-baseline-${{ env.RELEASE_CANDIDATE_SHA }}
+          name: release-visual-comparison-${{ env.RELEASE_CANDIDATE_SHA }}
           path: .release-visual/
           include-hidden-files: true
           if-no-files-found: error
