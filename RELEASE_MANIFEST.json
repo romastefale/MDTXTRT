@@ -67,7 +67,7 @@
       "ui-bundle-reproducible",
       "stage-ancestry",
       "surface-contract",
-      "visual-shell-baseline"
+      "visual-shell-comparison"
     ],
     "external": [
       "authorized-test-environment",
