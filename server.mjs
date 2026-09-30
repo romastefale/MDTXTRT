@@ -2,7 +2,6 @@ import { createHash, createHmac, randomUUID, timingSafeEqual } from "node:crypto
 import { createReadStream, existsSync, statSync, readFileSync, writeFileSync, renameSync, mkdirSync, unlinkSync, readdirSync } from "node:fs";
 import { DomUtils, parseDocument } from "htmlparser2";
 import { marked } from "marked";
-import TurndownService from "turndown";
 import Busboy from "busboy";
 import { createServer } from "node:http";
 import { extname, relative, resolve } from "node:path";
@@ -1532,7 +1531,7 @@ function appMessage(title,newToken="",view="") {
   return "<h1>MDTXTRT</h1><p>" + title + "</p>" + appButton(newToken,view);
 }
 
-const BOT_LIST_PAGE_SIZE=8;
+const BOT_WEB_APP_LIST_SIZE=8;
 
 function telegramPrivateOwner(userId,chatId){
   const uid=String(userId??"").trim();
@@ -1548,12 +1547,6 @@ function ownerFromBotMessage(message){
 function botButtonLabel(value,prefix=""){
   const text=(prefix+String(value||"Sem título")).replace(/\s+/g," ").trim();
   return Array.from(text).slice(0,58).join("");
-}
-
-function botCallbackRow(label,data,style="primary"){
-  data=String(data||"");
-  if(!data||Buffer.byteLength(data,"utf8")>64)throw new Error("Ação de botão inválida");
-  return "<tg-button-row align=\"center\"><tg-button type=\"callback_data\" style=\""+style+"\" data=\""+htmlEscape(data)+"\">"+htmlEscape(botButtonLabel(label))+"</tg-button></tg-button-row>";
 }
 
 function botWebAppRow(label,url,style="success"){
@@ -1575,41 +1568,62 @@ function telegraphEditorLaunchURL(base){
   return url.href;
 }
 
-function pageWindow(items,page){
-  const pages=Math.max(1,Math.ceil(items.length/BOT_LIST_PAGE_SIZE));
-  const current=Math.max(0,Math.min(Number.isInteger(page)?page:0,pages-1));
-  const start=current*BOT_LIST_PAGE_SIZE;
-  return {items:items.slice(start,start+BOT_LIST_PAGE_SIZE),page:current,pages};
+function botActionLaunchURL(base,action,kind,doc,format=""){
+  if(!["send","export"].includes(action))throw new Error("Ação do Mini App inválida");
+  if(!/^[a-f0-9-]{36}$/i.test(String(doc||"")))throw new Error("Documento inválido");
+  if(action==="send"&&kind!=="d")throw new Error("Origem de envio inválida");
+  if(action==="export"&&!["d","t","g"].includes(kind))throw new Error("Origem de exportação inválida");
+  if(format&&!["txt","md"].includes(format))throw new Error("Formato de exportação inválido");
+  const url=new URL(base);
+  url.searchParams.set("botAction",action);
+  url.searchParams.set("source",kind);
+  url.searchParams.set("doc",String(doc));
+  if(format)url.searchParams.set("format",format);
+  return url.href;
 }
 
-function botPageRows(prefix,page,pages,extra=""){
-  let html="";
-  if(page>0)html+=botCallbackRow("← Anteriores",prefix+":"+extra+(extra?":":"")+(page-1),"link");
-  if(page+1<pages)html+=botCallbackRow("Mais →",prefix+":"+extra+(extra?":":"")+(page+1),"link");
-  return html;
-}
-
-function botDraftListHTML(owner,page=0){
-  const drafts=listPersistentDrafts(owner);
-  if(!drafts.length)return "<h1>Rascunhos</h1><p>Nenhum rascunho persistido foi encontrado. Use <b>/novo</b> para começar.</p>"+appButton();
-  const view=pageWindow(drafts,page);
-  let html="<h1>Rascunhos</h1><p>Escolha um rascunho para abri-lo diretamente no editor do Mini App.</p>";
-  for(const item of view.items){
-    html+=botWebAppRow("Editar · "+item.name,draftLaunchURL(MINI_APP_URL,item.docId));
+function botWebAppPages(title,intro,items,tail=""){
+  if(!items.length)return ["<h1>"+htmlEscape(title)+"</h1><p>Nenhum item foi encontrado.</p>"+(tail||appButton())];
+  const pages=[];
+  for(let start=0;start<items.length;start+=BOT_WEB_APP_LIST_SIZE){
+    const page=Math.floor(start/BOT_WEB_APP_LIST_SIZE)+1;
+    const total=Math.ceil(items.length/BOT_WEB_APP_LIST_SIZE);
+    let html="<h1>"+htmlEscape(title)+"</h1><p>"+intro+(total>1?" Página "+page+" de "+total+".":"")+"</p>";
+    for(const item of items.slice(start,start+BOT_WEB_APP_LIST_SIZE))html+=botWebAppRow(item.label,item.url,item.style||"success");
+    if(start+BOT_WEB_APP_LIST_SIZE>=items.length&&tail)html+=tail;
+    pages.push(html);
   }
-  html+=botPageRows("drafts",view.page,view.pages);
-  html+=botWebAppRow("Abrir biblioteca completa",documentLaunchURL(MINI_APP_URL,"","library"),"link");
-  return html;
+  return pages;
 }
 
-function botSendListHTML(owner,page=0){
+async function sendBotRichPages(chatId,pages,replyTo=0){
+  for(let index=0;index<pages.length;index++)await sendBotRich(chatId,pages[index],index===0?replyTo:0);
+}
+
+function botDraftListPages(owner){
   const drafts=listPersistentDrafts(owner);
-  if(!drafts.length)return "<h1>Enviar rascunho</h1><p>Nenhum rascunho persistido foi encontrado.</p>"+appButton();
-  const view=pageWindow(drafts,page);
-  let html="<h1>Enviar rascunho</h1><p>Qual rascunho você quer enviar nesta conversa?</p>";
-  for(const item of view.items)html+=botCallbackRow(item.name,"send:"+item.docId,"success");
-  html+=botPageRows("sendlist",view.page,view.pages);
-  return html;
+  if(!drafts.length)return ["<h1>Rascunhos</h1><p>Nenhum rascunho persistido foi encontrado. Use <b>/novo</b> para começar.</p>"+appButton()];
+  const items=drafts.map(item=>({
+    label:"Editar · "+item.name,
+    url:draftLaunchURL(MINI_APP_URL,item.docId)
+  }));
+  return botWebAppPages(
+    "Rascunhos",
+    "Escolha um rascunho para abri-lo diretamente no editor do Mini App.",
+    items,
+    botWebAppRow("Abrir biblioteca completa",documentLaunchURL(MINI_APP_URL,"","library"),"link")
+  );
+}
+
+function botSendListPages(owner){
+  const drafts=listPersistentDrafts(owner);
+  if(!drafts.length)return ["<h1>Enviar rascunho</h1><p>Nenhum rascunho persistido foi encontrado.</p>"+appButton()];
+  const items=drafts.map(item=>({
+    label:"Enviar · "+item.name,
+    url:botActionLaunchURL(MINI_APP_URL,"send","d",item.docId),
+    style:"success"
+  }));
+  return botWebAppPages("Enviar rascunho","Qual rascunho você quer enviar nesta conversa?",items);
 }
 
 function exportChoices(owner){
@@ -1623,56 +1637,20 @@ function exportChoices(owner){
   ];
 }
 
-function botExportListHTML(owner,page=0,format=""){
+function botExportListPages(owner,format=""){
   if(format&&!["txt","md"].includes(format))throw new Error("Formato de exportação inválido");
   const choices=exportChoices(owner);
-  if(!choices.length)return "<h1>Exportar</h1><p>Nenhum rascunho ou publicação foi encontrado.</p>"+appButton();
-  const view=pageWindow(choices,page);
-  const formatCode=format==="txt"?"t":format==="md"?"m":"a";
-  let html="<h1>Exportar</h1><p>Qual rascunho ou publicação você quer exportar"+(format?" como <b>"+format.toUpperCase()+"</b>":"")+"?</p>";
-  for(const item of view.items)html+=botCallbackRow(item.label,"exportpick:"+formatCode+":"+item.kind+":"+item.docId,"primary");
-  html+=botPageRows("exportlist",view.page,view.pages,formatCode);
-  return html;
-}
-
-function botExportFormatHTML(kind,doc,name){
-  if(!["d","t","g"].includes(kind)||!/^[a-f0-9-]{36}$/i.test(doc))throw new Error("Seleção de exportação inválida");
-  return "<h1>Formato de exportação</h1><p>Como deseja exportar <b>"+htmlEscape(name||"documento")+"</b>?</p>"+
-    botCallbackRow("TXT","exportdo:t:"+kind+":"+doc,"primary")+
-    botCallbackRow("Markdown","exportdo:m:"+kind+":"+doc,"primary");
-}
-
-function persistentRecordFile(owner,record){
-  if(!record?.media)return null;
-  const paths=persistentDraftPaths(owner,record.draft.docId);
-  if(!existsSync(paths.file)||statSync(paths.file).size!==record.media.size)throw new Error("Anexo persistido indisponível");
-  return {...record.media,bytes:readFileSync(paths.file)};
-}
-
-function draftPlainText(html){
-  const doc=parseDocument(String(html||""));
-  const blocks=new Set(["p","div","h1","h2","h3","h4","h5","h6","li","blockquote","pre","footer","aside","figure","figcaption","tr","details","summary"]);
-  let out="";
-  const newline=()=>{if(out&&!out.endsWith("\n"))out+="\n";};
-  const walk=node=>{
-    if(node.type==="text"){out+=node.data||"";return;}
-    if(node.type!=="tag"){node.children?.forEach(walk);return;}
-    if(node.name==="br"){out+="\n";return;}
-    if(node.name==="img"&&node.attribs?.alt)out+=node.attribs.alt;
-    const block=blocks.has(node.name);
-    if(block)newline();
-    node.children?.forEach(walk);
-    if(block)newline();
-  };
-  doc.children.forEach(walk);
-  return out.replace(/[ \t]+\n/g,"\n").replace(/\n{3,}/g,"\n\n").trim();
-}
-
-function draftExportText(html,format){
-  if(format==="txt")return draftPlainText(html);
-  if(format!=="md")throw new Error("Formato de exportação inválido");
-  const turndown=new TurndownService({headingStyle:"atx",bulletListMarker:"-",codeBlockStyle:"fenced"});
-  return turndown.turndown(String(html||"")).trim();
+  if(!choices.length)return ["<h1>Exportar</h1><p>Nenhum rascunho ou publicação foi encontrado.</p>"+appButton()];
+  const items=choices.map(item=>({
+    label:item.label,
+    url:botActionLaunchURL(MINI_APP_URL,"export",item.kind,item.docId,format),
+    style:"success"
+  }));
+  return botWebAppPages(
+    "Exportar",
+    "Qual rascunho ou publicação você quer exportar"+(format?" como <b>"+format.toUpperCase()+"</b>":"")+"?",
+    items
+  );
 }
 
 async function selectedExportDocument(owner,kind,doc){
@@ -1693,83 +1671,6 @@ async function selectedExportDocument(owner,kind,doc){
   if(publication.snapshot)return {name:publication.snapshot.name,html:publication.snapshot.html};
   if(publication.revision===record.draft.revision)return {name:record.draft.name,html:record.draft.html};
   throw new Error("Esta publicação Telegram é de uma revisão anterior e não possui snapshot exportável");
-}
-
-async function answerBotCallback(q,text="OK"){
-  await telegramCall("answerCallbackQuery",{callback_query_id:q.id,text:String(text||"OK").slice(0,200)});
-}
-
-async function handleBotCallback(q){
-  const chat=q?.message?.chat;
-  if(!chat||chat.type!=="private"){
-    await answerBotCallback(q,"Use o chat privado do MDTXTRT");
-    return;
-  }
-  if(String(q?.from?.id||"")!==String(chat.id)){
-    await answerBotCallback(q,"Esta ação pertence ao chat privado do usuário");
-    return;
-  }
-  const owner=telegramPrivateOwner(q.from.id,chat.id);
-  const data=String(q.data||"");
-  let answered=false;
-  const ack=async text=>{if(!answered){answered=true;await answerBotCallback(q,text);}};
-  try{
-    let match;
-    if((match=/^drafts:(\d+)$/.exec(data))){
-      await ack("Abrindo lista");
-      await sendBotRich(chat.id,botDraftListHTML(owner,Number(match[1])));
-      return;
-    }
-    if((match=/^sendlist:(\d+)$/.exec(data))){
-      await ack("Abrindo lista");
-      await sendBotRich(chat.id,botSendListHTML(owner,Number(match[1])));
-      return;
-    }
-    if((match=/^exportlist:([atm]):(\d+)$/.exec(data))){
-      await ack("Abrindo lista");
-      const format=match[1]==="t"?"txt":match[1]==="m"?"md":"";
-      await sendBotRich(chat.id,botExportListHTML(owner,Number(match[2]),format));
-      return;
-    }
-    if((match=/^send:([a-f0-9-]{36})$/i.exec(data))){
-      await ack("Enviando rascunho…");
-      const record=readPersistentDraft(owner,match[1]);
-      if(!record)throw new Error("Rascunho não encontrado");
-      const file=persistentRecordFile(owner,record);
-      await publishTelegramPersistentForOwner(owner,record.draft,record.draft.html,file);
-      return;
-    }
-    if((match=/^exportpick:([atm]):([dtg]):([a-f0-9-]{36})$/i.exec(data))){
-      const format=match[1]==="t"?"txt":match[1]==="m"?"md":"";
-      const kind=match[2].toLowerCase(),doc=match[3];
-      if(format){
-        await ack("Exportando…");
-        const selected=await selectedExportDocument(owner,kind,doc);
-        const output=draftExportText(selected.html,format);
-        const base=cleanFileName(selected.name||"mdtxtrt").replace(/\.(?:md|txt)$/i,"")||"mdtxtrt";
-        await sendDocument(chat.id,base+"."+format,output,format==="md"?"text/markdown":"text/plain");
-      }else{
-        const selected=await selectedExportDocument(owner,kind,doc);
-        await ack("Escolha o formato");
-        await sendBotRich(chat.id,botExportFormatHTML(kind,doc,selected.name));
-      }
-      return;
-    }
-    if((match=/^exportdo:([tm]):([dtg]):([a-f0-9-]{36})$/i.exec(data))){
-      const format=match[1].toLowerCase()==="t"?"txt":"md";
-      await ack("Exportando…");
-      const selected=await selectedExportDocument(owner,match[2].toLowerCase(),match[3]);
-      const output=draftExportText(selected.html,format);
-      const base=cleanFileName(selected.name||"mdtxtrt").replace(/\.(?:md|txt)$/i,"")||"mdtxtrt";
-      await sendDocument(chat.id,base+"."+format,output,format==="md"?"text/markdown":"text/plain");
-      return;
-    }
-    await ack("Ação expirada");
-  }catch(error){
-    if(!answered){try{await ack("Não foi possível concluir");}catch{}}
-    const messageText=error instanceof Error?error.message:"Não foi possível concluir a ação";
-    await sendBotRich(chat.id,"<h1>Ação não concluída</h1><p>"+htmlEscape(messageText)+"</p>");
-  }
 }
 
 function telegraphEditorButton(){
@@ -1814,7 +1715,11 @@ async function sendDocument(chatId,name,content,type){
 
 async function handleBotUpdate(update) {
   if(update.callback_query){
-    await handleBotCallback(update.callback_query);
+    const q=update.callback_query;
+    await telegramCall("answerCallbackQuery",{
+      callback_query_id: q.id,
+      text: q.data ? String(q.data).slice(0, 200) : "OK"
+    });
     return;
   }
   const message = update.message;
@@ -1857,7 +1762,7 @@ async function handleBotUpdate(update) {
   }
   if (command === "rascunhos") {
     const owner=ownerFromBotMessage(message);
-    await sendBotRich(chatId,botDraftListHTML(owner,0),message.message_id);
+    await sendBotRichPages(chatId,botDraftListPages(owner),message.message_id);
     return;
   }
   if (command === "telegraph") {
@@ -1873,7 +1778,7 @@ async function handleBotUpdate(update) {
     const content = body.text ? body : repliedBody(message);
     if (!content.text.trim()) {
       const owner=ownerFromBotMessage(message);
-      await sendBotRich(chatId,botSendListHTML(owner,0),message.message_id);
+      await sendBotRichPages(chatId,botSendListPages(owner),message.message_id);
       return;
     }
     await sendBotRich(chatId, richHTML(content.text, content.entities), message.message_id);
@@ -1895,7 +1800,7 @@ async function handleBotUpdate(update) {
     }
     if (!content.text.trim()) {
       const owner=ownerFromBotMessage(message);
-      await sendBotRich(chatId,botExportListHTML(owner,0,preferredFormat),message.message_id);
+      await sendBotRichPages(chatId,botExportListPages(owner,preferredFormat),message.message_id);
       return;
     }
     const output = type === "md" ? formatText(content.text, content.entities, "md") : content.text;
@@ -2067,6 +1972,29 @@ const server = createServer(async (req, res) => {
       return;
     }
 
+
+    if (url.pathname === "/api/export/source" && req.method === "POST") {
+      if (!setCors(req, res)) {
+        res.writeHead(403, { "content-type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ error: "Acesso não autorizado" }));
+        return;
+      }
+      try{
+        const body=await readJson(req,20000);
+        const owner=draftOwner(body);
+        if(owner.kind!=="telegram")throw new HttpError(400,"A exportação selecionada pelo bot exige identidade Telegram");
+        const kind=String(body?.kind||"");
+        const doc=String(body?.doc||"");
+        const selected=await selectedExportDocument(owner,kind,doc);
+        res.writeHead(200,{"content-type":"application/json; charset=utf-8","cache-control":"no-store"});
+        res.end(JSON.stringify({kind,doc,name:selected.name,html:selected.html}));
+      }catch(err){
+        const code=err instanceof HttpError?err.status:err instanceof DeliveryError?502:400;
+        res.writeHead(code,{"content-type":"application/json; charset=utf-8","cache-control":"no-store"});
+        res.end(JSON.stringify({error:err instanceof Error?err.message:"Não foi possível preparar a exportação"}));
+      }
+      return;
+    }
 
     if (url.pathname === "/api/library/list" && req.method === "POST") {
       if (!setCors(req, res)) {
