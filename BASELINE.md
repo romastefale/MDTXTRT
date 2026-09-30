@@ -4,10 +4,10 @@
 
 A baseline de trabalho vigente do MDTXTRT é:
 
-`b22aee80bbaa79db63d12ef62ae523d968218aa5`
+`7fe51e8401012232281db416ac0d9bd080c18ebf`
 
 - Data de adoção: 2026-09-30.
-- Origem: estado de produção após o PR #118.
+- Origem: estado de produção após o PR #120.
 - Natureza: snapshot operacional do estado conhecido e aceito neste momento.
 - Esta baseline **não é o produto final**, **não é uma especificação imutável** e **não deve ser preservada contra solicitações de correção ou implementação**.
 
@@ -48,17 +48,18 @@ Para inspecionar exatamente o estado desta baseline:
 
 ```bash
 git fetch origin
-git checkout b22aee80bbaa79db63d12ef62ae523d968218aa5
+git checkout 7fe51e8401012232281db416ac0d9bd080c18ebf
 ```
 
 Para comparar um estado posterior:
 
 ```bash
-git diff b22aee80bbaa79db63d12ef62ae523d968218aa5..HEAD
+git diff 7fe51e8401012232281db416ac0d9bd080c18ebf..HEAD
 ```
 
 ## Histórico
 
+- `b22aee80bbaa79db63d12ef62ae523d968218aa5` — baseline anterior após o PR #118; substituída após tornar Rascunhos recolhível com a mesma normativa de Publicações no PR #120.
 - `db6ae2240cbe2792bd7edb1a9c26399f068ea807` — baseline anterior após o PR #116; substituída após a correção do toque móvel real no PR #118.
 - `1dbbdb2dfaeafbd8ef52cea859611ffa5f6699ad` — baseline histórica após o PR #107.
 - `aac423e012745c7873908ddc4a76371fb8218aa3` — shell translúcido consolidado após a etapa 2/6, PR #86.
