@@ -631,21 +631,25 @@ test('library uses the standard submenu lifecycle, stays scrollable with keyboar
 
   const publicationsToggle=d.querySelector('#publicationToggle');
   const publicationLists=d.querySelector('#publicationLists');
-  publicationsToggle.click();
   assert.equal(publicationsToggle.getAttribute('aria-expanded'),'false');
   assert.equal(publicationLists.hidden,true);
   publicationsToggle.click();
   assert.equal(publicationsToggle.getAttribute('aria-expanded'),'true');
   assert.equal(publicationLists.hidden,false);
+  publicationsToggle.click();
+  assert.equal(publicationsToggle.getAttribute('aria-expanded'),'false');
+  assert.equal(publicationLists.hidden,true);
 
   const draftToggle=d.querySelector('#draftToggle');
   const draftLists=d.querySelector('#draftLists');
-  draftToggle.click();
   assert.equal(draftToggle.getAttribute('aria-expanded'),'false');
   assert.equal(draftLists.hidden,true);
   draftToggle.click();
   assert.equal(draftToggle.getAttribute('aria-expanded'),'true');
   assert.equal(draftLists.hidden,false);
+  draftToggle.click();
+  assert.equal(draftToggle.getAttribute('aria-expanded'),'false');
+  assert.equal(draftLists.hidden,true);
 
   d.querySelector('#libraryClose').click();
   await wait(0);
@@ -1050,6 +1054,23 @@ test('Rich Message serializer rejects unsupported editor markup',()=>{
   w.close();
 });
 
+test('native table editing reaches Telegram 20-column capacity and selected table deletes with Backspace',()=>{
+  const w=page(),d=w.document,e=d.querySelector('#editor');
+  w.eval("currentEditorCore().resetHTML('<table><tr><td>x</td></tr></table><p>after</p>',{silent:true})");
+  const cell=e.querySelector('td'),selection=d.getSelection(),range=d.createRange();
+  range.selectNodeContents(cell);range.collapse(true);selection.removeAllRanges();selection.addRange(range);e.focus();
+  for(let i=1;i<20;i++)assert.equal(w.eval('currentEditorCore().addTableColumn()'),true);
+  assert.equal(e.querySelector('tr').cells.length,20);
+  assert.throws(()=>w.eval('currentEditorCore().addTableColumn()'),/20 colunas/);
+  assert.equal(w.eval('currentEditorCore().selectTable()'),true);
+  const backspace=new w.KeyboardEvent('keydown',{key:'Backspace',bubbles:true,cancelable:true});
+  e.dispatchEvent(backspace);
+  assert.equal(backspace.defaultPrevented,true);
+  assert.equal(e.querySelector('table'),null);
+  assert.equal(e.querySelector('p')?.textContent,'after');
+  w.close();
+});
+
 test('Markdown conversion retains supported semantic structures',()=>{
   const w=page(),d=w.document,e=d.querySelector('#editor');
   const source='# Nome\n\n- [x] tarefa\n- [ ] próxima\n\n| A | B |\n| --- | --- |\n| 1 | 2 |\n\n**forte** e [site](https://example.com)';
@@ -1449,7 +1470,9 @@ test('collapsed Bold Italic and Underline states apply to subsequently typed tex
   for(const cmd of ['bold','italic','underline'])w.eval("exec("+JSON.stringify(cmd)+")");
   const input=new w.InputEvent('beforeinput',{bubbles:true,cancelable:true,inputType:'insertText',data:'X'});
   e.dispatchEvent(input);
-  assert.equal(e.querySelector('strong em u')?.textContent,'X');
+  assert.equal(e.querySelector('strong')?.textContent,'X');
+  assert.equal(e.querySelector('em')?.textContent,'X');
+  assert.equal(e.querySelector('u')?.textContent,'X');
   assert.equal(e.textContent,'X');
   w.close();
 });
