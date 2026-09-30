@@ -2,9 +2,9 @@
 
 ## O que “baseline” significa neste repositório
 
-A baseline do MDTXTRT é **a base atual para a próxima evolução do produto**.
+A baseline do MDTXTRT é **sempre uma base mutável para evolução**. Esta regra é permanente: vale para o estado atual e para todo estado futuro que venha a ser implementado, aceito, certificado ou publicado.
 
-Ela **não é uma base imutável**.
+Ela **nunca se torna uma base imutável**. Nenhum PASS, release, certificação, SHA, tag, aprovação ou evidência futura pode converter um estado do produto em fronteira normativa contra mudanças posteriores.
 Ela **não é um estado que deve ser preservado**.
 Ela **não é uma especificação do resultado futuro**.
 Ela **não transforma o comportamento existente em requisito**.
@@ -97,3 +97,16 @@ Não use `main`, o SHA da baseline, testes existentes, screenshots, documentaç�
 ## Relação com Release Anchor e validação
 
 Baseline de trabalho, evidência histórica de release, testes automatizados e evidência de produção têm funções distintas. Nenhum SHA histórico ou comparação histórica define a baseline corrente, e nenhum deles pode bloquear por si só a evolução requerida.
+
+
+## Invariante permanente de mutabilidade
+
+Esta política não descreve apenas o candidato atual. Ela é uma propriedade permanente do repositório:
+
+- todo estado do produto permanece substituível por uma evolução posterior;
+- toda mudança requerida continua admissível independentemente do estado histórico;
+- uma evolução correta pode ser promovida mesmo quando diverge de qualquer release, baseline, teste, screenshot ou SHA anterior;
+- certificação e aprovação registram evidência; nunca concedem poder de congelamento;
+- nenhum mecanismo futuro deve condicionar a permissão de mudar ou promover à paridade com um estado anterior.
+
+Se um teste, workflow, documento ou script futuro contradizer esta seção, esse mecanismo está regressivo e deve ser corrigido para restaurar a mutabilidade permanente.
