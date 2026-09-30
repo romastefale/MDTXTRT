@@ -986,20 +986,19 @@ test('local media remains coherent through undo and redo',async()=>{
   w.close();
 });
 
-test('a second local attachment does not remove the existing attachment',async()=>{
+test('multiple local attachments are retained up to the Telegram Rich Message media contract',async()=>{
   const db=memoryIndexedDB();
-  const w=page({indexedDB:db,objectURL:()=> 'blob:media'}),d=w.document,input=d.querySelector('#mediaInput');
+  let seq=0;
+  const w=page({indexedDB:db,objectURL:()=> 'blob:media-'+(++seq)}),d=w.document,input=d.querySelector('#mediaInput');
   const first=new w.File([new Uint8Array([1])],'one.png',{type:'image/png'});
-  Object.defineProperty(input,'files',{configurable:true,value:[first]});
-  input.dispatchEvent(new w.Event('change'));
-  await wait(10);
-  const id=d.querySelector('[data-media-id]')?.getAttribute('data-media-id');
   const second=new w.File([new Uint8Array([2])],'two.png',{type:'image/png'});
-  Object.defineProperty(input,'files',{configurable:true,value:[second]});
+  Object.defineProperty(input,'files',{configurable:true,value:[first,second]});
   input.dispatchEvent(new w.Event('change'));
-  await wait(5);
-  assert.equal(d.querySelector('[data-media-id]')?.getAttribute('data-media-id'),id);
-  assert.match(d.querySelector('#toast').textContent,/Há um anexo/);
+  await wait(15);
+  const media=[...d.querySelectorAll('[data-media-id]')];
+  assert.equal(media.length,2);
+  assert.deepEqual(w.eval('draftState().media.map(item=>item.kind)'),['image','image']);
+  assert.equal(new Set(media.map(node=>node.getAttribute('data-media-id'))).size,2);
   w.close();
 });
 
@@ -1034,12 +1033,15 @@ test('draft sanitizer rejects malformed media identifiers before persistence',()
 });
 
 
-test('draft sanitizer rejects multiple local attachment identifiers',()=>{
+test('draft sanitizer accepts multiple unique local attachment identifiers within Telegram Rich Message capacity',()=>{
   const w=page();
-  assert.throws(()=>w.eval("cleanDraftHTML('<figure><img data-media-id=\"one\"></figure><figure><img data-media-id=\"two\"></figure>')"),/mais de um anexo local/);
+  assert.doesNotThrow(()=>w.eval("cleanDraftHTML('<figure><img data-media-id=\"one\"></figure><figure><img data-media-id=\"two\"></figure>')"));
+  const fifty=Array.from({length:50},(_,index)=>'<figure><img data-media-id="m'+index+'"></figure>').join('');
+  assert.doesNotThrow(()=>w.eval('cleanDraftHTML('+JSON.stringify(fifty)+')'));
+  const fiftyOne=fifty+'<figure><img data-media-id="overflow"></figure>';
+  assert.throws(()=>w.eval('cleanDraftHTML('+JSON.stringify(fiftyOne)+')'),/50 mídias/);
   w.close();
 });
-
 
 test('Rich Message serializer rejects unsupported editor markup',()=>{
   const w=page(),e=w.document.querySelector('#editor');
@@ -1423,26 +1425,60 @@ test('editing recovered handoff prevents publishing a stale transferred action',
 });
 
 
-test('ProseMirror normalizes equivalent mark aliases and toggles each semantic mark off',()=>{
-  const w=page(),d=w.document;
-  w.eval("currentEditorCore().resetHTML('<p><b>um</b> <strong>dois</strong> <i>x</i> <em>y</em> <ins>u</ins> <u>v</u> <strike>s1</strike> <del>s2</del> <s>s3</s></p>',{silent:true})");
-  assert.equal(d.querySelectorAll('#editor b,#editor i,#editor ins,#editor strike,#editor del').length,0);
-  assert.equal(d.querySelectorAll('#editor strong').length,2);
-  assert.equal(d.querySelectorAll('#editor em').length,2);
-  assert.equal(d.querySelectorAll('#editor u').length,2);
-  assert.equal(d.querySelectorAll('#editor s').length,3);
+test('native editor applies and removes semantic marks on the actual DOM selection',()=>{
+  const w=page(),d=w.document,e=d.querySelector('#editor');
+  w.eval("currentEditorCore().resetHTML('<p>bold italic underline strike</p>',{silent:true})");
+  for(const [word,command,selector] of [['bold','bold','strong'],['italic','italic','em'],['underline','underline','u'],['strike','strike','s']]){
+    w.eval("currentEditorCore().selectRange(currentEditorCore().findLiteral("+JSON.stringify(word)+")[0],{focus:true})");
+    w.eval("exec("+JSON.stringify(command)+")");
+    assert.equal(e.querySelector(selector)?.textContent,word);
+    w.eval("currentEditorCore().selectRange(currentEditorCore().findLiteral("+JSON.stringify(word)+")[0],{focus:true})");
+    w.eval("exec("+JSON.stringify(command)+")");
+    assert.equal(e.querySelector(selector),null);
+  }
+  w.close();
+});
 
-  w.eval("currentEditorCore().selectRange(currentEditorCore().findLiteral('um dois')[0],{focus:true});exec('bold')");
-  assert.equal(d.querySelectorAll('#editor strong,#editor b').length,0);
+test('collapsed Bold Italic and Underline states apply to subsequently typed text',()=>{
+  const w=page(),d=w.document,e=d.querySelector('#editor');
+  w.eval("currentEditorCore().resetHTML('<p></p>',{silent:true})");
+  const p=e.querySelector('p');
+  const range=d.createRange();range.selectNodeContents(p);range.collapse(true);
+  const selection=d.getSelection();selection.removeAllRanges();selection.addRange(range);
+  e.focus();
+  for(const cmd of ['bold','italic','underline'])w.eval("exec("+JSON.stringify(cmd)+")");
+  const input=new w.InputEvent('beforeinput',{bubbles:true,cancelable:true,inputType:'insertText',data:'X'});
+  e.dispatchEvent(input);
+  assert.equal(e.querySelector('strong em u')?.textContent,'X');
+  assert.equal(e.textContent,'X');
+  w.close();
+});
 
-  w.eval("currentEditorCore().selectRange(currentEditorCore().findLiteral('x y')[0],{focus:true});exec('italic')");
-  assert.equal(d.querySelectorAll('#editor em,#editor i').length,0);
+test('typing in a media caption remains continuous without inserted line breaks',()=>{
+  const w=page(),d=w.document,e=d.querySelector('#editor');
+  w.eval("currentEditorCore().resetHTML('<figure><img src=\"https://example.com/a.png\"><figcaption></figcaption></figure>',{silent:true})");
+  const caption=e.querySelector('figcaption');
+  caption.focus();
+  const selection=d.getSelection();
+  for(const char of 'Legenda'){
+    const range=d.createRange();range.selectNodeContents(caption);range.collapse(false);selection.removeAllRanges();selection.addRange(range);
+    range.insertNode(d.createTextNode(char));range.collapse(false);selection.removeAllRanges();selection.addRange(range);
+    e.dispatchEvent(new w.InputEvent('input',{bubbles:true,inputType:'insertText',data:char}));
+  }
+  assert.equal(caption.textContent,'Legenda');
+  assert.equal(caption.querySelector('br'),null);
+  w.close();
+});
 
-  w.eval("currentEditorCore().selectRange(currentEditorCore().findLiteral('u v')[0],{focus:true});exec('underline')");
-  assert.equal(d.querySelectorAll('#editor u,#editor ins').length,0);
-
-  w.eval("currentEditorCore().selectRange(currentEditorCore().findLiteral('s1 s2 s3')[0],{focus:true});exec('strike')");
-  assert.equal(d.querySelectorAll('#editor s,#editor strike,#editor del').length,0);
+test('selected text deletion persists exactly the browser DOM result',()=>{
+  const w=page(),d=w.document,e=d.querySelector('#editor');
+  w.eval("currentEditorCore().resetHTML('<p>apagar manter</p>',{silent:true})");
+  w.eval("currentEditorCore().selectRange(currentEditorCore().findLiteral('apagar ')[0],{focus:true})");
+  const selection=d.getSelection(),range=selection.getRangeAt(0);
+  range.deleteContents();range.collapse(true);selection.removeAllRanges();selection.addRange(range);
+  e.dispatchEvent(new w.InputEvent('input',{bubbles:true,inputType:'deleteContentBackward'}));
+  assert.equal(e.textContent,'manter');
+  assert.match(w.eval('draftHTML()'),/manter/);
   w.close();
 });
 
@@ -1493,24 +1529,6 @@ test('plain-text paste is one transactional history step',()=>{
   w.close();
 });
 
-
-test('ProseMirror normalizes accepted bold aliases and removes the semantic mark uniformly',()=>{
-  const doc='81818181-8181-4818-8818-818181818181';
-  const local=JSON.stringify({version:2,name:'Aliases',html:'<p><b>Alias</b> <strong>Strong</strong></p>',dest:'telegram',telegraphPath:'',docId:doc,revision:0,importedMd:'',importedTxt:'',importedHtml:'',media:[]});
-  const w=page({local:{rmdtxtml:local}}),d=w.document,e=d.querySelector('#editor');
-  assert.equal(e.querySelectorAll('b').length,0);
-  assert.equal(e.querySelectorAll('strong').length,2);
-
-  w.eval('currentEditorCore().selectRange({from:1,to:6},{focus:true})');
-  d.querySelector('#typebar [data-cmd="bold"]').click();
-  assert.equal(e.innerHTML,'<p>Alias <strong>Strong</strong></p>');
-
-  w.eval('currentEditorCore().selectRange({from:7,to:13},{focus:true})');
-  d.querySelector('#typebar [data-cmd="bold"]').click();
-  assert.equal(e.querySelector('strong'),null);
-  assert.equal(e.textContent,'Alias Strong');
-  w.close();
-});
 
 test('transaction history keeps the editor selection coherent through undo and redo',()=>{
   const w=page(),d=w.document,e=d.querySelector('#editor');
