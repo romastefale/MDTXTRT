@@ -6,7 +6,7 @@ MDTXTRT keeps implementation provenance explicit so architectural references are
 
 - Current upstream repository: https://github.com/romastefale/liquid-glass
 - Current pinned revision for reproducibility: `4e7b769e1df7e5a7d3669fef22417fe3d2f79ade` (release 0.1.1). This pin is replaceable when the implementation evolves.
-- Runtime engine: `@samasante/liquid-glass`, installed from the fork `romastefale/liquid-glass` pinned by commit (base 0.1.1), © Sam Asante, MIT.
+- Runtime engine: `@samasante/liquid-glass`, installed from the fork `romastefale/liquid-glass` pinned by commit `9df1c6b` (tag `mdtxtrt-0.1.1-fork.1`, which keeps the commit reachable; base 0.1.1), © Sam Asante, MIT.
 - Component reference: https://github.com/romastefale/liquid-glass/blob/main/examples/GlassContextMenu.tsx
 - MDTXTRT authored source: `src/liquid-glass-ui.jsx`; generated production artifact: `ui.js`.
 - Relationship: MDTXTRT imports the package's `Glass` primitive directly. Its context-menu component structure is copied/adapted from the reference example under the project's documented “copy and own” model. The product-specific menu material is intentionally standardized with the chrome capsules: both lens configurations disable `sheen`, `glow`, and `specular` and otherwise inherit the package defaults; the theme tint and uniform hairline are MDTXTRT styling. The application shell, labels, editor controls, Telegram/Telegraph behavior, and product-specific styling remain MDTXTRT code.
