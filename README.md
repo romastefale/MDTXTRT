@@ -2,7 +2,7 @@
 
 ## Baseline de trabalho — ponto de partida evolutivo
 
-A baseline de trabalho vigente é o SHA definido em `RELEASE_MANIFEST.json.visualBaseline` e documentado em `BASELINE.md`.
+A baseline de trabalho é o **estado corrente a partir do qual o produto continua evoluindo**. `RELEASE_MANIFEST.json.visualBaseline` registra apenas um snapshot visual de comparação associado a esse processo; esse SHA não define a baseline e não tem autoridade para congelar o produto.
 
 **A baseline não é uma base imutável, um estado a ser congelado nem um alvo de reprodução permanente.** Ela é o ponto de partida conhecido do produto para que a próxima evolução possa ser implementada, comparada e validada com rastreabilidade.
 
