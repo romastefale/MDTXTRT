@@ -52,7 +52,7 @@ Static surface success does not replace live execution required below.
 
 ## Gate D — visual baseline
 
-Normative visual baseline: `7fe51e8401012232281db416ac0d9bd080c18ebf` (working production state after PR #120). This is a comparison reference, not a preservation mandate; deliberate corrections may replace it.
+Normative visual baseline: `9c9f8d38313d5f0043283daf06d6ac015f90bded` (working production state after PR #123). This is the current comparison reference, not a preservation mandate; deliberate corrections must replace and advance it when the accepted product state evolves.
 
 Automated component:
 - render candidate and baseline with the same Chrome binary and 390×844 stable browser viewport;

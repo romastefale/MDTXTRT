@@ -679,6 +679,7 @@ test('draft persistence, Telegram provenance and explicit visual-baseline histor
   assert.match(drafts,/verified Telegram user identifier/);
   assert.match(drafts,/does \*\*not\*\* rewrite the earlier chat message/);
   assert.match(drafts,/Runtime-only ProseMirror/);
+  assert.match(baseline,/9c9f8d38313d5f0043283daf06d6ac015f90bded/);
   assert.match(baseline,/7fe51e8401012232281db416ac0d9bd080c18ebf/);
   assert.match(baseline,/b22aee80bbaa79db63d12ef62ae523d968218aa5/);
   assert.match(baseline,/db6ae2240cbe2792bd7edb1a9c26399f068ea807/);
@@ -852,7 +853,7 @@ test('final release gap analysis, surface audit and final-only anchor gates are 
   assert.match(workflow,/name: Rebuild all committed bundles[\s\S]*?npm run build/);
   assert.match(workflow,/git diff --exit-code -- editor-core\.js ui\.js/);
   assert.match(workflow,/node scripts\/verify-visual-baseline\.mjs/);
-  assert.match(workflow,/BASELINE_SHA: 7fe51e8401012232281db416ac0d9bd080c18ebf/);
+  assert.match(workflow,/BASELINE_SHA: 9c9f8d38313d5f0043283daf06d6ac015f90bded/);
   assert.match(workflow,/release-rebuilt-bundles-\$\{\{ env\.RELEASE_CANDIDATE_SHA \}\}/);
   assert.match(workflow,/release-visual-baseline-\$\{\{ env\.RELEASE_CANDIDATE_SHA \}\}/);
   assert.match(workflow,/draft_persistence_evidence_ref:/);
@@ -872,7 +873,7 @@ test('final release gap analysis, surface audit and final-only anchor gates are 
   assert.match(evidence,/Telegram revision notice\/content timeout/);
   assert.match(evidence,/stale persistent draft revision/);
 
-  assert.equal(manifest.visualBaseline,'7fe51e8401012232281db416ac0d9bd080c18ebf');
+  assert.equal(manifest.visualBaseline,'9c9f8d38313d5f0043283daf06d6ac015f90bded');
   assert.deepEqual(manifest.runtime,{node:'24.21.0',npm:'11.19.0'});
   assert.deepEqual(manifest.stages.map(stage=>stage.pr),[84,86,88,90,92,95]);
   assert.equal(manifest.stages.at(-1).head,'ec3def6622818c0411bbeb94165716c7f30fa927');
