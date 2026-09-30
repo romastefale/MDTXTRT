@@ -85,7 +85,7 @@ When the same verified Telegram user later publishes the same document after edi
 
 The handoff publication path uses the same durable publication function, so browser → Mini App publication does not bypass publisher provenance.
 
-The in-app library may reopen a Telegram publication's linked current document for editing. This is not an editor for an immutable historical Telegram message: the private bot chat remains the human-readable message history, while the card points to the current persisted document associated with that publication. A later explicit publish still follows the revision-notice + new Rich Message contract above.
+The in-app library may reopen a Telegram publication's linked current document for editing. This is not an editor for a fixed earlier Telegram message: the private bot chat remains the human-readable message history, while the card points to the current persisted document associated with that publication. A later explicit publish still follows the revision-notice + new Rich Message contract above.
 
 ## Durability limits
 
