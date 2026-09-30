@@ -2,7 +2,7 @@
 
 Engineering delivery is complete when the exact `main` SHA has passed the automated release gates and is running successfully in Railway production. The checks in this document are intentionally deferred to the product owner because they require physical devices, real Telegram/Telegraph destinations, or controlled operational disruption.
 
-These checks do **not** represent unfinished implementation work. They are post-delivery acceptance evidence. If any check reveals a defect, open a new correction cycle from the exact deployed SHA rather than rewriting the completed delivery record.
+These checks do **not** represent unfinished implementation work. They are post-delivery acceptance evidence. If any check reveals a defect, record the exact deployed SHA that exposed it, then correct from the current repository state. The evidence record remains historical and does not choose or freeze the implementation base.
 
 ## Candidate under acceptance
 
