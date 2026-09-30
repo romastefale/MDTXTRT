@@ -2,7 +2,7 @@ import {test,before,after} from 'node:test';
 import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
 import {createHash,createHmac,randomUUID} from 'node:crypto';
-import {mkdtempSync,writeFileSync,readFileSync,rmSync,mkdirSync} from 'node:fs';
+import {mkdtempSync,writeFileSync,readFileSync,readdirSync,rmSync,mkdirSync} from 'node:fs';
 import {join} from 'node:path';
 import {parseDocument} from 'htmlparser2';
 
@@ -121,6 +121,25 @@ after(async()=>{
     await new Promise(resolve=>child.once('exit',resolve)).catch(()=>{});
   }
   if(dir)rmSync(dir,{recursive:true,force:true});
+});
+
+test('server delivers every local asset the page, the manifest and the icons reference',async()=>{
+  const root=new URL('../',import.meta.url);
+  const html=readFileSync(new URL('index.html',root),'utf8');
+  const manifest=JSON.parse(readFileSync(new URL('manifest.webmanifest',root),'utf8'));
+  const refs=new Set();
+  for(const [,value] of html.matchAll(/\s(?:src|href)="([^"#]+)"/g)){
+    if(/^(?:[a-z]+:|\/\/)/i.test(value))continue;
+    refs.add(value.replace(/^\.?\//,'').split('?')[0]);
+  }
+  for(const icon of manifest.icons||[])refs.add(String(icon.src).replace(/^\.?\//,'').split('?')[0]);
+  for(const name of readdirSync(new URL('icons/',root)))if(name.endsWith('.svg'))refs.add('icons/'+name);
+  assert.ok(refs.has('editor-core.js')&&refs.has('ui.js'),'index.html scripts were found');
+  for(const path of refs){
+    const res=await fetch(`http://127.0.0.1:${port}/${path}`);
+    assert.equal(res.status,200,path+' must be served by server.mjs');
+    await res.arrayBuffer();
+  }
 });
 
 test('serves vector app icon and no raster app icon',async()=>{

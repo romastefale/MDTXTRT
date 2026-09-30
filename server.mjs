@@ -95,6 +95,7 @@ const PUBLIC = new Set([
   "index.html",
   "app.js",
   "ui.js",
+  "editor-core.js",
   "marked.js",
   "turndown.js",
   "favicon.svg",
