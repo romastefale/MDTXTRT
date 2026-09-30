@@ -1,64 +1,111 @@
 # Working baseline
 
-## Baseline vigente
+## O que “baseline” significa neste repositório
 
-A baseline de trabalho vigente do MDTXTRT é:
+A baseline do MDTXTRT é **a base atual para a próxima evolução do produto**.
+
+Ela **não é uma base imutável**.
+Ela **não é um estado que deve ser preservado**.
+Ela **não é uma especificação do resultado futuro**.
+Ela **não transforma o comportamento existente em requisito**.
+Ela **não limita correções, refinamentos, substituições ou novas implementações**.
+
+A função da baseline é exclusivamente estabelecer **de onde a evolução parte**. O trabalho novo deve partir do estado atual, preservar apenas os contratos que continuam intencionais e alterar tudo o que precisar ser alterado para chegar ao comportamento atualmente requerido.
+
+Em outras palavras:
+
+> **Baseline = ponto de partida para evolução, não ponto de chegada nem fronteira de mudança.**
+
+O SHA associado à baseline é somente uma fotografia rastreável desse ponto de partida. O SHA não possui autoridade normativa sobre requisitos futuros e não deve ser interpretado como “golden state”, implementação canônica permanente ou comportamento a ser reproduzido indefinidamente.
+
+## Snapshot atualmente associado
+
+O snapshot atualmente registrado como referência de comparação é:
 
 `977d61554f75c943b626f89fe871bb3becae75f1`
 
 - Data de adoção: 2026-09-30.
-- Origem: estado atual com o editor nativo consolidado, troca de tema por recarregamento completo da página e baseline operacional centralizada em `RELEASE_MANIFEST.json.visualBaseline`, sem referências operacionais concorrentes.
-- Natureza: snapshot operacional do novo estado deliberadamente evoluído e aceito como referência visual/funcional para esta linha de desenvolvimento.
-- Esta baseline **não é o produto final**, **não é uma especificação imutável** e **não deve ser preservada contra solicitações de correção ou implementação**.
-- Esta baseline é **explicitamente uma base de evolução**: serve como ponto de partida para o próximo estado melhorado do produto e deve ser substituída sempre que uma evolução deliberada, corrigida e aceita tornar o estado anterior obsoleto.
+- Registro canônico: `RELEASE_MANIFEST.json.visualBaseline`.
+- Papel: permitir comparação e rastreabilidade do estado a partir do qual o produto continua evoluindo.
+- Mutabilidade: **substituível**. Quando o estado intencional do produto evoluir e for aceito, uma referência posterior deve suceder esta.
+- Autoridade normativa: **nenhuma por mera existência no snapshot**.
 
-> **Princípio normativo:** baseline significa referência atual para evoluir a partir dela, e não referência imutável para conservar. Preservar a baseline nunca é objetivo por si só quando isso conflita com correção, melhoria, refinamento ou implementação de requisitos.
+O snapshot não deve ser usado para exigir paridade com comportamento antigo. Uma diferença em relação a ele pode ser uma regressão ou pode ser precisamente a evolução requerida; essa distinção deve ser decidida pelos requisitos e contratos intencionais atuais, não pela igualdade com o snapshot.
 
-## Regra de evolução
+## Regra central de evolução
 
-A baseline existe para dar contexto e permitir comparação. Ela não existe para impedir mudanças.
+Toda alteração deve responder à pergunta: **qual é o comportamento correto que queremos a partir de agora?**
 
-Quando uma solicitação do usuário exigir correção, refinamento, refatoração ou nova implementação:
+Não à pergunta: **como fazemos para continuar iguais à baseline?**
 
-1. a solicitação explícita prevalece sobre o estado da baseline;
-2. comportamento incorreto presente na baseline deve ser corrigido, não defendido;
-3. não introduza fallbacks, compatibilidades ou degradações apenas para manter o comportamento anterior;
-4. após uma mudança deliberada e integrada, a baseline pode e deve avançar para o novo estado aceito;
-5. referências antigas permanecem apenas como histórico.
+Portanto:
 
-Uma regressão não se torna correta por existir na baseline. Um teste antigo não prevalece sobre um requisito atualizado.
+1. requisito atual e correção explícita definem o comportamento pretendido;
+2. contratos intencionais vigentes devem ser preservados quando continuam aplicáveis;
+3. comportamento meramente existente no snapshot não ganha status de contrato;
+4. defeitos, limitações, decisões superadas e implementações incidentais devem poder ser removidos ou substituídos;
+5. testes, snapshots e documentação que codifiquem comportamento superado devem evoluir junto com o produto;
+6. compatibilidade retroativa só deve existir quando for um requisito atual explícito, e não para proteger a baseline;
+7. depois que uma evolução deliberada for aceita, o novo estado passa a ser o ponto de partida para evoluções seguintes e a referência anterior passa a ser histórica.
 
-## Contrato para agentes e assistentes
+### Consequência obrigatória
 
-Ao trabalhar neste repositório:
+**Nenhuma mudança solicitada deve ser rejeitada, enfraquecida, desviada ou implementada parcialmente com a justificativa de “preservar a baseline”.**
 
-- trate `main` como o estado publicado atual, não como prova de que todo comportamento está correto;
-- trate esta baseline como ponto de partida descritivo, nunca como objetivo de preservação;
-- não conclua que um defeito está corrigido apenas porque existe código correspondente ou um teste automatizado passou;
-- não transforme ausência de evidência em evidência positiva;
-- não afirme execução em dispositivo real, comportamento físico, persistência de bytes, deploy ou resultado externo sem ter verificado exatamente esse fato;
-- diferencie claramente: código implementado, teste automatizado aprovado, deploy concluído e comportamento observado em ambiente/dispositivo real;
-- quando o usuário relatar que o comportamento real diverge do teste, investigue o caminho real de interação em vez de usar o teste para invalidar o relato;
-- não invente SHAs, run IDs, deployment IDs, resultados ou estados;
-- não amplie uma solicitação para mudanças periféricas como forma de evitar a correção central;
-- mantenha mudanças focadas e atualize contratos/documentos que ficarem factualmente obsoletos.
+Se a implementação correta exigir divergir da baseline, **a implementação deve divergir da baseline**.
 
-Estas regras também estão resumidas em [AGENTS.md](AGENTS.md).
+Se um teste exigir o comportamento antigo, **o teste deve ser atualizado** quando esse comportamento deixou de ser requisito.
 
-## Uso
+Se uma arquitetura antiga impedir a implementação correta, **a arquitetura pode ser refatorada ou substituída**.
 
-Para inspecionar exatamente o estado desta baseline:
+Se a baseline contiver um bug, **o bug deve ser corrigido**.
+
+Se a evolução tornar a referência atual obsoleta, **a baseline deve avançar**.
+
+## O que deve e não deve sobreviver à evolução
+
+A baseline não determina o que deve sobreviver. Quem determina isso são os contratos intencionais atuais.
+
+Preserve:
+- invariantes e contratos que continuam explicitamente válidos;
+- dados e compatibilidades cuja preservação seja requisito atual;
+- comportamento correto que não conflite com a evolução solicitada.
+
+Não preserve apenas por existir:
+- bugs;
+- limitações técnicas;
+- estrutura interna;
+- decisões de implementação;
+- aparência ou interação superada;
+- testes obsoletos;
+- fallbacks históricos;
+- compatibilidade sem requisito;
+- qualquer comportamento incidental do snapshot.
+
+## Regra para agentes e assistentes
+
+Ao receber uma solicitação de evolução, use a baseline para entender o estado inicial e o impacto da mudança. **Nunca a use como veto à mudança.**
+
+A baseline responde “de onde estamos partindo?”. O requisito atual responde “para onde devemos ir?”. Quando houver diferença entre os dois, essa diferença é o espaço de implementação — não uma razão para preservar o estado anterior.
+
+Não use `main`, o SHA da baseline, testes existentes, screenshots, documentação histórica ou um PASS automatizado como argumento suficiente para afirmar que o comportamento existente deve continuar.
+
+## Uso técnico
+
+Para inspecionar o snapshot atualmente associado:
 
 ```bash
 git fetch origin
 git checkout 977d61554f75c943b626f89fe871bb3becae75f1
 ```
 
-Para comparar um estado posterior:
+Para comparar o estado atual com esse ponto de partida:
 
 ```bash
 git diff 977d61554f75c943b626f89fe871bb3becae75f1..HEAD
 ```
+
+A comparação serve para identificar **o que evoluiu**. Ela não estabelece que diferenças sejam, por definição, erros.
 
 ## Histórico
 
