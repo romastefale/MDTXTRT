@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { flushSync } from "react-dom";
 import { Glass } from "@samasante/liquid-glass";
@@ -10,23 +10,247 @@ import { Glass } from "@samasante/liquid-glass";
  * Optical rendering is provided exclusively by @samasante/liquid-glass.
  * MDTXTRT owns only this application-specific React shell.
  */
-// Material neutro do site romastefale/HTML: fosco de 22px com saturação 1.6.
-// A tinta translúcida e o aro hairline vêm do CSS (index.html).
+// Normativa do fork (src/GlassMaterial.tsx › MATERIAL_OPTICS) e do site
+// romastefale/HTML (src/lib/optics.ts): as barras e o toast usam o frost do
+// material (6px, saturate 1.15); menus e diálogos, o de painel de leitura (22px,
+// saturate 1.4). specular 0 desliga a borda da biblioteca: o brilho de topo e o
+// aro hairline uniforme vêm do CSS (index.html), finos em telas 2x.
+const NO_SHINE = { specular: 0, sheen: 0, glow: 0 };
+
 export const MENU_LENS = {
-  sheen: 0,
-  glow: 0,
-  specular: 0,
+  ...NO_SHINE,
   frost: 22,
-  saturate: 1.6,
+  saturate: 1.4,
 };
 
 const BAR_LENS = {
-  sheen: 0,
-  glow: 0,
-  specular: 0,
-  frost: 22,
-  saturate: 1.6,
+  ...NO_SHINE,
+  frost: 6,
+  saturate: 1.15,
 };
+
+// Lente dos botões em destaque (+ e ☰): PLAYER_OPTICS de
+// examples/GlassVideoControls.tsx do fork, o mesmo usado na galeria do site.
+const CHROME_LENS = {
+  mapSize: 256,
+  clipToShape: true,
+  softEdge: true,
+  strength: 0.16,
+  depth: 0.2,
+  curvature: 0.55,
+  bend: 0.25,
+  bendWidth: 0.08,
+  dispersion: 0.15,
+  ...NO_SHINE,
+  frost: 3,
+  brightness: 0,
+};
+
+// Quanto tempo o laço WebGL fica vivo depois de cada mudança (carga, resize,
+// teclado, volta à aba). Depois o último quadro fica congelado num canvas 2D e o
+// renderizador é desmontado: nenhum laço contínuo.
+const LENS_SETTLE_MS = 1200;
+
+let webgl2Support = null;
+function hasWebGL2() {
+  if (webgl2Support !== null) return webgl2Support;
+  webgl2Support = false;
+  try {
+    if (typeof WebGL2RenderingContext === "undefined") return false;
+    const gl = document.createElement("canvas").getContext("webgl2");
+    webgl2Support = Boolean(gl);
+    gl?.getExtension("WEBGL_lose_context")?.loseContext();
+  } catch {
+    webgl2Support = false;
+  }
+  return webgl2Support;
+}
+
+// O que fica atrás do botão: o fundo orgânico do tema, esticado como o .bg, com
+// os degradês de borda (.fade-top / .fade-bot) por cima. Rasterizado uma vez por
+// tema e tamanho de tela; cada quadro só recorta a região sob o botão.
+const backdrop = { key: "", canvas: null, img: null, src: "" };
+function backdropSource() {
+  const light = document.documentElement.classList.contains("light");
+  return light ? "produto/fundo-claro.svg" : "produto/fundo-escuro.svg";
+}
+function loadBackdrop() {
+  const src = backdropSource();
+  if (backdrop.img && backdrop.src === src) return Promise.resolve(backdrop.img);
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.decoding = "async";
+    img.onload = () => {
+      backdrop.img = img;
+      backdrop.src = src;
+      backdrop.key = "";
+      resolve(img);
+    };
+    img.onerror = reject;
+    img.src = src;
+  });
+}
+function paintFade(ctx, rect, bgRect, edge, down) {
+  if (!rect || !rect.height) return;
+  const top = rect.top - bgRect.top;
+  const g = ctx.createLinearGradient(0, down ? top : top + rect.height, 0, down ? top + rect.height : top);
+  const alpha = a => `color-mix(in srgb, ${edge} ${a}%, transparent)`;
+  const stops = [[0, 100], [Math.min(0.2, 12 / rect.height), 100], [0.52, 60], [0.76, 26], [1, 0]];
+  for (const [at, a] of stops) {
+    try { g.addColorStop(at, alpha(a)); } catch { g.addColorStop(at, a > 0 ? edge : "transparent"); }
+  }
+  ctx.fillStyle = g;
+  ctx.fillRect(0, top, bgRect.width, rect.height);
+}
+function backdropCanvas(bgRect) {
+  const fadeTop = document.querySelector(".fade-top")?.getBoundingClientRect();
+  const fadeBot = document.querySelector(".fade-bot")?.getBoundingClientRect();
+  const w = Math.max(1, Math.round(bgRect.width));
+  const h = Math.max(1, Math.round(bgRect.height));
+  const key = [backdrop.src, w, h, fadeTop?.height, fadeBot?.top].join("|");
+  if (backdrop.canvas && backdrop.key === key) return backdrop.canvas;
+  const canvas = backdrop.canvas || document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  const edge = getComputedStyle(document.documentElement).getPropertyValue("--edge").trim() || "#1b1646";
+  ctx.fillStyle = edge;
+  ctx.fillRect(0, 0, w, h);
+  ctx.drawImage(backdrop.img, 0, 0, w, h);
+  paintFade(ctx, fadeTop, bgRect, edge, false);
+  paintFade(ctx, fadeBot, bgRect, edge, true);
+  backdrop.canvas = canvas;
+  backdrop.key = key;
+  return canvas;
+}
+
+/**
+ * Lente de refração WebGL 2 do fork (<Glass draw lenses>) dentro de um botão.
+ * Exige WebGL 2; sem ele o elemento fica oculto e vale o vidro em CSS. O canvas
+ * não recebe ponteiro nem foco (aria-hidden, pointer-events:none), então o
+ * preventDefault delegado do teclado continua valendo. Renderiza só enquanto algo
+ * muda e pausa com a aba oculta.
+ */
+function ChromeLens() {
+  const hostRef = useRef(null);
+  const snapRef = useRef(null);
+  const frozenRef = useRef(false);
+  const [live, setLive] = useState(false);
+  const [frozen, setFrozen] = useState(false);
+  const [box, setBox] = useState({ w: 0, h: 0 });
+
+  const copyOut = useCallback(() => {
+    const host = hostRef.current;
+    const snap = snapRef.current;
+    const out = host?.querySelector(".lens-surface canvas");
+    if (!out || !snap || out.style.display === "none" || !out.width || !out.height) return;
+    if (snap.width !== out.width || snap.height !== out.height) {
+      snap.width = out.width;
+      snap.height = out.height;
+    }
+    const ctx = snap.getContext("2d");
+    ctx.clearRect(0, 0, snap.width, snap.height);
+    ctx.drawImage(out, 0, 0);
+    if (!frozenRef.current) {
+      frozenRef.current = true;
+      setFrozen(true);
+      host.closest("button")?.setAttribute("data-lens", "webgl2");
+    }
+  }, []);
+
+  const draw = useCallback((ctx) => {
+    const host = hostRef.current;
+    const bg = document.querySelector(".bg")?.getBoundingClientRect();
+    const r = host?.getBoundingClientRect();
+    ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    if (!host || !bg || !r || !r.width || !backdrop.img) return;
+    const source = backdropCanvas(bg);
+    const sx = ctx.canvas.width / r.width;
+    const sy = ctx.canvas.height / r.height;
+    ctx.drawImage(source, (bg.left - r.left) * sx, (bg.top - r.top) * sy, bg.width * sx, bg.height * sy);
+    // Depois do render do mesmo quadro (microtarefa), antes da composição.
+    queueMicrotask(copyOut);
+  }, [copyOut]);
+
+  useEffect(() => {
+    const host = hostRef.current;
+    const button = host?.closest("button");
+    if (!hasWebGL2()) {
+      button?.setAttribute("data-lens", "css");
+      return undefined;
+    }
+    let timer = 0;
+    let cancelled = false;
+    let ready = false;
+    const measure = () => {
+      // O host fica oculto (display:none) até a primeira lente: mede o botão.
+      const frame = host?.parentElement;
+      if (!frame) return;
+      const w = frame.clientWidth;
+      const h = frame.clientHeight;
+      setBox(prev => (prev.w === w && prev.h === h ? prev : { w, h }));
+    };
+    const settle = () => {
+      setLive(false);
+      if (!frozenRef.current) button?.setAttribute("data-lens", "css");
+    };
+    const wake = () => {
+      if (cancelled || !ready || document.hidden) return;
+      measure();
+      setLive(true);
+      clearTimeout(timer);
+      timer = setTimeout(settle, LENS_SETTLE_MS);
+    };
+    const onVisibility = () => {
+      if (document.hidden) {
+        clearTimeout(timer);
+        setLive(false);
+      } else wake();
+    };
+    loadBackdrop().then(() => {
+      ready = true;
+      wake();
+    }).catch(() => button?.setAttribute("data-lens", "css"));
+    const viewport = window.visualViewport;
+    window.addEventListener("resize", wake);
+    viewport?.addEventListener("resize", wake);
+    viewport?.addEventListener("scroll", wake);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+      window.removeEventListener("resize", wake);
+      viewport?.removeEventListener("resize", wake);
+      viewport?.removeEventListener("scroll", wake);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, []);
+
+  const lenses = box.w > 0 && box.h > 0
+    ? [{ x: 0.5, y: 0.5, w: box.w, h: box.h, radius: Math.min(box.w, box.h) / 2 }]
+    : [];
+  return (
+    <span
+      ref={hostRef}
+      className="lens"
+      aria-hidden="true"
+      data-live={live ? "" : undefined}
+      data-frozen={frozen ? "" : undefined}
+    >
+      <canvas ref={snapRef} />
+      {live && lenses.length > 0 && (
+        <Glass
+          className="lens-surface"
+          draw={draw}
+          optics={CHROME_LENS}
+          lenses={lenses}
+          maxDpr={2}
+          style={{ position: "absolute", inset: 0 }}
+        />
+      )}
+    </span>
+  );
+}
 
 const MENU_RADIUS = 9;
 
@@ -372,7 +596,7 @@ function LibrarySubmenu() {
 function Toast() {
   return (
     <div className="toast" id="toast" role="status" aria-live="polite" aria-atomic="true">
-      <Glass optics={MENU_LENS} className="toast-material">
+      <Glass optics={BAR_LENS} className="toast-material">
         <span className="toast-content" id="toastTextHost" />
       </Glass>
     </div>
@@ -401,7 +625,7 @@ function Chrome() {
           <GlassControl className="seg top-pill">
             <button type="button" id="destBtn" aria-label="Destino: Telegram" title="Destino: Telegram"><Icon name="telegram" /></button>
             <button type="button" className="export" id="exportBtn" aria-label="Publicar ou exportar" title="Publicar ou exportar">
-              <span className="action-dot"><Icon name="menu" /></span>
+              <span className="action-dot"><ChromeLens /><Icon name="menu" /></span>
             </button>
           </GlassControl>
         </div>
@@ -423,7 +647,7 @@ function Chrome() {
 
       <div className="bar-wrap">
         <GlassControl className="bar" id="typebar">
-          <button type="button" className="more" id="plusBtn" aria-label="Mais opções" title="Mais opções" aria-haspopup="menu"><Icon name="plus" /></button>
+          <button type="button" className="more" id="plusBtn" aria-label="Mais opções" title="Mais opções" aria-haspopup="menu"><ChromeLens /><Icon name="plus" /></button>
           <button type="button" data-cmd="bold" aria-label="Negrito"><Icon name="bold" /></button>
           <button type="button" data-cmd="italic" aria-label="Itálico"><Icon name="italic" /></button>
           <button type="button" data-cmd="underline" aria-label="Sublinhado"><Icon name="underline" /></button>
