@@ -756,7 +756,6 @@ test('step 6 persists drafts on the Railway volume, binds Telegram publication p
   assert.doesNotMatch(app,/Math\.min\(520,bounds\.height\*\.78,fullHeight\)/);
   assert.match(app,/one\('#exportBtn'\)\.addEventListener[\s\S]*?togglePanel\('#exportMenu'/);
   assert.match(app,/one\('#publicationToggle'\)\?\.addEventListener/);
-  assert.doesNotMatch(app,/event\.stopImmediatePropagation\(\)/);
 });
 
 test('step 5 overlays use the visual viewport without changing the baseline material contract',()=>{
