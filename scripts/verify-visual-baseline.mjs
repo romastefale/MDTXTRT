@@ -11,7 +11,7 @@ if(!/^[a-f0-9]{40}$/.test(comparisonSha))throw new Error('VISUAL_COMPARISON_SHA 
 
 const repo=process.cwd();
 const tempRoot=mkdtempSync(join(tmpdir(),'mdtxtrt-visual-'));
-const comparisonRoot=join(tempRoot,'baseline');
+const comparisonRoot=join(tempRoot,'comparison');
 const outDir=resolve(repo,'.release-visual');
 mkdirSync(outDir,{recursive:true});
 
