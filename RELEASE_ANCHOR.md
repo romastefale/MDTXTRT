@@ -1,56 +1,47 @@
-# Release Anchor policy — Etapa 7/7
+# Release evidence reference policy — Etapa 7/7
 
-## Authority
+## Purpose
 
-The canonical release identity is a **full 40-character Git commit SHA**. A convenience branch or tag may point to it, but never replaces the SHA as authority.
+A release SHA identifies the exact code state against which a particular certification record was collected. It exists for traceability and evidence.
 
-`RELEASE_MANIFEST.json.visualComparisonSnapshot` is a replaceable visual-comparison snapshot, mirrored by `BASELINE.md`. It is neither an approved behavioral baseline nor the release identity, and it does not constrain later product evolution.
+It is **not an immutable product baseline**, **not a preservation target**, and **not authority over subsequent development**. A later correction or evolution is expected to create a later state. Historical release evidence remains attached to the SHA it actually tested, while development continues from the current product state.
+
+`RELEASE_MANIFEST.json.visualComparisonSnapshot` is separately a replaceable visual-comparison snapshot. Neither that snapshot nor a release-evidence SHA defines required future behavior.
 
 ## Engineering completion versus release certification
 
-Engineering completion does not require an immutable Release Anchor. A merged implementation whose exact `main` SHA passes the automated gates and reaches production successfully is a completed engineering delivery.
+Engineering completion is a property of the implementation and its current acceptance criteria. Release certification records evidence for one exact candidate state.
 
-The Release Anchor is an additional certification artifact. External/device/rollback evidence may be collected after engineering delivery; until then the product can remain deployed without falsely labeling that evidence as PASS.
+Certification does not freeze that state. `RELEASE APPROVED` means only that the recorded gates passed for the identified SHA at that point in time. It does not mean “final product”, “permanent implementation”, or “state that future work must preserve”.
 
-## Pre-release candidate versus final immutable anchor
+## Candidate and historical evidence reference
 
-During release certification, code may have one or more **test candidates**. A test candidate is simply an exact commit SHA used to run automated and external validation. It is not an immutable Release Anchor and must not be described as `RELEASE APPROVED` unless the certification evidence is complete.
+During certification, the candidate is an exact commit SHA so automated and external evidence cannot accidentally mix different code states.
 
-The **final immutable Release Anchor is created only after every mandatory criterion in `RELEASE_VALIDATION.md` passes against the same exact SHA**, including:
-- clean regression/build and bundle reproducibility;
-- stage lineage and surface-contract audit;
-- automated/manual visual checks;
-- exact candidate deployment;
-- Railway draft persistence/restart;
-- Telegraph real restart flow;
-- Telegram real send + revision notice + new revised message while preserving the prior message;
-- Web/PWA/Mini App physical matrix on iOS and Android;
-- real import/export matrix;
-- network/storage fault matrix;
-- rollback;
-- evidence completeness and authorization.
+After certification, that SHA remains in the historical evidence record because changing the identifier would falsify what was tested. This is **historical traceability**, not product immutability.
 
-This intentionally prevents a green automated build from being called the final immutable candidate while external/device evidence is missing.
+When the product changes:
+- do not rewrite old evidence to claim it tested new code;
+- create new evidence for the later candidate when certification is desired;
+- do not use the older certified SHA to veto, weaken, or redirect a requested evolution;
+- do not require new implementation to reproduce old behavior unless that behavior remains an intentional current contract.
 
-## Immutability rule
+## Evolution rule
 
-After a SHA is recorded as **RELEASE APPROVED** and sealed as the Release Anchor:
-- do not amend or reinterpret it;
-- do not force-move a convenience branch/tag to make another commit appear to be the same release;
-- do not deploy a different SHA under the same release record.
+A release record answers: **“what exact state did this evidence evaluate?”**
 
-If a defect is discovered **before** approval, fix it in a new test-candidate commit and restart the required gates. No immutable anchor has yet been sealed.
+The current requirements answer: **“what should the product become now?”**
 
-If a defect is discovered **after** approval, keep the approved anchor and evidence unchanged. A correction becomes a new release cycle with its own SHA and full validation.
+The first question never overrides the second.
 
-## Deployment rule
+If a defect is discovered after certification, correct it. If an implementation becomes obsolete, replace it. If behavior intentionally changes, update tests and contracts that should follow that behavior. The prior SHA remains only as an honest historical coordinate for its evidence.
 
-The final deployment record must identify the exact approved Release Anchor SHA. Deployment from a branch name alone is insufficient.
+## Deployment and rollback
 
-Persistent Railway volume data is not deleted to make rollback appear clean. Rollback/forward-redeploy evidence belongs to the release record.
+Deployment records should identify exact SHAs for traceability. Rollback targets may likewise identify a known historical deployment SHA.
 
-## Convenience pointer
+That does not make either SHA immutable product architecture. A rollback reference is operational evidence for recovering a prior deployment, not a mandate that development remain compatible with it forever.
 
-Only after approval, an optional branch/tag such as `release-anchor/<date>-final` may be created as a convenience pointer to the already-approved full SHA.
+## Convenience pointers
 
-Moving or deleting that pointer never changes the historical meaning of the recorded SHA.
+Branches or tags may be used as convenience pointers, but they do not define product truth. Historical evidence should always retain the exact SHA actually tested so the record remains auditable.
