@@ -707,7 +707,7 @@ function handoffActionValid(action,draft,file){
   if(action.request!==null)handoffPublishRequestValid(action.request,draft,file);
   if(action.status!=="uncertain"&&action.request===null)throw new Error("Estado de publicação da transferência inválido");
   if(action.status==="succeeded"){
-    if(!action.result||!["sendRichMessage","editMessageText"].includes(action.result.via)||!Number.isInteger(action.result.messageId)||action.result.messageId<=0)throw new Error("Resultado da publicação transferida inválido");
+    if(!action.result||action.result.via!=="sendRichMessage"||!Number.isInteger(action.result.messageId)||action.result.messageId<=0)throw new Error("Resultado da publicação transferida inválido");
   }else if(action.result!==null){
     throw new Error("Estado de publicação da transferência inválido");
   }
