@@ -12,7 +12,7 @@ const pwa=JSON.parse(read('manifest.webmanifest'));
 
 const requiredIds=[
   'undoBtn','redoBtn','themeBtn','destBtn','exportBtn','openAppBtn','exportMdBtn','exportTxtBtn',
-  'plusBtn','linkBtn','headingBtn','listBtn','quoteBtn','docName','libraryBtn','librarySubmenu','libraryClose','libraryNew','publicationToggle','draftList','telegraphList','importMdBtn','importTxtBtn','findBtn',
+  'plusBtn','linkBtn','headingBtn','listBtn','quoteBtn','docName','libraryBtn','libraryMenu','libraryClose','libraryNew','publicationToggle','draftList','telegraphList','importMdBtn','importTxtBtn','findBtn',
   'mediaBtn','voiceBtn','dialogMenu','findMenu','fileInput','mediaInput'
 ];
 for(const id of requiredIds){

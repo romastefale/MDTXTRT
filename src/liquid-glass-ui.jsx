@@ -135,17 +135,14 @@ function QuoteMenu() {
 function ExportMenu() {
   return (
     <GlassContextMenu id="exportMenu" className="wide-menu export-menu" anchorId="exportBtn" placement="auto">
-      <div id="exportRootView" className="export-root-view">
-        <p className="hint">Publique, exporte ou acesse seus rascunhos e publicações.</p>
-        <div className="menu-list">
-          <MenuItem icon="file" id="libraryBtn">Rascunhos e publicações</MenuItem>
-          <div className="menu-divider" role="separator" />
-          <MenuItem icon="telegram" id="openAppBtn"><span id="openAppLabel">Publicar no Telegram</span></MenuItem>
-          <MenuItem icon="markdown" id="exportMdBtn">Baixar Markdown</MenuItem>
-          <MenuItem icon="text_fields" id="exportTxtBtn">Baixar TXT</MenuItem>
-        </div>
+      <p className="hint">Publique, exporte ou acesse seus rascunhos e publicações.</p>
+      <div className="menu-list">
+        <MenuItem icon="file" id="libraryBtn">Rascunhos e publicações</MenuItem>
+        <div className="menu-divider" role="separator" />
+        <MenuItem icon="telegram" id="openAppBtn"><span id="openAppLabel">Publicar no Telegram</span></MenuItem>
+        <MenuItem icon="markdown" id="exportMdBtn">Baixar Markdown</MenuItem>
+        <MenuItem icon="text_fields" id="exportTxtBtn">Baixar TXT</MenuItem>
       </div>
-      <LibrarySubmenu />
     </GlassContextMenu>
   );
 }
@@ -306,42 +303,49 @@ function FindMenu() {
 
 function LibrarySubmenu() {
   return (
-    <div id="librarySubmenu" className="library-submenu-view" aria-labelledby="libraryTitle" hidden>
-      <div className="library-head">
-        <button type="button" id="libraryClose" className="library-round-action" aria-label="Voltar ao menu" title="Voltar ao menu"><Icon name="arrow_back" /></button>
-        <div className="library-heading">
-          <h2 id="libraryTitle">Rascunhos e publicações</h2>
+    <GlassContextMenu
+      id="libraryMenu"
+      className="wide-menu plus-submenu library-menu"
+      anchorId="exportBtn"
+      placement="auto"
+      data-library-submenu=""
+    >
+      <div className="menu-list library-menu-list">
+        <MenuItem icon="arrow_back" className="submenu-back" id="libraryClose">
+          <span className="menu-label">Rascunhos e publicações</span>
+        </MenuItem>
+        <MenuItem icon="sticky_note_2" id="libraryNew">Novo documento</MenuItem>
+        <div className="menu-divider" role="separator" />
+        <div id="libraryStatus" className="library-status" role="status" aria-live="polite" />
+        <MenuItem
+          icon="file"
+          id="publicationToggle"
+          className="library-section-toggle"
+          aria-expanded="true"
+          aria-controls="publicationLists"
+        >
+          <span id="publicationLibraryTitle" className="menu-label">Publicações</span>
+          <span id="publicationCount" className="library-section-count">0</span>
+          <span className="menu-chevron"><Icon name="chevron_right" /></span>
+        </MenuItem>
+        <div id="publicationLists" className="library-publication-groups">
+          <section className="library-platform-group" id="telegramLibrarySection" aria-labelledby="telegramLibraryTitle">
+            <h3 id="telegramLibraryTitle">Telegram</h3>
+            <div id="telegramList" className="library-list" />
+          </section>
+          <section className="library-platform-group" id="telegraphLibrarySection" aria-labelledby="telegraphLibraryTitle">
+            <h3 id="telegraphLibraryTitle">Telegraph</h3>
+            <div id="telegraphList" className="library-list" />
+          </section>
         </div>
-        <button type="button" id="libraryNew" className="library-round-action" aria-label="Criar novo documento" title="Criar novo documento"><Icon name="sticky_note_2" /></button>
+        <div className="menu-divider" role="separator" />
+        <div className="library-section-heading" id="draftLibrarySection">
+          <h3 id="draftLibraryTitle">Rascunhos</h3>
+          <span id="draftCount" className="library-section-count">0</span>
+        </div>
+        <div id="draftList" className="library-list" aria-labelledby="draftLibraryTitle" />
       </div>
-      <div id="libraryStatus" className="library-status" role="status" aria-live="polite" />
-      <div className="library-submenu-scroll">
-        <section className="library-section library-publications" id="publicationLibrarySection" aria-labelledby="publicationLibraryTitle">
-          <button type="button" id="publicationToggle" className="library-section-toggle" aria-expanded="true" aria-controls="publicationLists">
-            <span id="publicationLibraryTitle">Publicações</span>
-            <span id="publicationCount" className="library-section-count">0</span>
-            <Icon name="chevron_right" />
-          </button>
-          <div id="publicationLists" className="library-publication-groups">
-            <section className="library-platform-group" id="telegramLibrarySection" aria-labelledby="telegramLibraryTitle">
-              <h3 id="telegramLibraryTitle">Telegram</h3>
-              <div id="telegramList" className="library-list" />
-            </section>
-            <section className="library-platform-group" id="telegraphLibrarySection" aria-labelledby="telegraphLibraryTitle">
-              <h3 id="telegraphLibraryTitle">Telegraph</h3>
-              <div id="telegraphList" className="library-list" />
-            </section>
-          </div>
-        </section>
-        <section className="library-section" id="draftLibrarySection" aria-labelledby="draftLibraryTitle">
-          <div className="library-section-heading">
-            <h3 id="draftLibraryTitle">Rascunhos</h3>
-            <span id="draftCount" className="library-section-count">0</span>
-          </div>
-          <div id="draftList" className="library-list" />
-        </section>
-      </div>
-    </div>
+    </GlassContextMenu>
   );
 }
 
@@ -388,6 +392,7 @@ function Chrome() {
       <ListMenu />
       <QuoteMenu />
       <ExportMenu />
+      <LibrarySubmenu />
       <PlusMenu />
       <input id="fileInput" type="file" accept=".txt,.md,text/plain,text/markdown" hidden />
       <input id="mediaInput" type="file" accept="image/*,video/*,audio/*,.pdf,.zip" hidden />
