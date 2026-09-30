@@ -819,7 +819,7 @@ function requireEditorCore(){
 }
 function currentEditorCore(){return requireEditorCore();}
 function saveSel(){savedRange=requireEditorCore().saveSelection();}
-function restoreSel(){requireEditorCore().restoreSelection();}
+function restoreSel(){return savedRange?requireEditorCore().restoreSelection(savedRange):false;}
 function pushHist(){requireEditorCore().syncFromDOM({addToHistory:true});}
 function histUndo(){if(requireEditorCore().undo()){restoreActiveMediaVisual();syncEditorSelectionUI();}}
 function histRedo(){if(requireEditorCore().redo()){restoreActiveMediaVisual();syncEditorSelectionUI();}}
@@ -871,6 +871,7 @@ function formatBlock(tag){
 }
 function insertHTML(html,asBlock=false){
   if(!editorCore)throw new Error('Núcleo de edição indisponível');
+  restoreSel();
   if(!editorCore.insertHTML(html,asBlock))throw new Error('Não foi possível inserir o conteúdo');
   closePanels();syncEditorSelectionUI();
 }
@@ -959,9 +960,19 @@ async function insertFeature(kind){
   if(kind==='ordered')return toggleList('ol');
   if(kind==='divider')return insertHTML('<hr/>',true);
   if(kind==='table'){
+    const columnsAnswer=await ask('Colunas (1–20)','1');
+    if(columnsAnswer===null)return;
+    const columns=Number(columnsAnswer.trim());
+    if(!Number.isSafeInteger(columns)||columns<1||columns>20)return showToast('O Telegram aceita de 1 a 20 colunas por tabela');
+    const rowsAnswer=await ask('Linhas','1');
+    if(rowsAnswer===null)return;
+    const rows=Number(rowsAnswer.trim());
+    if(!Number.isSafeInteger(rows)||rows<1)return showToast('Informe ao menos uma linha');
     const caption=await ask('Legenda da tabela','');
     if(caption===null)return;
-    return insertHTML('<table bordered striped compact>'+(caption?'<caption>'+escapeHTML(caption)+'</caption>':'')+'<tr><th></th><th></th></tr><tr><td></td><td></td></tr></table>',true);
+    const head='<tr>'+Array.from({length:columns},()=>'<th></th>').join('')+'</tr>';
+    const body=Array.from({length:Math.max(0,rows-1)},()=>'<tr>'+Array.from({length:columns},()=>'<td></td>').join('')+'</tr>').join('');
+    return insertHTML('<table bordered striped compact>'+(caption?'<caption>'+escapeHTML(caption)+'</caption>':'')+head+body+'</table>',true);
   }
   if(kind==='expandquote')return formatBlock('expandquote');
   if(kind==='pullquote')return formatBlock('pullquote');
@@ -1453,8 +1464,8 @@ function setDraftsExpanded(expanded){
   setLibrarySectionExpanded('#draftToggle','#draftLists',expanded);
 }
 function openLibrary(preferred=''){
-  setPublicationsExpanded(true);
-  setDraftsExpanded(true);
+  setPublicationsExpanded(false);
+  setDraftsExpanded(false);
   openPanel('#libraryMenu',one('#exportBtn'));
   const list=one('#libraryMenu .menu-list');
   if(list)list.scrollTop=0;
@@ -1466,8 +1477,8 @@ function closeLibrary(){
   const menu=one('#libraryMenu');
   if(!panelIsOpen(menu))return;
   closePanel(menu,false);
-  setPublicationsExpanded(true);
-  setDraftsExpanded(true);
+  setPublicationsExpanded(false);
+  setDraftsExpanded(false);
   openPanel('#exportMenu',one('#exportBtn'));
   syncBackButton();
   queueMicrotask(()=>focusMenuControl(one('#libraryBtn')));
@@ -1714,7 +1725,12 @@ function commitEditorInput(event){
   const normalized=!blockTransformed&&!inlineTransformed&&editorCore.normalizeEmptyFormattedBlock(event?.inputType||'');
   if(blockTransformed||inlineTransformed||normalized)syncEditorSelectionUI();
 }
-editor.addEventListener('beforeinput',exitFormattedBlockOnParagraph);
+editor.addEventListener('beforeinput',event=>{
+  if(!editorCore||composing)return;
+  if(editorCore.handleBeforeInput(event))return;
+  exitFormattedBlockOnParagraph(event);
+});
+editor.addEventListener('keydown',event=>{if(editorCore)editorCore.handleKeydown(event);});
 editor.addEventListener('input', event=>{ if(!composing)commitEditorInput(event); });
 editor.addEventListener('change',e=>{if(e.target.matches('input[type=checkbox]')){e.target.toggleAttribute('checked',e.target.checked);requireEditorCore().syncFromDOM({addToHistory:true});syncEditorSelectionUI();}});
 editor.addEventListener('compositionstart', ()=> composing = true);
@@ -1812,6 +1828,21 @@ menuDismissLayer?.addEventListener('click',event=>{
 all('#typebar [data-cmd], [data-plus-submenu] [data-cmd], #listMenu [data-cmd]').forEach(btn => btn.addEventListener('click', ()=>{try{exec(btn.dataset.cmd);closePanels();}catch(err){showToast(err.message);}}));
 all('#typebar [data-block], #headingMenu [data-block], #quoteMenu [data-block]').forEach(btn => btn.addEventListener('click', ()=>{try{formatBlock(btn.dataset.block);}catch(err){showToast(err.message);}}));
 document.querySelectorAll('[data-plus-submenu] [data-insert], #quoteMenu [data-insert], #listMenu [data-insert]').forEach(btn => btn.addEventListener('click', ()=>{void insertFeature(btn.dataset.insert).catch(err=>showToast(err.message));}));
+const tableActions=Object.freeze({
+  'add-row':()=>requireEditorCore().addTableRow(),
+  'remove-row':()=>requireEditorCore().removeTableRow(),
+  'add-column':()=>requireEditorCore().addTableColumn(),
+  'remove-column':()=>requireEditorCore().removeTableColumn(),
+  'delete-table':()=>requireEditorCore().deleteTable()
+});
+document.querySelectorAll('[data-table-action]').forEach(btn=>btn.addEventListener('click',()=>{
+  try{
+    restoreSel();
+    const action=tableActions[btn.dataset.tableAction];
+    if(typeof action!=='function'||!action())throw new Error('Posicione o cursor dentro da tabela');
+    closePanels();syncEditorSelectionUI();
+  }catch(err){showToast(err.message||'Não foi possível alterar a tabela');}
+}));
 all('#plusMenu [data-plus-category]').forEach(btn=>btn.addEventListener('click',()=>openPlusSubmenu(btn.dataset.plusCategory)));
 all('[data-plus-submenu] [data-plus-back]').forEach(btn=>btn.addEventListener('click',()=>openPlusRoot()));
 const linkActions=Object.freeze({
