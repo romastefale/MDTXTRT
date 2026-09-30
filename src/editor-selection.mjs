@@ -119,12 +119,17 @@ export function textRanges(root){
 export function rangeForTextOffsets(root,from,to){
   const {rows,length}=textRanges(root);
   const start=Math.max(0,Math.min(from,length)),end=Math.max(start,Math.min(to,length));
-  const locate=(pos,preferEnd=false)=>{
+  const locate=(pos,bias)=>{
     if(!rows.length)return {node:root,offset:0};
-    const row=rows.find(item=>pos<item.end||(!preferEnd&&pos===item.start))||rows.at(-1);
+    if(bias==="backward"){
+      const row=[...rows].reverse().find(item=>pos>=item.start&&pos<=item.end)||rows[0];
+      return {node:row.node,offset:Math.max(0,Math.min(pos-row.start,row.node.data.length))};
+    }
+    const row=rows.find(item=>pos>=item.start&&pos<item.end)||rows.at(-1);
     return {node:row.node,offset:Math.max(0,Math.min(pos-row.start,row.node.data.length))};
   };
-  const a=locate(start),b=locate(end,true);
+  const collapsed=start===end;
+  const a=locate(start,collapsed?"backward":"forward"),b=locate(end,"backward");
   const range=root.ownerDocument.createRange();
   range.setStart(a.node,a.offset);range.setEnd(b.node,b.offset);
   return range;
