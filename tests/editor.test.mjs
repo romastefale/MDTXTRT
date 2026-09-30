@@ -4,6 +4,8 @@ import {readFileSync} from 'node:fs';
 import {JSDOM} from 'jsdom';
 import {randomUUID} from 'node:crypto';
 import {TextEncoder} from 'node:util';
+import {fileURLToPath} from 'node:url';
+import {buildSync} from 'esbuild';
 
 const root=new URL('../',import.meta.url);
 const wait=(ms=0)=>new Promise(resolve=>setTimeout(resolve,ms));
@@ -37,107 +39,13 @@ function memoryIndexedDB(){
   };
 }
 
-function mountReactContract(document){
-  const root=document.querySelector('#ux-root');
-  root.innerHTML=`
-    <header class="topbar">
-      <div class="top-left"><div class="seg"><button id="undoBtn"></button><button id="redoBtn"></button></div></div>
-      <div class="top-center"><span class="app-title">MDTXTRT</span><div class="theme-control"><button id="themeBtn"><span data-icon="light_mode"></span></button></div></div>
-      <div class="top-right"><div class="seg"><button id="destBtn" title="Destino: Telegram"><span data-icon="telegram"></span></button><button id="exportBtn"></button></div></div>
-    </header>
-    <div id="menuDismissLayer" hidden></div>
-    <div id="headingMenu" data-anchor="headingBtn" data-placement="top"><div class="menu-list">
-      <button data-block="h1"></button><button data-block="h2"></button><button data-block="h3"></button>
-      <button data-block="h4"></button><button data-block="h5"></button><button data-block="h6"></button>
-      <button data-block="p"></button><button data-block="footer"></button>
-    </div></div>
-    <div id="listMenu" data-anchor="listBtn" data-placement="top"><div class="menu-list">
-      <button data-cmd="insertUnorderedList"></button><button data-insert="ordered"></button><button data-insert="task" data-telegram-only></button>
-    </div></div>
-    <div id="quoteMenu" data-anchor="quoteBtn" data-placement="top"><div class="menu-list">
-      <button data-block="blockquote"></button><button data-insert="pullquote"></button><button data-insert="expandquote"></button>
-    </div></div>
-    <div id="linkMenu" class="glass-menu" data-anchor="linkBtn" data-placement="top"><div class="menu-list">
-      <button data-link-kind="hyperlink"></button><button data-link-kind="url"></button><button data-link-kind="button" data-telegram-only></button>
-    </div></div>
-    <div id="exportMenu" class="glass-menu export-menu" data-anchor="exportBtn" data-placement="auto">
-      <div class="menu-list">
-        <button id="libraryBtn"></button>
-        <button id="openAppBtn"><span data-icon="telegram"></span><span id="openAppLabel">Publicar no Telegram</span></button>
-        <button id="exportMdBtn"></button><button id="exportTxtBtn"></button>
-      </div>
-    </div>
-    <div id="libraryMenu" class="glass-menu wide-menu plus-submenu library-menu" data-anchor="exportBtn" data-placement="auto" data-library-submenu>
-      <div class="menu-list library-menu-list">
-        <button id="libraryClose"></button>
-        <button id="libraryNew"></button>
-        <div id="libraryStatus"></div>
-        <button id="publicationToggle" aria-expanded="false"></button>
-        <span id="publicationCount">0</span>
-        <div id="publicationLists" hidden>
-          <section id="telegramLibrarySection"><div id="telegramList"></div></section>
-          <section id="telegraphLibrarySection"><div id="telegraphList"></div></section>
-        </div>
-        <button id="draftToggle" aria-expanded="false"></button>
-        <span id="draftCount">0</span>
-        <div id="draftLists" hidden><div id="draftList"></div></div>
-      </div>
-    </div>
-    <div id="plusMenu" data-anchor="plusBtn" data-placement="top">
-      <div class="document-tools"><input id="docName" value="Ideia"></div>
-      <div class="menu-list">
-        <button data-plus-category="file"></button>
-        <button data-plus-category="format"></button>
-        <button data-plus-category="structure"></button>
-        <button data-plus-category="media"></button>
-        <button data-plus-category="interaction" data-telegram-only></button>
-      </div>
-    </div>
-    <div id="plus-file-menu" data-anchor="plusBtn" data-placement="top" data-plus-submenu="file"><div class="menu-list">
-      <button data-plus-back></button>
-      <button id="importMdBtn"></button><button id="importTxtBtn"></button><button id="findBtn"></button>
-    </div></div>
-    <div id="plus-format-menu" data-anchor="plusBtn" data-placement="top" data-plus-submenu="format"><div class="menu-list">
-      <button data-plus-back></button>
-      <button data-cmd="strike"></button><button data-cmd="mark" data-telegram-only></button>
-      <button data-cmd="spoiler" data-telegram-only></button><button data-cmd="code"></button>
-      <button data-cmd="sub" data-telegram-only></button><button data-cmd="sup" data-telegram-only></button>
-    </div></div>
-    <div id="plus-structure-menu" data-anchor="plusBtn" data-placement="top" data-plus-submenu="structure"><div class="menu-list">
-      <button data-plus-back></button>
-      <button data-cmd="math" data-telegram-only></button><button data-insert="mathblock" data-telegram-only></button>
-      <button data-insert="divider"></button><button data-insert="table" data-telegram-only></button>
-      <button data-table-action="add-row" data-telegram-only></button><button data-table-action="remove-row" data-telegram-only></button>
-      <button data-table-action="add-column" data-telegram-only></button><button data-table-action="remove-column" data-telegram-only></button>
-      <button data-table-action="delete-table" data-telegram-only></button>
-      <button data-insert="details" data-telegram-only></button>
-    </div></div>
-    <div id="plus-media-menu" data-anchor="plusBtn" data-placement="top" data-plus-submenu="media"><div class="menu-list">
-      <button data-plus-back></button>
-      <button data-insert="image"></button><button id="mediaBtn" data-telegram-only></button>
-      <button id="voiceBtn" data-telegram-only></button><button data-insert="video"></button>
-      <button data-insert="embed" data-telegraph-only></button><button data-insert="audio" data-telegram-only></button>
-      <button data-insert="document" data-telegram-only></button><button data-insert="map" data-telegram-only></button>
-      <button data-insert="collage" data-telegram-only></button><button data-insert="slideshow" data-telegram-only></button>
-    </div></div>
-    <div id="plus-interaction-menu" data-anchor="plusBtn" data-placement="top" data-plus-submenu="interaction"><div class="menu-list">
-      <button data-plus-back></button>
-      <button data-insert="anchor" data-telegram-only></button><button data-insert="reference" data-telegram-only></button>
-      <button data-insert="time" data-telegram-only></button><button data-insert="emoji" data-telegram-only></button>
-      <button data-insert="button" data-telegram-only></button>
-    </div></div>
-    <input id="fileInput" type="file" hidden><input id="mediaInput" type="file" multiple hidden>
-    <div id="toast" role="status"><span id="toastTextHost"></span></div>
-    <div id="dialogMenu" popover="manual"><div id="dialogLabel"></div><textarea id="dialogInput"></textarea><button id="dialogCancel"></button><button id="dialogOk"></button></div>
-    <div id="findMenu" data-anchor="findBtn" data-placement="auto"><input id="findText"><input id="replaceText"><button id="findNext"></button><button id="replaceOne"></button><button id="replaceAll"></button></div>
-    <div class="bar-wrap"><div id="typebar">
-      <button id="plusBtn" class="more"></button>
-      <button data-cmd="bold"></button><button data-cmd="italic"></button><button data-cmd="underline"></button>
-      <button id="linkBtn"></button><button id="headingBtn"></button>
-      <button id="listBtn"></button><button id="quoteBtn"></button>
-    </div></div>
-  `;
-}
+// A interface real (src/chrome.jsx), empacotada para rodar dentro da janela
+// JSDOM como um script clássico, no lugar de uma marcação escrita à mão.
+const chromeBundle=buildSync({
+  stdin:{contents:'import {mountChrome} from "./src/chrome.jsx";mountChrome(document.getElementById("ux-root"));',resolveDir:fileURLToPath(root),loader:'js'},
+  bundle:true,format:'iife',platform:'browser',target:'es2022',write:false,logLevel:'silent',
+  define:{'process.env.NODE_ENV':'"production"'}
+}).outputFiles[0].text;
 
 function page(setup={}){
   const dom=new JSDOM(readFileSync(new URL('index.html',root),'utf8'),{
@@ -222,7 +130,9 @@ function page(setup={}){
   }
 
   for(const script of w.document.querySelectorAll('script:not([src])'))w.eval(script.textContent);
-  mountReactContract(w.document);
+  w.HTMLCanvasElement.prototype.getContext=()=>null;
+  w.ResizeObserver??=class{observe(){}unobserve(){}disconnect(){}};
+  w.eval(chromeBundle);
   w.eval(readFileSync(new URL('marked.js',root),'utf8'));
   w.eval(readFileSync(new URL('turndown.js',root),'utf8'));
   w.eval(readFileSync(new URL('editor-core.js',root),'utf8'));
@@ -672,7 +582,7 @@ test('document name stays in export flow and becomes the Telegraph title',async(
   const tools=input.closest('.document-tools'),exportMenu=d.querySelector('#exportMenu');
   await wait(0);
   assert.equal(slot.hidden,true);
-  assert.equal(tools.parentElement,exportMenu);
+  assert.equal(tools.parentElement,exportMenu.querySelector('.glass-menu-content'));
   d.querySelector('#destBtn').click();
   await wait(0);
   assert.equal(slot.hidden,false);
@@ -686,7 +596,7 @@ test('document name stays in export flow and becomes the Telegraph title',async(
   d.querySelector('#destBtn').click();
   await wait(0);
   assert.equal(slot.hidden,true);
-  assert.equal(tools.parentElement,exportMenu);
+  assert.equal(tools.parentElement,exportMenu.querySelector('.glass-menu-content'));
   assert.equal(tools.getAttribute('data-field-label'),'Título do documento');
   assert.equal(input.getAttribute('placeholder'),'Título do documento');
   assert.equal(input.getAttribute('aria-label'),'Título do documento');
@@ -1944,5 +1854,69 @@ test('empty structural insertions do not become published-looking fixture text',
   assert.equal(e.querySelector('details summary')?.textContent,'');
   assert.equal(e.querySelector('details p')?.textContent,'');
 
+  w.close();
+});
+
+test('React renders menu state described by app.js: anchors, dismiss layer, destination items, current block and dialog',async()=>{
+  const w=page(),d=w.document;
+  await wait(0);
+  const heading=d.querySelector('#headingMenu'),headingBtn=d.querySelector('#headingBtn'),layer=d.querySelector('#menuDismissLayer');
+  assert.equal(heading.hasAttribute('data-menu-open'),false);
+  assert.equal(layer.hidden,true);
+  headingBtn.click();
+  assert.equal(heading.hasAttribute('data-menu-open'),true);
+  assert.equal(heading.hasAttribute('data-runtime-positioned'),true);
+  assert.match(heading.style.getPropertyValue('--menu-max-height'),/^\d+(\.\d+)?px$/);
+  assert.equal(headingBtn.getAttribute('aria-expanded'),'true');
+  assert.equal(layer.hidden,false);
+  layer.click();
+  assert.equal(heading.hasAttribute('data-menu-open'),false);
+  assert.equal(headingBtn.getAttribute('aria-expanded'),'false');
+  assert.equal(layer.hidden,true);
+
+  const plusBtn=d.querySelector('#plusBtn');
+  plusBtn.click();
+  assert.equal(plusBtn.classList.contains('on'),true);
+  d.querySelector('[data-plus-category="format"]').click();
+  assert.equal(d.querySelector('#plus-format-menu').hasAttribute('data-menu-open'),true);
+  assert.equal(plusBtn.classList.contains('on'),true);
+  layer.click();
+  assert.equal(plusBtn.classList.contains('on'),false);
+
+  const spoiler=d.querySelector('[data-cmd="spoiler"]'),embed=d.querySelector('[data-insert="embed"]');
+  const h1=d.querySelector('#headingMenu [data-block="h1"]'),h3=d.querySelector('#headingMenu [data-block="h3"]');
+  const expand=d.querySelector('#quoteMenu [data-insert="expandquote"]');
+  assert.deepEqual([spoiler.hidden,embed.hidden,h1.hidden,h3.hidden,expand.hidden],[false,true,false,false,false]);
+  assert.equal(d.querySelector('#openAppLabel').textContent,'Abrir no Mini App');
+  d.querySelector('#destBtn').click();
+  assert.deepEqual([spoiler.hidden,embed.hidden,h1.hidden,h3.hidden,expand.hidden],[true,false,true,false,true]);
+  assert.equal(d.querySelector('#destBtn').getAttribute('aria-pressed'),'true');
+  assert.equal(d.querySelector('#openAppLabel').textContent,'Publicar no Telegraph');
+  assert.equal(d.querySelector('#openAppBtn [data-icon]').getAttribute('data-icon'),'telegraph');
+
+  w.eval('currentEditorCore().resetHTML("<h3>Seção</h3>",{silent:true})');
+  const text=d.querySelector('#editor h3').firstChild,range=d.createRange();
+  range.setStart(text,2);range.collapse(true);
+  d.getSelection().removeAllRanges();d.getSelection().addRange(range);
+  d.dispatchEvent(new w.Event('selectionchange'));
+  assert.equal(h3.classList.contains('is-current'),true);
+  assert.equal(h1.classList.contains('is-current'),false);
+
+  const answer=w.eval('ask("Nome do link","https://exemplo.test")');
+  const dialog=d.querySelector('#dialogMenu');
+  assert.equal(dialog.matches(':popover-open'),true);
+  assert.equal(d.querySelector('#dialogLabel').textContent,'Nome do link');
+  assert.equal(d.querySelector('#dialogInput').value,'https://exemplo.test');
+  assert.equal(d.querySelector('#dialogInput').hidden,false);
+  assert.equal(d.querySelector('#dialogOk').textContent,'OK');
+  d.querySelector('#dialogInput').value='https://outro.test';
+  d.querySelector('#dialogOk').click();
+  assert.equal(await answer,'https://outro.test');
+  assert.equal(dialog.matches(':popover-open'),false);
+  const confirmation=w.eval('approve("Apagar?")');
+  assert.equal(d.querySelector('#dialogInput').hidden,true);
+  assert.equal(d.querySelector('#dialogOk').textContent,'Continuar');
+  d.querySelector('#dialogCancel').click();
+  assert.equal(await confirmation,false);
   w.close();
 });

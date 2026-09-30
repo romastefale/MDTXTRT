@@ -10,6 +10,10 @@ const toastText = document.createTextNode('');
 toastTextHost.append(toastText);
 const fileInput = one('#fileInput');
 const menuDismissLayer = one('#menuDismissLayer');
+// Estado dos menus, do diálogo e da biblioteca: src/ui-store.mjs, renderizado
+// pelo React (src/chrome.jsx). Este arquivo não altera a marcação dos menus.
+const ui = window.MDTXTRT_UI;
+if(!ui)throw new Error('Interface React incompleta: estado');
 const STATE_VERSION=2;
 const FORMAT_CONTRACT=Object.freeze({
   files:Object.freeze({
@@ -487,32 +491,11 @@ function showToast(msg){
 function setDestination(value, notify=true, persist=true){
   const changed=dest!==value;
   dest = value;
-  const btn = one('#destBtn');
   const name = dest === 'telegram' ? 'Telegram' : 'Telegraph';
-  const icon = btn.querySelector('[data-icon]');
-  icon.setAttribute('data-icon', dest === 'telegram' ? 'telegram' : 'telegraph');
-  const open=one('#openAppBtn');
-  const openIcon=open.querySelector('[data-icon]');
-  openIcon.setAttribute('data-icon',dest==='telegram'?'telegram':'telegraph');
-  const openLabel=one('#openAppLabel');
-  const actionLabel=dest==='telegram'&&session!=='ready'?'Abrir no Mini App':'Publicar no '+name;
-  if(openLabel)openLabel.textContent=actionLabel;
-  open.setAttribute('aria-label',actionLabel);
-  open.title=actionLabel;
-  const exportControl=one('#exportBtn');
-  exportControl.setAttribute('aria-label','Abrir menu de publicação, exportação e biblioteca');
-  exportControl.title='Abrir menu de publicação, exportação e biblioteca';
-  btn.setAttribute('aria-label', 'Alternar destino. Atual: ' + name);
-  btn.setAttribute('aria-pressed', String(dest === 'telegraph'));
-  btn.classList.toggle('active', dest === 'telegraph');
-  btn.title = 'Destino: ' + name;
+  const publishLabel=dest==='telegram'&&session!=='ready'?'Abrir no Mini App':'Publicar no '+name;
+  // O React troca ícones, rótulos e os itens exclusivos de cada destino.
+  ui.update({dest,publishLabel});
   applyAssets();
-  all('#headingMenu [data-block]').forEach(item => {
-    item.hidden=dest==='telegraph'&&!['p','h3','h4'].includes(item.dataset.block);
-  });
-  one('#quoteMenu [data-insert="expandquote"]').hidden = dest === 'telegraph';
-  all('[data-telegram-only]').forEach(item=>item.hidden=dest==='telegraph');
-  all('[data-telegraph-only]').forEach(item=>item.hidden=dest!=='telegraph');
   closePanels();
   if(changed)bumpDocumentRevision();
   if(persist)saveLocal();
@@ -520,8 +503,8 @@ function setDestination(value, notify=true, persist=true){
 }
 function panelIsOpen(panel){
   if(!panel)return false;
-  if(panel.hasAttribute('data-menu-open'))return true;
-  return panel.hasAttribute('popover')&&panel.matches(':popover-open');
+  if(panel.id==='dialogMenu')return ui.getState().dialog.open;
+  return ui.menu(panel.id).open;
 }
 function librarySubmenuOpen(){
   return panelIsOpen(one('#libraryMenu'));
@@ -597,21 +580,22 @@ function usableAnchorRect(rect,bounds){
 }
 function placePanel(panel,anchorRect=null){
   if(!panel)return;
-  panel.setAttribute('data-runtime-positioned','');
+  const id=panel.id;
   const viewport=visualViewportBounds(),bounds=panelViewportBounds(viewport),edge=8,gap=8;
   const fullHeight=Math.max(0,bounds.height-edge*2);
   const baseMax=Math.max(0,Math.min(420,bounds.height*.55,fullHeight));
   const maxWidth=Math.max(0,bounds.width-edge*2);
-  panel.style.setProperty('--menu-max-height',baseMax+'px');
-  panel.style.setProperty('--menu-max-width',maxWidth+'px');
+  ui.setMenu(id,{positioned:true,maxHeight:baseMax,maxWidth});
   const anchor=panelAnchor(panel);
   const rect=anchorRect||anchor?.getBoundingClientRect()||null;
   let box=panel.getBoundingClientRect();
   if(!usableAnchorRect(rect,viewport)){
     const minLeft=bounds.left+edge,maxLeft=Math.max(minLeft,bounds.right-edge-box.width);
     const minTop=bounds.top+edge,maxTop=Math.max(minTop,bounds.bottom-edge-box.height);
-    panel.style.setProperty('--menu-left',clamp(bounds.left+(bounds.width-box.width)/2,minLeft,maxLeft)+'px');
-    panel.style.setProperty('--menu-top',clamp(bounds.top+(bounds.height-box.height)/2,minTop,maxTop)+'px');
+    ui.setMenu(id,{
+      left:clamp(bounds.left+(bounds.width-box.width)/2,minLeft,maxLeft),
+      top:clamp(bounds.top+(bounds.height-box.height)/2,minTop,maxTop)
+    });
     return;
   }
   const aboveSpace=Math.max(0,rect.top-gap-(bounds.top+edge));
@@ -623,35 +607,25 @@ function placePanel(panel,anchorRect=null){
   else if(preference==='bottom')side=belowSpace>=wanted||belowSpace>=aboveSpace?'bottom':'top';
   else side=aboveSpace>=wanted?'top':belowSpace>=wanted?'bottom':aboveSpace>=belowSpace?'top':'bottom';
   const available=side==='top'?aboveSpace:belowSpace;
-  panel.style.setProperty('--menu-max-height',Math.max(0,Math.min(baseMax,available))+'px');
+  ui.setMenu(id,{maxHeight:Math.max(0,Math.min(baseMax,available))});
   box=panel.getBoundingClientRect();
   const minLeft=bounds.left+edge,maxLeft=Math.max(minLeft,bounds.right-edge-box.width);
   const left=clamp(rect.left+rect.width/2-box.width/2,minLeft,maxLeft);
   const proposed=side==='top'?rect.top-gap-box.height:rect.bottom+gap;
   const minTop=bounds.top+edge,maxTop=Math.max(minTop,bounds.bottom-edge-box.height);
-  panel.style.setProperty('--menu-left',left+'px');
-  panel.style.setProperty('--menu-top',clamp(proposed,minTop,maxTop)+'px');
-}
-function syncMenuDismissLayer(){
-  if(!menuDismissLayer)return;
-  menuDismissLayer.hidden=!sheets.some(sel=>panelIsOpen(one(sel)));
+  ui.setMenu(id,{left,top:clamp(proposed,minTop,maxTop)});
 }
 function setMenuPanelOpen(panel,open){
   if(!panel)return;
   const next=Boolean(open);
-  if(next===panel.hasAttribute('data-menu-open'))return;
-  const anchor=panelAnchor(panel);
+  if(next===panelIsOpen(panel))return;
   if(next){
-    panel.setAttribute('data-menu-open','');
-    const list=panel.querySelector('.menu-list');
-    if(list)list.scrollTop=0;
+    ui.setMenu(panel.id,{open:true,anchor:panelAnchor(panel)?.id||null});
     placePanel(panel);
   }else{
-    panel.removeAttribute('data-menu-open');
+    ui.setMenu(panel.id,{open:false});
     panelAnchors.delete(panel);
   }
-  if(anchor)anchor.setAttribute('aria-expanded',String(next));
-  syncMenuDismissLayer();
   syncBackButton();
   document.dispatchEvent(new Event('selectionchange'));
 }
@@ -670,23 +644,17 @@ function openPanel(sel,anchorOverride=null){
   const anchor=panelAnchor(panel);
   panelOpeners.set(panel,panelOrigin(anchor||document.activeElement));
   const anchorRect=anchor?.getBoundingClientRect()||null;
-  panel.setAttribute('data-menu-open','');
-  const list=panel.querySelector('.menu-list');
-  if(list)list.scrollTop=0;
+  // O React abre o painel, zera a rolagem da lista e marca aria-expanded na âncora.
+  ui.setMenu(panel.id,{open:true,anchor:anchor?.id||null});
   placePanel(panel,anchorRect);
-  if(anchor)anchor.setAttribute('aria-expanded','true');
-  syncMenuDismissLayer();
   syncBackButton();
   document.dispatchEvent(new Event('selectionchange'));
 }
 function closePanel(panel,returnFocus=false){
   if(!panelIsOpen(panel))return;
   const target=returnFocus?panelOpeners.get(panel):null;
-  const anchor=panelAnchor(panel);
-  panel.removeAttribute('data-menu-open');
+  ui.setMenu(panel.id,{open:false});
   panelAnchors.delete(panel);
-  if(anchor)anchor.setAttribute('aria-expanded','false');
-  syncMenuDismissLayer();
   syncBackButton();
   document.dispatchEvent(new Event('selectionchange'));
   if(returnFocus)focusMenuControl(target,panel);
@@ -763,7 +731,7 @@ function finishDialog(value){
   const resolve=dialogResolve,target=dialogReturnFocus;
   dialogResolve=null;dialogReturnFocus=null;
   const dialog=one('#dialogMenu');
-  if(dialog.matches(':popover-open'))dialog.hidePopover();
+  if(ui.getState().dialog.open)ui.setDialog({open:false});
   panelAnchors.delete(dialog);
   setDialogModality(false);
   syncBackButton();
@@ -778,19 +746,22 @@ function dialogOpen(label,value='',rows=1,confirmMode=false,anchorOverride=null,
   dialogReturnFocus=dialogOrigin();
   closePanels();
   const dialog=one('#dialogMenu');
-  const input=one('#dialogInput');
   const anchor=anchorOverride?.isConnected?anchorOverride:dialogReturnFocus?.isConnected?dialogReturnFocus:null;
   if(anchor)panelAnchors.set(dialog,anchor);else panelAnchors.delete(dialog);
   const anchorRect=anchor?.getBoundingClientRect()||null;
-  one('#dialogLabel').textContent=label;
   dialogConfirm=confirmMode;
   dialogChoice=Boolean(labels);
-  input.hidden=confirmMode;
-  input.value=confirmMode?'':String(value===null||value===undefined?'':value);
-  input.rows=Math.max(1,Math.min(5,rows));
-  one('#dialogOk').textContent=labels?.ok||(confirmMode?'Continuar':'OK');
-  one('#dialogCancel').textContent=labels?.cancel||'Cancelar';
-  dialog.showPopover();
+  // O React mostra o popover com o texto, o campo e os rótulos deste pedido.
+  ui.setDialog({
+    open:true,
+    serial:ui.getState().dialog.serial+1,
+    label:String(label),
+    confirm:confirmMode,
+    value:confirmMode?'':String(value===null||value===undefined?'':value),
+    rows:Math.max(1,Math.min(5,rows)),
+    ok:labels?.ok||(confirmMode?'Continuar':'OK'),
+    cancel:labels?.cancel||'Cancelar'
+  });
   setDialogModality(true);
   placePanel(dialog,anchorRect);
   syncBackButton();
@@ -1325,51 +1296,6 @@ function consumeBotLaunchAction(){
   if(action==='export'&&['d','t','g'].includes(source))return {action,source,doc:doc.toLowerCase()};
   return {error:'Ação selecionada pelo bot inválida'};
 }
-function libraryTime(value){
-  if(!Number.isFinite(value)||value<=0)return '';
-  try{return new Date(value).toLocaleString();}catch{return '';}
-}
-function emptyLibraryItem(text){
-  const item=document.createElement('div');
-  item.className='library-empty';
-  item.textContent=text;
-  return item;
-}
-function libraryEntry({title,preview='',meta='',createdAt=0,updatedAt=0,action,label='Editar',disabled=false,platform=''}){
-  const card=document.createElement('article');
-  card.className='library-entry';
-  const text=document.createElement('div');
-  text.className='library-entry-text';
-  const head=document.createElement('div');
-  head.className='library-entry-head';
-  const strong=document.createElement('strong');strong.textContent=title||'Sem título';
-  head.append(strong);
-  if(platform){
-    const badge=document.createElement('span');
-    badge.className='library-badge';
-    badge.textContent=platform;
-    head.append(badge);
-  }
-  const excerpt=document.createElement('p');
-  excerpt.className='library-preview';
-  excerpt.textContent=preview||'Sem conteúdo para pré-visualização.';
-  const details=document.createElement('span');
-  details.className='library-meta';
-  details.textContent=meta||'';
-  const dates=document.createElement('div');
-  dates.className='library-dates';
-  const created=document.createElement('span');
-  created.textContent='Criado: '+(libraryTime(createdAt)||'—');
-  const modified=document.createElement('span');
-  modified.textContent='Modificado: '+(libraryTime(updatedAt)||'—');
-  dates.append(created,modified);
-  text.append(head,excerpt,details,dates);
-  const button=document.createElement('button');
-  button.type='button';button.textContent=label;button.disabled=disabled;
-  if(action)button.addEventListener('click',action);
-  card.append(text,button);
-  return card;
-}
 async function fetchLibrary(){
   const identity=remoteDraftIdentity();
   const res=await fetch(API+'/api/library/list',{
@@ -1382,19 +1308,17 @@ async function fetchLibrary(){
   return data;
 }
 async function openLibraryDraft(doc){
-  const status=one('#libraryStatus');
-  status.textContent='Abrindo rascunho…';
+  ui.setLibrary({status:'Abrindo rascunho…'});
   try{
     const loaded=await loadRemoteDraft(doc);
     if(!loaded)throw new Error('Rascunho não encontrado');
     dismissLibraryMenu();
     showToast('Rascunho aberto');
-  }catch(error){status.textContent=error.message||'Não foi possível abrir o rascunho';}
+  }catch(error){ui.setLibrary({status:error.message||'Não foi possível abrir o rascunho'});}
 }
 async function openTelegraphDocument(doc){
   exportOverride=null;
-  const status=one('#libraryStatus');
-  status.textContent='Carregando página do Telegraph…';
+  ui.setLibrary({status:'Carregando página do Telegraph…'});
   try{
     const identity=remoteDraftIdentity();
     const res=await fetch(API+'/api/telegraph/load',{
@@ -1420,79 +1344,55 @@ async function openTelegraphDocument(doc){
     saveLocal();
     dismissLibraryMenu();
     showToast('Página Telegraph aberta para edição');
-  }catch(error){status.textContent=error.message||'Não foi possível abrir a página';}
+  }catch(error){ui.setLibrary({status:error.message||'Não foi possível abrir a página'});}
+}
+// Entradas da biblioteca: o React (LibraryEntry) renderiza cada uma.
+function libraryList(items,entry,empty){
+  const list=items.map((item,index)=>({key:index+':'+item.docId,title:item.name,preview:item.preview,createdAt:item.createdAt,updatedAt:item.updatedAt,...entry(item)}));
+  return {items:list,empty:list.length?'':empty};
 }
 async function renderLibrary(preferred=''){
-  const draftList=one('#draftList'),telegramList=one('#telegramList'),telegraphList=one('#telegraphList'),status=one('#libraryStatus');
-  const publicationCount=one('#publicationCount'),draftCount=one('#draftCount');
-  draftList.replaceChildren();telegramList.replaceChildren();telegraphList.replaceChildren();
-  status.textContent='Carregando…';
-  if(publicationCount)publicationCount.textContent='0';
-  if(draftCount)draftCount.textContent='0';
+  const pending={items:[],empty:''};
+  ui.setLibrary({status:'Carregando…',publicationCount:0,draftCount:0,drafts:pending,telegram:pending,telegraph:pending});
   try{
     const data=await fetchLibrary();
-    if(publicationCount)publicationCount.textContent=String(data.telegram.length+data.telegraph.length);
-    if(draftCount)draftCount.textContent=String(data.drafts.length);
-    if(data.drafts.length){
-      for(const item of data.drafts){
-        const meta=['rev. '+item.revision,item.hasMedia?'com anexo':''].filter(Boolean).join(' · ');
-        draftList.append(libraryEntry({
-          title:item.name,preview:item.preview,meta,createdAt:item.createdAt,updatedAt:item.updatedAt,
-          platform:item.dest==='telegraph'?'Telegraph':'Telegram',action:()=>void openLibraryDraft(item.docId),label:'Editar'
-        }));
-      }
-    }else draftList.append(emptyLibraryItem('Nenhum rascunho persistido.'));
-    if(data.telegram.length){
-      for(const item of data.telegram){
-        const state=item.status==='succeeded'?'publicada':item.status==='pending'?'pendente':'confirmação necessária';
-        const meta=['rev. '+item.revision,item.messageId?'mensagem #'+item.messageId:'',item.historyCount>1?item.historyCount+' versões':'',state].filter(Boolean).join(' · ');
-        telegramList.append(libraryEntry({
-          title:item.name,preview:item.preview,meta,createdAt:item.createdAt,updatedAt:item.updatedAt,
-          platform:'Telegram',action:()=>void openLibraryDraft(item.docId),label:'Editar texto'
-        }));
-      }
-    }else telegramList.append(emptyLibraryItem('Nenhuma publicação Telegram vinculada.'));
-    if(data.telegraph.length){
-      for(const item of data.telegraph){
-        const pending=item.status!=='succeeded';
-        const meta=pending?'Publicação pendente de confirmação':['rev. '+item.revision,item.path].filter(Boolean).join(' · ');
-        telegraphList.append(libraryEntry({
-          title:item.name,preview:item.preview,meta,createdAt:item.createdAt,updatedAt:item.updatedAt,
-          platform:'Telegraph',disabled:pending,action:()=>void openTelegraphDocument(item.docId),label:'Editar página'
-        }));
-      }
-    }else telegraphList.append(emptyLibraryItem('Nenhuma publicação Telegraph vinculada.'));
+    const drafts=libraryList(data.drafts,item=>({
+      meta:['rev. '+item.revision,item.hasMedia?'com anexo':''].filter(Boolean).join(' · '),
+      platform:item.dest==='telegraph'?'Telegraph':'Telegram',onSelect:()=>void openLibraryDraft(item.docId),label:'Editar'
+    }),'Nenhum rascunho persistido.');
+    const telegram=libraryList(data.telegram,item=>{
+      const state=item.status==='succeeded'?'publicada':item.status==='pending'?'pendente':'confirmação necessária';
+      return {
+        meta:['rev. '+item.revision,item.messageId?'mensagem #'+item.messageId:'',item.historyCount>1?item.historyCount+' versões':'',state].filter(Boolean).join(' · '),
+        platform:'Telegram',onSelect:()=>void openLibraryDraft(item.docId),label:'Editar texto'
+      };
+    },'Nenhuma publicação Telegram vinculada.');
+    const telegraph=libraryList(data.telegraph,item=>{
+      const pending=item.status!=='succeeded';
+      return {
+        meta:pending?'Publicação pendente de confirmação':['rev. '+item.revision,item.path].filter(Boolean).join(' · '),
+        platform:'Telegraph',disabled:pending,onSelect:()=>void openTelegraphDocument(item.docId),label:'Editar página'
+      };
+    },'Nenhuma publicação Telegraph vinculada.');
     const publicationTotal=data.telegram.length+data.telegraph.length;
-    status.textContent=publicationTotal+' '+(publicationTotal===1?'publicação':'publicações')+' · '+data.drafts.length+' '+(data.drafts.length===1?'rascunho':'rascunhos');
+    ui.setLibrary({
+      publicationCount:publicationTotal,draftCount:data.drafts.length,drafts,telegram,telegraph,
+      status:publicationTotal+' '+(publicationTotal===1?'publicação':'publicações')+' · '+data.drafts.length+' '+(data.drafts.length===1?'rascunho':'rascunhos')
+    });
     if(preferred==='telegram'||preferred==='telegraph')setPublicationsExpanded(true);
     if(preferred==='telegram')one('#telegramLibrarySection')?.scrollIntoView({block:'nearest'});
     if(preferred==='telegraph')one('#telegraphLibrarySection')?.scrollIntoView({block:'nearest'});
   }catch(error){
-    status.textContent=error.message||'Não foi possível carregar a biblioteca';
-    draftList.append(emptyLibraryItem('Biblioteca indisponível.'));
-    telegramList.append(emptyLibraryItem('Biblioteca indisponível.'));
-    telegraphList.append(emptyLibraryItem('Biblioteca indisponível.'));
+    const unavailable={items:[],empty:'Biblioteca indisponível.'};
+    ui.setLibrary({status:error.message||'Não foi possível carregar a biblioteca',drafts:unavailable,telegram:unavailable,telegraph:unavailable});
   }
 }
-function setLibrarySectionExpanded(toggleId,contentId,expanded){
-  const toggle=one(toggleId),content=one(contentId);
-  if(!toggle||!content)return;
-  const open=Boolean(expanded);
-  toggle.setAttribute('aria-expanded',String(open));
-  content.hidden=!open;
-}
-function setPublicationsExpanded(expanded){
-  setLibrarySectionExpanded('#publicationToggle','#publicationLists',expanded);
-}
-function setDraftsExpanded(expanded){
-  setLibrarySectionExpanded('#draftToggle','#draftLists',expanded);
-}
+function setPublicationsExpanded(expanded){ui.setLibrary({publicationsOpen:Boolean(expanded)});}
+function setDraftsExpanded(expanded){ui.setLibrary({draftsOpen:Boolean(expanded)});}
 function openLibrary(preferred=''){
   setPublicationsExpanded(false);
   setDraftsExpanded(false);
   openPanel('#libraryMenu',one('#exportBtn'));
-  const list=one('#libraryMenu .menu-list');
-  if(list)list.scrollTop=0;
   syncBackButton();
   queueMicrotask(focusLibraryStart);
   void renderLibrary(preferred);
@@ -1768,12 +1668,8 @@ function syncEditorSelectionUI(){
   toggleToolbarState(one('#quoteBtn'),Boolean(core.inBlock('blockquote')||core.inBlock('aside'))||panelIsOpen(one('#quoteMenu')));
   toggleToolbarState(one('#headingBtn'),/^(h[1-6]|footer)$/.test(kind)||panelIsOpen(one('#headingMenu')));
   toggleToolbarState(one('#linkBtn'),Boolean(core.linkHref())||Boolean(panelIsOpen(one('#linkMenu'))));
-  one('#plusBtn')?.classList.toggle('on',panelIsOpen(one('#plusMenu'))||plusSubmenus.some(sel=>panelIsOpen(one(sel))));
-  all('#headingMenu [data-block]').forEach(btn=>btn.classList.toggle('is-current',btn.dataset.block===kind));
-  all('#quoteMenu [data-block],#quoteMenu [data-insert]').forEach(btn=>{
-    const requested=btn.dataset.block||btn.dataset.insert;
-    btn.classList.toggle('is-current',requested===kind);
-  });
+  // O React marca is-current nos menus de título e citação e o estado do botão +.
+  ui.update({blockKind:kind});
 }
 document.addEventListener('selectionchange',syncEditorSelectionUI);
 // Teclado virtual: enquanto o usuário digita, nenhum toque na interface (barras,
@@ -1899,8 +1795,8 @@ one('#mediaInput').addEventListener('change',async()=>{
 one('#libraryBtn')?.addEventListener('click',()=>openLibrary());
 one('#libraryClose')?.addEventListener('click',closeLibrary);
 one('#libraryNew')?.addEventListener('click',createNewDocumentLaunch);
-one('#publicationToggle')?.addEventListener('click',event=>setPublicationsExpanded(event.currentTarget.getAttribute('aria-expanded')!=='true'));
-one('#draftToggle')?.addEventListener('click',event=>setDraftsExpanded(event.currentTarget.getAttribute('aria-expanded')!=='true'));
+one('#publicationToggle')?.addEventListener('click',()=>setPublicationsExpanded(!ui.getState().library.publicationsOpen));
+one('#draftToggle')?.addEventListener('click',()=>setDraftsExpanded(!ui.getState().library.draftsOpen));
 one('#libraryMenu')?.addEventListener('keydown',event=>{
   if(!librarySubmenuOpen()||event.key!=='Tab')return;
   const items=libraryFocusables();

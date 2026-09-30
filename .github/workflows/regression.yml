@@ -38,7 +38,7 @@ jobs:
           else
             base="HEAD^"
           fi
-          if git diff --quiet "$base" HEAD -- src/liquid-glass-ui.jsx app.js package.json package-lock.json; then
+          if git diff --quiet "$base" HEAD -- src app.js package.json package-lock.json; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
           else
             echo "changed=true" >> "$GITHUB_OUTPUT"
