@@ -559,16 +559,17 @@ function panelOrigin(element){
 function isTypingEntry(element){
   return Boolean(element&&(element===editor||element.matches?.('textarea,input:not([type=button]):not([type=checkbox]):not([type=file]),[contenteditable="true"]')));
 }
-function typingFocusActive(){
-  return isTypingEntry(document.activeElement);
+function typingFocusActive(outsidePanel=null){
+  const active=document.activeElement;
+  return isTypingEntry(active)&&(!outsidePanel||!outsidePanel.contains(active));
 }
 function focusControl(element){
   if(!element||!element.isConnected||typeof element.focus!=='function'||element.hidden||element.disabled)return false;
   try{element.focus({preventScroll:true});}catch{element.focus();}
   return true;
 }
-function focusMenuControl(element){
-  if(typingFocusActive())return false;
+function focusMenuControl(element,outsidePanel=null){
+  if(typingFocusActive(outsidePanel))return false;
   return focusControl(element);
 }
 function usableAnchorRect(rect,bounds){
@@ -626,7 +627,7 @@ function closePanel(panel,returnFocus=false){
   if(!panel?.matches(':popover-open'))return;
   const target=returnFocus?panelOpeners.get(panel):null;
   panel.hidePopover();
-  if(returnFocus)focusMenuControl(target);
+  if(returnFocus)focusMenuControl(target,panel);
 }
 function togglePanel(sel,anchorOverride=null){
   const panel=one(sel);
