@@ -87,6 +87,9 @@ jobs:
       - name: Verify release lineage and runtime manifest
         run: node scripts/verify-release-manifest.mjs
 
+      - name: Verify evolutionary baseline contract
+        run: npm run verify:baseline-policy
+
       - name: Verify announced surface contract
         run: node scripts/verify-surface-contract.mjs
 
