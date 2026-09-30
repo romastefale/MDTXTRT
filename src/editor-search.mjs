@@ -30,8 +30,8 @@ export function createSearch(root,{changed=()=>{},selectionChanged=()=>{}}={}){
     if(!item)return false;
     const range=rangeForTextOffsets(root,item.from,item.to),selection=root.ownerDocument.getSelection?.();
     if(!selection)return false;
-    selection.removeAllRanges();selection.addRange(range);
     if(focus)root.focus({preventScroll:true});
+    selection.removeAllRanges();selection.addRange(range);
     selectionChanged();
     return true;
   }
