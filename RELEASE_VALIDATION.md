@@ -50,19 +50,9 @@ Any bundle difference is a release failure.
 
 Static surface success does not replace live execution required below.
 
-## Gate D — visual comparison snapshot
+## Diagnóstico visual histórico opcional
 
-`RELEASE_MANIFEST.json.visualComparisonSnapshot` records the current **visual comparison snapshot** mirrored in `BASELINE.md`. It is not normative product behavior and it does not define the working baseline. The working baseline is the current state from which development proceeds. The snapshot exists only to make visual change inspectable; deliberate divergence is valid when required by current requirements or intentional contracts, and an accepted new state may supersede the snapshot.
-
-Automated component:
-- render candidate and comparison snapshot with the same Chrome binary and 390×844 stable browser viewport;
-- light/dark shell screenshots are compared with the recorded snapshot; divergence requires review and evidence, not automatic preservation of the old rendering;
-- retain screenshot/summary artifact.
-
-Manual component:
-- confirm translucent material, scale and composition;
-- confirm application-menu icon, library navigation/management capsules, responsive cards and constrained-overlay placement are intentional;
-- confirm menus/dialogs remain reachable and do not sit below the bottom bar.
+Comparação com um estado histórico não é gate de release. Quando uma investigação visual específica precisar dela, o operador escolhe explicitamente o SHA histórico e executa o diagnóstico. Ausência de comparação, igualdade ou divergência com esse SHA não determina aceitação do produto; requisitos e contratos intencionais atuais determinam.
 
 ## Gate E — Railway draft-volume persistence and restart
 
