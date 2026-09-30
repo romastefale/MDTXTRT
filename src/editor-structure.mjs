@@ -53,19 +53,26 @@ export function createStructure(root,{changed=()=>{},selectionChanged=()=>{}}={}
   }
 
   function formatBlock(kind){
-    const block=currentBlock(root);
-    if(!block||["li","table","figure","details"].includes(block.localName))return false;
-    const current=currentBlockKind();
+    let block=currentBlock(root);
+    const current=block?currentBlockKind():"p";
     const target=current===kind?"p":kind;
     let tag=target,attrs={};
     if(target==="expandquote"){tag="blockquote";attrs.expandable="";}
     else if(target==="pullquote")tag="aside";
     else if(target==="footer")tag="footer";
     else if(!/^(?:p|h[1-6]|blockquote|aside|footer|pre)$/.test(target))tag="p";
+    if(block&&["li","table","figure","details"].includes(block.localName))return false;
     const replacement=root.ownerDocument.createElement(tag);
     for(const [name,value] of Object.entries(attrs))replacement.setAttribute(name,value);
-    while(block.firstChild)replacement.append(block.firstChild);
-    block.replaceWith(replacement);
+    if(block){
+      while(block.firstChild)replacement.append(block.firstChild);
+      block.replaceWith(replacement);
+    }else{
+      replacement.append(root.ownerDocument.createElement("br"));
+      const range=editableRange(root);
+      if(range.startContainer===root)root.insertBefore(replacement,root.childNodes[range.startOffset]||null);
+      else root.append(replacement);
+    }
     setCaret(replacement,replacement.childNodes.length);
     notify(root,changed,selectionChanged);
     return true;
