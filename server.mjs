@@ -331,10 +331,6 @@ function normalizedPortableHTML(html,label="Markdown"){
     if(!PORTABLE_TAGS.has(tag))throw new Error("Elemento "+label+" não suportado: "+tag);
     delete node.attribs.contenteditable;
     delete node.attribs.draggable;
-    if(Object.hasOwn(node.attribs,"class")){
-      const kept=String(node.attribs.class||"").split(/\s+/).filter(Boolean).filter(name=>name!=="ProseMirror-selectednode");
-      if(kept.length)node.attribs.class=kept.join(" ");else delete node.attribs.class;
-    }
     for(const [key,value] of Object.entries({...node.attribs})){
       if(key==="controls"&&["video","audio"].includes(tag)){delete node.attribs[key];continue;}
       if(key==="disabled"&&tag==="input"&&node.attribs.type==="checkbox"){delete node.attribs[key];continue;}
