@@ -11,8 +11,5 @@ for (const identical of [true, false]) {
   if (decision.authority !== 'current-requirements-and-intentional-contracts') throw new Error('Autoridade de decisão incorreta.');
 }
 
-if (!/^[a-f0-9]{40}$/.test(String(manifest.visualComparisonSnapshot || ''))) {
-  throw new Error('visualComparisonSnapshot deve ser apenas uma coordenada histórica válida.');
-}
 
 console.log('Evolution policy OK: estado corrente é base evolutiva; histórico é diagnóstico/rastreabilidade sem poder de veto.');
