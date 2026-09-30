@@ -556,7 +556,8 @@ test('library uses the standard submenu lifecycle, stays scrollable with keyboar
   w.visualViewport.height=360;
   w.eval('syncBrowserViewport()');
   const keyboardHeight=parseFloat(library.style.getPropertyValue('--menu-max-height'));
-  assert.ok(keyboardHeight>0&&keyboardHeight<=198);
+  const expectedKeyboardMax=Math.ceil(w.visualViewport.height*.55);
+  assert.ok(keyboardHeight>0&&keyboardHeight<=expectedKeyboardMax);
 
   d.querySelector('#exportBtn').click();
   assert.equal(library.hasAttribute('data-test-popover-open'),false);
