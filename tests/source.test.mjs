@@ -809,7 +809,8 @@ test('release evidence gates remain traceability-only and cannot freeze later ev
   assert.match(workflow,/git diff --exit-code -- editor-core\.js ui\.js/);
   assert.match(workflow,/npm run verify:evolution-policy/);
   assert.doesNotMatch(workflow,/node scripts\/verify-visual-baseline\.mjs/);
-  assert.doesNotMatch(workflow,/VISUAL_COMPARISON_SHA|BASELINE_SHA/);
+  assert.doesNotMatch(workflow,/node scripts\/compare-historical-visual\.mjs/);
+  assert.doesNotMatch(workflow,/VISUAL_COMPARISON_SHA|HISTORICAL_COMPARISON_SHA|BASELINE_SHA/);
   assert.doesNotMatch(workflow,/release-visual-baseline|visual-shell-comparison/);
   assert.match(workflow,/release-rebuilt-bundles-\$\{\{ env\.RELEASE_CANDIDATE_SHA \}\}/);
   assert.equal(manifest.evolutionPolicy.historicalStateAuthority,'none');
@@ -889,10 +890,9 @@ test('release evidence gates remain traceability-only and cannot freeze later ev
   assert.doesNotMatch(validation,/proves each head is an ancestor|stage ancestry/i);
   assert.doesNotMatch(read('RELEASE_EVIDENCE_TEMPLATE.md'),/Stage ancestry\/manifest/i);
 
-  assert.match(anchor,/Engineering completion does not require an immutable Release Anchor/);
-  assert.match(anchor,/canonical release identity is a \*\*full 40-character Git commit SHA\*\*/);
-  assert.doesNotMatch(anchor,/final immutable Release Anchor/i);
+  assert.match(anchor,/not an immutable product baseline/i);
   assert.match(anchor,/Certification does not freeze that state/i);
-  assert.match(anchor,/Only after approval,[\s\S]*optional branch\/tag/i);
+  assert.match(anchor,/The first question never overrides the second/i);
+  assert.doesNotMatch(anchor,/final immutable Release Anchor|preservation target.*authority over subsequent development/i);
 });
 
