@@ -52,11 +52,11 @@ Static surface success does not replace live execution required below.
 
 ## Gate D — visual baseline
 
-Normative visual baseline: `RELEASE_MANIFEST.json.visualBaseline`, mirrored in `BASELINE.md`. It is the current comparison reference, not a preservation mandate; deliberate corrections must replace and advance it when the accepted product state evolves.
+`RELEASE_MANIFEST.json.visualBaseline` records the current **visual comparison snapshot** mirrored in `BASELINE.md`. It is not normative product behavior and it does not define the working baseline. The working baseline is the current state from which development proceeds. The snapshot exists only to make visual change inspectable; deliberate divergence is valid when required by current requirements or intentional contracts, and an accepted new state may supersede the snapshot.
 
 Automated component:
 - render candidate and baseline with the same Chrome binary and 390×844 stable browser viewport;
-- light/dark shell screenshots must satisfy the repository baseline comparator;
+- light/dark shell screenshots are compared with the recorded snapshot; divergence requires review and evidence, not automatic preservation of the old rendering;
 - retain screenshot/summary artifact.
 
 Manual component:
