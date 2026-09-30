@@ -29,7 +29,7 @@ export function createHistory(root,{depth=120,onRestore=()=>{}}={}){
     restoring=true;
     root.innerHTML=item.html;
     index=target;
-    queueMicrotask(()=>restoreSelection(root,item.selection,{focus:true}));
+    restoreSelection(root,item.selection,{focus:true});
     restoring=false;
     onRestore(item);
     return true;
