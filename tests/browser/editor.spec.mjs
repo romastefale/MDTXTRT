@@ -76,8 +76,50 @@ test('zoom continua bloqueado',async ({page})=>{
   expect(viewport).toContain('user-scalable=no');
 });
 
-// Invariantes de design. As lentes WebGL 2 entram na fase 1B.
-test.fixme('lentes refratam com WebGL 2',async ()=>{});
+// Invariantes de design.
+// Lentes: exigem WebGL 2. Com WebGL 2 o + e o ☰ refratam pelo renderizador do
+// fork e congelam o quadro; sem WebGL 2 fica o vidro em CSS, sem erro.
+test('lentes refratam com WebGL 2',async ({page})=>{
+  const webgl2=await page.evaluate(()=>{
+    try{return Boolean(document.createElement('canvas').getContext('webgl2'));}catch{return false;}
+  });
+  test.info().annotations.push({type:'webgl2',description:webgl2?'disponível: lente testada':'indisponível: fallback CSS testado'});
+  for(const id of ['#plusBtn','#exportBtn']){
+    await expect.poll(()=>page.locator(id).getAttribute('data-lens'),{timeout:8000}).toBe(webgl2?'webgl2':'css');
+    const lens=await page.evaluate(sel=>{
+      const button=document.querySelector(sel),host=button.querySelector('.lens');
+      const r=button.getBoundingClientRect();
+      const hit=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);
+      const snap=host.querySelector(':scope > canvas');
+      let opaque=0;
+      if(snap.width&&snap.height){
+        const d=snap.getContext('2d').getImageData(0,0,snap.width,snap.height).data;
+        for(let i=3;i<d.length;i+=4)if(d[i]>0)opaque++;
+      }
+      return {
+        display:getComputedStyle(host).display,
+        pointer:getComputedStyle(host).pointerEvents,
+        hidden:host.getAttribute('aria-hidden'),
+        focusable:host.querySelectorAll('[tabindex],button,a,input').length,
+        hitButton:Boolean(hit&&hit.closest(sel)),
+        opaque,
+        live:host.querySelectorAll('.lens-surface').length
+      };
+    },id);
+    expect(lens.pointer).toBe('none');
+    expect(lens.hidden).toBe('true');
+    expect(lens.focusable).toBe(0);
+    expect(lens.hitButton,'o toque continua chegando ao botão').toBe(true);
+    if(webgl2){
+      expect(lens.display).not.toBe('none');
+      expect(lens.opaque,'quadro da lente congelado no canvas').toBeGreaterThan(0);
+    }else{
+      expect(lens.display).toBe('none');
+    }
+  }
+  // Nenhum laço contínuo: depois de assentar, o renderizador WebGL é desmontado.
+  await expect.poll(()=>page.locator('.lens-surface').count(),{timeout:8000}).toBe(0);
+});
 
 const CHROME_CONTROLS='#ux-root button:not([hidden]),#ux-root [role="button"]';
 
