@@ -68,7 +68,7 @@ See [AGENTS.md](AGENTS.md) and [BASELINE.md](BASELINE.md) for the operational ru
 
 ## Telegram
 
-- The protocol baseline is Telegram Bot API 10.3, released on 2026-08-24.
+- The current Rich Messages protocol reference is Telegram Bot API 10.3, released on 2026-08-24. This version is an implementation dependency, not a ceiling on later protocol evolution.
 - Rich content and later revisions are sent through `sendRichMessage` and `InputRichMessage`. A later revision never rewrites the earlier Telegram message: an explicit update notice replies to the previous publication and the revised content follows as a new message.
 - Rich-message HTML is validated against the documented tag, nesting, media, table, and `RichMessageButton` contracts before Telegram is called.
 - The 32,768-character preflight counts Unicode text and custom-emoji alternative text, and RichText-only containers reject nested block markup locally rather than relying on Telegram to reject it.
@@ -93,7 +93,7 @@ See [AGENTS.md](AGENTS.md) and [BASELINE.md](BASELINE.md) for the operational ru
 
 ## Liquid Glass design contract
 
-- The normative design and implementation reference is `romastefale/liquid-glass` at commit `4e7b769e1df7e5a7d3669fef22417fe3d2f79ade` (release 0.1.1, MIT, © Sam Asante).
+- The current design/implementation dependency is `romastefale/liquid-glass` at commit `4e7b769e1df7e5a7d3669fef22417fe3d2f79ade` (release 0.1.1, MIT, © Sam Asante). It is pinned for reproducibility of the current state and may be upgraded or replaced when product requirements evolve.
 - MDTXTRT uses the reference through its published engine package, pinned as `@samasante/liquid-glass@0.1.1`, with React and React DOM as explicit runtime dependencies. The product does not maintain a parallel Liquid Glass engine.
 - The authored UX layer is `src/liquid-glass-ui.jsx`; `ui.js` is its deterministic production bundle. The source imports `Glass` directly from `@samasante/liquid-glass`.
 - Menu construction follows the reference's `examples/GlassContextMenu.tsx` “copy and own” model. MDTXTRT owns the application-specific menu shell and restyling while the optical primitive remains the package's `<Glass>`.
@@ -108,7 +108,7 @@ See [AGENTS.md](AGENTS.md) and [BASELINE.md](BASELINE.md) for the operational ru
 - The light/dark preference is explicit and persisted. HTML/body background, browser `theme-color`, standalone status-bar metadata, and Telegram header/background/bottom-bar colors are updated from the same selected mode so system chrome cannot retain the opposite theme.
 - The vertical chrome composition is uniform across Telegram, Railway, and GitHub Pages. Browser access starts from CSS environment safe-area insets; Telegram Mini App geometry replaces that origin with the official WebApp 8.0+ `safeAreaInset` and `contentSafeAreaInset` runtime values when they are larger. All four Telegram sides are validated, mirrored to local CSS tokens, and refreshed on `safeAreaChanged` and `contentSafeAreaChanged`; unsupported Telegram clients are gated instead of receiving an implicit Telegram compatibility fallback.
 - Menus and interaction chrome are compact, content-sized surfaces. Scrollbar chrome is hidden, and browser zoom/pinch zoom remains disabled by the explicit viewport/touch contract requested for this product.
-- Overlay placement starts from the visible viewport and then reserves the live bottom formatting bar as a non-overlay region. Menus, link dialogs and media/interaction sheets are clamped above the bar (including keyboard-driven bar movement); constrained space reduces maximum size and enables internal scrolling instead of placing controls underneath the bar or changing baseline material geometry.
+- Overlay placement starts from the visible viewport and then reserves the live bottom formatting bar as a non-overlay region. Menus, link dialogs and media/interaction sheets are clamped above the bar (including keyboard-driven bar movement); constrained space reduces maximum size and enables internal scrolling instead of placing controls underneath the bar or changing current material geometry.
 - Find is anchored to a control that remains visible while Find is open. Dialogs use the same visible-area contract, inert the background, trap keyboard focus, handle Escape and return focus to the visible origin control. Moving focus through overlays does not replace the transactional editor selection.
 - These interaction corrections do not restore superseded geometry or menu behavior. Historical visual-reference SHAs are evidence of prior states only; they do not define current geometry or constrain subsequent implementation. Historical visual comparison, when useful, is an explicit optional diagnostic against a caller-selected SHA; no historical SHA is a permanent release gate or working-baseline coordinate.
 - `ui.js` is committed so GitHub Pages and Railway serve the same canonical artifact. Read-only CI rebuilds it, uploads the generated bundle as a verification artifact, and fails on any diff; ordinary verification never writes a corrective commit to `main`.
@@ -135,7 +135,7 @@ See [AGENTS.md](AGENTS.md) and [BASELINE.md](BASELINE.md) for the operational ru
 ## Execution and hosting boundary
 
 - Node is pinned to `24.21.0`, an actively supported LTS runtime. CI reads that same version from `package.json`.
-- GitHub Actions dependencies are pinned by immutable commit SHA, with the corresponding release tag recorded as a comment.
+- GitHub Actions dependencies are pinned by exact commit SHA, with the corresponding release tag recorded as a comment.
 - npm dependency installation uses the committed lockfile through `npm ci`. CI and Railpack both verify the npm bundled with Node 24.21.0 is `11.19.0` before installation; the project does not provision a second npm through Corepack.
 - Railway's Railpack configuration makes the deterministic install command explicit. A build must fail rather than silently fall back to `npm install` or a different npm version.
 - The current server requires a durable absolute path through `RAILWAY_VOLUME_MOUNT_PATH` for active drafts and attachments, Telegram publication provenance, handoffs, Telegraph credentials, and Telegraph page ownership state. Production mounts the MDTXTRT Railway volume at `/data`. Any move to a serverless or ephemeral-filesystem platform must first replace that storage contract with a durable store and preserve the same ownership and restart guarantees. Deployment portability must not be simulated with an in-memory or temporary-filesystem fallback.
