@@ -7,8 +7,8 @@ on:
   pull_request:
   workflow_dispatch:
     inputs:
-      release_anchor_sha:
-        description: Full immutable Release Anchor commit SHA
+      release_evidence_sha:
+        description: Exact commit SHA for this release evidence record
         required: true
         type: string
       authorization_evidence_ref:
@@ -151,7 +151,7 @@ jobs:
       - name: Audit release evidence record
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          RELEASE_ANCHOR_SHA: ${{ inputs.release_anchor_sha }}
+          RELEASE_EVIDENCE_SHA: ${{ inputs.release_evidence_sha }}
           AUTHORIZATION_EVIDENCE_REF: ${{ inputs.authorization_evidence_ref }}
           VISUAL_EVIDENCE_REF: ${{ inputs.visual_evidence_ref }}
           DRAFT_PERSISTENCE_EVIDENCE_REF: ${{ inputs.draft_persistence_evidence_ref }}
