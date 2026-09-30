@@ -424,29 +424,13 @@ async function importTelegramDocument(document,chatId){
 function normalizeDraftRuntimeHTML(html){
   const doc=parseDocument(String(html||""));
   const walk=node=>{
-    if(node.type!=="tag"){
-      node.children?.slice().forEach(walk);
-      return;
-    }
-    const classes=String(node.attribs?.class||"").split(/\s+/).filter(Boolean);
-    const transientNode=classes.some(name=>["ProseMirror-trailingBreak","ProseMirror-separator","ProseMirror-gapcursor"].includes(name));
-    if(transientNode){
-      DomUtils.removeElement(node);
-      return;
-    }
+    if(node.type!=="tag"){node.children?.slice().forEach(walk);return;}
     for(const key of ["contenteditable","draggable","spellcheck","tabindex","aria-selected"])delete node.attribs[key];
-    for(const key of Object.keys(node.attribs||{}))if(key.startsWith("data-pm-"))delete node.attribs[key];
-    if(classes.length){
-      const kept=classes.filter(name=>!name.startsWith("ProseMirror-"));
-      if(kept.length)node.attribs.class=kept.join(" ");
-      else delete node.attribs.class;
-    }
     node.children?.slice().forEach(walk);
   };
   doc.children.slice().forEach(walk);
   return DomUtils.getInnerHTML(doc,{encodeEntities:"utf8"});
 }
-
 function draftValid(draft) {
   if (!draft || typeof draft !== "object" || Array.isArray(draft)) throw new Error("Rascunho inválido");
   if(draft.version!==2)throw new Error("Versão do rascunho incompatível");
@@ -454,7 +438,7 @@ function draftValid(draft) {
   if (Buffer.byteLength(json, "utf8") > 350_000) throw new Error("Rascunho grande demais");
   if (typeof draft.html !== "string" || Buffer.byteLength(draft.html, "utf8") > 160_000) throw new Error("Conteúdo do rascunho inválido");
   draft.html=normalizeDraftRuntimeHTML(draft.html);
-  if (typeof draft.name !== "string" || draft.name.length > 120) throw new Error("Nome do rascunho inválido");
+  if (typeof draft.name !== "string" || draft.name.length > 256) throw new Error("Nome do rascunho inválido");
   if (!["telegram", "telegraph"].includes(draft.dest)) throw new Error("Destino do rascunho inválido");
   if (draft.action !== undefined && draft.action !== "publish") throw new Error("Ação do rascunho inválida");
   if (draft.revision !== undefined && (!Number.isSafeInteger(draft.revision) || draft.revision < 0)) throw new Error("Revisão do rascunho inválida");
@@ -531,7 +515,7 @@ function telegramPublicationValid(value){
   if(typeof value.error!=="string")throw new Error("Erro da publicação inválido");
   if(value.snapshot!==undefined&&value.snapshot!==null){
     const snapshot=value.snapshot;
-    if(!snapshot||typeof snapshot!=="object"||Array.isArray(snapshot)||!Number.isSafeInteger(snapshot.revision)||snapshot.revision<0||typeof snapshot.name!=="string"||snapshot.name.length>120||typeof snapshot.html!=="string"||Buffer.byteLength(snapshot.html,"utf8")>160_000)throw new Error("Snapshot da publicação Telegram inválido");
+    if(!snapshot||typeof snapshot!=="object"||Array.isArray(snapshot)||!Number.isSafeInteger(snapshot.revision)||snapshot.revision<0||typeof snapshot.name!=="string"||snapshot.name.length>256||typeof snapshot.html!=="string"||Buffer.byteLength(snapshot.html,"utf8")>160_000)throw new Error("Snapshot da publicação Telegram inválido");
   }
   if(value.history!==undefined){
     if(!Array.isArray(value.history)||value.history.length>100)throw new Error("Histórico Telegram inválido");
@@ -1381,27 +1365,23 @@ function richValid(html){
 }
 
 function telegraphValid(content) {
-  const tags = new Set("a aside b blockquote br code em figcaption figure h3 h4 hr i iframe img li ol p pre s strong u ul video".split(" "));
-  let count = 0;
-  const walk = (node, depth = 0) => {
-    if (++count > 10000 || depth > 40) throw new Error("Conteúdo do Telegraph grande demais");
-    if (typeof node === "string") return;
-    if (!node || typeof node !== "object" || Array.isArray(node) || !tags.has(node.tag)) throw new Error("Elemento do Telegraph inválido");
-    if (node.attrs) for (const [key, value] of Object.entries(node.attrs)) {
-      if (!(key === "href" && node.tag === "a" || key === "src" && ["img", "video", "iframe"].includes(node.tag)) || typeof value !== "string") throw new Error("Atributo do Telegraph inválido");
-      let url;
-      try { url = new URL(value); } catch { throw new Error("Link do Telegraph inválido"); }
-      if (!["http:", "https:"].includes(url.protocol)) throw new Error("Link do Telegraph inválido");
+  const tags=new Set("a aside b blockquote br code em figcaption figure h3 h4 hr i iframe img li ol p pre s strong u ul video".split(" "));
+  const walk=node=>{
+    if(typeof node==="string")return;
+    if(!node||typeof node!=="object"||Array.isArray(node)||!tags.has(node.tag))throw new Error("Elemento do Telegraph inválido");
+    if(node.attrs)for(const [key,value] of Object.entries(node.attrs)){
+      if(!(key==="href"&&node.tag==="a"||key==="src"&&["img","video","iframe"].includes(node.tag))||typeof value!=="string")throw new Error("Atributo do Telegraph inválido");
+      let url;try{url=new URL(value);}catch{throw new Error("Link do Telegraph inválido");}
+      if(!["http:","https:"].includes(url.protocol))throw new Error("Link do Telegraph inválido");
     }
-    if (node.children !== undefined) {
-      if (!Array.isArray(node.children)) throw new Error("Conteúdo do Telegraph inválido");
-      node.children.forEach(child => walk(child, depth + 1));
+    if(node.children!==undefined){
+      if(!Array.isArray(node.children))throw new Error("Conteúdo do Telegraph inválido");
+      node.children.forEach(walk);
     }
   };
-  if (!Array.isArray(content) || !content.length || Buffer.byteLength(JSON.stringify(content)) > 65536) throw new Error("Conteúdo do Telegraph inválido");
-  content.forEach(node => walk(node));
+  if(!Array.isArray(content)||!content.length||Buffer.byteLength(JSON.stringify(content))>65536)throw new Error("Conteúdo do Telegraph inválido");
+  content.forEach(walk);
 }
-
 function telegraphContentHTML(content){
   telegraphValid(content);
   const voidTags=new Set(["br","hr","img"]);
@@ -1573,7 +1553,7 @@ async function selectedExportDocument(owner,kind,doc){
     if(!mapped)throw new Error("Publicação Telegraph não encontrada");
     const page=await verifyTelegraphPage(mapped);
     if(!Array.isArray(page.content))throw new Error("O Telegraph não retornou o conteúdo da página");
-    return {name:String(page.title||"Página Telegraph").slice(0,120),html:telegraphContentHTML(page.content)};
+    return {name:String(page.title||"Página Telegraph").slice(0,256),html:telegraphContentHTML(page.content)};
   }
   const record=readPersistentDraft(owner,doc);
   if(!record)throw new Error("Rascunho não encontrado");
