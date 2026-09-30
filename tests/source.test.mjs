@@ -739,7 +739,8 @@ test('step 6 persists drafts on the Railway volume, binds Telegram publication p
   assert.match(ui,/<MenuItem icon="arrow_back" className="submenu-back" id="libraryClose">/);
   assert.match(ui,/<MenuItem icon="sticky_note_2" id="libraryNew">Novo documento<\/MenuItem>/);
   assert.match(ui,/id="publicationToggle"[\s\S]*?aria-expanded="true"/);
-  assert.ok(ui.indexOf('id="publicationToggle"')<ui.indexOf('id="draftLibrarySection"'));
+  assert.match(ui,/id="draftToggle"[\s\S]*?aria-expanded="true"[\s\S]*?aria-controls="draftLists"/);
+  assert.ok(ui.indexOf('id="publicationToggle"')<ui.indexOf('id="draftToggle"'));
   assert.doesNotMatch(ui,/Conteúdo persistido no volume/);
   assert.match(ui,/Icon name="menu"/);
   assert.match(app,/Array\.isArray\(data\.telegram\)/);
@@ -751,12 +752,17 @@ test('step 6 persists drafts on the Railway volume, binds Telegram publication p
   assert.match(app,/function togglePanel\(sel,anchorOverride=null\)/);
   assert.match(html,/\.menu-dismiss-layer\{[\s\S]*?position:fixed[\s\S]*?z-index:39/);
   assert.match(html,/\.glass-menu\[data-menu-open\],\.glass-menu\[popover\]:popover-open/);
+  assert.match(app,/function setLibrarySectionExpanded\(toggleId,contentId,expanded\)/);
   assert.match(app,/function setPublicationsExpanded\(expanded\)/);
+  assert.match(app,/function setDraftsExpanded\(expanded\)/);
+  assert.match(html,/\.library-publication-groups,\.library-draft-groups\{/);
+  assert.match(html,/\.library-publication-groups\[hidden\],\.library-draft-groups\[hidden\]\{display:none\}/);
   assert.doesNotMatch(app,/function setLibraryView\(open\)/);
   assert.doesNotMatch(app,/const libraryMode=/);
   assert.doesNotMatch(app,/Math\.min\(520,bounds\.height\*\.78,fullHeight\)/);
   assert.match(app,/one\('#exportBtn'\)\.addEventListener[\s\S]*?togglePanel\('#exportMenu'/);
   assert.match(app,/one\('#publicationToggle'\)\?\.addEventListener/);
+  assert.match(app,/one\('#draftToggle'\)\?\.addEventListener/);
 });
 
 test('step 5 overlays use the visual viewport without changing the baseline material contract',()=>{
