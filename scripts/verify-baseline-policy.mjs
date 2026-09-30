@@ -12,14 +12,16 @@ if (policy?.preservationRequired !== false) errors.push('baselinePolicy.preserva
 if (policy?.historicalBehaviorIsNormative !== false) errors.push('baselinePolicy.historicalBehaviorIsNormative deve ser false.');
 if (policy?.divergenceMeaning !== 'review-required-not-automatic-failure') errors.push('Divergência visual deve exigir revisão, não preservação automática.');
 if (policy?.advanceWhen !== 'deliberate-change-accepted') errors.push('Snapshot de comparação deve poder avançar após mudança deliberada aceita.');
-if (manifest.anchorPolicy?.immutable !== true) errors.push('Release Anchor deve continuar imutável e semanticamente separado.');
+if (manifest.anchorPolicy?.immutable !== false) errors.push('Release evidence reference não pode impor imutabilidade ao produto.');
+if (manifest.anchorPolicy?.preservationRequired !== false) errors.push('Release evidence reference não pode exigir preservação do estado histórico.');
+if (manifest.anchorPolicy?.historicalBehaviorIsNormative !== false) errors.push('Comportamento histórico certificado não pode se tornar normativo por mera certificação.');
 
 const required = {
   'README.md': ['estado corrente a partir do qual o produto continua evoluindo', 'esse sha não define a baseline'],
   'BASELINE.md': ['baseline = ponto de partida para evolução', 'nenhuma mudança solicitada deve ser rejeitada'],
   'AGENTS.md': ['no authoritative baseline sha', 'cannot veto a correction or evolution'],
   'RELEASE_VALIDATION.md': ['visual comparison snapshot', 'it is not normative product behavior'],
-  'RELEASE_ANCHOR.md': ['replaceable visual-comparison snapshot', 'does not constrain later product evolution']
+  'RELEASE_ANCHOR.md': ['not an immutable product baseline', 'historical traceability']
 };
 for (const [file, phrases] of Object.entries(required)) {
   const content = readFileSync(new URL(file, root), 'utf8').toLowerCase();
