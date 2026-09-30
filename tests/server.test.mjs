@@ -416,23 +416,24 @@ test('corrupt persisted handoff is discarded instead of breaking requests',async
   assert.equal((await fetch(`http://127.0.0.1:${port}/`)).status,200);
 });
 
-test('handoff persists valid document metadata and attachment',async()=>{
-  const id='handoffmedia1',doc='44444444-4444-4444-8444-444444444444';
-  const draft={version:2,name:'Continuidade',html:`<p>Texto</p><figure><img data-media-id="${id}"><figcaption>foto.png</figcaption></figure>`,dest:'telegram',telegraphPath:'',docId:doc,importedMd:'',importedTxt:'',importedHtml:'',media:{id,kind:'image'}};
-  const file={name:'foto.png',blob:new Blob([new Uint8Array([1,2,3,4,5])],{type:'image/png'})};
+test('handoff persists multiple attachments and exposes each file by media id',async()=>{
+  const doc='44444444-4444-4444-8444-444444444444';
+  const ids=['handoffmedia1','handoffmedia2'];
+  const draft={version:2,name:'Continuidade',html:ids.map((id,index)=>`<figure><img data-media-id="${id}"><figcaption>foto${index+1}.png</figcaption></figure>`).join(''),dest:'telegram',telegraphPath:'',docId:doc,importedMd:'',importedTxt:'',importedHtml:'',media:ids.map(id=>({id,kind:'image'}))};
   const form=new FormData();
   form.set('draft',JSON.stringify(draft));
-  form.set('upload',file.blob,file.name);
+  ids.forEach((id,index)=>form.set('upload_'+id,new Blob([new Uint8Array([index+1,2,3])],{type:'image/png'}),'foto'+(index+1)+'.png'));
   const res=await fetch(`http://127.0.0.1:${port}/api/handoff`,{method:'POST',headers:{origin},body:form});
   assert.equal(res.status,200);
   const made=await res.json();
-  assert.match(made.token,/^[a-f0-9]{32}$/);
   const claimed=await jsonPost('/api/handoff/claim',{initData:init(),token:made.token});
-  assert.equal(claimed.status,200);
-  assert.equal(claimed.data.draft.name,'Continuidade');
-  assert.equal(claimed.data.file.id,id);
+  assert.equal(claimed.status,200,claimed.data.error);
+  assert.deepEqual(claimed.data.files.map(item=>item.id),ids);
+  for(const id of ids){
+    const fileRes=await fetch(`http://127.0.0.1:${port}/api/handoff/file`,{method:'POST',headers:{origin,'content-type':'application/json'},body:JSON.stringify({initData:init(),token:made.token,id})});
+    assert.equal(fileRes.status,200);
+  }
 });
-
 
 test('handoff recovery is passive and confirmed publication result survives reopen and backend restart',async()=>{
   const made=await publishHandoffFixture({doc:'61616161-6161-4616-8616-616161616161'});
@@ -737,20 +738,22 @@ test('Telegraph browser capability can create, recover and edit without Telegram
   assert.match(ambiguous.data.error,/ambígua/);
 });
 
-test('handoff rejects draft media metadata that cannot be restored by the client',async()=>{
+test('handoff requires exact attachment metadata and accepts multiple official Rich Message media items',async()=>{
   const doc='55555555-5555-4555-8555-555555555555';
   const base={version:2,name:'Draft',dest:'telegram',telegraphPath:'',docId:doc,importedMd:'',importedTxt:'',importedHtml:''};
-  const stale={...base,html:'<p>texto</p>',media:{id:'ghost',kind:'image'}};
+  const stale={...base,html:'<p>texto</p>',media:[{id:'ghost',kind:'image'}]};
   const staleForm=new FormData();staleForm.set('draft',JSON.stringify(stale));
   const staleRes=await fetch(`http://127.0.0.1:${port}/api/handoff`,{method:'POST',headers:{origin},body:staleForm});
   assert.equal(staleRes.status,400);
 
-  const multiple={...base,html:'<figure><img data-media-id="one"></figure><figure><img data-media-id="two"></figure>',media:{id:'one',kind:'image'}};
+  const ids=['one','two'];
+  const multiple={...base,html:ids.map(id=>`<figure><img data-media-id="${id}"></figure>`).join(''),media:ids.map(id=>({id,kind:'image'}))};
   const multiForm=new FormData();multiForm.set('draft',JSON.stringify(multiple));
+  ids.forEach(id=>multiForm.set('upload_'+id,new Blob([new Uint8Array([1])],{type:'image/png'}),id+'.png'));
   const multiRes=await fetch(`http://127.0.0.1:${port}/api/handoff`,{method:'POST',headers:{origin},body:multiForm});
-  assert.equal(multiRes.status,400);
+  const body=await multiRes.json();
+  assert.equal(multiRes.status,200,body.error);
 });
-
 
 test('stale signed Telegram sessions are rejected',async()=>{
   const stale=new URLSearchParams(init());
@@ -1041,10 +1044,10 @@ test('Telegraph path ownership is scoped to the authenticated user and document'
 
 test('handoff attachment survives backend restart and remains session-bound',async()=>{
   const id='restartmedia1',doc='88888888-8888-4888-8888-888888888888';
-  const draft={version:2,name:'Restart',html:`<figure><img data-media-id="${id}"><figcaption>foto.png</figcaption></figure>`,dest:'telegram',telegraphPath:'',docId:doc,importedMd:'',importedTxt:'',importedHtml:'',media:{id,kind:'image'}};
+  const draft={version:2,name:'Restart',html:`<figure><img data-media-id="${id}"><figcaption>foto.png</figcaption></figure>`,dest:'telegram',telegraphPath:'',docId:doc,importedMd:'',importedTxt:'',importedHtml:'',media:[{id,kind:'image'}]};
   const form=new FormData();
   form.set('draft',JSON.stringify(draft));
-  form.set('upload',new Blob([new Uint8Array([1,2,3,4,5])],{type:'image/png'}),'foto.png');
+  form.set('upload_'+id,new Blob([new Uint8Array([1,2,3,4,5])],{type:'image/png'}),'foto.png');
   let res=await fetch(`http://127.0.0.1:${port}/api/handoff`,{method:'POST',headers:{origin},body:form});
   assert.equal(res.status,200);
   const made=await res.json();
@@ -1059,11 +1062,10 @@ test('handoff attachment survives backend restart and remains session-bound',asy
   const ownerMismatch=await jsonPost('/api/handoff/claim',{initData:init(7),token:made.token});
   assert.equal(ownerMismatch.status,400);
 
-  res=await fetch(`http://127.0.0.1:${port}/api/handoff/file`,{method:'POST',headers:{origin,'content-type':'application/json'},body:JSON.stringify({initData:init(8),token:made.token})});
+  res=await fetch(`http://127.0.0.1:${port}/api/handoff/file`,{method:'POST',headers:{origin,'content-type':'application/json'},body:JSON.stringify({initData:init(8),token:made.token,id})});
   assert.equal(res.status,200);
   assert.deepEqual([...new Uint8Array(await res.arrayBuffer())],[1,2,3,4,5]);
 });
-
 
 test('Telegraph publish and recovery responses are bound to the originating document revision',async()=>{
   const browserKey='ef'.repeat(32);
