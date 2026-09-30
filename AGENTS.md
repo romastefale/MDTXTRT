@@ -6,7 +6,7 @@ This file is written for future coding agents and assistants operating on this r
 
 MDTXTRT is an evolving product. It is **not finished**.
 
-There is **no authoritative baseline SHA that defines required product behavior**. The working baseline is the current state from which the product evolves. `RELEASE_MANIFEST.json.visualBaseline` is only a replaceable visual-comparison snapshot documented by `BASELINE.md`; it is evidence, not behavioral authority.
+There is **no authoritative baseline SHA that defines required product behavior**. The working baseline is the current state from which the product evolves. `RELEASE_MANIFEST.json.visualComparisonSnapshot` is only a replaceable visual-comparison snapshot documented by `BASELINE.md`; it is evidence, not behavioral authority.
 
 ## Baseline semantics — mandatory
 
