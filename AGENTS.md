@@ -6,7 +6,7 @@ This file is written for future coding agents and assistants operating on this r
 
 MDTXTRT is an evolving product. It is **not finished**.
 
-Current working baseline: `7fe51e8401012232281db416ac0d9bd080c18ebf`.
+The authoritative working baseline SHA is `RELEASE_MANIFEST.json.visualBaseline`; `BASELINE.md` documents the same value and its history.
 
 The baseline is a comparison snapshot only. It is not a requirement to preserve existing behavior.
 
