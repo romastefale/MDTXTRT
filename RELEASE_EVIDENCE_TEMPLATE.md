@@ -135,7 +135,7 @@ For every row record menu/dialog reachability, bottom-bar clearance, internal sc
 
 ## Visual baseline manual verification
 
-- Baseline SHA: `aac423e012745c7873908ddc4a76371fb8218aa3`
+- Baseline SHA: copy `RELEASE_MANIFEST.json.visualBaseline` for the candidate under verification
 - Candidate/anchor SHA:
 - Light mode evidence:
 - Dark mode evidence:
