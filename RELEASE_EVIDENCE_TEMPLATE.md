@@ -135,7 +135,7 @@ For every row record menu/dialog reachability, bottom-bar clearance, internal sc
 
 ## Visual comparison snapshot review
 
-- Comparison snapshot SHA: copy `RELEASE_MANIFEST.json.visualComparisonSnapshot` used for visual review
+- Optional historical comparison SHA: record only when a deliberate historical visual diagnostic was performed
 - Candidate/release-evidence SHA:
 - Light mode evidence:
 - Dark mode evidence:
