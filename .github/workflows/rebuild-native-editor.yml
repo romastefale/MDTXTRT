@@ -23,15 +23,21 @@ jobs:
       - run: npm install --package-lock-only --ignore-scripts
       - run: npm ci
       - run: npm run build
+      - name: Update browser bundle cache keys
+        shell: bash
+        run: |
+          EDITOR_SHA="$(git hash-object editor-core.js | cut -c1-12)"
+          UI_SHA="$(git hash-object ui.js | cut -c1-12)"
+          node -e "const fs=require('fs');let s=fs.readFileSync('index.html','utf8');s=s.replace(/editor-core\\.js\\?v=[a-f0-9]{12}/,'editor-core.js?v='+process.env.EDITOR_SHA).replace(/ui\\.js\\?v=[a-f0-9]{12}/,'ui.js?v='+process.env.UI_SHA);fs.writeFileSync('index.html',s)"             EDITOR_SHA="$EDITOR_SHA" UI_SHA="$UI_SHA"
       - run: npm test
       - name: Commit lockfile and bundles
         shell: bash
         run: |
-          if git diff --quiet -- package-lock.json editor-core.js ui.js; then
+          if git diff --quiet -- package-lock.json editor-core.js ui.js index.html; then
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add package-lock.json editor-core.js ui.js
+          git add package-lock.json editor-core.js ui.js index.html
           git commit -m "build: regenerate native editor artifacts"
           git push origin HEAD:feat/canonical-editor-platform-contracts
