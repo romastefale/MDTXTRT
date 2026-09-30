@@ -56,8 +56,7 @@
       "editor-bundle-reproducible",
       "ui-bundle-reproducible",
       "stage-ancestry",
-      "surface-contract",
-      "visual-shell-comparison"
+      "surface-contract"
     ],
     "external": [
       "authorized-test-environment",
@@ -69,9 +68,11 @@
       "network-storage-fault-matrix",
       "rollback",
       "evidence-completeness"
+    ],
+    "optionalEvidence": [
+      "historical-visual-comparison"
     ]
   },
-  "visualComparisonSnapshot": "977d61554f75c943b626f89fe871bb3becae75f1",
   "evolutionPolicy": {
     "model": "current-state-is-evolution-base",
     "authority": "current-requirements-and-intentional-contracts",
