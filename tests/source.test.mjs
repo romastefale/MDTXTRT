@@ -758,7 +758,7 @@ test('step 6 persists drafts on the Railway volume, binds Telegram publication p
   assert.match(app,/one\('#draftToggle'\)\?\.addEventListener/);
 });
 
-test('step 5 overlays use the visual viewport without changing the baseline material contract',()=>{
+test('step 5 overlays use the visual viewport while honoring the current material contract',()=>{
   const html=read('index.html'),app=read('app.js'),src=uiSource();
   assert.match(html,/max-height:var\(--menu-max-height,min\(55vh,420px\)\)/);
   assert.match(html,/width:min\(var\(--menu-w\),var\(--menu-max-width,calc\(100vw - 16px\)\)\)/);
@@ -781,7 +781,7 @@ test('step 5 overlays use the visual viewport without changing the baseline mate
 });
 
 
-test('final release gap analysis, surface audit and final-only anchor gates are explicit',()=>{
+test('release evidence gates remain traceability-only and cannot freeze later evolution',()=>{
   for(const file of [
     'GAP_ANALYSIS.md','RELEASE_VALIDATION.md','RELEASE_EVIDENCE_TEMPLATE.md','RELEASE_ANCHOR.md',
     'RELEASE_MANIFEST.json','SURFACE_CONTRACT.md','OWNER_ACCEPTANCE.md','.github/workflows/release-validation.yml',
@@ -815,6 +815,12 @@ test('final release gap analysis, surface audit and final-only anchor gates are 
   assert.equal(manifest.evolutionPolicy.historicalStateAuthority,'none');
   assert.equal(manifest.evolutionPolicy.preservationByHistoricalParity,false);
   assert.equal(manifest.evolutionPolicy.divergenceFromHistoricalStateFails,false);
+  assert.equal(manifest.evolutionPolicy.temporalScope,'permanent');
+  assert.equal(manifest.evolutionPolicy.everyProductStateRemainsMutable,true);
+  assert.equal(manifest.evolutionPolicy.anyAcceptedStateMayBeSuperseded,true);
+  assert.equal(manifest.evolutionPolicy.futureCertificationMayFreezeProduct,false);
+  assert.equal(manifest.evolutionPolicy.changePermissionDependsOnHistoricalState,false);
+  assert.equal(manifest.evolutionPolicy.evolutionPromotionMayBeBlockedByHistoricalState,false);
   assert.equal(manifest.evolutionPolicy.visualComparisonRole,'optional-diagnostic-only');
   assert.equal(manifest.evolutionPolicy.temporalScope,'permanent');
   assert.equal(manifest.evolutionPolicy.everyProductStateRemainsMutable,true);
@@ -880,6 +886,8 @@ test('final release gap analysis, surface audit and final-only anchor gates are 
   assert.match(validation,/Railway draft-volume persistence and restart/);
   assert.match(validation,/real Telegram Rich Message send and revision history/i);
   assert.match(validation,/Web \/ PWA \/ Mini App and physical-device matrix/);
+  assert.doesNotMatch(validation,/proves each head is an ancestor|stage ancestry/i);
+  assert.doesNotMatch(read('RELEASE_EVIDENCE_TEMPLATE.md'),/Stage ancestry\/manifest/i);
 
   assert.match(anchor,/Engineering completion does not require an immutable Release Anchor/);
   assert.match(anchor,/canonical release identity is a \*\*full 40-character Git commit SHA\*\*/);
