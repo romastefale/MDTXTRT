@@ -257,7 +257,7 @@ function PlusMenu() {
     <>
       <GlassContextMenu id="plusMenu" className="wide-menu" anchorId="plusBtn" placement="top">
         <div className="tools document-tools">
-          <input id="docName" defaultValue="Ideia" aria-label="Nome do documento" maxLength={120} />
+          <input id="docName" defaultValue="Ideia" aria-label="Nome do documento" maxLength={256} />
         </div>
         <div className="menu-list">
           {plusSections.map(section => <PlusCategory key={section.id} section={section} />)}
