@@ -153,7 +153,7 @@ Somando, são cerca de 570 linhas de scripts e 98 de teste (`evolution-policy.te
 **Passo zero — destravar (um PR)**
 1. Fork: aplicar `"prepare": "tsup"` e fixar `github:romastefale/liquid-glass#<commit>` no `package.json`.
 2. Apagar do `source.test.mjs` todos os asserts de valor visual (seção 3), mantendo os de dependência, segurança, Telegram e as decisões da seção 1.
-3. Apagar `verify-surface-contract.mjs`, `evolution-policy.mjs`, `verify-evolution-policy.mjs`, `verify-release-manifest.mjs`, `validate-release-evidence.mjs`, `compare-historical-visual.mjs` e `evolution-policy.test.mjs`, os booleanos do manifesto e a lista de SHAs do `BASELINE.md`, e tirar os passos correspondentes dos workflows.
+3. Apagar `verify-surface-contract.mjs`, `evolution-policy.mjs`, `verify-evolution-policy.mjs`, `verify-release-manifest.mjs`, `validate-release-evidence.mjs`, `compare-historical-visual.mjs` e `evolution-policy.test.mjs`, os booleanos do manifesto e a lista de SHAs do `BASELINE.md`, e tirar os passos correspondentes dos workflows. **Manter** o `npm run build` seguido de `git diff --exit-code -- editor-core.js ui.js` (`release-validation.yml`, linha 112) e as verificações equivalentes do `regression.yml`: é um gate real, que garante que o publicado é exatamente o que sai do código-fonte, e fica mais importante com o fork compilado no `prepare`.
 4. Criar testes de regra em navegador real: Playwright em Chromium e WebKit, nos temas claro e escuro, em 390px e 1280px.
 
 **Critérios de aceite dos novos testes**
