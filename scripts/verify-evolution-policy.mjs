@@ -1,15 +1,45 @@
-import { readFileSync } from 'node:fs';
-import { assertEvolutionPolicy, historicalDivergenceDecision } from './evolution-policy.mjs';
+import { readFileSync, readdirSync } from 'node:fs';
+import { extname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import {
+  assertEvolutionPolicy,
+  assertReleaseEvidencePolicy,
+  historicalDivergenceDecision,
+  LEGACY_FREEZE_MARKERS,
+  LEGACY_FREEZE_EXECUTABLE_PATTERN
+} from './evolution-policy.mjs';
 
-const manifest = JSON.parse(readFileSync(new URL('../RELEASE_MANIFEST.json', import.meta.url), 'utf8'));
+const root=fileURLToPath(new URL('../',import.meta.url));
+const manifest=JSON.parse(readFileSync(join(root,'RELEASE_MANIFEST.json'),'utf8'));
 assertEvolutionPolicy(manifest);
+assertReleaseEvidencePolicy(manifest);
 
-for (const identical of [true, false]) {
-  const decision = historicalDivergenceDecision({ identical });
-  if (decision.blocksEvolution !== false) throw new Error('Comparação histórica não pode bloquear evolução.');
-  if (decision.requiresHistoricalPreservation !== false) throw new Error('Comparação histórica não pode exigir preservação.');
-  if (decision.authority !== 'current-requirements-and-intentional-contracts') throw new Error('Autoridade de decisão incorreta.');
+for(const identical of [true,false]){
+  const decision=historicalDivergenceDecision({identical});
+  if(decision.blocksEvolution!==false)throw new Error('Comparação histórica não pode bloquear evolução.');
+  if(decision.requiresHistoricalPreservation!==false)throw new Error('Comparação histórica não pode exigir preservação.');
+  if(decision.authority!=='current-requirements-and-intentional-contracts')throw new Error('Autoridade de decisão incorreta.');
 }
 
+const allowedExtensions=new Set(['.js','.mjs','.jsx','.json','.md','.yml','.yaml','.html','.webmanifest']);
+const skip=new Set(['node_modules','.git','.historical-visual-comparison']);
+const files=[];
+const walk=dir=>{
+  for(const entry of readdirSync(dir,{withFileTypes:true})){
+    if(skip.has(entry.name))continue;
+    const path=join(dir,entry.name);
+    if(entry.isDirectory())walk(path);
+    else if(allowedExtensions.has(extname(entry.name)))files.push(path);
+  }
+};
+walk(root);
 
-console.log('Evolution policy OK: mutabilidade é permanente; nenhum estado histórico, atual ou futuro pode congelar ou bloquear evolução.');
+for(const file of files){
+  const text=readFileSync(file,'utf8');
+  for(const marker of LEGACY_FREEZE_MARKERS){
+    if(text.includes(marker))throw new Error(`Marcador legado de congelamento em ${file}: ${marker}`);
+  }
+  if(LEGACY_FREEZE_EXECUTABLE_PATTERN.test(text))throw new Error('Gate executável por ancestralidade histórica em '+file);
+}
+
+console.log('Permanent evolution policy OK: todo estado permanece mutável, substituível e promovível; histórico é apenas rastreabilidade/diagnóstico.');
