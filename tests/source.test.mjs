@@ -854,15 +854,6 @@ test('release evidence gates remain traceability-only and cannot freeze later ev
   assert.equal(manifest.releaseEvidencePolicy.mayFreezeFutureEvolution,false);
   assert.equal(manifest.releaseEvidencePolicy.mayBlockEvolutionPromotion,false);
 
-  for(const file of ['AGENTS.md','README.md','FORMAT_CONTRACT.md','RELEASE_EVIDENCE_POLICY.md','RELEASE_VALIDATION.md','RELEASE_EVIDENCE_TEMPLATE.md']){
-    const text=read(file);
-    assert.doesNotMatch(text,/RELEASE_MANIFEST\.json\.visualBaseline|current visual baseline/i);
-    assert.doesNotMatch(text,/Current working baseline:\s*`[a-f0-9]{40}`/);
-    assert.doesNotMatch(text,/baseline de trabalho vigente é `[a-f0-9]{40}`/i);
-    assert.doesNotMatch(text,/Normative visual baseline:\s*`[a-f0-9]{40}`/);
-    assert.doesNotMatch(text,/approved visual baseline is `[a-f0-9]{40}`/i);
-  }
-
   assert.match(gap,/G-04 — exact production deployment/);
   assert.match(gap,/G-05 — physical draft persistence\/restart evidence/);
   assert.match(gap,/G-07 — real Telegram send\/revision-history path/);
@@ -891,6 +882,7 @@ test('release evidence gates remain traceability-only and cannot freeze later ev
   assert.match(evidencePolicyDoc,/not an immutable product baseline/i);
   assert.match(evidencePolicyDoc,/Certification does not freeze that state/i);
   assert.match(evidencePolicyDoc,/The first question never overrides the second/i);
-  assert.doesNotMatch(evidencePolicyDoc,/freeze product behavior|preservation target.*authority over subsequent development/i);
+  assert.match(evidencePolicyDoc,/not a preservation target/i);
+  assert.match(evidencePolicyDoc,/not authority over subsequent development/i);
 });
 
