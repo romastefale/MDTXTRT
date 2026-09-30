@@ -41,7 +41,7 @@ export function GlassContextMenu({
   id,
   children,
   className = "",
-  popover = "auto",
+  popover = null,
   anchorId,
   placement = "auto",
   ...props
@@ -49,7 +49,8 @@ export function GlassContextMenu({
   return (
     <div
       id={id}
-      popover={popover}
+      popover={popover || undefined}
+      data-menu-surface={popover ? undefined : ""}
       data-anchor={anchorId}
       data-placement={placement}
       className={`glass-menu ${className}`.trim()}
@@ -387,6 +388,7 @@ function Chrome() {
         </div>
       </header>
 
+      <div id="menuDismissLayer" className="menu-dismiss-layer" hidden aria-hidden="true" />
       <LinkMenu />
       <HeadingMenu />
       <ListMenu />
@@ -402,14 +404,14 @@ function Chrome() {
 
       <div className="bar-wrap">
         <GlassControl className="bar" id="typebar">
-          <button type="button" className="more" id="plusBtn" aria-label="Mais opções" title="Mais opções" popoverTarget="plusMenu"><Icon name="plus" /></button>
+          <button type="button" className="more" id="plusBtn" aria-label="Mais opções" title="Mais opções" aria-haspopup="menu"><Icon name="plus" /></button>
           <button type="button" data-cmd="bold" aria-label="Negrito"><Icon name="bold" /></button>
           <button type="button" data-cmd="italic" aria-label="Itálico"><Icon name="italic" /></button>
           <button type="button" data-cmd="underline" aria-label="Sublinhado"><Icon name="underline" /></button>
           <button type="button" id="linkBtn" aria-label="Link"><Icon name="link" /></button>
-          <button type="button" id="headingBtn" aria-label="Título" popoverTarget="headingMenu"><Icon name="heading" /></button>
-          <button type="button" id="listBtn" aria-label="Lista" popoverTarget="listMenu"><Icon name="list" /></button>
-          <button type="button" id="quoteBtn" aria-label="Citação" popoverTarget="quoteMenu"><Icon name="quote" /></button>
+          <button type="button" id="headingBtn" aria-label="Título" aria-haspopup="menu"><Icon name="heading" /></button>
+          <button type="button" id="listBtn" aria-label="Lista" aria-haspopup="menu"><Icon name="list" /></button>
+          <button type="button" id="quoteBtn" aria-label="Citação" aria-haspopup="menu"><Icon name="quote" /></button>
         </GlassControl>
       </div>
     </>
