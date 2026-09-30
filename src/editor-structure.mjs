@@ -112,15 +112,20 @@ export function createStructure(root,{changed=()=>{},selectionChanged=()=>{}}={}
     if(asBlock){
       const anchor=topBlock(root,range.startContainer)||topBlock(root,elementAtRangeStart(root,range));
       const nodes=[...fragment.childNodes];
-      const caret=root.ownerDocument.createElement("p");caret.append(root.ownerDocument.createElement("br"));
       if(anchor){
-        let ref=anchor.nextSibling;
-        for(const node of nodes){root.insertBefore(node,ref);}
-        root.insertBefore(caret,ref);
+        const next=anchor.nextElementSibling;
+        const ref=anchor.nextSibling;
+        for(const node of nodes)root.insertBefore(node,ref);
+        if(next)setCaret(next,0);
+        else{
+          const caret=root.ownerDocument.createElement("p");caret.append(root.ownerDocument.createElement("br"));
+          root.append(caret);setCaret(caret,0);
+        }
       }else{
-        root.append(fragment,caret);
+        root.append(fragment);
+        const caret=root.ownerDocument.createElement("p");caret.append(root.ownerDocument.createElement("br"));
+        root.append(caret);setCaret(caret,0);
       }
-      setCaret(caret,0);
     }else{
       const last=fragment.lastChild;
       range.insertNode(fragment);
@@ -206,6 +211,31 @@ export function createStructure(root,{changed=()=>{},selectionChanged=()=>{}}={}
     const active=table();return active?selectNode(root,active):false;
   }
 
+  function insertParagraph(){
+    const range=rangeInside(root);
+    if(!range||!range.collapsed)return false;
+    const block=currentBlock(root);
+    if(!block||!["blockquote","aside"].includes(block.localName)&&!/h[1-6]/.test(block.localName))return false;
+    const empty=!block.textContent.replace(/\u200b/g,"").trim();
+    if(empty){
+      const p=root.ownerDocument.createElement("p");p.append(root.ownerDocument.createElement("br"));
+      block.replaceWith(p);setCaret(p,0);
+      notify(root,changed,selectionChanged);
+      return true;
+    }
+    const clone=block.cloneNode(false);
+    if(block.hasAttribute("expandable"))clone.setAttribute("expandable","");
+    const tail=root.ownerDocument.createRange();
+    tail.setStart(range.startContainer,range.startOffset);
+    tail.setEnd(block,block.childNodes.length);
+    const rest=tail.extractContents();
+    if(rest.childNodes.length)clone.append(rest);else clone.append(root.ownerDocument.createElement("br"));
+    block.parentNode.insertBefore(clone,block.nextSibling);
+    setCaret(clone,0);
+    notify(root,changed,selectionChanged);
+    return true;
+  }
+
   function exitFormattedBlock(){
     const range=rangeInside(root);
     if(!range||!range.collapsed)return false;
@@ -230,6 +260,6 @@ export function createStructure(root,{changed=()=>{},selectionChanged=()=>{}}={}
   return {
     currentBlockKind,inBlock,formatBlock,toggleList,insertHTML,insertText,
     addTableColumn,removeTableColumn,addTableRow,removeTableRow,deleteTable,selectTable,
-    exitFormattedBlock,normalizeEmptyFormattedBlock
+    insertParagraph,exitFormattedBlock,normalizeEmptyFormattedBlock
   };
 }
