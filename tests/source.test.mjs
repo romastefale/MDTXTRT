@@ -715,7 +715,7 @@ test('step 6 persists drafts on the Railway volume, binds Telegram publication p
   assert.match(ui,/id="telegraphList"/);
   assert.doesNotMatch(ui,/id="libraryRefresh"/);
   assert.match(ui,/<MenuItem icon="arrow_back" className="submenu-back" id="libraryClose">/);
-  assert.match(ui,/id="libraryNew"[\s\S]*?Icon name="sticky_note_2"/);
+  assert.match(ui,/<MenuItem icon="sticky_note_2" id="libraryNew">Novo documento<\/MenuItem>/);
   assert.match(ui,/id="publicationToggle"[\s\S]*?aria-expanded="true"/);
   assert.ok(ui.indexOf('id="publicationToggle"')<ui.indexOf('id="draftLibrarySection"'));
   assert.doesNotMatch(ui,/Conteúdo persistido no volume/);
