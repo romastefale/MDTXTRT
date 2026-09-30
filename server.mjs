@@ -283,6 +283,18 @@ function validateTelegramUpload(file,kind){
   if(!Number.isInteger(file.size)||file.size<1||file.size>max)throw new Error(kind==="image"?"Fotos enviadas por multipart podem ter até 10 MB":"Arquivos enviados por multipart podem ter até 50 MB");
   return file;
 }
+function bindDraftFiles(files,draft){
+  if(!Array.isArray(files)||!Array.isArray(draft?.media))throw new Error("Mídias inválidas");
+  const metadata=new Map(draft.media.map(item=>[item.id,item]));
+  if(metadata.size!==draft.media.length)throw new Error("Metadados de mídia duplicados");
+  return files.map(file=>{
+    const item=metadata.get(file.id);
+    if(!item)throw new Error("Mídia não referenciada pelo rascunho");
+    const bound={...file,kind:item.kind};
+    validateTelegramUpload(bound,item.kind);
+    return bound;
+  });
+}
 
 function cleanFileName(value){
   if(typeof value!=="string")throw new Error("Nome de arquivo inválido");
