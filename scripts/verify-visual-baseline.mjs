@@ -6,12 +6,12 @@ import { execFileSync, spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 
 const releaseManifest=JSON.parse(readFileSync(new URL('../RELEASE_MANIFEST.json',import.meta.url),'utf8'));
-const baselineSha=process.env.BASELINE_SHA||releaseManifest.visualComparisonSnapshot;
-if(!/^[a-f0-9]{40}$/.test(baselineSha))throw new Error('BASELINE_SHA (comparison snapshot) inválido');
+const comparisonSha=process.env.VISUAL_COMPARISON_SHA||releaseManifest.visualComparisonSnapshot;
+if(!/^[a-f0-9]{40}$/.test(comparisonSha))throw new Error('VISUAL_COMPARISON_SHA inválido');
 
 const repo=process.cwd();
 const tempRoot=mkdtempSync(join(tmpdir(),'mdtxtrt-visual-'));
-const baselineRoot=join(tempRoot,'baseline');
+const comparisonRoot=join(tempRoot,'baseline');
 const outDir=resolve(repo,'.release-visual');
 mkdirSync(outDir,{recursive:true});
 
@@ -88,28 +88,28 @@ function sha(path){
   return createHash('sha256').update(readFileSync(path)).digest('hex');
 }
 
-let candidateServer,baselineServer;
+let candidateServer,comparisonServer;
 try{
-  execFileSync('git',['worktree','add','--detach',baselineRoot,baselineSha],{stdio:'inherit'});
+  execFileSync('git',['worktree','add','--detach',comparisonRoot,comparisonSha],{stdio:'inherit'});
   candidateServer=staticServer(repo);
-  baselineServer=staticServer(baselineRoot);
+  comparisonServer=staticServer(comparisonRoot);
   await listen(candidateServer,4173);
-  await listen(baselineServer,4174);
+  await listen(comparisonServer,4174);
   const chrome=chromeBinary();
   const summaries=[];
   for(const theme of ['light','dark']){
     const candidatePng=join(outDir,`candidate-${theme}-shell-390x844.png`);
-    const baselinePng=join(outDir,`baseline-${theme}-shell-390x844.png`);
+    const comparisonPng=join(outDir,`comparison-${theme}-shell-390x844.png`);
     await capture(chrome,`http://127.0.0.1:4173/?theme=${theme}`,candidatePng,`chrome-candidate-${theme}`);
-    await capture(chrome,`http://127.0.0.1:4174/?theme=${theme}`,baselinePng,`chrome-baseline-${theme}`);
-    const candidate=readFileSync(candidatePng),baseline=readFileSync(baselinePng);
+    await capture(chrome,`http://127.0.0.1:4174/?theme=${theme}`,comparisonPng,`chrome-comparison-${theme}`);
+    const candidate=readFileSync(candidatePng),comparison=readFileSync(comparisonPng);
     summaries.push({
       theme,
-      baselineSha,
+      comparisonSha,
       candidateSha:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),
       candidateScreenshot:sha(candidatePng),
-      baselineScreenshot:sha(baselinePng),
-      identical:candidate.equals(baseline)
+      comparisonScreenshot:sha(comparisonPng),
+      identical:candidate.equals(comparison)
     });
   }
   writeFileSync(join(outDir,'summary.json'),JSON.stringify({viewport:'390x844@1x',comparisons:summaries},null,2)+'\n');
@@ -127,7 +127,7 @@ try{
   }
 }finally{
   if(candidateServer)await close(candidateServer).catch(()=>{});
-  if(baselineServer)await close(baselineServer).catch(()=>{});
-  try{execFileSync('git',['worktree','remove','--force',baselineRoot],{stdio:'ignore'});}catch{}
+  if(comparisonServer)await close(comparisonServer).catch(()=>{});
+  try{execFileSync('git',['worktree','remove','--force',comparisonRoot],{stdio:'ignore'});}catch{}
   rmSync(tempRoot,{recursive:true,force:true});
 }
