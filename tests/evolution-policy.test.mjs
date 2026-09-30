@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { extname, join } from 'node:path';
-import { REQUIRED_EVOLUTION_POLICY, REQUIRED_RELEASE_EVIDENCE_POLICY, assertEvolutionPolicy, assertReleaseEvidencePolicy, historicalDivergenceDecision } from '../scripts/evolution-policy.mjs';
+import { REQUIRED_EVOLUTION_POLICY, REQUIRED_RELEASE_EVIDENCE_POLICY, assertEvolutionPolicy, assertReleaseEvidencePolicy, historicalDivergenceDecision, LEGACY_FREEZE_MARKERS, LEGACY_FREEZE_EXECUTABLE_PATTERN } from '../scripts/evolution-policy.mjs';
 
 const manifest = () => ({ schema: 3, evolutionPolicy: { ...REQUIRED_EVOLUTION_POLICY }, releaseEvidencePolicy: { ...REQUIRED_RELEASE_EVIDENCE_POLICY } });
 
@@ -76,24 +76,9 @@ test('release evidence can never freeze or block a later evolution', () => {
   }
 });
 
-test('repository contains no legacy freeze-policy tokens', () => {
+test('repository contains no legacy freeze-policy tokens or executable historical-ancestry gates', () => {
   const root = new URL('../', import.meta.url);
   const allowedExtensions = new Set(['.js','.mjs','.jsx','.json','.md','.yml','.yaml','.html','.webmanifest']);
-  const forbidden = [
-    ['verify','baseline','policy'].join('-'),
-    ['verify','visual','baseline'].join('-'),
-    ['BASELINE','PRESERVATION','REQUIRED'].join('_'),
-    ['VISUAL','COMPARISON','SHA'].join('_'),
-    ['anchor','Policy'].join(''),
-    ['baseline','Policy'].join(''),
-    ['visual','Baseline'].join(''),
-    ['stage','ancestry'].join('-'),
-    ['final immutable Release','Anchor'].join(' '),
-    ['Normative visual','baseline'].join(' '),
-    ['approved visual','baseline'].join(' '),
-    ['RELEASE','ANCHOR.md'].join('_'),
-    ['Release','Anchor'].join(' ')
-  ];
   const skip = new Set(['node_modules','.git','.historical-visual-comparison']);
   const files = [];
   const walk = dir => {
@@ -107,6 +92,7 @@ test('repository contains no legacy freeze-policy tokens', () => {
   walk(new URL('../', import.meta.url).pathname);
   for (const file of files) {
     const text = readFileSync(file,'utf8');
-    for (const token of forbidden) assert.equal(text.includes(token),false,`${file} reintroduziu token legado: ${token}`);
+    for (const marker of LEGACY_FREEZE_MARKERS) assert.equal(text.includes(marker),false,`${file} reintroduziu marcador legado: ${marker}`);
+    assert.equal(LEGACY_FREEZE_EXECUTABLE_PATTERN.test(text),false,`${file} reintroduziu gate por ancestralidade histórica`);
   }
 });
