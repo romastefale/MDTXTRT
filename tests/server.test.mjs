@@ -26,9 +26,11 @@ function find(node,tag,out=[]){for(const item of node.children||[]){if(item.name
 function lastBotHTML(){return lastCall('sendRichMessage')?.body?.rich_message?.html||'';}
 function lastImportToken(){
   const tree=parseDocument(lastBotHTML());
-  const button=find(tree,'tg-button').find(node=>node.attribs.type==='url'&&String(node.attribs.url||'').includes('/telegram/open?handoff='));
-  assert.ok(button,'bot import continuation button');
-  const token=new URL(button.attribs.url).searchParams.get('handoff')||'';
+  const button=find(tree,'tg-button').find(node=>node.attribs.type==='web_app'&&new URL(node.attribs.url).searchParams.has('handoff'));
+  assert.ok(button,'bot import Mini App continuation button');
+  const url=new URL(button.attribs.url);
+  assert.equal(url.origin,origin);
+  const token=url.searchParams.get('handoff')||'';
   assert.match(token,/^[a-f0-9]{32}$/);
   return token;
 }
@@ -873,25 +875,20 @@ test('webhook authentication and bot command responses retain their contracts',a
   const richCalls=calls().filter(call=>call.method==='sendRichMessage');
   const start=parseDocument(richCalls.at(-6).body.rich_message.html);
   const buttons=find(start,'tg-button');
-  assert.equal(buttons.length,2);
+  assert.equal(buttons.length,1);
   assert.equal(buttons[0].attribs.type,'web_app');
   assert.equal(buttons[0].attribs.url,origin+'/');
-  assert.equal(buttons[1].attribs.type,'url');
-  assert.equal(buttons[1].attribs.url,origin+'/');
 
   const app=parseDocument(richCalls.at(-5).body.rich_message.html);
   for(const button of find(app,'tg-button'))assert.equal(new URL(button.attribs.url).searchParams.has('new'),false);
 
   const novo=parseDocument(richCalls.at(-4).body.rich_message.html);
   const novoButtons=find(novo,'tg-button');
-  assert.equal(novoButtons.length,2);
+  assert.equal(novoButtons.length,1);
   assert.equal(novoButtons[0].attribs.type,'web_app');
   const miniURL=new URL(novoButtons[0].attribs.url);
-  const browserURL=new URL(novoButtons[1].attribs.url);
   assert.equal(miniURL.origin,origin);
-  assert.equal(browserURL.origin,origin);
   assert.match(miniURL.searchParams.get('new')||'',/^[a-f0-9]{32}$/);
-  assert.match(browserURL.searchParams.get('new')||'',/^[a-f0-9]{32}$/);
   assert.match(richCalls.at(-4).body.rich_message.html,/sem substituir o rascunho local atual/);
   const drafts=parseDocument(richCalls.at(-3).body.rich_message.html);
   assert.match(richCalls.at(-3).body.rich_message.html,/<h1>Rascunhos<\/h1>/);
@@ -915,52 +912,65 @@ test('webhook authentication and bot command responses retain their contracts',a
   assert.match(richCalls.at(-1).body.rich_message.html,/\/importar/);
 });
 
-test('enviar, exportar, callbacks and group commands produce explicit Telegram actions',async()=>{
+test('enviar and exportar always use canonical Mini App selectors without legacy direct actions',async()=>{
+  const documentsBefore=callCount('sendDocument');
+  const callbacksBefore=callCount('answerCallbackQuery');
+
   let res=await webhook({message:{text:'/enviar Olá forte',entities:[{type:'bold',offset:12,length:5}],message_id:21,chat:{id:7,type:'private'}}});
   assert.equal(res.status,200);
-  let sent=lastCall('sendRichMessage');
-  assert.deepEqual(sent.body.reply_parameters,{message_id:21});
-  assert.equal(sent.body.rich_message.html,'<p>Olá <b>forte</b></p>');
+  let html=lastBotHTML();
+  assert.match(html,/<h1>Enviar rascunho<\/h1>/);
+  assert.doesNotMatch(html,/Olá forte/);
+  for(const button of find(parseDocument(html),'tg-button')){
+    assert.equal(button.attribs.type,'web_app');
+    assert.equal(new URL(button.attribs.url).searchParams.get('botAction'),'send');
+  }
 
   res=await webhook({message:{text:'/exportar txt linha literal',message_id:22,chat:{id:7,type:'private'}}});
   assert.equal(res.status,200);
-  const document=lastCall('sendDocument');
-  assert.equal(document.body.document.name,'mdtxtrt.txt');
-  assert.equal(document.body.document.text,'linha literal');
+  html=lastBotHTML();
+  assert.match(html,/<h1>Exportar<\/h1>/);
+  assert.doesNotMatch(html,/linha literal/);
+  for(const button of find(parseDocument(html),'tg-button')){
+    assert.equal(button.attribs.type,'web_app');
+    const url=new URL(button.attribs.url);
+    assert.equal(url.searchParams.get('botAction'),'export');
+    assert.equal(url.searchParams.has('format'),false);
+  }
+  assert.equal(callCount('sendDocument'),documentsBefore);
 
   res=await webhook({callback_query:{id:'cb1',data:'abrir',from:{id:7}}});
   assert.equal(res.status,200);
-  assert.deepEqual(lastCall('answerCallbackQuery').body,{callback_query_id:'cb1',text:'abrir'});
+  assert.equal(callCount('answerCallbackQuery'),callbacksBefore);
 
   res=await webhook({message:{text:'/app',message_id:23,chat:{id:-2,type:'group'}}});
   assert.equal(res.status,200);
   assert.match(lastCall('sendRichMessage').body.rich_message.html,/chat privado/);
 });
 
-test('replied text retains Telegram entity offsets and literal TXT whitespace',async()=>{
+test('replies do not reactivate legacy enviar or exportar behavior',async()=>{
   const reply={text:'  Olá forte\n',entities:[{type:'bold',offset:6,length:5}]};
+  const documentsBefore=callCount('sendDocument');
+
   let res=await webhook({message:{text:'/enviar',message_id:24,chat:{id:7,type:'private'},reply_to_message:reply}});
   assert.equal(res.status,200);
-  assert.equal(lastCall('sendRichMessage').body.rich_message.html,'<p>  Olá <b>forte</b><br></p>');
+  assert.match(lastBotHTML(),/<h1>Enviar rascunho<\/h1>/);
+  assert.doesNotMatch(lastBotHTML(),/Olá forte/);
 
   res=await webhook({message:{text:'/exportar md',message_id:25,chat:{id:7,type:'private'},reply_to_message:reply}});
   assert.equal(res.status,200);
-  assert.equal(lastCall('sendDocument').body.document.text,'  Olá **forte**\n');
-
-  res=await webhook({message:{text:'/exportar txt',message_id:26,chat:{id:7,type:'private'},reply_to_message:reply}});
-  assert.equal(res.status,200);
-  assert.equal(lastCall('sendDocument').body.document.text,reply.text);
+  assert.match(lastBotHTML(),/<h1>Exportar<\/h1>/);
+  assert.equal(callCount('sendDocument'),documentsBefore);
 
   const caption={caption:'  texto forte',caption_entities:[{type:'bold',offset:8,length:5}]};
   res=await webhook({message:{text:'/enviar',message_id:27,chat:{id:7,type:'private'},reply_to_message:caption}});
   assert.equal(res.status,200);
-  assert.equal(lastCall('sendRichMessage').body.rich_message.html,'<p>  texto <b>forte</b></p>');
+  assert.match(lastBotHTML(),/<h1>Enviar rascunho<\/h1>/);
 
-  const documentsBefore=callCount('sendDocument');
   res=await webhook({message:{caption:'/exportar md',message_id:28,chat:{id:7,type:'private'},document:{file_id:'valid-txt',file_name:'notas.txt'}}});
   assert.equal(res.status,200);
   assert.equal(callCount('sendDocument'),documentsBefore);
-  assert.match(lastBotHTML(),/documento anexado só pode ser usado com/);
+  assert.match(lastBotHTML(),/trabalham exclusivamente com rascunhos e publicações persistidos/);
 });
 
 test('Telegraph request errors are typed independently from upstream failures',async()=>{
