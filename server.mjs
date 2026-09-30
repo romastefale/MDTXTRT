@@ -974,7 +974,9 @@ async function sendRichToChat(chatId,html,file=null,replyTo=0){
 }
 
 async function sendRich(initData,html,file=null,replyTo=0){
-  const {chatId}=userFromInitData(String(initData||""));
+  let chatId;
+  try{({chatId}=userFromInitData(String(initData||"")));}
+  catch(error){throw asHttpError(error,400,"Dados inválidos para publicação");}
   return sendRichToChat(chatId,html,file,replyTo);
 }
 
@@ -1541,7 +1543,8 @@ function telegramPrivateOwner(userId,chatId){
 }
 
 function ownerFromBotMessage(message){
-  return telegramPrivateOwner(message?.from?.id,message?.chat?.id);
+  const chatId=message?.chat?.id;
+  return telegramPrivateOwner(message?.from?.id??chatId,chatId);
 }
 
 function botButtonLabel(value,prefix=""){
