@@ -42,12 +42,15 @@
       --pill-gap:6px;
       /* Acento do editor: cor de link do Telegram no tema escuro, legível no fundo roxo. */
       --accent:#6ab3f3;
-      --muted:color-mix(in oklab,var(--text) 82%,var(--accent));
-      --neutral-1:color-mix(in oklab,var(--accent) 6%,var(--bg));
-      --neutral-2:color-mix(in oklab,var(--accent) 10%,var(--bg));
-      --neutral-3:color-mix(in oklab,var(--accent) 16%,var(--bg));
-      --neutral-4:color-mix(in oklab,var(--accent) 24%,var(--bg));
-      --line:color-mix(in oklab,var(--accent) 22%,var(--bg));
+      /* Cor de link do texto do editor: a do tema do Telegram quando o SDK a injeta. */
+      --link:var(--tg-theme-link-color,#6ab3f3);
+      /* Neutros puros (alfa do texto), sem mistura com acento, nos dois temas. */
+      --muted:color-mix(in srgb,var(--text) 66%,transparent);
+      --neutral-1:color-mix(in srgb,var(--text) 5%,transparent);
+      --neutral-2:color-mix(in srgb,var(--text) 8%,transparent);
+      --neutral-3:color-mix(in srgb,var(--text) 12%,transparent);
+      --neutral-4:color-mix(in srgb,var(--text) 18%,transparent);
+      --line:color-mix(in srgb,var(--text) 18%,transparent);
       --glass-tint:var(--glass);
       --glass-tint-strong:var(--glass-strong);
       --bar-glass-tint-strong:var(--glass-strong);
@@ -55,10 +58,10 @@
       --menu-edge:var(--rim);
       --glass-field:rgba(255,255,255,.12);
       --glass-field-soft:rgba(255,255,255,.08);
-      --library-surface:color-mix(in oklab,var(--bg) 84%,var(--accent));
-      --library-section-bg:color-mix(in oklab,var(--bg) 78%,var(--accent));
-      --library-card-bg:color-mix(in oklab,var(--bg) 70%,var(--accent));
-      --library-card-border:color-mix(in oklab,var(--accent) 34%,var(--bg));
+      --library-surface:color-mix(in srgb,var(--text) 6%,transparent);
+      --library-section-bg:color-mix(in srgb,var(--text) 9%,transparent);
+      --library-card-bg:color-mix(in srgb,var(--text) 12%,transparent);
+      --library-card-border:var(--line);
       --library-backdrop:rgba(0,0,0,.62);
       --library-shadow:rgba(0,0,0,.48);
       --menu-shadow:rgba(8,4,40,.34);
@@ -99,6 +102,7 @@
     html.light{
       --edge:#8b82e6; --bg-art:url("produto/fundo-claro.svg");
       --bg:#f2eefb; --text:#151515; --dim:#3a3a3c; --accent:#269c65;
+      --link:var(--tg-theme-link-color,#2B88D8);
       --glass:rgba(255,255,255,.46);
       --glass-strong:rgba(255,255,255,.6);
       --glass-press:rgba(28,28,30,.08);
@@ -106,10 +110,6 @@
       --float:0 10px 28px rgba(30,20,90,.16),0 2px 6px rgba(30,20,90,.08);
       --glass-field:rgba(255,255,255,.5);
       --glass-field-soft:rgba(255,255,255,.34);
-      --library-surface:color-mix(in oklab,#fff 93%,var(--accent));
-      --library-section-bg:color-mix(in oklab,#fff 90%,var(--accent));
-      --library-card-bg:color-mix(in oklab,#fff 87%,var(--accent));
-      --library-card-border:color-mix(in oklab,var(--accent) 22%,#c8d4da);
       --library-backdrop:rgba(22,39,45,.24);
       --library-shadow:rgba(25,55,65,.18);
       --menu-shadow:rgba(30,20,90,.16);
@@ -126,7 +126,7 @@
     html{background:var(--edge)}
     body{
       padding:0;color:var(--text);background:var(--edge);overscroll-behavior:none;touch-action:pan-x pan-y;
-      accent-color:var(--accent);caret-color:var(--accent);
+      accent-color:var(--accent);caret-color:var(--link);
       font:16px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif
     }
     .bg{
@@ -264,12 +264,12 @@
     .telegraph-title .document-tools input{
       width:100%;height:auto;margin:0;padding:0;border:0;border-radius:0;background:transparent;color:var(--text);outline:0;
       font:700 clamp(30px,8.5vw,40px)/1.12 Georgia,"Times New Roman",serif;
-      letter-spacing:-.025em;caret-color:var(--accent)
+      letter-spacing:-.025em;caret-color:var(--link)
     }
     .telegraph-title .document-tools input::placeholder{color:color-mix(in oklab,var(--text) 42%,transparent);opacity:1}
     .editor:empty::before{content:attr(data-placeholder);color:var(--muted);pointer-events:none}
     .editor{
-      outline:none;min-height:100%;caret-color:var(--accent);font-size:16px;
+      outline:none;min-height:100%;caret-color:var(--link);font-size:16px;
       font-family:Georgia,"Times New Roman",serif;
       -webkit-user-select:text;user-select:text
     }
@@ -278,9 +278,9 @@
     .editor em,.editor i{font-style:italic}
     .editor u,.editor ins{text-decoration:underline;text-underline-offset:.12em}
     .editor blockquote,.editor aside{box-sizing:border-box;min-height:1.55em}
-    .editor blockquote{margin:1em 0;padding:.18em 0 .18em 12px;border-left:3px solid var(--accent)}
-    .editor blockquote[expandable]{position:relative;padding:.72em 34px .72em 12px;border-radius:0 12px 12px 0;background:color-mix(in srgb,var(--accent) 8%,transparent)}
-    .editor blockquote[expandable]::after{content:"";position:absolute;right:13px;bottom:13px;width:7px;height:7px;border-right:2px solid color-mix(in srgb,var(--accent) 75%,var(--text));border-bottom:2px solid color-mix(in srgb,var(--accent) 75%,var(--text));transform:rotate(45deg);pointer-events:none}
+    .editor blockquote{margin:1em 0;padding:.18em 0 .18em 12px;border-left:3px solid var(--link)}
+    .editor blockquote[expandable]{position:relative;padding:.72em 34px .72em 12px;border-radius:0 12px 12px 0;background:color-mix(in srgb,var(--link) 8%,transparent)}
+    .editor blockquote[expandable]::after{content:"";position:absolute;right:13px;bottom:13px;width:7px;height:7px;border-right:2px solid color-mix(in srgb,var(--link) 75%,var(--text));border-bottom:2px solid color-mix(in srgb,var(--link) 75%,var(--text));transform:rotate(45deg);pointer-events:none}
     .editor aside{margin:1.15em 6%;padding:.8em 1em;border-top:1px solid color-mix(in srgb,var(--accent) 48%,var(--line));border-bottom:1px solid color-mix(in srgb,var(--accent) 48%,var(--line));text-align:center;font-size:1.12em;font-weight:650;line-height:1.45}
     .editor ul{padding-left:1.2em}
     .editor li:has(> input[type="checkbox"]){min-height:1.5em}
@@ -289,7 +289,7 @@
     .editor details{margin:1em 0;padding:.6em .75em;border:1px solid var(--line);border-radius:12px;background:color-mix(in srgb,var(--accent) 5%,transparent)}
     .editor summary{min-height:1.45em;font-weight:650;cursor:text}
     .editor details>p{min-height:1.45em}
-    .editor a{color:var(--accent)}
+    .editor a{color:var(--link)}
     .editor img,.editor video,.editor iframe{max-width:100%;height:auto}
     .editor figure{margin:1em 0;padding:8px;border:1px solid var(--line);border-radius:18px;background:var(--neutral-1);overflow:hidden}
     .editor figure>img,.editor figure>video,.editor figure>iframe{display:block;width:100%;border-radius:12px;background:var(--neutral-2)}
