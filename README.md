@@ -2,17 +2,11 @@
 
 ## Baseline de trabalho
 
-A baseline de trabalho explicitamente adotada por este repositório é o commit:
+A baseline de trabalho vigente é `b22aee80bbaa79db63d12ef62ae523d968218aa5`, estado de produção após o PR #118.
 
-`1dbbdb2dfaeafbd8ef52cea859611ffa5f6699ad`
+Ela é um snapshot de referência, não um produto final, não uma especificação imutável e não deve ser preservada quando uma solicitação exigir correção ou evolução. Bugs presentes nela continuam sendo bugs. Requisitos novos ou corrigidos devem evoluir o código e, quando apropriado, substituir a própria baseline.
 
-Esse commit corresponde ao estado funcional da implementação incremental do menu hambúrguer e da biblioteca integrada de rascunhos/publicações do PR #107. Ele preserva o design Liquid Glass consolidado e incorpora as mudanças visuais deliberadas dessa evolução. As referências anteriores permanecem documentadas em [BASELINE.md](BASELINE.md).
-
-A baseline não representa congelamento do código, versão final imutável nem impedimento a mudanças posteriores. A branch `main` pode avançar normalmente com correções, refinamentos e novas funcionalidades. Alterações posteriores devem ser entendidas como evolução a partir desta referência enquanto ela permanecer documentada como baseline vigente.
-
-Uma baseline futura somente substitui esta quando essa mudança for feita de modo explícito no repositório, identificando ao menos o novo commit e a razão da substituição.
-
-Consulte [BASELINE.md](BASELINE.md) para a definição operacional, regras de evolução e instruções de reprodução do estado de referência.
+Para agentes/assistentes: não use a baseline, testes antigos ou um PASS automatizado para negar um problema observado pelo usuário. Não afirme validações, deploys ou comportamento real sem evidência correspondente. Consulte [AGENTS.md](AGENTS.md) e [BASELINE.md](BASELINE.md).
 
 ## Contratos de implementação
 

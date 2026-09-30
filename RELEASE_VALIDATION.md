@@ -1,6 +1,6 @@
 # Release validation contract — Etapa 7/7
 
-This document defines the optional **release-certification** gate used to award the `RELEASE APPROVED` label and seal an immutable Release Anchor. It is separate from engineering delivery completion.
+This document defines the optional **release-certification** gate used to award the `RELEASE APPROVED` label and seal an immutable Release Anchor. It is separate from engineering delivery completion. Neither engineering completion nor `RELEASE APPROVED` means the product is final or must stop evolving; later corrections and implementations supersede older behavior when intentionally accepted.
 
 Engineering work is complete when the implementation is integrated, exact-main automated gates pass and that exact SHA is successfully deployed. The additional external/physical evidence below may be collected post-delivery; its absence does not represent unfinished code.
 
@@ -52,7 +52,7 @@ Static surface success does not replace live execution required below.
 
 ## Gate D — visual baseline
 
-Normative visual baseline: `1dbbdb2dfaeafbd8ef52cea859611ffa5f6699ad` (incremental application menu and integrated draft/publication library).
+Normative visual baseline: `b22aee80bbaa79db63d12ef62ae523d968218aa5` (working production state after PR #118). This is a comparison reference, not a preservation mandate; deliberate corrections may replace it.
 
 Automated component:
 - render candidate and baseline with the same Chrome binary and 390×844 stable browser viewport;

@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { execFileSync, spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 
-const baselineSha=process.env.BASELINE_SHA||'db6ae2240cbe2792bd7edb1a9c26399f068ea807';
+const baselineSha=process.env.BASELINE_SHA||'b22aee80bbaa79db63d12ef62ae523d968218aa5';
 if(!/^[a-f0-9]{40}$/.test(baselineSha))throw new Error('BASELINE_SHA inválido');
 
 const repo=process.cwd();
