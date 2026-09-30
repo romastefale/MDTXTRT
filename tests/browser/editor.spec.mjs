@@ -163,7 +163,7 @@ test('vidro usa hairline e material neutro translúcido, sem cor de acento sóli
     expect(piece.bgAlpha,piece.name+' deixa a cor passar').toBeLessThan(.75);
     expect(piece.bgAlpha,piece.name+' tem material').toBeGreaterThan(0);
     expect(piece.blur,piece.name+' desfoca o fundo').toMatch(/blur\(/);
-    expect(piece.rim,piece.name+' tem borda hairline').toMatch(/inset/);
+    expect(piece.rim,piece.name+' tem borda hairline').toMatch(/0px 0px 0px (0\.5|1)px/);
   }
   // Nenhum botão da barra usa preenchimento sólido de acento.
   const solid=await page.evaluate(()=>[...document.querySelectorAll('#ux-root .bar > button,#ux-root .seg button,#ux-root .action-dot')].filter(el=>{
