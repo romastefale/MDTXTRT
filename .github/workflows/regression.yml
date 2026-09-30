@@ -49,6 +49,6 @@ jobs:
       - name: Verify React UI bundle
         if: steps.ui_inputs.outputs.changed == 'true'
         run: git diff --exit-code -- ui.js
-      - name: Verify evolutionary baseline contract
-        run: npm run verify:baseline-policy
+      - name: Verify evolution policy contract
+        run: npm run verify:evolution-policy
       - run: npm test
