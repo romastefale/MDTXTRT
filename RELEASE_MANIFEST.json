@@ -93,9 +93,12 @@
     ]
   },
   "releaseEvidencePolicy": {
-    "authority": "historical-release-evidence-sha",
-    "immutableProductState": false,
+    "role": "traceability-only",
+    "identity": "exact-git-commit-sha",
+    "productStateRemainsMutable": true,
     "preservationRequired": false,
-    "historicalBehaviorIsNormative": false
+    "historicalBehaviorIsNormative": false,
+    "mayFreezeFutureEvolution": false,
+    "mayBlockEvolutionPromotion": false
   }
 }
