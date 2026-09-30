@@ -1,4 +1,4 @@
-import {rangeInside,elementAtRangeStart,setCaret} from "./editor-selection.mjs";
+import {rangeInside,rangeForTextOffsets,selectionTextOffsets,elementAtRangeStart,setCaret} from "./editor-selection.mjs";
 
 const COMMAND_TAG=Object.freeze({
   bold:"strong",
@@ -56,66 +56,49 @@ function replaceSelectedRange(root,range,fragment){
   restoreRangeAroundMarkers(doc,start,end);
 }
 
-function fragmentHasContent(fragment){
-  return Boolean(fragment.childNodes.length);
+function elementTextOffsets(root,element){
+  const range=root.ownerDocument.createRange();
+  range.selectNodeContents(root);
+  range.setEndBefore(element);
+  const from=range.toString().length;
+  return {from,to:from+(element.textContent||"").length};
 }
 
-function liftBoundaryOut(root,marker,selector){
-  const doc=root.ownerDocument;
-  let current=marker.parentElement?.closest?.(selector)||null;
-  while(current&&root.contains(current)){
-    const parent=current.parentNode;
-    if(!parent)break;
-    const beforeRange=doc.createRange();
-    beforeRange.selectNodeContents(current);
-    beforeRange.setEndBefore(marker);
-    const afterRange=doc.createRange();
-    afterRange.selectNodeContents(current);
-    afterRange.setStartAfter(marker);
-    const before=beforeRange.cloneContents(),after=afterRange.cloneContents();
-    const beforeClone=current.cloneNode(false),afterClone=current.cloneNode(false);
-    beforeClone.append(before);afterClone.append(after);
-    if(fragmentHasContent(beforeClone))parent.insertBefore(beforeClone,current);
-    parent.insertBefore(marker,current);
-    if(fragmentHasContent(afterClone))parent.insertBefore(afterClone,current);
-    current.remove();
-    current=marker.parentElement?.closest?.(selector)||null;
-  }
+function insertClone(parent,reference,source,fragment){
+  if(!fragment.childNodes.length)return;
+  const clone=source.cloneNode(false);
+  clone.append(fragment);
+  parent.insertBefore(clone,reference);
 }
 
 function removeSelectedMark(root,range,selector){
-  const doc=root.ownerDocument;
-  const key=Math.random().toString(36).slice(2);
-  const start=doc.createElement("span"),end=doc.createElement("span");
-  start.setAttribute("data-native-selection-start",key);
-  end.setAttribute("data-native-selection-end",key);
-  const endRange=range.cloneRange();endRange.collapse(false);endRange.insertNode(end);
-  const startRange=range.cloneRange();startRange.collapse(true);startRange.insertNode(start);
-
-  let liveEnd=root.querySelector('[data-native-selection-end="'+key+'"]');
-  if(!liveEnd)return false;
-  liftBoundaryOut(root,liveEnd,selector);
-  let liveStart=root.querySelector('[data-native-selection-start="'+key+'"]');
-  liveEnd=root.querySelector('[data-native-selection-end="'+key+'"]');
-  if(!liveStart||!liveEnd)return false;
-  liftBoundaryOut(root,liveStart,selector);
-  liveStart=root.querySelector('[data-native-selection-start="'+key+'"]');
-  liveEnd=root.querySelector('[data-native-selection-end="'+key+'"]');
-  if(!liveStart||!liveEnd)return false;
-
-  const selected=doc.createRange();
-  selected.setStartAfter(liveStart);selected.setEndBefore(liveEnd);
-  for(const mark of [...root.querySelectorAll(selector)]){
-    let intersects=false;
-    try{intersects=selected.intersectsNode(mark);}catch{}
-    if(intersects)mark.replaceWith(...mark.childNodes);
+  const offsets=selectionTextOffsets(root);
+  if(!offsets||offsets.from===offsets.to)return false;
+  const marks=[...root.querySelectorAll(selector)].reverse();
+  for(const mark of marks){
+    if(!mark.isConnected||!root.contains(mark))continue;
+    const bounds=elementTextOffsets(root,mark);
+    const from=Math.max(offsets.from,bounds.from),to=Math.min(offsets.to,bounds.to);
+    if(from>=to)continue;
+    if(from<=bounds.from&&to>=bounds.to){
+      mark.replaceWith(...mark.childNodes);
+      continue;
+    }
+    const localFrom=Math.max(0,from-bounds.from),localTo=Math.max(localFrom,to-bounds.from);
+    const before=rangeForTextOffsets(mark,0,localFrom).cloneContents();
+    const selected=rangeForTextOffsets(mark,localFrom,localTo).cloneContents();
+    const after=rangeForTextOffsets(mark,localTo,(mark.textContent||"").length).cloneContents();
+    const parent=mark.parentNode;
+    if(!parent)continue;
+    insertClone(parent,mark,mark,before);
+    parent.insertBefore(selected,mark);
+    insertClone(parent,mark,mark,after);
+    mark.remove();
   }
-
-  const selection=doc.getSelection?.();
-  const restored=doc.createRange();
-  restored.setStartAfter(liveStart);restored.setEndBefore(liveEnd);
+  root.normalize();
+  const restored=rangeForTextOffsets(root,offsets.from,offsets.to);
+  const selection=root.ownerDocument.getSelection?.();
   selection?.removeAllRanges();selection?.addRange(restored);
-  liveStart.remove();liveEnd.remove();
   return true;
 }
 
