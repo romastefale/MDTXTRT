@@ -67,4 +67,4 @@ Declared insertions include math block, divider, table, details, image, video, e
 
 ## Release evidence boundary
 
-The static surface audit proves that announced controls and commands have implementation paths in the candidate. It does not prove physical rendering or external-service behavior. Final approval still requires real Web/PWA/Mini App/device evidence, real Telegram/Telegraph evidence, import/export evidence, persistent-volume restart evidence, fault injection and rollback against the same release anchor SHA.
+The static surface audit proves that announced controls and commands have implementation paths in the candidate. It does not prove physical rendering or external-service behavior. Final approval still requires real Web/PWA/Mini App/device evidence, real Telegram/Telegraph evidence, import/export evidence, persistent-volume restart evidence, fault injection and rollback for the exact candidate SHA being certified. That SHA identifies the evidence record only; it does not constrain later evolution.
