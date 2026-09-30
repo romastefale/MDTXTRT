@@ -46,30 +46,18 @@ test('official Liquid Glass React dependencies and deterministic build are pinne
 });
 
 
-test('ProseMirror editor dependencies, schema and transaction primitives are pinned',()=>{
+test('editor core is native, modular and independent of third-party document engines',()=>{
   const pkg=JSON.parse(read('package.json'));
   const lock=JSON.parse(read('package-lock.json'));
-  const expected={
-    'prosemirror-commands':'1.7.2',
-    'prosemirror-history':'1.5.0',
-    'prosemirror-keymap':'1.2.3',
-    'prosemirror-model':'1.25.12',
-    'prosemirror-schema-list':'1.5.1',
-    'prosemirror-state':'1.4.4',
-    'prosemirror-view':'1.42.3'
-  };
-  for(const [name,version] of Object.entries(expected)){
-    assert.equal(pkg.dependencies[name],version);
-    assert.equal(lock.packages['node_modules/'+name].version,version);
-  }
+  for(const name of Object.keys(pkg.dependencies||{}))assert.equal(name.startsWith('prosemirror-'),false);
+  for(const name of Object.keys(lock.packages||{}))assert.equal(name.startsWith('node_modules/prosemirror-'),false);
+  for(const file of ['src/editor-core.mjs','src/editor-selection.mjs','src/editor-history.mjs','src/editor-formatting.mjs','src/editor-structure.mjs','src/editor-search.mjs'])assert.ok(existsSync(new URL('../'+file,import.meta.url)));
   const core=read('src/editor-core.mjs');
-  assert.match(core,/new Schema\(/);
-  assert.match(core,/EditorState\.create/);
-  assert.match(core,/new EditorView/);
-  assert.match(core,/history\(\{/);
-  assert.match(core,/dispatchTransaction/);
-  assert.match(core,/content:"paragraph block\*"/);
-  assert.match(core,/inline:true,group:"inline",atom:true,selectable:false/);
+  assert.match(core,/createFormatting/);
+  assert.match(core,/createStructure/);
+  assert.match(core,/createSearch/);
+  assert.match(core,/createHistory/);
+  assert.doesNotMatch(core,/prosemirror|EditorState|EditorView|new Schema/i);
 });
 
 test('React UX imports the official Glass primitive and standardizes menu optics with chrome capsules',()=>{
@@ -329,7 +317,8 @@ test('editor content starts below the lowered side pills without bypassing Teleg
   const html=read('index.html');
   assert.match(html,/html\.tg-shell\{[\s\S]*?--safe-top:var\(--app-tg-content-safe-top\)/);
   assert.match(html,/\.topbar\{[\s\S]*?top:calc\(var\(--vv-top\) \+ var\(--safe-top\) \+ var\(--gap\)\)/);
-  assert.match(html,/\.top-slot\{[\s\S]*?margin-top:0;transform:translateY\(var\(--top-side-offset\)\)/);
+  assert.match(html,/\.top-slot\{[\s\S]*?margin-top:0;pointer-events:auto/);
+  assert.doesNotMatch(html,/--top-side-offset|translateY\(var\(--top-side-offset\)\)/);
   assert.match(html,/\.seg\.top-pill\{gap:var\(--pill-pad\)\}/);
   assert.match(html,/\.scroll\{[\s\S]*?padding-top:var\(--head-inset\)/);
 });
@@ -433,17 +422,17 @@ test('theme switch is a text-and-icon target with no control background',()=>{
   assert.match(app,/one\('#themeBtn'\)\.addEventListener\('click',[\s\S]*?setTheme/);
 });
 
-test('top chrome keeps lateral pills below the centered title and inside Telegram safe areas',()=>{
+test('top chrome uses Telegram content safe area as the single vertical boundary',()=>{
   const html=read('index.html');
-  assert.match(html,/--top-side-offset:32px/);
   assert.match(html,/--editor-top-gap:8px/);
-  assert.match(html,/--topbar-h:calc\(var\(--pill-h\) \+ var\(--top-side-offset\)\)/);
+  assert.match(html,/--topbar-h:var\(--pill-h\)/);
   assert.match(html,/--head-inset:calc\(var\(--safe-top\) \+ var\(--gap\) \+ var\(--topbar-h\) \+ var\(--editor-top-gap\) \+ var\(--gap\)\)/);
   assert.match(html,/html\.tg-shell\{[\s\S]*?--safe-top:var\(--app-tg-content-safe-top\)/);
   assert.match(html,/\.topbar\{[\s\S]*?top:calc\(var\(--vv-top\) \+ var\(--safe-top\) \+ var\(--gap\)\)/);
   assert.match(html,/\.top-left\{grid-column:1;justify-self:start\}/);
   assert.match(html,/\.top-right\{grid-column:3;justify-self:end\}/);
-  assert.match(html,/\.top-slot\{[\s\S]*?margin-top:0;transform:translateY\(var\(--top-side-offset\)\)/);
+  assert.match(html,/\.top-slot\{[\s\S]*?margin-top:0;pointer-events:auto/);
+  assert.doesNotMatch(html,/--top-side-offset|translateY\(var\(--top-side-offset\)\)/);
   assert.match(html,/\.top-center\{[\s\S]*?top:0;[\s\S]*?height:var\(--pill-h\)/);
 });
 
@@ -659,7 +648,7 @@ test('draft persistence, Telegram provenance and explicit visual-baseline histor
   assert.match(server,/url\.pathname === "\/api\/drafts\/save"/);
   assert.match(server,/url\.pathname === "\/api\/drafts\/load"/);
   assert.match(server,/url\.pathname === "\/api\/drafts\/file"/);
-  assert.match(server,/function savePersistentDraft\(owner,draft,file=null\)/);
+  assert.match(server,/function savePersistentDraft\(owner,draft,files=\[\]\)/);
   assert.match(server,/status:"pending"[\s\S]*?telegramUserId:owner\.telegramUserId/);
   assert.match(server,/async function publishTelegramPersistent/);
   assert.match(server,/sendTelegramRevisionNotice/);
@@ -678,7 +667,6 @@ test('draft persistence, Telegram provenance and explicit visual-baseline histor
   assert.match(drafts,/mounted Railway volume/);
   assert.match(drafts,/verified Telegram user identifier/);
   assert.match(drafts,/does \*\*not\*\* rewrite the earlier chat message/);
-  assert.match(drafts,/Runtime-only ProseMirror/);
   assert.match(baseline,/9c9f8d38313d5f0043283daf06d6ac015f90bded/);
   assert.match(baseline,/7fe51e8401012232281db416ac0d9bd080c18ebf/);
   assert.match(baseline,/b22aee80bbaa79db63d12ef62ae523d968218aa5/);
@@ -743,7 +731,7 @@ test('private bot actions are canonical Mini App web_app flows with no legacy di
 test('step 6 persists drafts on the Railway volume, binds Telegram publication provenance and labels the document title explicitly',()=>{
   const html=read('index.html'),app=read('app.js'),server=read('server.mjs');
   assert.match(server,/const DRAFT_DIR = DATA \+ "\/drafts"/);
-  assert.match(server,/function savePersistentDraft\(owner,draft,file=null\)/);
+  assert.match(server,/function savePersistentDraft\(owner,draft,files=\[\]\)/);
   assert.match(server,/url\.pathname === "\/api\/drafts\/save"/);
   assert.match(server,/url\.pathname === "\/api\/drafts\/load"/);
   assert.match(server,/url\.pathname === "\/api\/drafts\/file"/);
@@ -776,8 +764,8 @@ test('step 6 persists drafts on the Railway volume, binds Telegram publication p
   assert.doesNotMatch(ui,/id="libraryRefresh"/);
   assert.match(ui,/<MenuItem icon="arrow_back" className="submenu-back" id="libraryClose">/);
   assert.match(ui,/<MenuItem icon="sticky_note_2" id="libraryNew">Novo documento<\/MenuItem>/);
-  assert.match(ui,/id="publicationToggle"[\s\S]*?aria-expanded="true"/);
-  assert.match(ui,/id="draftToggle"[\s\S]*?aria-expanded="true"[\s\S]*?aria-controls="draftLists"/);
+  assert.match(ui,/id="publicationToggle"[\s\S]*?aria-expanded="false"/);
+  assert.match(ui,/id="draftToggle"[\s\S]*?aria-expanded="false"[\s\S]*?aria-controls="draftLists"/);
   assert.ok(ui.indexOf('id="publicationToggle"')<ui.indexOf('id="draftToggle"'));
   assert.doesNotMatch(ui,/Conteúdo persistido no volume/);
   assert.match(ui,/Icon name="menu"/);
