@@ -8,7 +8,7 @@ export const REQUIRED_EVOLUTION_POLICY = Object.freeze({
   evolutionMayReplaceCurrentImplementation: true,
   acceptedEvolutionBecomesNextBase: true,
   releaseEvidenceRole: 'traceability-only',
-  visualComparisonRole: 'diagnostic-only'
+  visualComparisonRole: 'optional-diagnostic-only'
 });
 
 export function assertEvolutionPolicy(manifest) {
