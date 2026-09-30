@@ -894,10 +894,21 @@ test('webhook authentication and bot command responses retain their contracts',a
   assert.match(browserURL.searchParams.get('new')||'',/^[a-f0-9]{32}$/);
   assert.match(richCalls.at(-4).body.rich_message.html,/sem substituir o rascunho local atual/);
   const drafts=parseDocument(richCalls.at(-3).body.rich_message.html);
-  for(const button of find(drafts,'tg-button'))assert.equal(new URL(button.attribs.url).searchParams.get('view'),'library');
+  assert.match(richCalls.at(-3).body.rich_message.html,/<h1>Rascunhos<\/h1>/);
+  const draftButtons=find(drafts,'tg-button');
+  assert.ok(draftButtons.length>=1);
+  for(const button of draftButtons){
+    assert.equal(button.attribs.type,'web_app');
+    const url=new URL(button.attribs.url);
+    assert.equal(url.origin,origin);
+    assert.ok(/^[a-f0-9-]{36}$/i.test(url.searchParams.get('doc')||'')||url.searchParams.get('view')==='library');
+  }
   const telegraph=parseDocument(richCalls.at(-2).body.rich_message.html);
-  for(const button of find(telegraph,'tg-button'))assert.equal(new URL(button.attribs.url).searchParams.get('view'),'telegraph');
-  assert.match(richCalls.at(-1).body.rich_message.html,/\/novo<\/b> abre outro documento e preserva o rascunho local anterior/);
+  const telegraphButtons=find(telegraph,'tg-button');
+  assert.equal(telegraphButtons.length,1);
+  assert.equal(telegraphButtons[0].attribs.type,'web_app');
+  assert.equal(new URL(telegraphButtons[0].attribs.url).searchParams.get('dest'),'telegraph');
+  assert.match(richCalls.at(-1).body.rich_message.html,/\/rascunhos<\/b> lista os rascunhos no chat/);
   assert.match(richCalls.at(-1).body.rich_message.html,/\/rascunhos/);
   assert.match(richCalls.at(-1).body.rich_message.html,/\/telegraph/);
   assert.match(richCalls.at(-1).body.rich_message.html,/\/exportar/);

@@ -703,6 +703,26 @@ test('step 4 format contract is explicit and conversion code uses the shared por
 });
 
 
+test('private bot draft actions use Mini App web_app buttons and preserve Telegram ownership',()=>{
+  const app=read('app.js'),server=read('server.mjs');
+  assert.match(server,/function botWebAppRow\(label,url,style="success"\)/);
+  assert.match(server,/type=\\"web_app\\"/);
+  assert.doesNotMatch(server,/function botCallbackRow\(/);
+  assert.match(server,/function botDraftListPages\(owner\)/);
+  assert.match(server,/function botSendListPages\(owner\)/);
+  assert.match(server,/function botExportListPages\(owner,format=""\)/);
+  assert.match(server,/botActionLaunchURL\(MINI_APP_URL,"send","d",item\.docId\)/);
+  assert.match(server,/botActionLaunchURL\(MINI_APP_URL,"export",item\.kind,item\.docId,format\)/);
+  assert.match(server,/url\.pathname === "\/api\/export\/source"/);
+  assert.match(server,/const owner=draftOwner\(body\)/);
+  assert.match(app,/function consumeBotLaunchAction\(\)/);
+  assert.match(app,/async function runBotLaunchAction\(selection\)/);
+  assert.match(app,/async function loadBotExportSource\(selection\)/);
+  assert.match(app,/API\+'\/api\/export\/source'/);
+  assert.match(app,/await loadRemoteDraft\(selection\.doc\)/);
+  assert.match(app,/await publishTelegram\(\)/);
+});
+
 test('step 6 persists drafts on the Railway volume, binds Telegram publication provenance and labels the document title explicitly',()=>{
   const html=read('index.html'),app=read('app.js'),server=read('server.mjs');
   assert.match(server,/const DRAFT_DIR = DATA \+ "\/drafts"/);
