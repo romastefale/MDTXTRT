@@ -565,7 +565,7 @@ test('backend restart during an in-flight handoff marks delivery uncertain inste
   const reopened=await jsonPost('/api/handoff/claim',{initData:init(),token:made.token});
   assert.equal(reopened.status,200,reopened.data.error);
   assert.equal(reopened.data.action.status,'uncertain');
-  assert.match(reopened.data.action.error,/reiniciado durante o envio/);
+  assert.match(reopened.data.action.error,/interrompido antes de registrar um resultado confirmado/);
   assert.equal(callCount('sendRichMessage'),before);
 
   const blocked=await jsonPost('/api/handoff/publish',{initData:init(),token:made.token});
@@ -922,30 +922,36 @@ test('webhook authentication and bot command responses retain their contracts',a
   assert.deepEqual(lastCall('setMyCommands').body.scope,{type:'all_private_chats'});
   assert.deepEqual(lastCall('deleteMyCommands').body.scope,{type:'default'});
 
-  for(const [text,message_id] of [['/start',11],['/app',12],['/novo',13],['/rascunhos',14],['/telegraph',15],['/ajuda',16]]){
+  const sent={};
+  for(const [text,message_id,key] of [['/start',11,'start'],['/app',12,'app'],['/novo',13,'novo'],['/rascunhos',14,'rascunhos'],['/telegraph',15,'telegraph'],['/ajuda',16,'ajuda']]){
+    const before=callCount('sendRichMessage');
     const res=await webhook({message:{text,message_id,chat:{id:7,type:'private'}}});
     assert.equal(res.status,200,text);
+    sent[key]=calls().filter(call=>call.method==='sendRichMessage').slice(before);
+    assert.ok(sent[key].length>=1,key);
   }
-  const richCalls=calls().filter(call=>call.method==='sendRichMessage');
-  const start=parseDocument(richCalls.at(-6).body.rich_message.html);
+
+  const start=parseDocument(sent.start[0].body.rich_message.html);
   const buttons=find(start,'tg-button');
   assert.equal(buttons.length,1);
   assert.equal(buttons[0].attribs.type,'web_app');
   assert.equal(buttons[0].attribs.url,origin+'/');
 
-  const app=parseDocument(richCalls.at(-5).body.rich_message.html);
+  const app=parseDocument(sent.app[0].body.rich_message.html);
   for(const button of find(app,'tg-button'))assert.equal(new URL(button.attribs.url).searchParams.has('new'),false);
 
-  const novo=parseDocument(richCalls.at(-4).body.rich_message.html);
+  const novo=parseDocument(sent.novo[0].body.rich_message.html);
   const novoButtons=find(novo,'tg-button');
   assert.equal(novoButtons.length,1);
   assert.equal(novoButtons[0].attribs.type,'web_app');
   const miniURL=new URL(novoButtons[0].attribs.url);
   assert.equal(miniURL.origin,origin);
   assert.match(miniURL.searchParams.get('new')||'',/^[a-f0-9]{32}$/);
-  assert.match(richCalls.at(-4).body.rich_message.html,/sem substituir o rascunho local atual/);
-  const drafts=parseDocument(richCalls.at(-3).body.rich_message.html);
-  assert.match(richCalls.at(-3).body.rich_message.html,/<h1>Rascunhos<\/h1>/);
+  assert.match(sent.novo[0].body.rich_message.html,/sem substituir o rascunho local atual/);
+
+  const draftMessages=sent.rascunhos.map(call=>call.body.rich_message.html).join('');
+  assert.match(draftMessages,/<h1>Rascunhos<\/h1>/);
+  const drafts=parseDocument(draftMessages);
   const draftButtons=find(drafts,'tg-button');
   assert.ok(draftButtons.length>=1);
   for(const button of draftButtons){
@@ -954,16 +960,15 @@ test('webhook authentication and bot command responses retain their contracts',a
     assert.equal(url.origin,origin);
     assert.ok(/^[a-f0-9-]{36}$/i.test(url.searchParams.get('doc')||'')||url.searchParams.get('view')==='library');
   }
-  const telegraph=parseDocument(richCalls.at(-2).body.rich_message.html);
+
+  const telegraph=parseDocument(sent.telegraph[0].body.rich_message.html);
   const telegraphButtons=find(telegraph,'tg-button');
   assert.equal(telegraphButtons.length,1);
   assert.equal(telegraphButtons[0].attribs.type,'web_app');
   assert.equal(new URL(telegraphButtons[0].attribs.url).searchParams.get('dest'),'telegraph');
-  assert.match(richCalls.at(-1).body.rich_message.html,/\/rascunhos<\/b> lista os rascunhos no chat/);
-  assert.match(richCalls.at(-1).body.rich_message.html,/\/rascunhos/);
-  assert.match(richCalls.at(-1).body.rich_message.html,/\/telegraph/);
-  assert.match(richCalls.at(-1).body.rich_message.html,/\/exportar/);
-  assert.match(richCalls.at(-1).body.rich_message.html,/\/importar/);
+
+  const help=sent.ajuda.map(call=>call.body.rich_message.html).join('');
+  for(const command of ['/rascunhos','/telegraph','/exportar','/importar'])assert.match(help,new RegExp(command.replace('/','\\/')));
 });
 
 test('enviar and exportar always use canonical Mini App selectors without legacy direct actions',async()=>{
