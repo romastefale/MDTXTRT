@@ -1888,24 +1888,21 @@ const server = createServer(async (req, res) => {
         res.end(JSON.stringify({ error: "Acesso não autorizado" }));
         return;
       }
+      let media=null;
       try{
-        const media=await readMedia(req);
+        media=await readMedia(req);
         let draft;
         try{draft=JSON.parse(media.fields.draft||"");}catch{throw new HttpError(400,"Rascunho inválido");}
         const owner=draftOwner(media.fields);
-        let file=null;
-        if(media.file){
-          if(!draft?.media)throw new HttpError(400,"Anexo sem metadados de rascunho");
-          file={...media.file,id:draft.media.id,kind:draft.media.kind};
-        }
-        const record=savePersistentDraft(owner,draft,file);
+        const files=bindDraftFiles(media.files,draft);
+        const record=savePersistentDraft(owner,draft,files);
         res.writeHead(200,{"content-type":"application/json; charset=utf-8","cache-control":"no-store"});
         res.end(JSON.stringify(persistentDraftView(record)));
       }catch(err){
         const code=err instanceof HttpError?err.status:507;
         res.writeHead(code,{"content-type":"application/json; charset=utf-8","cache-control":"no-store"});
         res.end(JSON.stringify({error:err instanceof Error?err.message:"Não foi possível persistir o rascunho"}));
-      }
+      }finally{cleanupIncomingMedia(media);}
       return;
     }
 
@@ -1967,20 +1964,22 @@ const server = createServer(async (req, res) => {
         res.end(JSON.stringify({ error: "Acesso não autorizado" }));
         return;
       }
+      let media=null;
       try {
-        const media = await readMedia(req);
+        media=await readMedia(req);
         let draft,action=null;
-        try { draft = JSON.parse(media.fields.draft || ""); } catch { throw new Error("Rascunho inválido"); }
+        try{draft=JSON.parse(media.fields.draft||"");}catch{throw new Error("Rascunho inválido");}
         if(media.fields.action){
           try{action=JSON.parse(media.fields.action);}catch{throw new Error("Ação da transferência inválida");}
         }
-        const token = saveHandoff(draft, media.file || null, action);
-        res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
-        res.end(JSON.stringify({ token, open: WEBHOOK_BASE + "/telegram/open?handoff=" + token }));
-      } catch (err) {
-        res.writeHead(400, { "content-type": "application/json; charset=utf-8" });
-        res.end(JSON.stringify({ error: err.message || "Não foi possível transferir o rascunho" }));
-      }
+        const files=bindDraftFiles(media.files,draft);
+        const token=saveHandoff(draft,files,action);
+        res.writeHead(200,{"content-type":"application/json; charset=utf-8","cache-control":"no-store"});
+        res.end(JSON.stringify({token,open:WEBHOOK_BASE+"/telegram/open?handoff="+token}));
+      }catch(err){
+        res.writeHead(400,{"content-type":"application/json; charset=utf-8"});
+        res.end(JSON.stringify({error:err instanceof Error?err.message:"Não foi possível transferir o rascunho"}));
+      }finally{cleanupIncomingMedia(media);}
       return;
     }
 
@@ -2183,34 +2182,26 @@ const server = createServer(async (req, res) => {
         res.end(JSON.stringify({ error: "Acesso não autorizado" }));
         return;
       }
-      try {
-        let media;
-        try{media=await readMedia(req);}catch(error){throw asHttpError(error,400,"Mídia inválida");}
+      let media=null;
+      try{
+        media=await readMedia(req);
         const body=media.fields;
-        if (typeof body.initData !== "string" || typeof body.html !== "string") throw new HttpError(400,"Os dados do envio estão incompletos");
-        let result;
-        if(typeof body.draft==="string"&&body.draft.trim()){
-          let draft;
-          try{draft=JSON.parse(body.draft);}catch{throw new HttpError(400,"Rascunho de publicação inválido");}
-          let file=null;
-          if(media.file){
-            if(!draft?.media)throw new HttpError(400,"Anexo sem metadados de rascunho");
-            file={...media.file,kind:draft.media.kind,id:draft.media.id};
-          }
-          result=await publishTelegramPersistent(body.initData,draft,body.html,file);
-        }else{
-          result=await sendRich(body.initData,body.html,media.file?{...media.file,kind:body.kind,id:body.id}:null);
-        }
-        res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+        if(typeof body.initData!=="string"||typeof body.html!=="string"||typeof body.draft!=="string"||!body.draft.trim())throw new HttpError(400,"Os dados do envio estão incompletos");
+        let draft;
+        try{draft=JSON.parse(body.draft);}catch{throw new HttpError(400,"Rascunho de publicação inválido");}
+        const files=bindDraftFiles(media.files,draft);
+        const result=await publishTelegramPersistent(body.initData,draft,body.html,files);
+        res.writeHead(200,{"content-type":"application/json; charset=utf-8"});
         res.end(JSON.stringify(result));
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : "Não foi possível publicar no Telegram";
-        const code = err instanceof HttpError ? err.status : err instanceof DeliveryError && err.outcome === "uncertain" ? 409 : 502;
-        res.writeHead(code, { "content-type": "application/json; charset=utf-8" });
-        res.end(JSON.stringify({ error: msg, ...(err instanceof DeliveryError ? {outcome:err.outcome} : {}) }));
-      }
+      }catch(err){
+        const msg=err instanceof Error?err.message:"Não foi possível publicar no Telegram";
+        const code=err instanceof HttpError?err.status:err instanceof DeliveryError&&err.outcome==="uncertain"?409:502;
+        res.writeHead(code,{"content-type":"application/json; charset=utf-8"});
+        res.end(JSON.stringify({error:msg,...(err instanceof DeliveryError?{outcome:err.outcome}:{})}));
+      }finally{cleanupIncomingMedia(media);}
       return;
     }
+
     if (url.pathname === "/api/telegram/session" && req.method === "POST") {
       if (!setCors(req, res)) {
         res.writeHead(403, { "content-type": "application/json; charset=utf-8" });
