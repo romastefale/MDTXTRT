@@ -2,7 +2,7 @@
 
 Create one GitHub issue (or dedicated evidence record linked from the final release issue) for each exact candidate SHA being certified.
 
-## Anchor
+## Release evidence coordinate
 
 - Release evidence SHA:
 - Release evidence convenience branch:
@@ -136,7 +136,7 @@ For every row record menu/dialog reachability, bottom-bar clearance, internal sc
 ## Visual comparison snapshot review
 
 - Comparison snapshot SHA: copy `RELEASE_MANIFEST.json.visualComparisonSnapshot` used for visual review
-- Candidate/anchor SHA:
+- Candidate/release-evidence SHA:
 - Light mode evidence:
 - Dark mode evidence:
 - Menus/dialogs evidence:
