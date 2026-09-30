@@ -2,7 +2,7 @@
 
 ## Baseline de trabalho
 
-A baseline de trabalho vigente é `b22aee80bbaa79db63d12ef62ae523d968218aa5`, estado de produção após o PR #118.
+A baseline de trabalho vigente é `7fe51e8401012232281db416ac0d9bd080c18ebf`, estado de produção após o PR #120.
 
 Ela é um snapshot de referência, não um produto final, não uma especificação imutável e não deve ser preservada quando uma solicitação exigir correção ou evolução. Bugs presentes nela continuam sendo bugs. Requisitos novos ou corrigidos devem evoluir o código e, quando apropriado, substituir a própria baseline.
 
