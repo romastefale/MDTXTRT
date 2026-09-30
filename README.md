@@ -1,5 +1,11 @@
 # MDTXTRT
 
+**Escreva uma vez. Publique no Telegram e no Telegraph.** O MDTXTRT é um editor de texto com visual de vidro líquido (Liquid Glass). Ele publica como mensagem formatada no Telegram ou como página no Telegraph, importa e exporta Markdown e TXT e guarda rascunhos no aparelho e no servidor. Funciona no navegador, como app instalado (PWA) e como Mini App do Telegram.
+
+- **Panfleto do produto**, com recursos, tutorial em quatro passos, revisão e roteiro: [romastefale.github.io/MDTXTRT/produto/](https://romastefale.github.io/MDTXTRT/produto/)
+- **Editor:** [romastefale.github.io/MDTXTRT/](https://romastefale.github.io/MDTXTRT/) no navegador, e o Mini App servido pelo Railway dentro do Telegram.
+- **Estado e roteiro:** [PRODUCT_POLISH_STATUS.md](PRODUCT_POLISH_STATUS.md). **Auditoria:** [RELATORIO_AUDITORIA.md](RELATORIO_AUDITORIA.md).
+
 ## Baseline de trabalho — ponto de partida evolutivo
 
 A baseline de trabalho é **sempre um estado mutável a partir do qual o produto continua evoluindo**. A regra vale permanentemente para estados atuais e futuros. Comparações com SHAs históricos são diagnósticos opcionais e explícitos; nenhum SHA histórico fica associado permanentemente à baseline.

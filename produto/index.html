@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>MDTXTRT — escreva uma vez, publique no Telegram e no Telegraph</title>
+<meta name="description" content="MDTXTRT é um editor de texto com vidro líquido para escrever e publicar no Telegram e no Telegraph, no navegador, como app ou dentro do Telegram.">
+<meta name="theme-color" content="#8b82e6" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1b1646" media="(prefers-color-scheme: dark)">
+<meta property="og:title" content="MDTXTRT">
+<meta property="og:description" content="Escreva uma vez. Publique no Telegram e no Telegraph.">
+<meta property="og:image" content="../og.jpg">
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<style>
+/* Panfleto do produto. Mesmo material do site romastefale/HTML: fundo de manchas
+   de cor desfocadas que começa e termina na cor da barra do navegador (--edge),
+   vidro fosco translúcido neutro com um aro fino e sem contorno azul de foco. */
+:root{
+  color-scheme:light dark;
+  --edge:#8b82e6;--edge-0:rgba(139,130,230,0);--bg:url("fundo-claro.svg");
+  --text:#1c1c1e;--dim:#3a3a3c;--faint:#55536a;
+  --glass:rgba(255,255,255,.46);--glass-strong:rgba(255,255,255,.6);
+  --rim:rgba(255,255,255,.5);--float:0 10px 28px rgba(30,20,90,.16),0 2px 6px rgba(30,20,90,.08);
+  --focus:rgba(28,28,30,.5);--gap:6px;--gutter:max(18px,env(safe-area-inset-left,0px));
+}
+@media (prefers-color-scheme:dark){:root{
+  --edge:#1b1646;--edge-0:rgba(27,22,70,0);--bg:url("fundo-escuro.svg");
+  --text:#f5f5f7;--dim:#d1d1d6;--faint:#b3b0c8;
+  --glass:rgba(40,34,84,.42);--glass-strong:rgba(44,38,90,.58);
+  --rim:rgba(255,255,255,.14);--focus:rgba(245,245,247,.62);
+}}
+@media (min-resolution:2dppx){:root{--rim-w:.5px}}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:calc(84px + env(safe-area-inset-top,0px))}
+body{margin:0;min-height:100dvh;background-color:var(--edge);color:var(--text);
+  font-family:system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;line-height:1.55;
+  -webkit-font-smoothing:antialiased;overflow-wrap:break-word}
+html::before{content:"";position:fixed;z-index:-1;inset:0 0 auto;height:100lvh;pointer-events:none;
+  background:var(--bg) center/100% 100% no-repeat}
+body::before{content:"";position:fixed;z-index:50;left:0;right:0;top:-120px;pointer-events:none;
+  height:calc(120px + env(safe-area-inset-top,0px) + 64px);
+  background:linear-gradient(180deg,var(--edge) 0,var(--edge) calc(120px + env(safe-area-inset-top,0px)),var(--edge-0) 100%)}
+body::after{content:"";display:block;height:calc(88px + env(safe-area-inset-bottom,0px));
+  background:linear-gradient(180deg,var(--edge-0),var(--edge) 64px)}
+:focus{outline:none}
+:focus-visible{outline:2px solid var(--focus);outline-offset:3px;border-radius:12px}
+a{color:inherit}
+.glass{position:relative;background:var(--glass);-webkit-backdrop-filter:blur(22px) saturate(1.6);backdrop-filter:blur(22px) saturate(1.6);
+  box-shadow:var(--float);border-radius:26px}
+.glass::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;box-shadow:0 0 0 var(--rim-w,1px) var(--rim)}
+/* Menu flutuante: só links de seção, espaçamento uniforme. */
+.nav{position:fixed;z-index:70;left:0;right:0;top:calc(12px + env(safe-area-inset-top,0px));display:flex;justify-content:center;padding:0 12px;pointer-events:none}
+.pill{pointer-events:auto;display:flex;gap:var(--gap);padding:6px;border-radius:999px;max-width:100%;overflow-x:auto;scrollbar-width:none}
+.pill::-webkit-scrollbar{display:none}
+.pill a{flex:none;padding:8px 14px;border-radius:999px;text-decoration:none;font-size:14.5px;font-weight:600;white-space:nowrap}
+.pill a.cta{background:var(--glass-strong)}
+main{max-width:1040px;margin:0 auto;padding:calc(88px + env(safe-area-inset-top,0px)) var(--gutter) 24px}
+section{margin:0 0 56px}
+h1{font-size:clamp(34px,7vw,58px);line-height:1.05;letter-spacing:-.02em;margin:0 0 14px}
+h2{font-size:clamp(25px,4.4vw,34px);line-height:1.15;letter-spacing:-.01em;margin:0 0 8px}
+h3{font-size:18px;margin:0 0 6px}
+p{margin:0 0 10px;color:var(--dim)}
+.lead{font-size:clamp(17px,2.4vw,20px);max-width:40em}
+.hero{padding:clamp(24px,5vw,48px)}
+.kicker{display:inline-block;font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);margin-bottom:10px}
+.actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:22px}
+.btn{display:inline-flex;align-items:center;min-height:46px;padding:0 22px;border-radius:999px;text-decoration:none;font-weight:650}
+.btn.primary{background:var(--glass-strong)}
+.grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(min(100%,290px),1fr));margin-top:18px}
+.card{padding:20px 22px;border-radius:22px}
+.card p{margin:0}
+code{font-family:ui-monospace,monospace;font-size:.9em;overflow-wrap:anywhere}
+.steps{display:grid;gap:18px;margin-top:18px}
+.step{display:grid;gap:18px;align-items:center;padding:18px;grid-template-columns:minmax(0,1fr)}
+@media (min-width:760px){.step{grid-template-columns:260px minmax(0,1fr)}}
+.step img{display:block;width:100%;max-width:260px;height:auto;margin:0 auto;border-radius:18px;box-shadow:var(--float)}
+.num{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;background:var(--glass-strong);font-weight:700;margin-bottom:8px}
+.note{font-size:14px;color:var(--faint)}
+ul.check{list-style:none;padding:0;margin:8px 0 0}
+ul.check li{padding:6px 0 6px 28px;position:relative;color:var(--dim)}
+ul.check li::before{content:"";position:absolute;left:4px;top:.85em;width:10px;height:10px;border-radius:50%;background:var(--glass-strong);box-shadow:0 0 0 1px var(--rim)}
+.road{display:grid;gap:12px;margin-top:18px}
+.road .card{display:grid;gap:4px}
+.tag{justify-self:start;font-size:12.5px;font-weight:700;padding:3px 10px;border-radius:999px;background:var(--glass-strong)}
+footer{text-align:center;font-size:14px;color:var(--faint);padding:0 var(--gutter)}
+</style>
+</head>
+<body>
+<nav class="nav" aria-label="Seções">
+  <div class="pill glass">
+    <a href="#inicio">MDTXTRT</a>
+    <a href="#recursos">Recursos</a>
+    <a href="#como-usar">Como usar</a>
+    <a href="#vidro">Liquid Glass</a>
+    <a href="#roteiro">Roteiro</a>
+    <a class="cta" href="../">Abrir o editor</a>
+  </div>
+</nav>
+<main>
+  <section id="inicio" class="hero glass">
+    <span class="kicker">Editor para Telegram e Telegraph</span>
+    <h1>Escreva uma vez.<br>Publique onde quiser.</h1>
+    <p class="lead">O MDTXTRT é um editor de texto com visual de vidro líquido. Você escreve com formatação de verdade e publica como mensagem no Telegram ou como página no Telegraph. Ele funciona no navegador, instalado como app e dentro do próprio Telegram.</p>
+    <div class="actions">
+      <a class="btn primary glass" href="../">Abrir o editor</a>
+      <a class="btn glass" href="#como-usar">Ver como funciona</a>
+    </div>
+  </section>
+
+  <section id="recursos">
+    <h2>O que ele faz</h2>
+    <p class="lead">Tudo o que você precisa para escrever, guardar e publicar, sem trocar de ferramenta.</p>
+    <div class="grid">
+      <div class="card glass"><h3>Editor de verdade</h3><p>Títulos, negrito, itálico, sublinhado, links, listas e citações, com desfazer e refazer. O que você vê é o que será publicado.</p></div>
+      <div class="card glass"><h3>Dois destinos</h3><p>No Telegram, o texto sai como mensagem formatada, e cada atualização guarda a versão anterior no chat. No Telegraph, a página continua no mesmo endereço quando você edita.</p></div>
+      <div class="card glass"><h3>Markdown e TXT</h3><p>Importe e exporte arquivos <code>.md</code> e <code>.txt</code> pelo editor ou mandando o arquivo na conversa com o bot.</p></div>
+      <div class="card glass"><h3>Rascunhos seguros</h3><p>O texto fica salvo no aparelho e no servidor. Uma biblioteca reúne rascunhos e publicações, e o editor nunca substitui uma cópia salva sem você escolher.</p></div>
+      <div class="card glass"><h3>Em qualquer lugar</h3><p>Navegador, app instalado (PWA) e Mini App do Telegram, respeitando o teclado do celular e as áreas seguras da tela.</p></div>
+      <div class="card glass"><h3>Comandos do bot</h3><p><code>/novo</code>, <code>/rascunhos</code>, <code>/telegraph</code>, <code>/enviar</code>, <code>/exportar</code>, <code>/importar</code> e <code>/ajuda</code> na conversa privada.</p></div>
+    </div>
+  </section>
+
+  <section id="como-usar">
+    <h2>Como usar, em quatro passos</h2>
+    <p class="note">As imagens são do app atual, no tamanho de um celular. O vidro novo chega na fase 1 do roteiro.</p>
+    <div class="steps">
+      <div class="step glass">
+        <picture><source srcset="editor-dark.webp" media="(prefers-color-scheme: dark)"><img src="editor-light.webp" width="390" height="780" alt="Editor aberto com um título e um parágrafo" loading="lazy"></picture>
+        <div><span class="num">1</span><h3>Escreva</h3><p>Abra o editor e comece a digitar. No alto ficam desfazer e refazer, o destino e o menu. Embaixo, a barra de formatação rápida: negrito, itálico, sublinhado, link, título, lista e citação.</p></div>
+      </div>
+      <div class="step glass">
+        <picture><source srcset="inserir-dark.webp" media="(prefers-color-scheme: dark)"><img src="inserir-light.webp" width="390" height="780" alt="Menu do botão mais com Arquivo, Formatação, Estrutura, Mídia e Interações" loading="lazy"></picture>
+        <div><span class="num">2</span><h3>Formate e insira</h3><p>O botão <strong>+</strong> abre tudo o que dá para inserir, organizado em Arquivo, Formatação, Estrutura, Mídia e Interações. O menu mostra só o que o destino escolhido aceita.</p></div>
+      </div>
+      <div class="step glass">
+        <picture><source srcset="destino-dark.webp" media="(prefers-color-scheme: dark)"><img src="destino-light.webp" width="390" height="780" alt="Destino trocado para Telegraph, com campo de título da página" loading="lazy"></picture>
+        <div><span class="num">3</span><h3>Escolha o destino</h3><p>O botão ao lado do menu alterna entre Telegram e Telegraph. No Telegraph aparece o título da página.</p></div>
+      </div>
+      <div class="step glass">
+        <picture><source srcset="exportar-dark.webp" media="(prefers-color-scheme: dark)"><img src="exportar-light.webp" width="390" height="780" alt="Menu com Rascunhos e publicações, Publicar, Baixar Markdown e Baixar TXT" loading="lazy"></picture>
+        <div><span class="num">4</span><h3>Publique ou baixe</h3><p>O menu ☰ publica no destino, baixa o texto em Markdown ou TXT e abre a biblioteca de rascunhos e publicações.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="vidro" class="hero glass">
+    <span class="kicker">Foco principal</span>
+    <h2>Liquid Glass</h2>
+    <p class="lead">A interface é feita de vidro: barras e menus flutuam sobre o texto, deixam a cor passar e somem da frente quando não são usados.</p>
+    <ul class="check">
+      <li>Material translúcido e neutro, que pega a cor do que está atrás em vez de pintar tudo de uma cor só.</li>
+      <li>Lentes com refração de verdade (WebGL 2), que curvam o conteúdo nas bordas como vidro.</li>
+      <li>Um aro fino e discreto em cada peça de vidro, sem contorno azul de foco.</li>
+      <li>O mesmo espaçamento entre todos os botões, como no <a href="https://romastefale.github.io/HTML/">site de referência do Liquid Glass</a>.</li>
+      <li>Tema claro e escuro, com a página se fundindo na barra do navegador e do Telegram.</li>
+    </ul>
+  </section>
+
+  <section id="revisao">
+    <h2>Revisão: onde o produto está hoje</h2>
+    <div class="grid">
+      <div class="card glass"><h3>Já funciona</h3><p>Editor, publicação no Telegram e no Telegraph, Markdown e TXT, biblioteca e rascunhos salvos no servidor. O editor do Mini App voltou a abrir, e ele não trava mais quando o servidor falha.</p></div>
+      <div class="card glass"><h3>Ainda não está bom</h3><p>O vidro atual é tingido e chapado e as lentes estão desligadas. O espaçamento é irregular, um aviso de "modo retrato" atrapalha e o código da interface está pesado.</p></div>
+      <div class="card glass"><h3>Como garantimos</h3><p>Cada mudança passa por testes de comportamento do editor e do servidor e por testes em navegador real, no Chromium e no WebKit, em celular e desktop, claro e escuro.</p></div>
+    </div>
+  </section>
+
+  <section id="roteiro">
+    <h2>Roteiro</h2>
+    <div class="road">
+      <div class="card glass"><span class="tag">Concluído</span><h3>Fase 0: base limpa</h3><p>A biblioteca de vidro é instalada do fork correto, os testes que congelavam o design saíram e entraram testes em navegador real.</p></div>
+      <div class="card glass"><span class="tag">Concluído</span><h3>Correções urgentes</h3><p>O servidor voltou a entregar o núcleo do editor (#130). A recuperação de rascunho oferece tentar de novo ou começar outro (#131), e o botão Voltar do Telegram não descarta mais nada (#132).</p></div>
+      <div class="card glass"><span class="tag">Próximo</span><h3>Fase 1: o vidro líquido</h3><p>Lentes com refração, material neutro, aro fino, espaçamento uniforme e fim do aviso de retrato. As decisões de interface são tomadas junto com o dono do produto.</p></div>
+      <div class="card glass"><span class="tag">Depois</span><h3>Fase 2: organização interna</h3><p>O estado dos menus passa para o React, o estilo sai do <code>index.html</code> e o código é dividido em partes menores e mais leves.</p></div>
+      <div class="card glass"><span class="tag">Meta</span><h3>Produto final</h3><p>Aceitação no iPhone, no app instalado e no Mini App do Telegram, com uma interface coerente do começo ao fim.</p></div>
+    </div>
+  </section>
+</main>
+<footer><p>MDTXTRT · <a href="../">Abrir o editor</a> · <a href="https://github.com/romastefale/MDTXTRT">Código no GitHub</a></p></footer>
+</body>
+</html>
