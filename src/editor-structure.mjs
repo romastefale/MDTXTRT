@@ -20,6 +20,16 @@ function notify(root,changed,selectionChanged){
   selectionChanged();
 }
 
+function editableRange(root){
+  const existing=rangeInside(root);
+  if(existing)return existing;
+  root.focus({preventScroll:true});
+  const range=root.ownerDocument.createRange(),selection=root.ownerDocument.getSelection?.();
+  range.selectNodeContents(root);range.collapse(false);
+  selection?.removeAllRanges();selection?.addRange(range);
+  return range;
+}
+
 export function createStructure(root,{changed=()=>{},selectionChanged=()=>{}}={}){
   function currentBlockKind(){
     const block=currentBlock(root);
@@ -93,8 +103,7 @@ export function createStructure(root,{changed=()=>{},selectionChanged=()=>{}}={}
   }
 
   function insertHTML(html,asBlock=false){
-    const range=rangeInside(root);
-    if(!range)return false;
+    const range=editableRange(root);
     const template=root.ownerDocument.createElement("template");
     template.innerHTML=String(html||"");
     const fragment=template.content;
@@ -125,8 +134,7 @@ export function createStructure(root,{changed=()=>{},selectionChanged=()=>{}}={}
   }
 
   function insertText(text){
-    const range=rangeInside(root);
-    if(!range)return false;
+    const range=editableRange(root);
     range.deleteContents();
     const parts=String(text).split(/\r\n|\r|\n/);
     const fragment=root.ownerDocument.createDocumentFragment();
