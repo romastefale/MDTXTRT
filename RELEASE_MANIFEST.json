@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "visualBaseline": "1dbbdb2dfaeafbd8ef52cea859611ffa5f6699ad",
+  "visualBaseline": "db6ae2240cbe2792bd7edb1a9c26399f068ea807",
   "runtime": {
     "node": "24.21.0",
     "npm": "11.19.0"
@@ -58,7 +58,7 @@
       "ui-bundle-reproducible",
       "stage-ancestry",
       "surface-contract",
-      "visual-shell-baseline"
+      "visual-interactive-baseline"
     ],
     "external": [
       "authorized-test-environment",
