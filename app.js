@@ -291,33 +291,32 @@ function handoffActionNotice(action,recovered=false){
 }
 async function claimHandoff(){
   const token=handoffToken();
-  const priorMediaId=mediaFile?.id||'';
   if(!token)throw new Error('Transferência inválida');
   const initData=getTg().initData;
   const res=await fetch(API+'/api/handoff/claim',{method:'POST',signal:AbortSignal.timeout(20000),headers:{'content-type':'application/json'},body:JSON.stringify({initData,token})});
   const data=await readResponse(res);
   if(!res.ok)throw new Error(data.error||'Não foi possível recuperar o rascunho');
   const d=data.draft;
-  if(!d||d.version!==STATE_VERSION||typeof d.html!=='string'||typeof d.name!=='string'||!['telegram','telegraph'].includes(d.dest)||typeof d.telegraphPath!=='string'||!/^[a-f0-9-]{36}$/i.test(d.docId)||(d.revision!==undefined&&(!Number.isSafeInteger(d.revision)||d.revision<0))||typeof d.importedMd!=='string'||typeof d.importedTxt!=='string'||typeof d.importedHtml!=='string')throw new Error('Rascunho transferido incompatível');
+  if(!d||d.version!==STATE_VERSION||typeof d.html!=='string'||typeof d.name!=='string'||!['telegram','telegraph'].includes(d.dest)||typeof d.telegraphPath!=='string'||!/^[a-f0-9-]{36}$/i.test(d.docId)||(d.revision!==undefined&&(!Number.isSafeInteger(d.revision)||d.revision<0))||typeof d.importedMd!=='string'||typeof d.importedTxt!=='string'||typeof d.importedHtml!=='string'||!Array.isArray(d.media))throw new Error('Rascunho transferido incompatível');
   const purpose=data.purpose===undefined?'transfer':data.purpose;
   if(!['transfer','import'].includes(purpose))throw new Error('Finalidade da transferência incompatível');
   if(purpose==='import')archiveStoredDraftForNew(token);
+  const priorIds=[...mediaFiles.keys()];
+  clearRuntimeMedia();
   const handoffHTML=cleanDraftHTML(d.html);requireEditorCore().resetHTML(handoffHTML,{silent:true});docName.value=d.name;
   dest=d.dest;telegraphPath=d.telegraphPath;docId=d.docId;docRevision=normalizedRevision(d.revision);
   importedMd=d.importedMd;importedTxt=d.importedTxt;importedHtml=d.importedHtml;
-  if(data.file){
-    const fileRes=await fetch(API+'/api/handoff/file',{method:'POST',signal:AbortSignal.timeout(60000),headers:{'content-type':'application/json'},body:JSON.stringify({initData,token})});
-    if(!fileRes.ok)throw new Error('Não foi possível recuperar o anexo transferido');
-    if(typeof data.file.name!=='string'||!data.file.name||typeof data.file.mime!=='string'||!data.file.mime||!['image','video','audio','voice','document'].includes(data.file.kind)||!/^[A-Za-z0-9_-]{1,64}$/.test(data.file.id))throw new Error('Metadados do anexo transferido inválidos');
+  const files=Array.isArray(data.files)?data.files:[];
+  if(files.length!==d.media.length)throw new Error('Anexos da transferência incompatíveis');
+  for(const meta of files){
+    if(typeof meta.name!=='string'||!meta.name||typeof meta.mime!=='string'||!meta.mime||!['image','video','audio','voice','document'].includes(meta.kind)||!/^[A-Za-z0-9_-]{1,64}$/.test(meta.id))throw new Error('Metadados do anexo transferido inválidos');
+    const fileRes=await fetch(API+'/api/handoff/file',{method:'POST',signal:AbortSignal.timeout(60000),headers:{'content-type':'application/json'},body:JSON.stringify({initData,token,id:meta.id})});
+    if(!fileRes.ok)throw new Error('Não foi possível recuperar um anexo transferido');
     const blob=await fileRes.blob();
-    const file=new File([blob],data.file.name,{type:data.file.mime,lastModified:Date.now()});
-    await installMedia(file,data.file.id,data.file.kind);
-    if(priorMediaId&&priorMediaId!==data.file.id)try{await mediaDelete(priorMediaId);}catch(error){console.error('Media cleanup',error);}
-  }else{
-    if(mediaFile?.url)URL.revokeObjectURL(mediaFile.url);
-    mediaFile=null;
-    if(priorMediaId)try{await mediaDelete(priorMediaId);}catch(error){console.error('Media cleanup',error);}
+    const file=new File([blob],meta.name,{type:meta.mime,lastModified:Date.now()});
+    await installMedia(file,meta.id,meta.kind);
   }
+  for(const id of priorIds)if(!mediaFiles.has(id))try{await mediaDelete(id);}catch(error){console.error('Media cleanup',error);}
   activeHandoff=token;
   handoffAction=normalizedHandoffAction(data.action);
   decorateSpecials();setDestination(dest,false,false);saveLocal();
