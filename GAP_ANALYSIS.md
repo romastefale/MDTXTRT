@@ -55,7 +55,7 @@ PR #105 added the final runtime hardening: mandatory transactional editor paths,
 
 ### G-07 — real Telegram send/revision-history path
 
-**Status: POST-DELIVERY CERTIFICATION.** Request structure, durable binding, immutable chat-history revision flow and uncertainty/idempotency behavior are covered in code/tests; client receipt/rendering evidence is post-delivery.
+**Status: POST-DELIVERY CERTIFICATION.** Request structure, durable binding, append-only chat-history revision flow and uncertainty/idempotency behavior are covered in code/tests; client receipt/rendering evidence is post-delivery.
 
 ### G-08 — physical Web/PWA/Mini App matrix
 
