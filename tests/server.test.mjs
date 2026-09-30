@@ -838,7 +838,7 @@ test('bot imports UTF-8 TXT literally through getFile and binds continuation to 
   assert.equal(claimed.status,200,claimed.data.error);
   assert.equal(claimed.data.purpose,'import');
   assert.equal(claimed.data.action,null);
-  assert.equal(claimed.data.file,null);
+  assert.deepEqual(claimed.data.files,[]);
   assert.equal(claimed.data.draft.name,'notas');
   assert.equal(claimed.data.draft.importedTxt,source);
   assert.equal(claimed.data.draft.importedMd,'');
