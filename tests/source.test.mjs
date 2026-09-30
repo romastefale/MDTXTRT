@@ -727,7 +727,8 @@ test('step 6 persists drafts on the Railway volume, binds Telegram publication p
   assert.match(html,/\.library-list\{display:grid[\s\S]*?grid-template-columns:1fr/);
   assert.match(html,/\.library-preview\{/);
   assert.match(app,/function librarySubmenuOpen\(\)/);
-  assert.match(app,/function setLibraryModality\(active\)[\s\S]*?one\('#exportMenu'\)/);
+  assert.doesNotMatch(app,/function setLibraryModality\(active\)/);
+  assert.match(html,/#exportMenu\.library-open::backdrop\{background:transparent;pointer-events:auto\}/);
   assert.match(app,/function setLibraryView\(open\)/);
   assert.match(app,/function setPublicationsExpanded\(expanded\)/);
   assert.match(app,/const libraryMode=panel\.id==='exportMenu'&&panel\.classList\.contains\('library-open'\)/);
