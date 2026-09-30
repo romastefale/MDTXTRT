@@ -603,7 +603,7 @@ test('document name stays in export flow and becomes the Telegraph title',async(
   w.close();
 });
 
-test('Markdown block markers wait for content, convert in either typing order and preserve semantics',async()=>{
+test('Markdown block markers convert on the space after the marker, in either typing order, and preserve semantics',async()=>{
   const w=page(),d=w.document,e=d.querySelector('#editor');
   const apply=async(html,offset=null,inputType='insertText')=>{
     w.eval('currentEditorCore().resetHTML('+JSON.stringify(html)+',{silent:true})');
@@ -617,9 +617,11 @@ test('Markdown block markers wait for content, convert in either typing order an
     e.dispatchEvent(event);
     await wait();
   };
+  // Decisão do dono: "# " no início da linha já vira título, como no Markdown.
   await apply('<p># </p>');
-  assert.equal(e.firstElementChild.tagName,'P');
-  assert.equal(e.textContent,'# ');
+  assert.equal(e.firstElementChild.tagName,'H1');
+  assert.equal(e.textContent,'');
+  assert.ok(e.querySelector('h1 > br'),'o título vazio tem altura para o cursor');
 
   await apply('<p># Palavra</p>');
   assert.equal(e.querySelector('h1')?.textContent,'Palavra');

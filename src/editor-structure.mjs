@@ -237,7 +237,12 @@ export function createStructure(root,{changed=()=>{},selectionChanged=()=>{}}={}
     tail.setStart(range.startContainer,range.startOffset);
     tail.setEnd(block,block.childNodes.length);
     const rest=tail.extractContents();
-    if(rest.childNodes.length)clone.append(rest);else clone.append(root.ownerDocument.createElement("br"));
+    clone.append(rest);
+    // Um trecho vazio (o cursor no fim do texto) não dá altura à linha nova, e o
+    // navegador devolveria o cursor à linha anterior: as duas linhas precisam de <br>.
+    for(const line of [block,clone]){
+      if(!line.textContent.replace(/\u200b/g,"")&&!line.querySelector("br,img,video,audio,iframe,input,tg-emoji"))line.replaceChildren(root.ownerDocument.createElement("br"));
+    }
     block.parentNode.insertBefore(clone,block.nextSibling);
     setCaret(clone,0);
     notify(root,changed,selectionChanged);

@@ -3,7 +3,10 @@
   /* Material Liquid Glass do site romastefale/HTML (mesmo de produto/index.html):
      fundo orgânico multicor que nasce e termina na cor da borda (--edge), vidro
      neutro translúcido com desfoque e aro hairline. */
-  --edge:#1b1646;
+  /* Tema escuro mais fundo: uma sombra sobre o fundo orgânico (--bg-shade) e a
+     borda na mesma cor que resulta dela, sem chegar ao quase-preto. */
+  --edge:#151137;
+  --bg-shade:rgba(6,4,20,.3);
   --bg-art:url("produto/fundo-escuro.svg");
   --bg:#211d52;
   --text:#f5f5f7;
@@ -13,12 +16,19 @@
      tint-soft nos botões em destaque), frost do material (6px, saturate 1.15)
      nas barras e de painel (22px, 1.4) em menus e diálogos, brightness 0, brilho
      sem brilho especular de topo (como no site HTML) e um único aro hairline uniforme. */
-  --glass:rgba(44,40,80,.55);
-  --glass-panel:rgba(28,24,60,.5);
+  --glass:rgba(30,26,64,.4);
+  --glass-panel:rgba(18,15,46,.44);
   --glass-strong:rgba(255,255,255,.12);
   --glass-press:rgba(255,255,255,.14);
-  --rim:rgba(255,255,255,.14);
+  --rim:rgba(255,255,255,.16);
   --rim-w:1px;
+  /* Botões em destaque (+ e ☰) e estados ativos, no desenho do pill selecionado do
+     site romastefale/HTML (SiteHeader: --sel-bg/--sel-shadow). No escuro, o vidro
+     leva o acento; no claro, o branco do site. Sempre translúcido. */
+  --prominent:rgba(106,179,243,.3);
+  --prominent-rim:rgba(106,179,243,.5);
+  --prominent-shadow:0 1px 6px rgba(0,0,0,.28);
+  --active-bg:rgba(106,179,243,.22);
   --float:0 10px 28px rgba(30,20,90,.16),0 2px 6px rgba(30,20,90,.08);
   --blur:blur(6px) saturate(1.15);
   --blur-panel:blur(22px) saturate(1.4);
@@ -30,7 +40,7 @@
   /* Cor de link do texto do editor: a do tema do Telegram quando o SDK a injeta. */
   --link:var(--tg-theme-link-color,#6ab3f3);
   /* Neutros puros (alfa do texto), sem mistura com acento, nos dois temas. */
-  --muted:color-mix(in srgb,var(--text) 66%,transparent);
+  --muted:color-mix(in srgb,var(--text) 72%,transparent);
   --neutral-1:color-mix(in srgb,var(--text) 5%,transparent);
   --neutral-2:color-mix(in srgb,var(--text) 8%,transparent);
   --neutral-3:color-mix(in srgb,var(--text) 12%,transparent);
@@ -85,7 +95,12 @@ html.tg-shell{
   --safe-bottom-max:0px;
 }
 html.light{
-  --edge:#8b82e6; --bg-art:url("produto/fundo-claro.svg");
+  --edge:#8b82e6; --bg-art:url("produto/fundo-claro.svg"); --bg-shade:transparent;
+  --prominent:rgba(255,255,255,.72);
+  --prominent-rim:rgba(255,255,255,.18);
+  --prominent-shadow:0 1px 2px rgba(20,16,60,.08),0 2px 6px rgba(20,16,60,.08);
+  --active-bg:rgba(255,255,255,.62);
+  --muted:color-mix(in srgb,var(--text) 66%,transparent);
   --bg:#f2eefb; --text:#151515; --dim:#3a3a3c; --accent:#269c65;
   --link:var(--tg-theme-link-color,#2B88D8);
   --glass:rgba(255,255,255,.5);
@@ -116,7 +131,7 @@ body{
 }
 .bg{
   position:fixed;top:var(--vv-top);left:0;width:100%;height:var(--vv-height);z-index:0;pointer-events:none;
-  background:var(--bg-art) center/100% 100% no-repeat,var(--edge)
+  background:linear-gradient(var(--bg-shade),var(--bg-shade)),var(--bg-art) center/100% 100% no-repeat,var(--edge)
 }
 .device-gate{
   display:none;position:fixed;
@@ -149,7 +164,7 @@ button{cursor:pointer;-webkit-tap-highlight-color:transparent}
 .editor h5{font-size:14px;letter-spacing:.02em;margin:.85em 0 .3em}
 .editor h6{font-size:12px;letter-spacing:.03em;color:var(--muted);margin:.85em 0 .3em}
 .editor .tg-footer,.editor footer{display:block;font-size:12px;color:var(--muted);margin:1.6em 0 .4em;padding-top:.7em;border-top:1px solid var(--line);font-weight:400}
-.menu-list button.is-current{background:var(--glass-strong);font-weight:650}
+.menu-list button.is-current{background:var(--active-bg);font-weight:650}
 .heading-list .h-opt.h1{font-size:20px;font-weight:750;letter-spacing:-.03em}
 .heading-list .h-opt.h2{font-size:17px;font-weight:650}
 .heading-list .h-opt.h3{font-size:15px;font-weight:650}
@@ -223,7 +238,7 @@ button{cursor:pointer;-webkit-tap-highlight-color:transparent}
   background:transparent;display:grid;place-items:center;padding:0
 }
 .seg button:active,.bar > button:active{background:var(--glass-press)}
-.seg button.active{background:var(--glass-strong)}
+.seg button.active{background:var(--active-bg);box-shadow:var(--prominent-shadow)}
 .seg #destBtn{position:relative}
 .seg #destBtn .ui-icon{width:28px;height:28px}
 .seg button.is-flash{position:relative}
@@ -237,7 +252,7 @@ button{cursor:pointer;-webkit-tap-highlight-color:transparent}
 .bar > button.on{background:transparent}
 .bar > button.on::before{
   content:"";position:absolute;inset:0;border-radius:50%;
-  background:var(--glass-strong);box-shadow:var(--glass-edge);z-index:0
+  background:var(--active-bg);box-shadow:var(--glass-edge),var(--prominent-shadow);z-index:0
 }
 .bar > button > *{position:relative;z-index:1}
 .canvas{
@@ -318,17 +333,23 @@ button{cursor:pointer;-webkit-tap-highlight-color:transparent}
   border:0;background:transparent;color:inherit;display:grid;place-items:center;border-radius:999px;padding:0
 }
 /* + e ☰ continuam em destaque, agora como vidro mais denso em vez de acento sólido. */
-.bar > button.more{background:var(--glass-strong);box-shadow:var(--glass-edge)}
+.bar > button.more{background:var(--prominent);box-shadow:0 0 0 var(--rim-w) var(--prominent-rim),var(--prominent-shadow)}
 .bar > button.more.on::before{display:none}
 .action-dot{
   width:var(--control-size);height:var(--control-size);border-radius:50%;display:grid;place-items:center;
-  position:relative;background:var(--glass-strong);color:inherit;box-shadow:var(--glass-edge)
+  position:relative;background:var(--prominent);color:inherit;box-shadow:0 0 0 var(--rim-w) var(--prominent-rim),var(--prominent-shadow)
 }
 /* Lente WebGL 2 (fork, <Glass draw>) dentro do + e do ☰: fica sob o ícone, não
    recebe ponteiro nem foco. Sem WebGL 2 o elemento some e fica o vidro em CSS. */
 .lens{position:absolute;inset:0;z-index:0;border-radius:inherit;overflow:hidden;pointer-events:none;color:transparent;font-size:0}
 .lens canvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
-.lens::after{content:"";position:absolute;inset:0;border-radius:inherit;background:var(--glass-strong)}
+.lens::after{content:"";position:absolute;inset:0;border-radius:inherit;background:var(--prominent)}
+/* Refração das barras: a lente fica sob os botões e deixa o vidro da barra
+   transparecer (o texto que rola por baixo continua visível). */
+.seg > button,.bar > button{position:relative;z-index:1}
+.lens-bar{z-index:0}
+.lens-bar canvas{opacity:.6}
+.lens-bar::after{background:var(--glass)}
 .lens:not([data-live]):not([data-frozen]){display:none}
 .action-dot > .ui-icon{position:relative;z-index:1}
 .bar > button > .lens{position:absolute;z-index:0}
@@ -487,3 +508,7 @@ button{cursor:pointer;-webkit-tap-highlight-color:transparent}
 @media (orientation:landscape),(min-width:760px){
   html[data-device-gate] .device-gate{display:block}
 }
+/* Toque na interface não seleciona texto nem abre o menu de contexto do iOS: a
+   seleção sai do editor e o teclado fecharia. Campos de texto continuam selecionáveis. */
+#ux-root{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+#ux-root input,#ux-root textarea{-webkit-user-select:text;user-select:text}

@@ -47,6 +47,29 @@ const CHROME_LENS = {
   brightness: 0,
 };
 
+// Refração por mapa de deslocamento nas barras (superior e inferior): os valores
+// do material do fork (src/GlassMaterial.tsx › MATERIAL_OPTICS, o mesmo material
+// dos controles do site romastefale/HTML), sem brilho, com o frost das barras.
+// Onde a biblioteca já dobra a página ao vivo com o filtro de deslocamento, a
+// lente soma-se a ela; no navegador do iPhone, que não aplica esse filtro, a
+// lente WebGL 2 do fork desenha a mesma refração sobre o fundo. Sem WebGL 2 fica
+// o vidro em CSS.
+const BAR_REFRACTION = {
+  mapSize: 256,
+  clipToShape: true,
+  softEdge: true,
+  strength: 0.05,
+  depth: 0.5,
+  curvature: 0.3,
+  bend: 0.45,
+  bendWidth: 0.16,
+  dispersion: 0.32,
+  ...NO_SHINE,
+  frost: 6,
+  saturate: 1.15,
+  brightness: 0,
+};
+
 // Quanto tempo o laço WebGL fica vivo depois de cada mudança (carga, resize,
 // teclado, volta à aba). Depois o último quadro fica congelado num canvas 2D e o
 // renderizador é desmontado: nenhum laço contínuo.
@@ -108,16 +131,22 @@ function backdropCanvas(bgRect) {
   const fadeBot = document.querySelector(".fade-bot")?.getBoundingClientRect();
   const w = Math.max(1, Math.round(bgRect.width));
   const h = Math.max(1, Math.round(bgRect.height));
-  const key = [backdrop.src, w, h, fadeTop?.height, fadeBot?.top].join("|");
+  const key = [backdrop.src, w, h, fadeTop?.height, fadeBot?.top, document.documentElement.className].join("|");
   if (backdrop.canvas && backdrop.key === key) return backdrop.canvas;
   const canvas = backdrop.canvas || document.createElement("canvas");
   canvas.width = w;
   canvas.height = h;
   const ctx = canvas.getContext("2d");
-  const edge = getComputedStyle(document.documentElement).getPropertyValue("--edge").trim() || "#1b1646";
+  const edge = getComputedStyle(document.documentElement).getPropertyValue("--edge").trim() || "#151137";
   ctx.fillStyle = edge;
   ctx.fillRect(0, 0, w, h);
   ctx.drawImage(backdrop.img, 0, 0, w, h);
+  // A mesma sombra que escurece o fundo do tema escuro (.bg, --bg-shade).
+  const shade = getComputedStyle(document.documentElement).getPropertyValue("--bg-shade").trim();
+  if (shade && shade !== "transparent") {
+    ctx.fillStyle = shade;
+    ctx.fillRect(0, 0, w, h);
+  }
   paintFade(ctx, fadeTop, bgRect, edge, false);
   paintFade(ctx, fadeBot, bgRect, edge, true);
   backdrop.canvas = canvas;
@@ -134,7 +163,7 @@ function backdropCanvas(bgRect) {
  */
 // memo: as lentes não dependem do estado dos menus; abrir um menu não pode
 // redesenhar o vidro do + e do ☰.
-const ChromeLens = React.memo(function ChromeLens() {
+const ChromeLens = React.memo(function ChromeLens({ optics = CHROME_LENS, variant = "control" }) {
   const hostRef = useRef(null);
   const snapRef = useRef(null);
   const frozenRef = useRef(false);
@@ -235,7 +264,7 @@ const ChromeLens = React.memo(function ChromeLens() {
   return (
     <span
       ref={hostRef}
-      className="lens"
+      className={variant === "bar" ? "lens lens-bar" : "lens"}
       aria-hidden="true"
       data-live={live ? "" : undefined}
       data-frozen={frozen ? "" : undefined}
@@ -245,7 +274,7 @@ const ChromeLens = React.memo(function ChromeLens() {
         <Glass
           className="lens-surface"
           draw={draw}
-          optics={CHROME_LENS}
+          optics={optics}
           lenses={lenses}
           maxDpr={2}
           style={{ position: "absolute", inset: 0 }}
@@ -821,6 +850,7 @@ function Chrome() {
       <header className="topbar">
         <div className="top-slot top-left">
           <GlassControl className="seg top-pill">
+            <ChromeLens optics={BAR_REFRACTION} variant="bar" />
             <button type="button" id="undoBtn" aria-label="Desfazer" title="Desfazer"><Icon name="undo" /></button>
             <button type="button" id="redoBtn" aria-label="Refazer" title="Refazer"><Icon name="redo" /></button>
           </GlassControl>
@@ -835,6 +865,7 @@ function Chrome() {
 
         <div className="top-slot top-right">
           <GlassControl className="seg top-pill">
+            <ChromeLens optics={BAR_REFRACTION} variant="bar" />
             <DestButton />
             <ExportButton />
           </GlassControl>
@@ -857,6 +888,7 @@ function Chrome() {
 
       <div className="bar-wrap">
         <GlassControl className="bar" id="typebar">
+          <ChromeLens optics={BAR_REFRACTION} variant="bar" />
           <PlusButton />
           <button type="button" data-cmd="bold" aria-label="Negrito"><Icon name="bold" /></button>
           <button type="button" data-cmd="italic" aria-label="Itálico"><Icon name="italic" /></button>
