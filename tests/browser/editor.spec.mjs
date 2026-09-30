@@ -100,16 +100,38 @@ test.describe(OFFLINE,()=>{
   });
 
   test('começar rascunho novo libera a edição sem tocar na cópia do servidor',async ({page})=>{
+    // A cópia do servidor tem um docId conhecido. Depois da escolha, o volume volta
+    // e oferece essa cópia: nenhum save pode sair com o docId dela.
+    const remoteDoc='7e7e7e7e-7e7e-47e7-87e7-7e7e7e7e7e7e';
+    const cors={'access-control-allow-origin':'*'};
+    await page.route(/\/api\/drafts\/load$/,route=>{
+      if(route.request().method()==='OPTIONS'||!page.volumeUp)return route.fallback();
+      const draft={version:2,name:'Cópia do servidor',html:'<p>remota</p>',dest:'telegram',telegraphPath:'',docId:remoteDoc,revision:3,importedMd:'',importedTxt:'',importedHtml:'',media:[]};
+      return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({draft,media:[]}),headers:cors});
+    });
+    const saves=[];
+    await page.route(/\/api\/drafts\/save$/,route=>{
+      if(route.request().method()==='OPTIONS')return route.fallback();
+      const body=route.request().postData()||'';
+      const docId=(body.match(/"docId":"([0-9a-f-]{36})"/)||[])[1]||'';
+      const revision=Number((body.match(/"revision":(\d+)/)||[])[1]||0);
+      saves.push(docId);
+      return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({draft:{docId,revision}}),headers:cors});
+    });
     await page.goto('/index.html');
     await expect(page.locator('#dialogCancel')).toHaveText('Começar rascunho novo');
-    const saves=[];
-    page.on('request',request=>{if(request.url().endsWith('/api/drafts/save'))saves.push(request)});
+    page.volumeUp=true;
     await Promise.all([page.waitForEvent('load'),page.locator('#dialogCancel').click()]);
     await expect(page.locator('#editor')).toHaveAttribute('contenteditable','true');
     await page.locator('#editor').click();
     await page.keyboard.type('Rascunho novo');
     await expect(page.locator('#editor')).toContainText('Rascunho novo');
+    await expect(page.locator('#editor')).not.toContainText('remota');
+    await expect.poll(()=>saves.length,{timeout:5000}).toBeGreaterThan(0);
     const docId=await page.evaluate(()=>JSON.parse(localStorage.getItem('rmdtxtml')).docId);
     expect(docId).toMatch(/^[0-9a-f-]{36}$/);
+    expect(docId).not.toBe(remoteDoc);
+    expect(saves).not.toContain(remoteDoc);
+    expect(new Set(saves)).toEqual(new Set([docId]));
   });
 });

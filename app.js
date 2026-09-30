@@ -536,7 +536,7 @@ function syncBackButton(){
 }
 function closeTopLayer(){
   const dialog=one('#dialogMenu');
-  if(panelIsOpen(dialog)){finishDialog(dialogConfirm?false:null);return;}
+  if(panelIsOpen(dialog)){dismissDialog();return;}
   if(librarySubmenuOpen()){closeLibrary();return;}
   const sel=sheets.find(name=>panelIsOpen(one(name)));
   if(sel)closePanel(one(sel),true);
@@ -770,6 +770,8 @@ function finishDialog(value){
   focusControl(target);
   if(resolve)resolve(value);
 }
+// Voltar do Telegram e Esc fecham sem escolher: num diálogo de escolha, false seria a segunda opção.
+function dismissDialog(){finishDialog(dialogConfirm&&!dialogChoice?false:null);}
 function dialogOpen(label,value='',rows=1,confirmMode=false,anchorOverride=null,labels=null){
   if(dialogResolve)finishDialog(null);
   saveSel();
@@ -804,7 +806,7 @@ one('#dialogOk').addEventListener('click',()=>finishDialog(dialogConfirm?true:on
 one('#dialogCancel').addEventListener('click',()=>finishDialog(dialogConfirm?false:null));
 one('#dialogInput').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&e.currentTarget.rows===1){e.preventDefault();finishDialog(e.currentTarget.value);}});
 one('#dialogMenu').addEventListener('keydown',event=>{
-  if(event.key==='Escape'){event.preventDefault();finishDialog(dialogConfirm&&!dialogChoice?false:null);return;}
+  if(event.key==='Escape'){event.preventDefault();dismissDialog();return;}
   if(event.key!=='Tab')return;
   const items=dialogFocusables();
   if(!items.length){event.preventDefault();return;}
@@ -821,7 +823,7 @@ document.addEventListener('focusin',event=>{
 document.addEventListener('keydown',event=>{
   if(event.key!=='Escape')return;
   const dialog=one('#dialogMenu');
-  if(dialog.matches(':popover-open')){event.preventDefault();finishDialog(dialogConfirm?false:null);return;}
+  if(dialog.matches(':popover-open')){event.preventDefault();dismissDialog();return;}
   if(librarySubmenuOpen()){event.preventDefault();closeLibrary();return;}
   const sel=sheets.find(name=>panelIsOpen(one(name)));
   if(sel){event.preventDefault();closePanel(one(sel),true);}
