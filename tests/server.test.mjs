@@ -311,6 +311,46 @@ test('local attachment is represented as attach upload and stale tg media is rej
   assert.equal(stale.status,400);
 });
 
+test('Telegram Rich Message accepts the official maximum of 50 multipart media items and rejects 51',async()=>{
+  const ids=Array.from({length:50},(_,index)=>'m'+String(index).padStart(2,'0'));
+  const html=ids.map(id=>`<figure><img src="tg://photo?id=${id}"><figcaption>${id}</figcaption></figure>`).join('');
+  const draft=draftFixture(html);
+  draft.media=ids.map(id=>({id,kind:'image'}));
+  const form=new FormData();
+  form.set('initData',init());
+  form.set('html',html);
+  form.set('draft',JSON.stringify(draft));
+  for(const id of ids)form.set('upload_'+id,new Blob([new Uint8Array([1])],{type:'image/png'}),id+'.png');
+  let res=await fetch(`http://127.0.0.1:${port}/api/telegram/send`,{method:'POST',headers:{origin},body:form});
+  let data=await res.json();
+  assert.equal(res.status,200,data.error);
+  const rich=JSON.parse(lastCall('sendRichMessage').body.rich_message);
+  assert.equal(rich.media.length,50);
+  assert.equal(rich.media[0].media.media,'attach://upload_'+ids[0]);
+  assert.equal(rich.media.at(-1).media.media,'attach://upload_'+ids.at(-1));
+
+  const overflowIds=[...ids,'m50'];
+  const overflowHtml=overflowIds.map(id=>`<figure><img src="tg://photo?id=${id}"></figure>`).join('');
+  const overflowDraft=draftFixture(overflowHtml);
+  overflowDraft.media=overflowIds.map(id=>({id,kind:'image'}));
+  const overflow=new FormData();
+  overflow.set('initData',init());overflow.set('html',overflowHtml);overflow.set('draft',JSON.stringify(overflowDraft));
+  for(const id of overflowIds)overflow.set('upload_'+id,new Blob([new Uint8Array([1])],{type:'image/png'}),id+'.png');
+  res=await fetch(`http://127.0.0.1:${port}/api/telegram/send`,{method:'POST',headers:{origin},body:overflow});
+  data=await res.json();
+  assert.equal(res.status,400);
+  assert.match(data.error,/50 mídias/);
+});
+
+test('Telegram Rich Message table accepts 20 columns and rejects 21',async()=>{
+  const row=count=>'<table><tr>'+Array.from({length:count},()=>'<td>x</td>').join('')+'</tr></table>';
+  const valid=await formPost('/api/telegram/send',{initData:init(),html:row(20)});
+  assert.equal(valid.status,200,valid.data.error);
+  const invalid=await formPost('/api/telegram/send',{initData:init(),html:row(21)});
+  assert.equal(invalid.status,400);
+  assert.match(invalid.data.error,/20 colunas/);
+});
+
 test('Rich Message uploads enforce media-kind MIME and photo size locally',async()=>{
   const badId='badphoto1';
   const badHtml=`<figure><img src="tg://photo?id=${badId}"><figcaption>Imagem</figcaption></figure>`;
