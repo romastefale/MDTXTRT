@@ -442,7 +442,6 @@ function draftValid(draft) {
   if (Buffer.byteLength(json, "utf8") > 350_000) throw new Error("Rascunho grande demais");
   if (typeof draft.html !== "string" || Buffer.byteLength(draft.html, "utf8") > 160_000) throw new Error("Conteúdo do rascunho inválido");
   draft.html=normalizeDraftRuntimeHTML(draft.html);
-  if (Buffer.byteLength(draft.html, "utf8") > 160_000) throw new Error("Conteúdo do rascunho inválido");
   if (typeof draft.name !== "string" || draft.name.length > 120) throw new Error("Nome do rascunho inválido");
   if (!["telegram", "telegraph"].includes(draft.dest)) throw new Error("Destino do rascunho inválido");
   if (draft.action !== undefined && draft.action !== "publish") throw new Error("Ação do rascunho inválida");
@@ -451,6 +450,12 @@ function draftValid(draft) {
   if (typeof draft.telegraphPath !== "string" || draft.telegraphPath.length > 256) throw new Error("Página do rascunho inválida");
   if (typeof draft.importedMd !== "string" || typeof draft.importedTxt !== "string" || typeof draft.importedHtml !== "string") throw new Error("Origem importada do rascunho inválida");
   if (Buffer.byteLength(draft.importedMd,"utf8")+Buffer.byteLength(draft.importedTxt,"utf8")+Buffer.byteLength(draft.importedHtml,"utf8") > 240_000) throw new Error("Origem importada do rascunho grande demais");
+  if(!Array.isArray(draft.media)||draft.media.length>50)throw new Error("Metadados de mídia do rascunho inválidos");
+  const mediaIds=new Set();
+  for(const media of draft.media){
+    if(!media||typeof media!=="object"||Array.isArray(media)||!/^[A-Za-z0-9_-]{1,64}$/.test(String(media.id||""))||!["image","video","audio","voice","document"].includes(media.kind)||mediaIds.has(media.id))throw new Error("Metadados de mídia do rascunho inválidos");
+    mediaIds.add(media.id);
+  }
   const tags = new Set("a b strong i em u ins s strike del code mark sub sup tg-spoiler tg-reference tg-emoji tg-time tg-math h1 h2 h3 h4 h5 h6 p pre footer hr ul ol li input blockquote aside cite img video audio tg-document figure figcaption iframe tg-map tg-collage tg-slideshow table caption thead tbody tfoot tr th td details summary tg-math-block tg-button tg-button-row br div".split(" "));
   const attrs = new Set("href name class style src alt tg-spoiler start type reversed value checked disabled controls expandable unix format emoji-id lat long zoom width height bordered striped compact colspan rowspan align valign open url data query text forward-text request-write-access allow-user-chats allow-bot-chats allow-group-chats allow-channel-chats data-media-id data-media-missing".split(" "));
   const doc = parseDocument(draft.html);
@@ -476,22 +481,18 @@ function draftValid(draft) {
     node.children?.forEach(walk);
   };
   doc.children.forEach(walk);
-  if(localMedia.length>1)throw new Error("O rascunho contém mais de um anexo local");
-  if(draft.media!==null&&draft.media!==undefined){
-    if(!draft.media||typeof draft.media!=="object"||Array.isArray(draft.media)||!/^[A-Za-z0-9_-]{1,64}$/.test(String(draft.media.id||""))||!["image","video","audio","voice","document"].includes(draft.media.kind))throw new Error("Metadados de mídia do rascunho inválidos");
-  }
-  if(localMedia.length===1){
-    if(!draft.media||draft.media.id!==localMedia[0])throw new Error("Metadados de mídia do rascunho não correspondem ao anexo");
-  }else if(draft.media!==null&&draft.media!==undefined){
-    throw new Error("Metadados de mídia sem anexo local");
-  }
+  if(localMedia.length>50||new Set(localMedia).size!==localMedia.length)throw new Error("Mídia local inválida");
+  if(localMedia.length!==mediaIds.size||localMedia.some(id=>!mediaIds.has(id)))throw new Error("Metadados de mídia não correspondem ao documento");
   return draft;
 }
 
-
 function persistentDraftPaths(owner,doc){
   const ownerDir=DRAFT_DIR+"/"+ownerFingerprint(owner);
-  return {dir:ownerDir,active:ownerDir+"/active",meta:ownerDir+"/"+doc+".json",file:ownerDir+"/"+doc+".bin"};
+  return {dir:ownerDir,active:ownerDir+"/active",meta:ownerDir+"/"+doc+".json",mediaDir:ownerDir+"/"+doc+".media",single:ownerDir+"/"+doc+".bin"};
+}
+function persistentMediaPath(paths,id){
+  if(!/^[A-Za-z0-9_-]{1,64}$/.test(id))throw new Error("Identificador de mídia inválido");
+  return paths.mediaDir+"/"+id+".bin";
 }
 function atomicWrite(path,data){
   const tmp=path+".tmp-"+SERVER_BOOT_ID;
@@ -532,6 +533,26 @@ function telegramPublicationValid(value){
     if(pending.phase==="content"&&pending.noticeMessageId<=0)throw new Error("Aviso da atualização Telegram inválido");
   }
 }
+function mediaMetaValid(media){
+  if(!media||typeof media!=="object"||Array.isArray(media)||!/^[A-Za-z0-9_-]{1,64}$/.test(String(media.id||""))||!["image","video","audio","voice","document"].includes(media.kind)||typeof media.name!=="string"||!media.name||typeof media.mime!=="string"||!media.mime||!Number.isInteger(media.size)||media.size<1)throw new Error("Anexo persistido inválido");
+  const max=media.kind==="image"?10_000_000:50_000_000;
+  if(media.size>max)throw new Error("Anexo persistido excede o limite do Telegram");
+}
+function normalizeStoredRecord(record,paths){
+  let changed=false;
+  if(record?.draft&&record.draft.media===null){record.draft.media=[];changed=true;}
+  if(record?.draft?.media&&!Array.isArray(record.draft.media)){record.draft.media=[record.draft.media];changed=true;}
+  if(record?.media===null||record?.media===undefined){record.media=[];changed=true;}
+  if(record?.media&&!Array.isArray(record.media)){
+    record.media=[record.media];changed=true;
+    if(record.media[0]?.id&&existsSync(paths.single)){
+      mkdirSync(paths.mediaDir,{recursive:true});
+      const target=persistentMediaPath(paths,record.media[0].id);
+      if(!existsSync(target))renameSync(paths.single,target);else unlinkSync(paths.single);
+    }
+  }
+  return changed;
+}
 function persistentRecordValid(record,owner,doc){
   if(!record||typeof record!=="object"||Array.isArray(record)||record.schema!==1)throw new Error("Rascunho persistido inválido");
   if(record.ownerFingerprint!==ownerFingerprint(owner))throw new HttpError(403,"Este rascunho pertence a outra identidade");
@@ -543,10 +564,10 @@ function persistentRecordValid(record,owner,doc){
   if(doc&&record.draft.docId!==doc)throw new Error("Documento persistido incompatível");
   if(!record.publication||typeof record.publication!=="object"||Array.isArray(record.publication))throw new Error("Proveniência persistida inválida");
   telegramPublicationValid(record.publication.telegram);
-  if(record.media!==null){
-    const media=record.media;
-    if(!media||typeof media!=="object"||Array.isArray(media)||!/^[A-Za-z0-9_-]{1,64}$/.test(String(media.id||""))||!["image","video","audio","voice","document"].includes(media.kind)||typeof media.name!=="string"||!media.name||typeof media.mime!=="string"||!media.mime||!Number.isInteger(media.size)||media.size<1||media.size>20_000_000)throw new Error("Anexo persistido inválido");
-  }
+  if(!Array.isArray(record.media)||record.media.length>50)throw new Error("Anexos persistidos inválidos");
+  const ids=new Set();
+  for(const media of record.media){mediaMetaValid(media);if(ids.has(media.id))throw new Error("Anexos persistidos inválidos");ids.add(media.id);}
+  if(record.draft.media.length!==ids.size||record.draft.media.some(item=>!ids.has(item.id)))throw new Error("Anexos persistidos não correspondem ao rascunho");
   return record;
 }
 function readPersistentDraft(owner,doc=""){
@@ -563,8 +584,13 @@ function readPersistentDraft(owner,doc=""){
   let record;
   try{record=JSON.parse(readFileSync(paths.meta,"utf8"));}
   catch{throw new Error("Não foi possível recuperar o rascunho persistido");}
+  const changed=normalizeStoredRecord(record,paths);
   persistentRecordValid(record,owner,target);
-  if(record.media!==null&&(!existsSync(paths.file)||statSync(paths.file).size!==record.media.size))throw new Error("Anexo persistido indisponível");
+  for(const media of record.media){
+    const path=persistentMediaPath(paths,media.id);
+    if(!existsSync(path)||statSync(path).size!==media.size)throw new Error("Anexo persistido indisponível");
+  }
+  if(changed)atomicWrite(paths.meta,JSON.stringify(record));
   return record;
 }
 function writePersistentRecord(owner,record){
@@ -612,7 +638,7 @@ function listPersistentDrafts(owner){
       preview:draftPreview(record.draft),
       createdAt:recordCreatedAt(record),
       updatedAt:record.updatedAt,
-      hasMedia:Boolean(record.media)
+      hasMedia:record.media.length>0
     });
   }
   return items.sort((a,b)=>b.updatedAt-a.updatedAt||a.name.localeCompare(b.name));
@@ -671,28 +697,38 @@ function listTelegraphPages(owner,drafts=[]){
   return items.sort((a,b)=>b.updatedAt-a.updatedAt||a.name.localeCompare(b.name));
 }
 
-function savePersistentDraft(owner,draft,file=null){
+function savePersistentDraft(owner,draft,files=[]){
   draftValid(draft);
   if(!/^[a-f0-9-]{36}$/i.test(String(draft.docId||"")))throw new HttpError(400,"Documento inválido");
+  if(!Array.isArray(files)||files.length>50)throw new HttpError(400,"Mídias inválidas");
   const paths=persistentDraftPaths(owner,draft.docId);
-  let existing=readPersistentDraft(owner,draft.docId);
+  const existing=readPersistentDraft(owner,draft.docId);
   if(existing&&draft.revision<existing.draft.revision)throw new HttpError(409,"Uma revisão mais recente deste rascunho já está persistida");
-  let media=null;
-  if(draft.media){
+  const incoming=new Map(files.map(file=>[file.id,file]));
+  if(incoming.size!==files.length)throw new HttpError(400,"Mídias duplicadas");
+  const media=[];
+  if(draft.media.length)mkdirSync(paths.mediaDir,{recursive:true});
+  for(const item of draft.media){
+    const file=incoming.get(item.id);
     if(file){
-      if(file.id!==draft.media.id||file.kind!==draft.media.kind)throw new HttpError(400,"O anexo não corresponde ao rascunho");
-      if(!file.bytes?.length||file.bytes.length>20_000_000)throw new HttpError(400,"Mídia grande demais");
-      if(typeof file.mime!=="string"||!file.mime.trim())throw new HttpError(400,"Tipo de mídia inválido");
-      mkdirSync(paths.dir,{recursive:true});
-      atomicWrite(paths.file,file.bytes);
-      media={id:draft.media.id,kind:draft.media.kind,name:cleanFileName(file.name),mime:file.mime,size:file.bytes.length};
-    }else if(existing?.media?.id===draft.media.id&&existsSync(paths.file)&&statSync(paths.file).size===existing.media.size){
-      media=existing.media;
-    }else{
-      throw new HttpError(409,"O anexo do rascunho precisa ser persistido junto com o documento");
+      file.kind=item.kind;
+      validateTelegramUpload(file,item.kind);
+      const target=persistentMediaPath(paths,item.id);
+      copyFileSync(file.path,target);
+      media.push({id:item.id,kind:item.kind,name:cleanFileName(file.name),mime:file.mime,size:file.size});
+      incoming.delete(item.id);
+      continue;
     }
-  }else{
-    try{if(existsSync(paths.file))unlinkSync(paths.file);}catch(error){console.error("Persistent media cleanup",error);}
+    const prior=existing?.media?.find(value=>value.id===item.id&&value.kind===item.kind);
+    const path=persistentMediaPath(paths,item.id);
+    if(!prior||!existsSync(path)||statSync(path).size!==prior.size)throw new HttpError(409,"Um anexo do rascunho precisa ser persistido junto com o documento");
+    media.push(prior);
+  }
+  if(incoming.size)throw new HttpError(400,"Mídia não referenciada pelo rascunho");
+  if(existsSync(paths.mediaDir)){
+    const keep=new Set(media.map(item=>item.id+".bin"));
+    for(const name of readdirSync(paths.mediaDir))if(!keep.has(name))rmSync(paths.mediaDir+"/"+name,{force:true});
+    if(!keep.size)rmSync(paths.mediaDir,{recursive:true,force:true});
   }
   const now=Date.now();
   const record={
