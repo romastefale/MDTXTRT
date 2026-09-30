@@ -17,7 +17,7 @@ if (manifest.anchorPolicy?.immutable !== true) errors.push('Release Anchor deve 
 const required = {
   'README.md': ['estado corrente a partir do qual o produto continua evoluindo', 'esse sha não define a baseline'],
   'BASELINE.md': ['baseline = ponto de partida para evolução', 'nenhuma mudança solicitada deve ser rejeitada'],
-  'AGENTS.md': ['no authoritative baseline sha', 'baseline cannot veto'],
+  'AGENTS.md': ['no authoritative baseline sha', 'cannot veto a correction or evolution'],
   'RELEASE_VALIDATION.md': ['visual comparison snapshot', 'it is not normative product behavior'],
   'RELEASE_ANCHOR.md': ['replaceable visual-comparison snapshot', 'does not constrain later product evolution']
 };
