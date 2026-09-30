@@ -1,11 +1,11 @@
 # Release evidence template — Etapa 7/7
 
-Create one GitHub issue (or dedicated evidence record linked from the final release issue) for each sealed Release Anchor.
+Create one GitHub issue (or dedicated evidence record linked from the final release issue) for each exact candidate SHA being certified.
 
 ## Anchor
 
-- Release Anchor SHA:
-- Release Anchor convenience branch:
+- Release evidence SHA:
+- Release evidence convenience branch:
 - Source PR:
 - GitHub Actions release-validation run:
 - UTC validation window:
@@ -146,7 +146,7 @@ For every row record menu/dialog reachability, bottom-bar clearance, internal sc
 
 ## Rollback
 
-- Last known-good immutable SHA:
+- Last known-good deployment SHA:
 - Candidate deployment ID/SHA:
 - Rollback deployment procedure exercised:
 - Rolled-back deployment ID/SHA:
