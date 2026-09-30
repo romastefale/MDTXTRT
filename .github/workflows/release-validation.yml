@@ -113,7 +113,7 @@ jobs:
 
       - name: Compare rendered shell with visual baseline
         env:
-          BASELINE_SHA: db6ae2240cbe2792bd7edb1a9c26399f068ea807
+          BASELINE_SHA: b22aee80bbaa79db63d12ef62ae523d968218aa5
         run: node scripts/verify-visual-baseline.mjs
 
       - name: Preserve visual comparison evidence
