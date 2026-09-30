@@ -112,9 +112,10 @@ jobs:
         run: npm test
 
       - name: Compare rendered shell with visual baseline
-        env:
-          BASELINE_SHA: 6742ec104de353d2f19507436fe352b0e0fd1a71
-        run: node scripts/verify-visual-baseline.mjs
+        shell: bash
+        run: |
+          BASELINE_SHA="$(node -e "const fs=require('fs');const m=JSON.parse(fs.readFileSync('RELEASE_MANIFEST.json','utf8'));process.stdout.write(m.visualBaseline)")"
+          BASELINE_SHA="$BASELINE_SHA" node scripts/verify-visual-baseline.mjs
 
       - name: Preserve visual comparison evidence
         if: always()

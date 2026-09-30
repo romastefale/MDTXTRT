@@ -2,7 +2,7 @@
 
 ## Baseline de trabalho
 
-A baseline de trabalho vigente é `7fe51e8401012232281db416ac0d9bd080c18ebf`, estado de produção após o PR #120.
+A baseline de trabalho vigente é o SHA definido em `RELEASE_MANIFEST.json.visualBaseline` e documentado em `BASELINE.md`.
 
 Ela é um snapshot de referência, não um produto final, não uma especificação imutável e não deve ser preservada quando uma solicitação exigir correção ou evolução. Bugs presentes nela continuam sendo bugs. Requisitos novos ou corrigidos devem evoluir o código e, quando apropriado, substituir a própria baseline.
 

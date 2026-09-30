@@ -179,8 +179,8 @@ test('theme switch owns browser and Telegram chrome without mixed system bars',(
   assert.ok(existsSync(new URL('../icons/dark_mode.svg',import.meta.url)));
   assert.match(app,/const THEME_KEY='mdtxtrt-theme'/);
   assert.match(app,/localStorage\.setItem\(THEME_KEY,mode\)/);
-  assert.match(app,/function setTheme\(mode\)\{[\s\S]*?localStorage\.setItem\(THEME_KEY,mode\)[\s\S]*?applyScheme\(mode\)/);
-  assert.doesNotMatch(app,/function setTheme\(mode\)\{[\s\S]*?window\.location\.reload\(\)/);
+  assert.match(app,/function setTheme\(mode\)\{[\s\S]*?localStorage\.setItem\(THEME_KEY,mode\)[\s\S]*?window\.location\.reload\(\)/);
+  assert.doesNotMatch(app,/function setTheme\(mode\)\{[\s\S]*?applyScheme\(mode\)/);
   assert.match(app,/tg\.setHeaderColor\(color\)/);
   assert.match(app,/tg\.setBackgroundColor\(color\)/);
   assert.match(app,/tg\.setBottomBarColor\(color\)/);
@@ -498,8 +498,8 @@ test('editorial pointer retention has one owner and standard menus never depend 
   assert.match(app,/function focusLibraryStart\(\)\{return focusMenuControl\(one\('#libraryClose'\)\);\}/);
   assert.match(app,/librarySubmenuOpen\(\)&&!menu\.contains\(event\.target\)&&!isTypingEntry\(event\.target\)/);
   assert.doesNotMatch(app,/addEventListener\('mousedown', e => e\.preventDefault\(\)\)/);
-  assert.match(app,/function setTheme\(mode\)[\s\S]*?applyScheme\(mode\)/);
-  assert.doesNotMatch(app,/function setTheme\(mode\)[\s\S]*?window\.location\.reload\(\)/);
+  assert.match(app,/function setTheme\(mode\)[\s\S]*?window\.location\.reload\(\)/);
+  assert.doesNotMatch(app,/function setTheme\(mode\)[\s\S]*?applyScheme\(mode\)/);
 });
 
 test('document title is explicit in export flow and becomes the Telegraph page title',()=>{
@@ -633,14 +633,11 @@ test('draft persistence, Telegram provenance and explicit visual-baseline histor
   assert.match(drafts,/mounted Railway volume/);
   assert.match(drafts,/verified Telegram user identifier/);
   assert.match(drafts,/does \*\*not\*\* rewrite the earlier chat message/);
-  assert.match(baseline,/6742ec104de353d2f19507436fe352b0e0fd1a71/);
-  assert.match(baseline,/9c9f8d38313d5f0043283daf06d6ac015f90bded/);
-  assert.match(baseline,/7fe51e8401012232281db416ac0d9bd080c18ebf/);
-  assert.match(baseline,/b22aee80bbaa79db63d12ef62ae523d968218aa5/);
-  assert.match(baseline,/db6ae2240cbe2792bd7edb1a9c26399f068ea807/);
-  assert.match(baseline,/1dbbdb2dfaeafbd8ef52cea859611ffa5f6699ad/);
-  assert.match(baseline,/aac423e012745c7873908ddc4a76371fb8218aa3/);
-  assert.match(baseline,/dde30467ed9b0d108bac2ae7ad9bcac1137c169e/);
+  const manifest=JSON.parse(read('RELEASE_MANIFEST.json'));
+  const current=baseline.match(/## Baseline vigente[\s\S]*?`([a-f0-9]{40})`/)?.[1];
+  assert.equal(current,manifest.visualBaseline);
+  assert.match(baseline,/não deve ser preservada contra solicitações de correção ou implementação/i);
+  assert.match(baseline,/referências antigas permanecem apenas como histórico/i);
 });
 
 test('step 4 format contract is explicit and conversion code uses the shared portable boundary',()=>{
@@ -808,7 +805,9 @@ test('final release gap analysis, surface audit and final-only anchor gates are 
   assert.match(workflow,/name: Rebuild all committed bundles[\s\S]*?npm run build/);
   assert.match(workflow,/git diff --exit-code -- editor-core\.js ui\.js/);
   assert.match(workflow,/node scripts\/verify-visual-baseline\.mjs/);
-  assert.match(workflow,/BASELINE_SHA: 6742ec104de353d2f19507436fe352b0e0fd1a71/);
+  assert.match(workflow,/RELEASE_MANIFEST\.json/);
+  assert.match(workflow,/BASELINE_SHA="\$\(node -e /);
+  assert.doesNotMatch(workflow,/BASELINE_SHA:\s*[a-f0-9]{40}/);
   assert.match(workflow,/release-rebuilt-bundles-\$\{\{ env\.RELEASE_CANDIDATE_SHA \}\}/);
   assert.match(workflow,/release-visual-baseline-\$\{\{ env\.RELEASE_CANDIDATE_SHA \}\}/);
   assert.match(workflow,/draft_persistence_evidence_ref:/);
@@ -828,7 +827,9 @@ test('final release gap analysis, surface audit and final-only anchor gates are 
   assert.match(evidence,/Telegram revision notice\/content timeout/);
   assert.match(evidence,/stale persistent draft revision/);
 
-  assert.equal(manifest.visualBaseline,'6742ec104de353d2f19507436fe352b0e0fd1a71');
+  assert.match(manifest.visualBaseline,/^[a-f0-9]{40}$/);
+  const baselineDoc=read('BASELINE.md');
+  assert.equal(baselineDoc.match(/## Baseline vigente[\s\S]*?`([a-f0-9]{40})`/)?.[1],manifest.visualBaseline);
   assert.deepEqual(manifest.runtime,{node:'24.21.0',npm:'11.19.0'});
   assert.deepEqual(manifest.stages.map(stage=>stage.pr),[84,86,88,90,92,95]);
   assert.equal(manifest.stages.at(-1).head,'ec3def6622818c0411bbeb94165716c7f30fa927');
@@ -836,6 +837,15 @@ test('final release gap analysis, surface audit and final-only anchor gates are 
   assert.equal(manifest.anchorPolicy.authority,'full-git-commit-sha');
   assert.equal(manifest.anchorPolicy.immutable,true);
   assert.equal(manifest.anchorPolicy.sealAfter,'release-approved');
+
+  for(const file of ['AGENTS.md','README.md','FORMAT_CONTRACT.md','RELEASE_ANCHOR.md','RELEASE_VALIDATION.md','RELEASE_EVIDENCE_TEMPLATE.md']){
+    const text=read(file);
+    assert.match(text,/RELEASE_MANIFEST\.json(?:\.visualBaseline)?|RELEASE_MANIFEST\.json\.visualBaseline/);
+    assert.doesNotMatch(text,/Current working baseline:\s*`[a-f0-9]{40}`/);
+    assert.doesNotMatch(text,/baseline de trabalho vigente é `[a-f0-9]{40}`/i);
+    assert.doesNotMatch(text,/Normative visual baseline:\s*`[a-f0-9]{40}`/);
+    assert.doesNotMatch(text,/approved visual baseline is `[a-f0-9]{40}`/i);
+  }
 
   assert.match(gap,/G-04 — exact production deployment/);
   assert.match(gap,/G-05 — physical draft persistence\/restart evidence/);

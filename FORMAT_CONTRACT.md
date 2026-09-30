@@ -2,13 +2,13 @@
 
 This document is the executable product contract for import, export and publication. It originated in the earlier format-contract evolution and remains the format-specific boundary of the current product after the six implementation stages. `ARCHITECTURE.md` records the broader system boundaries; Etapa 7/7 changes validation/evidence only, not these serialization semantics.
 
-The current visual contract is commit `aac423e012745c7873908ddc4a76371fb8218aa3`, adopted explicitly after the earlier `dde30467ed9b0d108bac2ae7ad9bcac1137c169e` reference. See `BASELINE.md` for provenance.
+The current visual baseline is the SHA in `RELEASE_MANIFEST.json.visualBaseline`; `BASELINE.md` records its provenance and superseded historical references.
 
 ## File matrix
 
 | File surface | Import | Export | Declared preservation | Loss / rejection behavior |
 | --- | --- | --- | --- | --- |
-| Markdown (`.md`) | Yes | Yes | Headings, paragraphs, emphasis, strong, strike, inline code, links, lists, task items, tables and the rich extensions accepted by the editor. Extensions without native Markdown syntax are preserved as controlled raw HTML. | Local attachments without a public URL are rejected. Runtime/presentation attributes such as `controls`, `contenteditable`, `draggable`, ProseMirror selection classes and checkbox `disabled` are normalized away and are not file semantics. |
+| Markdown (`.md`) | Yes | Yes | Headings, paragraphs, emphasis, strong, strike, inline code, links, lists, task items, tables and the rich extensions accepted by the editor. Extensions without native Markdown syntax are preserved as controlled raw HTML. | Local attachments without a public URL are rejected. Runtime/presentation attributes such as `controls`, `contenteditable`, `draggable`, runtime selection classes and checkbox `disabled` are normalized away and are not file semantics. |
 | Text (`.txt`) | Yes | Yes | Plain text and line breaks only. | Media is rejected. If formatting, links or structural semantics are present, export requires explicit confirmation before the lossy conversion. |
 
 Markdown export always serializes the current edited document. It does not return the originally imported bytes merely because the document appears unchanged.
