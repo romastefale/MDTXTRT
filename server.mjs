@@ -105,6 +105,8 @@ const PUBLIC = new Set([
   "manifest.webmanifest",
   "og.jpg",
   "x-banner.jpg",
+  "produto/fundo-claro.svg",
+  "produto/fundo-escuro.svg",
   ...["arrow_back","bold","buttons","chevron_right","dark_mode","details","export","file","footer","h1","h2","h3","h4","h5","h6","heading","italic","light_mode","link","list","menu","paragraph","plus","quote","redo","table","task","telegram","telegraph","underline","undo"].map(name=>`icons/${name}.svg`),
   ...["anchor","attach_file","calculate","code","expandquote","format_list_numbered","functions","horizontal_rule","image","ink_highlighter","location_on","markdown","mood","movie","music_note","pullquote","schedule","search","slideshow","sticky_note_2","strikethrough_s","subscript","superscript","text_fields","view_comfy","visibility_off","web"].map(name=>`icons/${name}.svg`),
 ]);

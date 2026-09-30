@@ -176,7 +176,7 @@ test('Chrome PWA install metadata is exposed without changing runtime caching',(
   assert.equal(manifest.start_url,'./');
   assert.equal(manifest.scope,'./');
   assert.equal(manifest.display,'standalone');
-  assert.equal(manifest.theme_color,'#f8fbff');
+  assert.equal(manifest.theme_color,'#8b82e6');
   assert.equal(manifest.prefer_related_applications,false);
   assert.ok(manifest.icons.some(icon=>icon.sizes==='192x192'&&icon.src==='pwa-192.svg'&&icon.type==='image/svg+xml'));
   assert.ok(manifest.icons.some(icon=>icon.sizes==='512x512'&&icon.src==='pwa-512.svg'&&icon.type==='image/svg+xml'));
@@ -252,8 +252,10 @@ test('editorial pointer retention has one owner and standard menus never depend 
   assert.match(app,/function isTypingEntry\(element\)[\s\S]*?\[contenteditable="true"\]/);
   assert.match(app,/function typingFocusActive\(outsidePanel=null\)[\s\S]*?isTypingEntry\(active\)&&\(!outsidePanel\|\|!outsidePanel\.contains\(active\)\)/);
   assert.match(app,/function focusMenuControl\(element,outsidePanel=null\)[\s\S]*?if\(typingFocusActive\(outsidePanel\)\)return false;[\s\S]*?focusControl\(element\)/);
-  assert.match(app,/function retainedInterfaceControl\(target\)[\s\S]*?#ux-root button[\s\S]*?return control&&!control\.disabled\?control:null/);
-  assert.match(app,/document\.addEventListener\('pointerdown',event=>\{[\s\S]*?if\(!typingFocusActive\(\)\)return;[\s\S]*?retainedInterfaceControl\(event\.target\)[\s\S]*?event\.preventDefault\(\)/);
+  assert.match(app,/function retainedInterfaceControl\(target\)[\s\S]*?isTypingEntry\(target\)[\s\S]*?#ux-root button[\s\S]*?#ux-root \.glass-menu[\s\S]*?#ux-root \.bar-wrap[\s\S]*?return control&&!control\.disabled\?control:null/);
+  assert.match(app,/function retainTypingFocus\(event\)\{[\s\S]*?if\(!typingFocusActive\(\)\)return;[\s\S]*?retainedInterfaceControl\(event\.target\)[\s\S]*?event\.preventDefault\(\)/);
+  assert.match(app,/document\.addEventListener\('pointerdown',retainTypingFocus,true\)/);
+  assert.match(app,/document\.addEventListener\('mousedown',retainTypingFocus,true\)/);
   assert.doesNotMatch(app,/retainedTouch|touchActivating|gesture\.target\.click\(\)/);
   assert.doesNotMatch(app,/document\.addEventListener\('touchstart'|document\.addEventListener\('touchend'/);
   assert.match(app,/function panelIsOpen\(panel\)[\s\S]*?data-menu-open/);

@@ -63,7 +63,7 @@ function syncBrowserChrome(mode,color){
 }
 function applyScheme(mode=resolvedTheme()){
   const next=mode==='light'?'light':'dark',light=next==='light';
-  const root=document.documentElement,color=light?'#f8fbff':'#000000';
+  const root=document.documentElement,color=light?'#8b82e6':'#1b1646';
   root.classList.remove(light?'dark':'light');
   root.classList.add(next);
   root.dataset.theme=next;
@@ -1776,14 +1776,22 @@ function syncEditorSelectionUI(){
   });
 }
 document.addEventListener('selectionchange',syncEditorSelectionUI);
+// Teclado virtual: enquanto o usuário digita, nenhum toque na interface (barras,
+// menus, espaços entre os itens) pode tirar o foco do campo de texto. No iOS o
+// teclado fecha no blur e um focus() posterior por script não o reabre, por isso o
+// padrão do toque é cancelado antes de mover o foco. Campos de texto reais dentro
+// de menus e diálogos (título do Telegraph, URL do link) recebem foco normalmente.
 function retainedInterfaceControl(target){
-  const control=target?.closest?.('#ux-root button,#ux-root [role="button"],#ux-root a[href]');
+  if(!target?.closest||isTypingEntry(target)||target.closest('input,textarea,select,label'))return null;
+  const control=target.closest('#ux-root button,#ux-root [role="button"],#ux-root a[href],#ux-root .glass-menu,#ux-root .topbar,#ux-root .bar-wrap,#ux-root .toast');
   return control&&!control.disabled?control:null;
 }
-document.addEventListener('pointerdown',event=>{
+function retainTypingFocus(event){
   if(!typingFocusActive())return;
   if(retainedInterfaceControl(event.target))event.preventDefault();
-},true);
+}
+document.addEventListener('pointerdown',retainTypingFocus,true);
+document.addEventListener('mousedown',retainTypingFocus,true);
 
 
 menuDismissLayer?.addEventListener('pointerdown',event=>{
