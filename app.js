@@ -248,6 +248,10 @@ function decorateSpecials(){
   requireEditorCore();
 }
 function handoffToken(){
+  try{
+    const direct=new URL(location.href).searchParams.get('handoff')||'';
+    if(/^[a-f0-9]{32}$/.test(direct))return direct;
+  }catch{}
   const initData=getTg()?.initData;
   if(typeof initData!=='string'||!initData)return '';
   const raw=new URLSearchParams(initData).get('start_param');
@@ -258,7 +262,7 @@ function handoffToken(){
 function normalizedHandoffAction(value){
   if(value===null)return null;
   if(!value||typeof value!=='object'||value.type!=='publish'||!['pending','sending','succeeded','failed','uncertain'].includes(value.status)||!Number.isInteger(value.attempts)||value.attempts<0||typeof value.error!=='string'||!/^[a-f0-9-]{36}$/i.test(String(value.doc||''))||!Number.isSafeInteger(value.revision)||value.revision<0)throw new Error('Estado da publicação transferida inválido');
-  if(value.status==='succeeded'&&(!value.result||!['sendRichMessage','editMessageText'].includes(value.result.via)||!Number.isInteger(value.result.messageId)||value.result.messageId<=0))throw new Error('Resultado da publicação transferida inválido');
+  if(value.status==='succeeded'&&(!value.result||value.result.via!=='sendRichMessage'||!Number.isInteger(value.result.messageId)||value.result.messageId<=0))throw new Error('Resultado da publicação transferida inválido');
   return value;
 }
 function handoffActionNotice(action,recovered=false){
@@ -1275,15 +1279,14 @@ function consumeBotLaunchAction(){
   if(!action)return null;
   const source=url.searchParams.get('source')||'';
   const doc=url.searchParams.get('doc')||'';
-  const format=url.searchParams.get('format')||'';
   url.searchParams.delete('botAction');
   url.searchParams.delete('source');
   url.searchParams.delete('doc');
   url.searchParams.delete('format');
   try{history.replaceState(history.state,'',url.href);}catch{}
   if(!/^[a-f0-9-]{36}$/i.test(doc))return {error:'Documento selecionado inválido'};
-  if(action==='send'&&source==='d')return {action,source,doc:doc.toLowerCase(),format:''};
-  if(action==='export'&&['d','t','g'].includes(source)&&(!format||['txt','md'].includes(format)))return {action,source,doc:doc.toLowerCase(),format};
+  if(action==='send'&&source==='d')return {action,source,doc:doc.toLowerCase()};
+  if(action==='export'&&['d','t','g'].includes(source))return {action,source,doc:doc.toLowerCase()};
   return {error:'Ação selecionada pelo bot inválida'};
 }
 function libraryTime(value){
@@ -1935,8 +1938,8 @@ async function loadBotExportSource(selection){
   closePanels();
   openPanel('#exportMenu',one('#exportBtn'));
   syncBackButton();
-  queueMicrotask(()=>focusMenuControl(one(selection.format==='md'?'#exportMdBtn':'#exportTxtBtn')));
-  showToast(selection.format?('Conteúdo selecionado. Exporte como '+selection.format.toUpperCase()+'.'):'Conteúdo selecionado. Escolha TXT ou Markdown.');
+  queueMicrotask(()=>focusMenuControl(one('#exportTxtBtn')));
+  showToast('Conteúdo selecionado. Escolha TXT ou Markdown.');
 }
 
 async function runBotLaunchAction(selection){
