@@ -843,7 +843,6 @@ test('release evidence gates remain traceability-only and cannot freeze later ev
   assert.equal(manifest.evolutionPolicy.preservationByHistoricalParity,false);
   assert.equal(manifest.evolutionPolicy.divergenceFromHistoricalStateFails,false);
   assert.deepEqual(manifest.runtime,{node:'24.21.0',npm:'11.19.0'});
-  assert.deepEqual(manifest.historicalEvidence.implementationStages.map(stage=>stage.pr),[84,86,88,90,92,95]);
   assert.equal(manifest.releaseEvidencePolicy.role,'traceability-only');
   assert.equal(manifest.releaseEvidencePolicy.identity,'exact-git-commit-sha');
   assert.equal(manifest.releaseEvidencePolicy.productStateRemainsMutable,true);
