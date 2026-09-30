@@ -81,11 +81,13 @@
     ]
   },
   "anchorPolicy": {
-    "authority": "full-git-commit-sha",
-    "convenienceBranchPrefix": "release-anchor/",
-    "immutable": true,
+    "authority": "historical-release-evidence-sha",
+    "immutable": false,
+    "preservationRequired": false,
+    "role": "traceability-record",
     "supersedeInsteadOfMove": true,
-    "sealAfter": "release-approved"
+    "sealAfter": "release-approved",
+    "historicalBehaviorIsNormative": false
   },
   "visualComparisonSnapshot": "977d61554f75c943b626f89fe871bb3becae75f1"
 }
