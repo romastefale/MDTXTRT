@@ -117,7 +117,7 @@ jobs:
       - name: Compare rendered shell with visual reference snapshot
         shell: bash
         run: |
-          BASELINE_SHA="$(node -e "const fs=require('fs');const m=JSON.parse(fs.readFileSync('RELEASE_MANIFEST.json','utf8'));process.stdout.write(m.visualBaseline)")"
+          BASELINE_SHA="$(node -e "const fs=require('fs');const m=JSON.parse(fs.readFileSync('RELEASE_MANIFEST.json','utf8'));process.stdout.write(m.visualComparisonSnapshot)")"
           BASELINE_SHA="$BASELINE_SHA" node scripts/verify-visual-baseline.mjs
 
       - name: Preserve visual comparison evidence
