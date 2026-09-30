@@ -83,6 +83,6 @@
     "evolutionMayReplaceCurrentImplementation": true,
     "acceptedEvolutionBecomesNextBase": true,
     "releaseEvidenceRole": "traceability-only",
-    "visualComparisonRole": "diagnostic-only"
+    "visualComparisonRole": "optional-diagnostic-only"
   }
 }
