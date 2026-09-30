@@ -1393,8 +1393,7 @@ async function openTelegraphDocument(doc){
     if(!res.ok)throw new Error(data.error||'Não foi possível carregar a página do Telegraph');
     if(data.doc!==doc||typeof data.path!=='string'||!data.path||typeof data.title!=='string'||typeof data.html!=='string')throw new Error('Resposta do Telegraph inválida');
     const html=cleanDraftHTML(data.html);
-    if(mediaFile?.url)URL.revokeObjectURL(mediaFile.url);
-    mediaFile=null;remoteMediaSyncedId='';
+    clearRuntimeMedia();
     if(!editorCore)throw new Error('Núcleo de edição indisponível');
     editorCore.resetHTML(html,{silent:true});
     docName.value=data.title.slice(0,120);
@@ -1544,8 +1543,8 @@ function archiveStoredDraftForNew(token){
 }
 function resetToNewDocument(){
   exportOverride=null;
-  if(mediaFile?.url)URL.revokeObjectURL(mediaFile.url);
-  mediaFile=null;mediaChoice=null;savedRange=null;activeHandoff='';handoffAction=null;
+  clearRuntimeMedia();
+  mediaChoice=null;savedRange=null;activeHandoff='';handoffAction=null;
   requireEditorCore().resetHTML('',{silent:true});docName.value='Ideia';dest='telegram';telegraphPath='';
   docId=crypto.randomUUID();docRevision=0;importedMd='';importedTxt='';importedHtml='';
   draftWriteBlocked=false;draftBlockNoticeShown=false;
@@ -2045,19 +2044,20 @@ async function publishTelegram(){
   }
   const initData=getTg().initData;
   try{
-    const p = buildRich();
+    const p=buildRich();
     const data=activeMedia();
-    if(editor.querySelector('[data-media-id]')&&!data)throw new Error('Anexe a mídia novamente antes de publicar');
+    const localIds=[...editor.querySelectorAll('[data-media-id]')].map(node=>node.getAttribute('data-media-id'));
+    if(localIds.some(id=>!mediaFiles.has(id)))throw new Error('Há mídia local que precisa ser anexada novamente');
     const form=new FormData();
     form.set('initData',initData);
     form.set('html',p.rich_message.html);
     form.set('draft',JSON.stringify(draftState()));
-    if(data){form.set('kind',data.kind);form.set('id',data.id);form.set('upload',data.file,data.file.name);}
-    const res=await fetch(API+'/api/telegram/send',{method:'POST',signal:AbortSignal.timeout(60000),body:form});
+    for(const media of data)form.set('upload_'+media.id,media.file,media.file.name);
+    const res=await fetch(API+'/api/telegram/send',{method:'POST',signal:AbortSignal.timeout(120000),body:form});
     const json=await readResponse(res);
     if(!res.ok)throw new Error(json.error||'Não foi possível enviar a mensagem');
     if(json.via!=='sendRichMessage'||!Number.isInteger(json.messageId)||json.messageId<=0)throw new Error('Resposta do Telegram inválida');
-    if(data)remoteMediaSyncedId=data.id;
+    remoteMediaSyncedIds=new Set(data.map(media=>media.id));
     showToast(Number.isInteger(json.previousMessageId)&&json.previousMessageId>0?'Nova versão enviada; a anterior foi preservada no chat':'Mensagem enviada no chat do bot');
   }catch(err){
     showToast(err.name==='TimeoutError'?'Tempo de envio esgotado. Confira o chat antes de tentar novamente.':err instanceof TypeError?'Não foi possível conectar ao Telegram':err.message || 'Não foi possível enviar a mensagem');
@@ -2095,10 +2095,9 @@ fileInput.addEventListener('change', async ()=>{
     const normalized=text.replace(/^\uFEFF/,'');
     const html = /\.md$/i.test(file.name) ? mdToBasicHTML(normalized) : '<p>'+escapeHTML(normalized).replace(/\n/g,'<br>')+'</p>';
     const nextName=file.name.replace(/\.(md|txt)$/i,'').slice(0,120);
-    const priorMediaId=mediaFile?.id||editor.querySelector('[data-media-id]')?.getAttribute('data-media-id')||'';
-    if(priorMediaId)await mediaDelete(priorMediaId);
-    if(mediaFile?.url)URL.revokeObjectURL(mediaFile.url);
-    mediaFile=null;
+    const priorMediaIds=[...mediaFiles.keys()];
+    for(const id of priorMediaIds)await mediaDelete(id);
+    clearRuntimeMedia();
     docName.value=nextName;
     if(!editorCore)throw new Error('Núcleo de edição indisponível');
     editorCore.resetHTML(html,{silent:true});
