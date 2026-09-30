@@ -160,6 +160,7 @@ async function mediaDelete(id){
 function sanitizeDraftRuntimeDOM(box){
   for(const el of [...box.querySelectorAll('*')]){
     for(const name of ['contenteditable','draggable','spellcheck','tabindex','aria-selected'])el.removeAttribute(name);
+    if(['video','audio'].includes(el.localName))el.removeAttribute('controls');
   }
   return box;
 }
@@ -256,6 +257,7 @@ function telegramUploadLimit(kind){
 }
 function decorateSpecials(){
   requireEditorCore();
+  for(const media of editor.querySelectorAll('video,audio'))media.controls=true;
 }
 function handoffToken(){
   try{
