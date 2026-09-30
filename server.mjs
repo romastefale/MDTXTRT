@@ -1945,11 +1945,11 @@ const server = createServer(async (req, res) => {
         const doc=String(body?.doc||""),id=String(body?.id||"");
         if(!/^[a-f0-9-]{36}$/i.test(doc)||!/^[A-Za-z0-9_-]{1,64}$/.test(id))throw new HttpError(400,"Anexo persistido inválido");
         const record=readPersistentDraft(owner,doc);
-        if(!record?.media||record.media.id!==id)throw new HttpError(404,"Anexo persistido não encontrado");
-        const path=persistentDraftPaths(owner,doc).file;
-        const bytes=readFileSync(path);
-        res.writeHead(200,{"content-type":record.media.mime,"content-length":bytes.length,"cache-control":"no-store","x-mdtxtrt-file-name":encodeURIComponent(record.media.name),"x-mdtxtrt-file-kind":record.media.kind});
-        res.end(bytes);
+        const meta=record?.media?.find(item=>item.id===id);
+        if(!meta)throw new HttpError(404,"Anexo persistido não encontrado");
+        const path=persistentMediaPath(persistentDraftPaths(owner,doc),id);
+        res.writeHead(200,{"content-type":meta.mime,"content-length":meta.size,"cache-control":"no-store","x-mdtxtrt-file-name":encodeURIComponent(meta.name),"x-mdtxtrt-file-kind":meta.kind});
+        createReadStream(path).pipe(res);
       }catch(err){
         const code=err instanceof HttpError?err.status:500;
         res.writeHead(code,{"content-type":"application/json; charset=utf-8","cache-control":"no-store"});
@@ -1999,7 +1999,7 @@ const server = createServer(async (req, res) => {
         state.claimedBy = chatId;
         writeHandoff(token,state);
         res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
-        res.end(JSON.stringify({ draft: state.draft, file: state.file, purpose: state.purpose, action: handoffActionView(state.action,state.draft) }));
+        res.end(JSON.stringify({draft:state.draft,files:state.files,purpose:state.purpose,action:handoffActionView(state.action,state.draft)}));
       } catch (err) {
         res.writeHead(400, { "content-type": "application/json; charset=utf-8" });
         res.end(JSON.stringify({ error: err.message || "Não foi possível recuperar o rascunho" }));
@@ -2063,16 +2063,17 @@ const server = createServer(async (req, res) => {
       }
       try {
         const body = await readJson(req, 20000);
-        const token = String(body?.token || "");
-        const state = readHandoff(token);
-        if (!state?.file) throw new Error("Anexo da transferência indisponível");
-        const { chatId } = userFromInitData(String(body?.initData || ""));
-        if (!state.claimedBy || state.claimedBy !== chatId) throw new Error("Transferência não pertence a esta sessão");
-        const path = handoffFiles(token).file;
-        if (!existsSync(path)) throw new Error("Anexo da transferência indisponível");
-        const bytes = readFileSync(path);
-        res.writeHead(200,{"content-type":state.file.mime,"content-length":bytes.length,"cache-control":"no-store"});
-        res.end(bytes);
+        const token=String(body?.token||""),id=String(body?.id||"");
+        if(!/^[A-Za-z0-9_-]{1,64}$/.test(id))throw new Error("Anexo da transferência inválido");
+        const state=readHandoff(token);
+        const meta=state?.files?.find(item=>item.id===id);
+        if(!meta)throw new Error("Anexo da transferência indisponível");
+        const {chatId}=userFromInitData(String(body?.initData||""));
+        if(!state.claimedBy||state.claimedBy!==chatId)throw new Error("Transferência não pertence a esta sessão");
+        const path=handoffMediaPath(handoffFiles(token),id);
+        if(!existsSync(path))throw new Error("Anexo da transferência indisponível");
+        res.writeHead(200,{"content-type":meta.mime,"content-length":meta.size,"cache-control":"no-store"});
+        createReadStream(path).pipe(res);
       } catch (err) {
         res.writeHead(400, { "content-type": "application/json; charset=utf-8" });
         res.end(JSON.stringify({ error: err.message || "Não foi possível recuperar o anexo" }));
