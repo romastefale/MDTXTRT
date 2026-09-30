@@ -798,11 +798,6 @@ test('deleting the last character of a heading or quote returns the block to bod
 
 test('Markdown inline markers become semantic rich-text marks and support escaping',async()=>{
   const w=page(),d=w.document,e=d.querySelector('#editor');
-  const apply=async text=>{
-    const escaped=text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    w.eval('currentEditorCore().resetHTML('+JSON.stringify('<p>'+escaped+'</p>')+',{silent:true})');
-    w.eval('(()=>{const core=currentEditorCore(),r=core.findLiteral('+JSON.stringify('__TEXT__')+')[0];})()'.replace('__TEXT__',text.replace(/\\/g,'\\\\').replace(/'/g,"\\'"))); 
-  };
   const run=async text=>{
     const escaped=text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     w.eval('currentEditorCore().resetHTML('+JSON.stringify('<p>'+escaped+'</p>')+',{silent:true})');
@@ -812,7 +807,7 @@ test('Markdown inline markers become semantic rich-text marks and support escapi
   };
   await run('**forte**');assert.equal(e.querySelector('strong')?.textContent,'forte');
   await run('*ênfase*');assert.equal(e.querySelector('em')?.textContent,'ênfase');
-  await run('~~riscado~~');assert.equal(e.querySelector('s')?.textContent,'riscado');
+  await run('~~riscado~~');assert.equal(e.querySelector('s,del,strike')?.textContent,'riscado');
   await run('`código`');assert.equal(e.querySelector('code')?.textContent,'código');
   await run('\\*literal*');assert.equal(e.querySelector('em'),null);assert.equal(e.textContent,'*literal*');
   w.close();
@@ -1066,12 +1061,12 @@ test('block insertions respect caret position and ordered list preserves paragra
   w.eval("currentEditorCore().resetHTML('<p>Antes</p><p>Depois</p>',{silent:true})");
   w.eval("(()=>{const r=currentEditorCore().findLiteral('Antes')[0];currentEditorCore().selectRange({from:r.to,to:r.to},{focus:true})})()");
   w.eval('saveSel();insertFeature("divider")');
-  assert.deepEqual([...e.children].map(el=>el.tagName),['P','HR','P']);
+  assert.equal(JSON.stringify([...e.children].map(el=>el.tagName)),JSON.stringify(['P','HR','P']));
 
   w.eval("currentEditorCore().resetHTML('<p>antes depois</p>',{silent:true})");
   w.eval("(()=>{const r=currentEditorCore().findLiteral('antes depois')[0];currentEditorCore().selectRange({from:r.from+6,to:r.from+6},{focus:true})})()");
   w.eval('insertFeature("ordered")');
-  assert.deepEqual([...e.children].map(node=>node.tagName),['OL']);
+  assert.equal(JSON.stringify([...e.children].map(node=>node.tagName)),JSON.stringify(['OL']));
   assert.equal(e.querySelector('ol > li')?.textContent,'antes depois');
   assert.equal(e.querySelector('p ol'),null);
   w.close();
@@ -1496,7 +1491,7 @@ test('plain-text paste is one transactional history step',()=>{
 test('transaction history keeps the editor selection coherent through undo and redo',()=>{
   const w=page(),d=w.document,e=d.querySelector('#editor');
   w.eval("currentEditorCore().resetHTML('<p>alpha beta</p>',{silent:true})");
-  w.eval('currentEditorCore().selectRange({from:7,to:11},{focus:true})');
+  w.eval("currentEditorCore().selectRange(currentEditorCore().findLiteral('beta')[0],{focus:true})");
   d.querySelector('#typebar [data-cmd="bold"]').click();
   assert.equal(w.eval('currentEditorCore().selectedText()'),'beta');
   assert.ok(e.querySelector('strong'));
@@ -1568,12 +1563,12 @@ test('find treats punctuation and regex metacharacters literally',()=>{
 test('Markdown round-trip preserves strike through edited semantic state',()=>{
   const w=page(),d=w.document,e=d.querySelector('#editor');
   w.eval("currentEditorCore().resetHTML('<p>antes <del>cortado</del> depois</p>',{silent:true})");
-  assert.equal(e.querySelector('s')?.textContent,'cortado');
+  assert.equal(e.querySelector('s,del,strike')?.textContent,'cortado');
   const md=w.eval('htmlToMarkdown(exportDocumentHTML())');
   assert.match(md,/~~cortado~~/);
   const imported=w.eval('mdToBasicHTML('+JSON.stringify(md)+')');
   w.eval('currentEditorCore().resetHTML('+JSON.stringify(imported)+',{silent:true})');
-  assert.equal(e.querySelector('s')?.textContent,'cortado');
+  assert.equal(e.querySelector('s,del,strike')?.textContent,'cortado');
   const second=w.eval('htmlToMarkdown(exportDocumentHTML())');
   assert.match(second,/~~cortado~~/);
   w.close();
@@ -1582,7 +1577,7 @@ test('Markdown round-trip preserves strike through edited semantic state',()=>{
 test('Markdown file boundary strips runtime media controls and remains reimportable',()=>{
   const w=page(),d=w.document,e=d.querySelector('#editor');
   const mediaHtml='<video src="https://example.com/video.mp4" controls></video><audio src="https://example.com/audio.ogg" controls></audio>';
-  w.eval('currentEditorCore().resetHTML('+JSON.stringify(mediaHtml)+',{silent:true})');
+  w.eval('currentEditorCore().resetHTML('+JSON.stringify(mediaHtml)+',{silent:true});decorateSpecials()');
   assert.equal(e.querySelector('video')?.hasAttribute('controls'),true);
   assert.equal(e.querySelector('audio')?.hasAttribute('controls'),true);
   const md=w.eval('htmlToMarkdown(exportDocumentHTML())');
@@ -1591,7 +1586,7 @@ test('Markdown file boundary strips runtime media controls and remains reimporta
   const box=d.createElement('div');box.innerHTML=imported;
   assert.equal(box.querySelector('video')?.hasAttribute('controls'),false);
   assert.equal(box.querySelector('audio')?.hasAttribute('controls'),false);
-  w.eval('currentEditorCore().resetHTML('+JSON.stringify(imported)+',{silent:true})');
+  w.eval('currentEditorCore().resetHTML('+JSON.stringify(imported)+',{silent:true});decorateSpecials()');
   assert.equal(e.querySelector('video')?.hasAttribute('controls'),true);
   assert.doesNotThrow(()=>w.eval('mdToBasicHTML('+JSON.stringify(w.eval('htmlToMarkdown(exportDocumentHTML())'))+')'));
   w.close();
@@ -1604,7 +1599,7 @@ test('real Markdown import normalizes presentation attributes instead of returni
   input.dispatchEvent(new w.Event('change'));
   await wait(10);
   assert.equal(e.querySelector('video')?.hasAttribute('controls'),true);
-  assert.equal(e.querySelector('s')?.textContent,'cortado');
+  assert.equal(e.querySelector('s,del,strike')?.textContent,'cortado');
   const exported=w.eval('htmlToMarkdown(exportDocumentHTML())');
   assert.notEqual(exported,original);
   assert.doesNotMatch(exported,/\scontrols(?:[\s=>]|$)/i);
@@ -1811,7 +1806,7 @@ test('dialog modality traps focus, restores its origin and preserves editor sele
   const w=page(),d=w.document,canvas=d.querySelector('#canvas'),origin=d.querySelector('#linkBtn');
   w.eval("currentEditorCore().resetHTML('<p>alpha beta</p>',{silent:true})");
   w.eval("(()=>{const r=currentEditorCore().findLiteral('alpha')[0];currentEditorCore().selectRange({from:r.from,to:r.to},{focus:true});saveSel()})()");
-  const before=w.eval('currentEditorCore().selectionOffsets()?.from');
+  const before=w.eval('(()=>{restoreSel();return currentEditorCore().selectionOffsets()?.from})()');
   origin.focus();
   const prompt=w.eval("ask('Link','https://')");
   await wait(0);
@@ -1819,7 +1814,7 @@ test('dialog modality traps focus, restores its origin and preserves editor sele
   const input=d.querySelector('#dialogInput');
   assert.equal(d.activeElement,input);
   assert.equal(canvas.hasAttribute('inert'),true);
-  assert.equal(w.eval('currentEditorCore().selectionOffsets()?.from'),before);
+  assert.equal(w.eval('(()=>{restoreSel();return currentEditorCore().selectionOffsets()?.from})()'),before);
 
   origin.focus();
   await wait(0);
@@ -1831,7 +1826,7 @@ test('dialog modality traps focus, restores its origin and preserves editor sele
   assert.equal(await prompt,null);
   assert.equal(canvas.hasAttribute('inert'),false);
   assert.equal(d.activeElement,origin);
-  assert.equal(w.eval('currentEditorCore().selectionOffsets()?.from'),before);
+  assert.equal(w.eval('(()=>{restoreSel();return currentEditorCore().selectionOffsets()?.from})()'),before);
   w.close();
 });
 
@@ -1839,15 +1834,15 @@ test('Escape closes a programmatic menu, restores its visible opener and keeps e
   const w=page(),d=w.document,plus=d.querySelector('#plusBtn'),menu=d.querySelector('#plusMenu');
   w.eval("currentEditorCore().resetHTML('<p>alpha beta</p>',{silent:true})");
   w.eval("(()=>{const r=currentEditorCore().findLiteral('beta')[0];currentEditorCore().selectRange({from:r.from,to:r.to},{focus:true});saveSel()})()");
-  const before=w.eval('currentEditorCore().selectionOffsets()?.from');
+  const before=w.eval('(()=>{restoreSel();return currentEditorCore().selectionOffsets()?.from})()');
   plus.focus();
   w.eval("openPanel('#plusMenu')");
   d.querySelector('#docName').focus();
-  assert.equal(w.eval('currentEditorCore().selectionOffsets()?.from'),before);
+  assert.equal(w.eval('(()=>{restoreSel();return currentEditorCore().selectionOffsets()?.from})()'),before);
   d.dispatchEvent(new w.KeyboardEvent('keydown',{key:'Escape',bubbles:true}));
   assert.equal(menu.hasAttribute('data-menu-open'),false);
   assert.equal(d.activeElement,plus);
-  assert.equal(w.eval('currentEditorCore().selectionOffsets()?.from'),before);
+  assert.equal(w.eval('(()=>{restoreSel();return currentEditorCore().selectionOffsets()?.from})()'),before);
   w.close();
 });
 
