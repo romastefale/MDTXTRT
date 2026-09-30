@@ -4,11 +4,17 @@ import { REQUIRED_EVOLUTION_POLICY, assertEvolutionPolicy, historicalDivergenceD
 
 const manifest = () => ({ schema: 3, evolutionPolicy: { ...REQUIRED_EVOLUTION_POLICY } });
 
-test('canonical evolution policy accepts current state as replaceable evolution base', () => {
+test('canonical evolution policy permanently keeps every product state mutable and supersedable', () => {
   assert.deepEqual(assertEvolutionPolicy(manifest()), REQUIRED_EVOLUTION_POLICY);
 });
 
 for (const [field, unsafe] of [
+  ['temporalScope', 'current-candidate-only'],
+  ['everyProductStateRemainsMutable', false],
+  ['anyAcceptedStateMayBeSuperseded', false],
+  ['futureCertificationMayFreezeProduct', true],
+  ['changePermissionDependsOnHistoricalState', true],
+  ['evolutionPromotionMayBeBlockedByHistoricalState', true],
   ['historicalStateAuthority', 'normative'],
   ['historicalBehaviorIsNormative', true],
   ['preservationByHistoricalParity', true],
@@ -37,4 +43,15 @@ test('historical equality never creates preservation authority', () => {
   assert.equal(decision.blocksEvolution, false);
   assert.equal(decision.requiresHistoricalPreservation, false);
   assert.equal(decision.meaning, 'comparison-match-only');
+});
+
+
+test('permanent mutability is not scoped to the current candidate', () => {
+  const policy = assertEvolutionPolicy(manifest());
+  assert.equal(policy.temporalScope, 'permanent');
+  assert.equal(policy.everyProductStateRemainsMutable, true);
+  assert.equal(policy.anyAcceptedStateMayBeSuperseded, true);
+  assert.equal(policy.futureCertificationMayFreezeProduct, false);
+  assert.equal(policy.changePermissionDependsOnHistoricalState, false);
+  assert.equal(policy.evolutionPromotionMayBeBlockedByHistoricalState, false);
 });
