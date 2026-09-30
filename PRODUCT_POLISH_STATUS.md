@@ -59,7 +59,7 @@ Compatibilidade histórica de leitura ou endpoints legados explicitamente docume
 
 `RELEASE_VALIDATION.md` e `RELEASE_EVIDENCE_POLICY.md` mantêm, separadamente, um processo opcional de certificação `RELEASE APPROVED` por SHA exato. Esse SHA registra qual estado foi certificado; não é uma âncora imutável, não congela o produto e não limita a evolução seguinte.
 
-Se uma verificação posterior revelar um defeito, isso inicia um novo ciclo de correção contra o SHA então implantado.
+Se uma verificação posterior revelar um defeito, registre o SHA que expôs o problema e corrija a partir do estado corrente do repositório; o SHA histórico não define nem limita a implementação seguinte.
 
 ## Conclusão
 
