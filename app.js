@@ -158,14 +158,8 @@ async function mediaDelete(id){
   db.close();
 }
 function sanitizeDraftRuntimeDOM(box){
-  box.querySelectorAll('.ProseMirror-trailingBreak,.ProseMirror-separator,.ProseMirror-gapcursor').forEach(node=>node.remove());
   for(const el of [...box.querySelectorAll('*')]){
     for(const name of ['contenteditable','draggable','spellcheck','tabindex','aria-selected'])el.removeAttribute(name);
-    for(const attr of [...el.attributes])if(attr.name.startsWith('data-pm-'))el.removeAttribute(attr.name);
-    if(el.hasAttribute('class')){
-      const kept=(el.getAttribute('class')||'').split(/\s+/).filter(Boolean).filter(name=>!name.startsWith('ProseMirror-'));
-      if(kept.length)el.setAttribute('class',kept.join(' '));else el.removeAttribute('class');
-    }
   }
   return box;
 }
@@ -1610,10 +1604,6 @@ function normalizePortableHTML(root,label='conteúdo'){
     if(!PORTABLE_TAGS.has(tag))throw new Error('Elemento '+label+' não suportado: '+tag);
     el.removeAttribute('contenteditable');
     el.removeAttribute('draggable');
-    if(el.hasAttribute('class')){
-      const kept=(el.getAttribute('class')||'').split(/\s+/).filter(Boolean).filter(name=>name!=='ProseMirror-selectednode');
-      if(kept.length)el.setAttribute('class',kept.join(' '));else el.removeAttribute('class');
-    }
     for(const a of [...el.attributes]){
       if(a.name==='controls'&&['video','audio'].includes(tag)){el.removeAttribute(a.name);continue;}
       if(a.name==='disabled'&&tag==='input'&&el.getAttribute('type')==='checkbox'){el.removeAttribute(a.name);continue;}
