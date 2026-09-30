@@ -2,64 +2,47 @@
 
 ## Baseline vigente
 
-O estado de referência visual de trabalho do MDTXTRT é o commit:
+A referência visual vigente do MDTXTRT é:
 
-`1dbbdb2dfaeafbd8ef52cea859611ffa5f6699ad`
+`db6ae2240cbe2792bd7edb1a9c26399f068ea807`
 
-- Data do commit: 2026-09-29.
-- Origem: implementação incremental do PR #107 antes da atualização documental da própria baseline.
-- Finalidade: fornecer um ponto fixo, identificável e reproduzível para comparação técnica e visual depois da introdução do menu de aplicação e da biblioteca integrada de rascunhos/publicações.
-- Design: preserva o baseline Liquid Glass vigente e incorpora apenas as mudanças visuais deliberadas desta evolução: ícone hambúrguer no controle superior, acesso à biblioteca pelo menu, cápsulas de navegação/gerenciamento e cards responsivos.
+- Data de adoção: 2026-09-30.
+- Origem: estado de produção após o PR #116.
+- Motivo: a baseline anterior `1dbbdb2dfaeafbd8ef52cea859611ffa5f6699ad` cobria apenas o shell fechado e deixou de representar a superfície interativa dos menus após a evolução da biblioteca/submenus.
+- Escopo: shell, menu de aplicação, submenu de rascunhos/publicações, menu Plus, submenu Plus/Formatação e estados de menu em viewport reduzido representando teclado aberto, sempre em temas claro e escuro.
 
-## Natureza da baseline
+## Contrato visual vigente
 
-Esta baseline é uma referência de trabalho, não um congelamento do projeto.
+A validação visual não é mais uma captura única do shell. O gate deve comparar, para claro e escuro:
 
-O código pode continuar evoluindo depois desse commit. Correções, refatorações, alterações visuais, mudanças arquiteturais e novas funcionalidades podem ser incorporadas normalmente à `main`. Enquanto esta baseline permanecer vigente, estados posteriores devem ser interpretados como evolução em relação ao commit acima.
+1. shell fechado em 390×844;
+2. menu de aplicação aberto em 390×844;
+3. submenu de rascunhos/publicações aberto em 390×844;
+4. menu Plus aberto em 390×844;
+5. submenu Plus/Formatação aberto em 390×844;
+6. menu de aplicação em viewport reduzido 390×430 com superfície de digitação focada;
+7. submenu de rascunhos/publicações em viewport reduzido 390×430 com superfície de digitação focada.
 
-A existência desta baseline não implica que o commit esteja isento de limitações, nem que seu comportamento deva ser preservado indefinidamente. Ela estabelece um ponto explícito de partida para validação visual futura.
+Cada estado deve ser reproduzido deterministicamente no candidato e no commit de baseline. Divergência em qualquer estado falha o gate.
 
-## Uso
+## Relação com baselines anteriores
 
-Para inspecionar exatamente o estado da baseline:
-
-```bash
-git fetch origin
-git checkout 1dbbdb2dfaeafbd8ef52cea859611ffa5f6699ad
-```
-
-Para comparar um estado posterior com a baseline:
-
-```bash
-git diff 1dbbdb2dfaeafbd8ef52cea859611ffa5f6699ad..HEAD
-```
-
-## Substituição futura
-
-Uma nova baseline somente passa a ser vigente quando houver alteração explícita desta documentação no repositório.
-
-A atualização deve registrar, no mínimo:
-
-1. o SHA completo do novo commit;
-2. a data ou contexto da adoção;
-3. a razão da mudança de referência;
-4. a relação com a baseline anterior.
-
-Até que isso ocorra, `1dbbdb2dfaeafbd8ef52cea859611ffa5f6699ad` permanece sendo a baseline de trabalho documentada.
-
-## Substituição aprovada em 2026-09-29 — menu e biblioteca integrados
-
-A baseline anterior `aac423e012745c7873908ddc4a76371fb8218aa3` permanece imutável como referência histórica do shell translúcido consolidado. O PR #107 introduz uma mudança visual deliberada e localizada: o controle circular superior deixa de representar “exportar” e passa a representar o menu da aplicação, e a biblioteca de rascunhos/publicações ganha navegação e gerenciamento em cápsulas Liquid Glass e cards responsivos.
-
-O commit `1dbbdb2dfaeafbd8ef52cea859611ffa5f6699ad` é o primeiro estado desta implementação que passou a suíte completa de regressão e a verificação de reprodutibilidade dos bundles no runtime contratado. O comparador visual contra `aac423e012745c7873908ddc4a76371fb8218aa3` falha por diferença intencional de superfície; por isso a referência é atualizada explicitamente, em vez de enfraquecer ou remover o gate.
-
-A mudança de baseline não altera a Release Anchor, não certifica testes físicos/externos e não transforma a biblioteca em um novo armazenamento. Ela apenas atualiza a referência visual para a implementação incremental aprovada neste PR.
-
-## Histórico
-
+- `1dbbdb2dfaeafbd8ef52cea859611ffa5f6699ad` — baseline anterior após o PR #107. Permanece como referência histórica, mas não é mais suficiente para validar os menus atuais.
 - `aac423e012745c7873908ddc4a76371fb8218aa3` — shell translúcido consolidado após a etapa 2/6, PR #86.
-- `dde30467ed9b0d108bac2ae7ad9bcac1137c169e` — referência anterior do merge do PR #53.
+- `dde30467ed9b0d108bac2ae7ad9bcac1137c169e` — referência histórica anterior, merge do PR #53.
+
+## Regra de substituição
+
+Uma nova baseline somente passa a ser vigente quando:
+
+1. o SHA completo é registrado neste arquivo;
+2. o workflow e o manifest apontam para o mesmo SHA;
+3. o conjunto de estados visuais cobertos pelo gate é explicitado;
+4. a mudança passa pela suíte de regressão e pelo comparador visual;
+5. a baseline anterior permanece documentada no histórico.
+
+A baseline é um ponto de comparação, não uma declaração de que todo comportamento do commit é permanentemente correto.
 
 ## Relação com a Release Anchor
 
-Esta baseline continua sendo o contrato visual de referência e não é substituída implicitamente pela validação final de release.
+A baseline visual e a Release Anchor continuam sendo contratos distintos. A baseline define referência visual reproduzível; a Release Anchor representa o artefato de release aprovado. Uma não substitui implicitamente a outra.
