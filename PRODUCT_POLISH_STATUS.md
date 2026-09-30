@@ -1,10 +1,19 @@
-# Estado do produto — engenharia concluída
+# Estado do produto
 
-## Estado
+## Estado atual (30/09/2026)
 
-**ENGINEERING DELIVERY COMPLETE**
+**Em evolução: força-tarefa de Liquid Glass em andamento.** A auditoria de 30/09 ([RELATORIO_AUDITORIA.md](RELATORIO_AUDITORIA.md)) mostrou que o produto funciona, mas a interface não entrega o vidro líquido prometido, e a declaração anterior de "engenharia concluída" não valia.
 
-A implementação, correções, auditoria, hardening e automação sob responsabilidade de engenharia estão concluídas.
+- **Fase 0 concluída (#129):** fork `romastefale/liquid-glass` instalado de verdade, testes que congelavam o design removidos e testes em navegador real (Playwright, Chromium e WebKit, 390px e 1280px, claro e escuro).
+- **Correções urgentes concluídas:** o servidor do Railway voltou a entregar o `editor-core.js`, que deixava o Mini App sem editor (#130). A falha ao buscar o rascunho no servidor oferece tentar de novo ou começar outro rascunho sem sobrescrever a cópia (#131). O botão Voltar do Telegram fecha essa escolha sem descartar nada (#132).
+- **Próximo, fase 1:** vidro igual ao do site de referência [romastefale/HTML](https://romastefale.github.io/HTML/), com lentes com refração WebGL 2, material neutro translúcido, aro fino, sem contorno azul, espaçamento uniforme e sem o aviso de retrato. As decisões de interface são tomadas com o proprietário.
+- **Depois, fase 2:** estado dos menus no React, fim da mutação manual de DOM, CSS fora do `index.html` e divisão do `app.js` e do `server.mjs`.
+
+Panfleto do produto, com tutorial e roteiro: [romastefale.github.io/MDTXTRT/produto/](https://romastefale.github.io/MDTXTRT/produto/).
+
+## Histórico da entrega funcional
+
+A entrega funcional anterior terminou nos PRs abaixo. Os invariantes listados continuam valendo.
 
 A cadeia funcional terminou com:
 - PR #101 — fidelidade editor → publicação;
@@ -63,4 +72,4 @@ Se uma verificação posterior revelar um defeito, registre o SHA que expôs o p
 
 ## Conclusão
 
-O estado do produto do ponto de vista de implementação é **ENGINEERING DELIVERY COMPLETE**. Não há funcionalidade, correção, merge ou hardening de código conhecido pendente neste ciclo.
+O comportamento funcional descrito acima está entregue. A interface ainda não está: o trabalho pendente é o da fase 1 e da fase 2 descrito no início deste documento.
