@@ -170,7 +170,19 @@ export function createEditorCore({element,onChange=()=>{},onSelectionChange=()=>
   function handleKeydown(event){
     if(!["Backspace","Delete"].includes(event.key))return false;
     const range=rangeInside(element);
-    if(!range||!range.collapsed)return false;
+    if(!range)return false;
+    if(!range.collapsed){
+      const selected=[...element.querySelectorAll("table,figure,tg-map,tg-collage,tg-slideshow")].filter(node=>{
+        try{return range.intersectsNode(node)&&range.comparePoint(node.parentNode,Array.prototype.indexOf.call(node.parentNode.childNodes,node))<=0&&range.comparePoint(node.parentNode,Array.prototype.indexOf.call(node.parentNode.childNodes,node)+1)>=0;}catch{return false;}
+      });
+      if(selected.length){
+        event.preventDefault();
+        range.deleteContents();
+        changed();notifySelection();
+        return true;
+      }
+      return false;
+    }
     const container=range.startContainer;
     if(container!==element&&container.nodeType!==1)return false;
     const nodes=container===element?element.childNodes:container.childNodes;
