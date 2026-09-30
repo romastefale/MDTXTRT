@@ -556,10 +556,21 @@ function panelOrigin(element){
   const panel=element.closest?.('.glass-menu');
   return panel?(panelAnchor(panel)||element):element;
 }
+function isTypingEntry(element){
+  return Boolean(element&&(element===editor||element.matches?.('textarea,input:not([type=button]):not([type=checkbox]):not([type=file]),[contenteditable="true"]')));
+}
+function typingFocusActive(outsidePanel=null){
+  const active=document.activeElement;
+  return isTypingEntry(active)&&(!outsidePanel||!outsidePanel.contains(active));
+}
 function focusControl(element){
   if(!element||!element.isConnected||typeof element.focus!=='function'||element.hidden||element.disabled)return false;
   try{element.focus({preventScroll:true});}catch{element.focus();}
   return true;
+}
+function focusMenuControl(element,outsidePanel=null){
+  if(typingFocusActive(outsidePanel))return false;
+  return focusControl(element);
 }
 function usableAnchorRect(rect,bounds){
   return Boolean(rect&&(rect.width>0||rect.height>0)&&rect.right>bounds.left&&rect.left<bounds.right&&rect.bottom>bounds.top&&rect.top<bounds.bottom);
@@ -616,7 +627,7 @@ function closePanel(panel,returnFocus=false){
   if(!panel?.matches(':popover-open'))return;
   const target=returnFocus?panelOpeners.get(panel):null;
   panel.hidePopover();
-  if(returnFocus)focusControl(target);
+  if(returnFocus)focusMenuControl(target,panel);
 }
 function togglePanel(sel,anchorOverride=null){
   const panel=one(sel);
@@ -677,7 +688,7 @@ function libraryFocusables(){
   const view=one('#libraryMenu');
   return view?[...view.querySelectorAll('button:not([disabled]):not([hidden]):not([tabindex="-1"]),input:not([disabled]):not([hidden]),textarea:not([disabled]):not([hidden]),select:not([disabled]):not([hidden]),[tabindex]:not([tabindex="-1"])')]:[];
 }
-function focusLibraryStart(){focusControl(one('#libraryClose'));}
+function focusLibraryStart(){return focusMenuControl(one('#libraryClose'));}
 function dialogFocusables(){
   const dialog=one('#dialogMenu');
   return [...dialog.querySelectorAll('button:not([disabled]):not([hidden]),input:not([disabled]):not([hidden]),textarea:not([disabled]):not([hidden]),select:not([disabled]):not([hidden]),[tabindex]:not([tabindex="-1"])')];
@@ -752,7 +763,7 @@ document.addEventListener('focusin',event=>{
   const dialog=one('#dialogMenu');
   if(dialog.matches(':popover-open')&&!dialog.contains(event.target)){queueMicrotask(()=>focusDialogStart(false));return;}
   const menu=one('#libraryMenu');
-  if(librarySubmenuOpen()&&!menu.contains(event.target))queueMicrotask(focusLibraryStart);
+  if(librarySubmenuOpen()&&!menu.contains(event.target)&&!isTypingEntry(event.target))queueMicrotask(focusLibraryStart);
 });
 for(const sel of sheets){
   one(sel).addEventListener('toggle',event=>{
@@ -1387,7 +1398,7 @@ function closeLibrary(){
   setPublicationsExpanded(true);
   openPanel('#exportMenu',one('#exportBtn'));
   syncBackButton();
-  queueMicrotask(()=>focusControl(one('#libraryBtn')));
+  queueMicrotask(()=>focusMenuControl(one('#libraryBtn')));
 }
 function dismissLibraryMenu(){
   const menu=one('#libraryMenu');
@@ -1658,9 +1669,7 @@ function syncEditorSelectionUI(){
 }
 document.addEventListener('selectionchange',syncEditorSelectionUI);
 document.addEventListener('pointerdown',event=>{
-  const active=document.activeElement;
-  const textEntry=active===editor||active?.matches?.('textarea,input:not([type=button]):not([type=checkbox]):not([type=file]),[contenteditable="true"]');
-  if(!textEntry)return;
+  if(!typingFocusActive())return;
   const control=event.target?.closest?.('#ux-root button,#ux-root [role="button"],#ux-root a[href]');
   if(control&&!control.disabled)event.preventDefault();
 },true);
@@ -1879,8 +1888,7 @@ fileInput.addEventListener('change', async ()=>{
 });
 let viewportFrame=0,inset=0;
 function keyboardTarget(){
-  const active=document.activeElement;
-  return active===editor||active===docName||active===one('#dialogInput')||active===one('#findText')||active===one('#replaceText');
+  return typingFocusActive();
 }
 function syncBrowserViewport(){
   const root=document.documentElement,viewport=window.visualViewport,bounds=visualViewportBounds();
