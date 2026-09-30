@@ -8,7 +8,8 @@
     "build": "npm run build:editor && npm run build:ui",
     "build:editor": "esbuild src/editor-core.mjs --bundle --format=iife --global-name=MDTXTRTEditorCore --platform=browser --target=es2022 --minify --legal-comments=eof --outfile=editor-core.js",
     "build:ui": "esbuild src/liquid-glass-ui.jsx --bundle --format=esm --platform=browser --target=es2022 --define:process.env.NODE_ENV='\"production\"' --minify-syntax --minify-whitespace --legal-comments=eof --outfile=ui.js",
-    "verify:evolution-policy": "node scripts/verify-baseline-policy.mjs"
+    "verify:evolution-policy": "node scripts/verify-baseline-policy.mjs",
+    "compare:historical-visual": "node scripts/verify-visual-baseline.mjs"
   },
   "engines": {
     "node": "24.21.0"
