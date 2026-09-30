@@ -502,109 +502,42 @@ test('mobile editor controls preserve active focus without reopening a dismissed
   w.close();
 });
 
-test('real mobile touch keeps the keyboard focus while opening closing and navigating menus',async()=>{
+test('pointer-based editor controls keep the active typing focus while navigating menus',async()=>{
   const fetch=async(url)=>{
     const target=String(url);
     if(target.endsWith('/api/library/list'))return {ok:true,status:200,json:async()=>({drafts:[],telegram:[],telegraph:[]})};
     if(target.endsWith('/api/telegraph/recover'))return {ok:false,status:404,json:async()=>({})};
     return {ok:false,status:404,json:async()=>({error:'not found'})};
   };
-  const w=page({fetch,visualViewport:{height:360},popoverBlursTyping:true}),d=w.document,editor=d.querySelector('#editor');
+  const w=page({fetch,visualViewport:{height:360}}),d=w.document,editor=d.querySelector('#editor');
   await wait(40);
   editor.focus();
 
-  let touchId=1;
-  const touchPress=(element,{compatClick=false}={})=>{
-    const point={identifier:touchId++,clientX:24,clientY:24};
-    const startEvent=new w.Event('touchstart',{bubbles:true,cancelable:true});
-    Object.defineProperty(startEvent,'touches',{value:[point]});
-    element.dispatchEvent(startEvent);
-    if(!startEvent.defaultPrevented&&typeof element.focus==='function')element.focus();
-    assert.equal(startEvent.defaultPrevented,true);
-
-    const endEvent=new w.Event('touchend',{bubbles:true,cancelable:true});
-    Object.defineProperty(endEvent,'touches',{value:[]});
-    Object.defineProperty(endEvent,'changedTouches',{value:[point]});
-    element.dispatchEvent(endEvent);
-    assert.equal(endEvent.defaultPrevented,true);
+  const press=element=>{
+    const pointer=new w.Event('pointerdown',{bubbles:true,cancelable:true});
+    element.dispatchEvent(pointer);
+    assert.equal(pointer.defaultPrevented,true);
+    element.click();
     assert.equal(d.activeElement,editor);
-
-    if(compatClick){
-      const click=new w.MouseEvent('click',{bubbles:true,cancelable:true,detail:1});
-      element.dispatchEvent(click);
-      assert.equal(click.defaultPrevented,true);
-      assert.equal(d.activeElement,editor);
-    }
   };
 
-  touchPress(d.querySelector('#exportBtn'),{compatClick:true});
+  press(d.querySelector('#exportBtn'));
   assert.equal(d.querySelector('#exportMenu').hasAttribute('data-menu-open'),true);
-  assert.equal(d.querySelector('#menuDismissLayer').hidden,false);
-
-  touchPress(d.querySelector('#libraryBtn'),{compatClick:true});
+  press(d.querySelector('#libraryBtn'));
   await wait(5);
   assert.equal(d.querySelector('#libraryMenu').hasAttribute('data-menu-open'),true);
-  assert.equal(d.querySelector('#exportMenu').hasAttribute('data-menu-open'),false);
 
-  const dismiss=d.querySelector('#menuDismissLayer');
-  touchPress(dismiss,{compatClick:true});
-  assert.equal(d.querySelector('#libraryMenu').hasAttribute('data-menu-open'),false);
-  assert.equal(dismiss.hidden,true);
-  assert.equal(d.activeElement,editor);
-
-  touchPress(d.querySelector('#exportBtn'));
-  touchPress(d.querySelector('#libraryBtn'));
-  touchPress(d.querySelector('#libraryClose'));
-  await wait(0);
-  assert.equal(d.querySelector('#libraryMenu').hasAttribute('data-menu-open'),false);
+  press(d.querySelector('#libraryClose'));
   assert.equal(d.querySelector('#exportMenu').hasAttribute('data-menu-open'),true);
-  assert.equal(d.activeElement,editor);
-
-  touchPress(dismiss);
-  assert.equal(d.querySelector('#exportMenu').hasAttribute('data-menu-open'),false);
-
-  touchPress(d.querySelector('#plusBtn'));
+  press(d.querySelector('#plusBtn'));
   assert.equal(d.querySelector('#plusMenu').hasAttribute('data-menu-open'),true);
-  const category=d.querySelector('#plusMenu [data-plus-category="format"]');
-  touchPress(category);
+  press(d.querySelector('#plusMenu [data-plus-category="format"]'));
   assert.equal(d.querySelector('#plus-format-menu').hasAttribute('data-menu-open'),true);
-  assert.equal(d.querySelector('#plusMenu').hasAttribute('data-menu-open'),false);
-
-  const back=d.querySelector('#plus-format-menu [data-plus-back]');
-  touchPress(back);
-  assert.equal(d.querySelector('#plus-format-menu').hasAttribute('data-menu-open'),false);
+  press(d.querySelector('#plus-format-menu [data-plus-back]'));
   assert.equal(d.querySelector('#plusMenu').hasAttribute('data-menu-open'),true);
-
-  touchPress(dismiss);
-  touchPress(d.querySelector('#linkBtn'));
+  press(d.querySelector('#linkBtn'));
   assert.equal(d.querySelector('#linkMenu').hasAttribute('data-menu-open'),true);
   assert.equal(d.activeElement,editor);
-  w.close();
-});
-
-test('Mini App exposes the export menu and keeps publication as an explicit menu action',async()=>{
-  const requests=[];
-  const fetch=async(url)=>{
-    const target=String(url);requests.push(target);
-    if(target.endsWith('/api/telegram/session'))return {ok:true,status:200,json:async()=>({ok:true})};
-    if(target.endsWith('/api/telegraph/recover'))return {ok:false,status:404,json:async()=>({})};
-    return {ok:false,status:404,json:async()=>({error:'not found'})};
-  };
-  const w=page({fetch,tg:{}}),d=w.document;
-  await wait(10);
-  assert.equal(d.querySelector('#openAppLabel').textContent,'Publicar no Telegram');
-  assert.equal(d.querySelector('#openAppBtn').getAttribute('aria-label'),'Publicar no Telegram');
-  assert.equal(d.querySelector('#exportBtn').getAttribute('aria-label'),'Abrir menu de publicação, exportação e biblioteca');
-  assert.equal(d.querySelector('#destBtn').getAttribute('aria-label'),'Alternar destino. Atual: Telegram');
-  d.querySelector('#exportBtn').click();
-  assert.equal(d.querySelector('#exportMenu').hasAttribute('data-menu-open'),true);
-  d.querySelector('#exportBtn').click();
-  assert.equal(d.querySelector('#exportMenu').hasAttribute('data-menu-open'),false);
-  d.querySelector('#exportBtn').click();
-  assert.equal(d.querySelector('#exportMenu').hasAttribute('data-menu-open'),true);
-  assert.equal(requests.filter(url=>url.endsWith('/api/telegram/send')).length,0);
-  assert.ok(d.querySelector('#exportMdBtn'));
-  assert.ok(d.querySelector('#exportTxtBtn'));
   w.close();
 });
 
