@@ -173,7 +173,7 @@ export function createEditorCore({element,onChange=()=>{},onSelectionChange=()=>
     range.deleteContents();range.collapse(true);
     const selection=element.ownerDocument.getSelection?.();
     selection?.removeAllRanges();selection?.addRange(range);
-    changed();notifySelection();
+    if(!structure.normalizeEmptyFormattedBlock(event.inputType)){changed();notifySelection();}
     return true;
   }
 
