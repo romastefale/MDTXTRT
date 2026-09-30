@@ -32,7 +32,7 @@ Para agentes/assistentes: não use a baseline, `main`, testes antigos ou um PASS
 - [GAP_ANALYSIS.md](GAP_ANALYSIS.md): análise formal de lacunas e bloqueios de liberação.
 - [RELEASE_VALIDATION.md](RELEASE_VALIDATION.md): gates automatizados, externos e físicos obrigatórios.
 - [RELEASE_EVIDENCE_TEMPLATE.md](RELEASE_EVIDENCE_TEMPLATE.md): registro auditável das evidências.
-- [RELEASE_ANCHOR.md](RELEASE_ANCHOR.md): política de evidência histórica por SHA, sem autoridade para congelar a evolução.
+- [RELEASE_EVIDENCE_POLICY.md](RELEASE_EVIDENCE_POLICY.md): política de evidência histórica por SHA, sem autoridade para congelar a evolução.
 - [RELEASE_MANIFEST.json](RELEASE_MANIFEST.json): linhagem executável das seis etapas de implementação e requisitos da Etapa 7/7.
 - [OWNER_ACCEPTANCE.md](OWNER_ACCEPTANCE.md): testes físicos/externos pós-entrega reservados ao proprietário.
 
