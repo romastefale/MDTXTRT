@@ -133,7 +133,7 @@ For every row record menu/dialog reachability, bottom-bar clearance, internal sc
 | explicit Telegram rejection |  | failed/explicit retry only |  |  |  |
 | stale persistent draft revision |  | reject stale overwrite |  |  |  |
 
-## Visual comparison snapshot review
+## Optional historical visual diagnostic
 
 - Optional historical comparison SHA: record only when a deliberate historical visual diagnostic was performed
 - Candidate/release-evidence SHA:
@@ -141,7 +141,7 @@ For every row record menu/dialog reachability, bottom-bar clearance, internal sc
 - Dark mode evidence:
 - Menus/dialogs evidence:
 - Title-label evidence:
-- Notes on intentional divergence from the comparison snapshot:
+- Diagnostic notes (if performed):
 - PASS/FAIL:
 
 ## Rollback
