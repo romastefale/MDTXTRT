@@ -1,11 +1,11 @@
 import { execFileSync } from 'node:child_process';
 
 const fail=message=>{throw new Error(message);};
-const anchor=(process.env.RELEASE_EVIDENCE_SHA||'').trim();
+const evidenceSha=(process.env.RELEASE_EVIDENCE_SHA||'').trim();
 const token=(process.env.GITHUB_TOKEN||'').trim();
 const head=execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim();
-if(!/^[a-f0-9]{40}$/.test(anchor))fail('Release evidence SHA ausente ou inválido');
-if(head!==anchor)fail(`Workflow executado em ${head}, mas o Release evidence SHA informado é ${anchor}`);
+if(!/^[a-f0-9]{40}$/.test(evidenceSha))fail('Release evidence SHA ausente ou inválido');
+if(head!==evidenceSha)fail(`Workflow executado em ${head}, mas o Release evidence SHA informado é ${evidenceSha}`);
 if(!token)fail('GITHUB_TOKEN ausente; não é possível auditar o registro de evidências');
 
 const fields=[
@@ -62,7 +62,7 @@ function tableRow(label){
   return line.split('|').slice(1,-1).map(cell=>cell.trim());
 }
 
-if(!body.includes(anchor))fail('O registro de evidências não referencia o Release evidence SHA exato');
+if(!body.includes(evidenceSha))fail('O registro de evidências não referencia o Release evidence SHA exato');
 if(requireValue('Final status').toUpperCase()!=='RELEASE APPROVED')fail('Registro de evidências não está em RELEASE APPROVED');
 
 for(const label of [
@@ -108,7 +108,7 @@ requireYes('Reload/reopen duplicate check');
 requireYes('Cross-owner/document binding isolation');
 requireYes('Persistent volume retained');
 requireYes('Persistent draft still recoverable after rollback');
-if(!requireValue('Candidate deployment ID/SHA').includes(anchor))fail('Candidate deployment ID/SHA deve conter o Release evidence SHA exato');
+if(!requireValue('Candidate deployment ID/SHA').includes(evidenceSha))fail('Candidate deployment ID/SHA deve conter o Release evidence SHA exato');
 
 for(const label of [
   'iOS browser','iOS PWA','iOS Telegram Mini App',
@@ -154,7 +154,7 @@ for(const label of faultLabels){
 
 console.log(JSON.stringify({
   ok:true,
-  releaseAnchor:anchor,
+  releaseEvidenceSha:evidenceSha,
   certification:'RELEASE APPROVED',
   auditedReferences:[...new Set(Object.values(refs))],
   physicalRows:6,
