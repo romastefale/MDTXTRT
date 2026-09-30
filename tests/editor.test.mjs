@@ -276,7 +276,7 @@ test('novo launch archives an unreadable draft byte-for-byte before replacing th
 test('novo preserves archived attachment records when the new document stores another attachment',async()=>{
   const token='c'.repeat(32),db=memoryIndexedDB(),oldMedia='oldmedia',oldDoc='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
   db.rows.set(oldMedia,{id:oldMedia,file:{},kind:'image',name:'old.png',type:'image/png',lastModified:0});
-  const raw=JSON.stringify({version:2,name:'Com mídia',html:'<figure><img data-media-id="'+oldMedia+'"><figcaption>old.png</figcaption></figure>',dest:'telegram',telegraphPath:'',docId:oldDoc,revision:1,importedMd:'',importedTxt:'',importedHtml:'',media:{id:oldMedia,kind:'image'}});
+  const raw=JSON.stringify({version:2,name:'Com mídia',html:'<figure><img data-media-id="'+oldMedia+'"><figcaption>old.png</figcaption></figure>',dest:'telegram',telegraphPath:'',docId:oldDoc,revision:1,importedMd:'',importedTxt:'',importedHtml:'',media:[{id:oldMedia,kind:'image'}]});
   const w=page({url:'https://mdtxtrt.example/?new='+token,local:{rmdtxtml:raw},indexedDB:db}),d=w.document;
   await wait(5);
   const mediaInput=d.querySelector('#mediaInput');
@@ -1328,7 +1328,7 @@ test('bot import handoff preserves the active local document before opening the 
   const fetch=async(url,options={})=>{
     const target=String(url);requests.push({url:target,options});
     if(target.endsWith('/api/telegram/session'))return {ok:true,status:200,json:async()=>({ok:true})};
-    if(target.endsWith('/api/handoff/claim'))return {ok:true,status:200,json:async()=>({draft:imported,file:null,purpose:'import',action:null})};
+    if(target.endsWith('/api/handoff/claim'))return {ok:true,status:200,json:async()=>({draft:imported,files:[],purpose:'import',action:null})};
     return {ok:false,status:404,json:async()=>({error:'not found'})};
   };
   const w=page({fetch,tg:{initData},local:{rmdtxtml:previous}}),d=w.document;
