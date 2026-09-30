@@ -90,7 +90,9 @@ test('repository contains no legacy freeze-policy tokens', () => {
     ['stage','ancestry'].join('-'),
     ['final immutable Release','Anchor'].join(' '),
     ['Normative visual','baseline'].join(' '),
-    ['approved visual','baseline'].join(' ')
+    ['approved visual','baseline'].join(' '),
+    ['RELEASE','ANCHOR.md'].join('_'),
+    ['Release','Anchor'].join(' ')
   ];
   const skip = new Set(['node_modules','.git','.historical-visual-comparison']);
   const files = [];
