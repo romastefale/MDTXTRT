@@ -1565,9 +1565,16 @@ function htmlToText(html){
   };
   return Array.from(d.childNodes).map(read).join('').replace(/^\n+|\n+$/g,'').replace(/\n{3,}/g,'\n\n');
 }
-function txtLosesStructure(){return Boolean(editor.querySelector('h1,h2,h3,h4,h5,h6,strong,b,em,i,u,ins,s,strike,del,code,mark,sub,sup,tg-spoiler,tg-reference,tg-emoji,tg-time,tg-math,tg-math-block,hr,ul,ol,li,blockquote,aside,footer,table,details,summary,a[href],figure,figcaption,input'))||Boolean(editor.querySelector('.tg-footer,blockquote[expandable]'));}
-function conversionWarning(format){
-  if(format==='txt'&&txtLosesStructure())return 'TXT preserva apenas texto simples. Formatação, links e estrutura detectados serão perdidos. Exportar mesmo assim?';
+function txtLosesStructure(html=''){
+  let root=editor;
+  if(html){
+    root=document.createElement('div');
+    root.innerHTML=html;
+  }
+  return Boolean(root.querySelector('h1,h2,h3,h4,h5,h6,strong,b,em,i,u,ins,s,strike,del,code,mark,sub,sup,tg-spoiler,tg-reference,tg-emoji,tg-time,tg-math,tg-math-block,hr,ul,ol,li,blockquote,aside,footer,table,details,summary,a[href],figure,figcaption,input'))||Boolean(root.querySelector('.tg-footer,blockquote[expandable]'));
+}
+function conversionWarning(format,html=''){
+  if(format==='txt'&&txtLosesStructure(html))return 'TXT preserva apenas texto simples. Formatação, links e estrutura detectados serão perdidos. Exportar mesmo assim?';
   return '';
 }
 const PORTABLE_TAGS=new Set('a b strong i em u ins s strike del code mark sub sup tg-spoiler tg-reference tg-emoji tg-time tg-math h1 h2 h3 h4 h5 h6 p pre footer hr ul ol li input blockquote aside cite img video audio tg-document figure figcaption iframe tg-map tg-collage tg-slideshow table caption thead tbody tfoot tr th td details summary tg-math-block tg-button tg-button-row br div'.split(' '));
@@ -1954,9 +1961,9 @@ async function exportFile(format) {
   try {
     const contract=FORMAT_CONTRACT.files[format];
     if(!contract?.export)throw new Error('Formato de exportação inválido');
-    const warning=conversionWarning(format);
-    if(warning&&!await approve(warning))return;
     const html=exportDocumentHTML();
+    const warning=conversionWarning(format,html);
+    if(warning&&!await approve(warning))return;
     let content, type, ext;
     if (format === "md") {
       content = htmlToMarkdown(html);
