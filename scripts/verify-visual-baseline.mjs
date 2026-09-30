@@ -4,8 +4,10 @@ import { resolve, join, extname, sep } from 'node:path';
 import { tmpdir } from 'node:os';
 import { execFileSync, spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
+import { assertEvolutionPolicy, historicalDivergenceDecision } from './evolution-policy.mjs';
 
 const releaseManifest=JSON.parse(readFileSync(new URL('../RELEASE_MANIFEST.json',import.meta.url),'utf8'));
+assertEvolutionPolicy(releaseManifest);
 const comparisonSha=process.env.VISUAL_COMPARISON_SHA||releaseManifest.visualComparisonSnapshot;
 if(!/^[a-f0-9]{40}$/.test(comparisonSha))throw new Error('VISUAL_COMPARISON_SHA inválido');
 
@@ -114,12 +116,14 @@ try{
   }
   writeFileSync(join(outDir,'summary.json'),JSON.stringify({viewport:'390x844@1x',comparisons:summaries},null,2)+'\n');
   console.log(JSON.stringify(summaries,null,2));
-  const divergent=summaries.filter(item=>!item.identical);
+  const decisions=summaries.map(item=>({...item,decision:historicalDivergenceDecision({identical:item.identical})}));
+  writeFileSync(join(outDir,'policy-decisions.json'),JSON.stringify(decisions,null,2)+'\n');
+  const divergent=decisions.filter(item=>!item.identical);
   if(divergent.length){
     const themes=divergent.map(item=>item.theme).join(', ');
-    console.warn('VISUAL EVOLUTION REVIEW: o candidato divergiu do snapshot histórico de comparação em: '+themes+'. A divergência nunca é falha por si só e nunca exige preservação do estado antigo. Avalie apenas contra requisitos e contratos intencionais atuais; quando aceita, o estado corrente segue como base da próxima evolução.');
+    console.warn('VISUAL EVOLUTION REVIEW: divergência histórica em '+themes+'. Decisão codificada: não bloqueia evolução e não exige preservação; avalie contra requisitos e contratos atuais.');
   } else {
-    console.log('O candidato coincide visualmente com o snapshot histórico de comparação; isso é apenas evidência comparativa, não requisito de preservação.');
+    console.log('Comparação histórica coincide; decisão codificada: coincidência não cria obrigação de preservação.');
   }
 }finally{
   if(candidateServer)await close(candidateServer).catch(()=>{});
