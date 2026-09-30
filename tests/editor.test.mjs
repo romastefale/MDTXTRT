@@ -1830,7 +1830,7 @@ test('dialog modality traps focus, restores its origin and preserves editor sele
   w.close();
 });
 
-test('Escape closes a programmatic menu, restores its visible opener and keeps editor selection',()=>{
+test('Escape closes a programmatic menu without stealing active editor focus or selection',()=>{
   const w=page(),d=w.document,plus=d.querySelector('#plusBtn'),menu=d.querySelector('#plusMenu');
   w.eval("currentEditorCore().resetHTML('<p>alpha beta</p>',{silent:true})");
   w.eval("(()=>{const r=currentEditorCore().findLiteral('beta')[0];currentEditorCore().selectRange({from:r.from,to:r.to},{focus:true});saveSel()})()");
@@ -1841,7 +1841,7 @@ test('Escape closes a programmatic menu, restores its visible opener and keeps e
   assert.equal(w.eval('(()=>{restoreSel();return currentEditorCore().selectionOffsets()?.from})()'),before);
   d.dispatchEvent(new w.KeyboardEvent('keydown',{key:'Escape',bubbles:true}));
   assert.equal(menu.hasAttribute('data-menu-open'),false);
-  assert.equal(d.activeElement,plus);
+  assert.equal(d.activeElement,d.querySelector('#editor'));
   assert.equal(w.eval('(()=>{restoreSel();return currentEditorCore().selectionOffsets()?.from})()'),before);
   w.close();
 });
