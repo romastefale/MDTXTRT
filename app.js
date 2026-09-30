@@ -1244,6 +1244,28 @@ function consumeLibraryView(){
   }catch{}
   return value;
 }
+function consumeLaunchDocument(){
+  let value='';
+  try{value=new URL(location.href).searchParams.get('doc')||'';}catch{}
+  if(!/^[a-f0-9-]{36}$/i.test(value))return '';
+  try{
+    const url=new URL(location.href);
+    url.searchParams.delete('doc');
+    history.replaceState(history.state,'',url.href);
+  }catch{}
+  return value.toLowerCase();
+}
+function consumeLaunchDestination(){
+  let value='';
+  try{value=new URL(location.href).searchParams.get('dest')||'';}catch{}
+  if(!['telegram','telegraph'].includes(value))return '';
+  try{
+    const url=new URL(location.href);
+    url.searchParams.delete('dest');
+    history.replaceState(history.state,'',url.href);
+  }catch{}
+  return value;
+}
 function libraryTime(value){
   if(!Number.isFinite(value)||value<=0)return '';
   try{return new Date(value).toLocaleString();}catch{return '';}
@@ -2023,6 +2045,8 @@ function boot(){
 
   let notice='',createdNew=false,preservedPrevious=false,loadedLocal=false;
   const requestedView=consumeLibraryView();
+  const requestedDoc=consumeLaunchDocument();
+  const requestedDest=consumeLaunchDestination();
   const newToken=consumeNewDocumentToken();
   if(newToken){
     try{preservedPrevious=startRequestedNewDocument(newToken);createdNew=true;}
@@ -2064,6 +2088,15 @@ function boot(){
       }
       await restoreMedia();
       await verifyTelegram();
+      if(requestedDoc){
+        const loaded=await loadRemoteDraft(requestedDoc);
+        if(!loaded)throw new Error('O rascunho selecionado não foi encontrado para esta conta Telegram');
+        showToast('Rascunho aberto');
+      }
+      if(requestedDest){
+        setDestination(requestedDest,true,false);
+        showToast('Destino: '+(requestedDest==='telegraph'?'Telegraph':'Telegram'));
+      }
       if(requestedView)openLibrary(requestedView);
     }catch(err){showToast(err.message||'Não foi possível restaurar o documento');}
   })();
