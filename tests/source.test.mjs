@@ -476,7 +476,8 @@ test('UI preserves compact portrait contract, unified chrome scale and anchored 
   assert.match(html,/\.bar > button\.more\{color:#fff;background:var\(--accent\);box-shadow:0 4px 20px color-mix\(in oklab,var\(--accent\) 70%,transparent\)\}/);
   assert.match(src,/className="theme-switch" id="themeBtn"/);
   assert.match(src,/<span className="app-title">MDTXTRT<\/span>/);
-  assert.match(src,/id="plusBtn"[\s\S]*popoverTarget="plusMenu"/);
+  assert.match(src,/id="plusBtn"[\s\S]*aria-haspopup="menu"/);
+  assert.doesNotMatch(src,/popoverTarget=/);
   const typebar=src.slice(src.indexOf('<GlassControl className="bar"'),src.indexOf('</GlassControl>',src.indexOf('<GlassControl className="bar"')));
   assert.ok(typebar.indexOf('id="plusBtn"')<typebar.indexOf('data-cmd="bold"'));
   for(const pair of [['headingMenu','headingBtn'],['listMenu','listBtn'],['quoteMenu','quoteBtn'],['plusMenu','plusBtn'],['exportMenu','exportBtn']]){
@@ -510,7 +511,7 @@ test('plus menu keeps normative compact geometry and opens categorized submenus 
   assert.match(app,/const plusSubmenus=\['#plus-file-menu','#plus-format-menu','#plus-structure-menu','#plus-media-menu','#plus-interaction-menu'\]/);
   assert.match(app,/function openPlusSubmenu\(key\)/);
   assert.match(app,/function openPlusRoot\(\)/);
-  assert.match(app,/plusSubmenus\.some\(sel=>one\(sel\)\.matches\(':popover-open'\)\)/);
+  assert.match(app,/plusSubmenus\.some\(sel=>panelIsOpen\(one\(sel\)\)\)/);
   assert.match(html,/--menu-w:210px/);
   assert.match(html,/--menu-row-h:24px/);
   assert.match(html,/--menu-radius:9px/);
@@ -519,13 +520,22 @@ test('plus menu keeps normative compact geometry and opens categorized submenus 
 });
 
 
-test('editorial pointer retention has one owner and menu navigation preserves active typing focus',()=>{
-  const html=read('index.html'),app=read('app.js');
+test('editorial pointer retention has one owner and standard menus never depend on native popover focus',()=>{
+  const html=read('index.html'),app=read('app.js'),src=uiSource();
   assert.doesNotMatch(html,/keyboardPolicyReady|applyThemeWithoutReload|interactionFocus/);
   assert.match(app,/function isTypingEntry\(element\)[\s\S]*?\[contenteditable="true"\]/);
   assert.match(app,/function typingFocusActive\(outsidePanel=null\)[\s\S]*?isTypingEntry\(active\)&&\(!outsidePanel\|\|!outsidePanel\.contains\(active\)\)/);
   assert.match(app,/function focusMenuControl\(element,outsidePanel=null\)[\s\S]*?if\(typingFocusActive\(outsidePanel\)\)return false;[\s\S]*?focusControl\(element\)/);
   assert.match(app,/document\.addEventListener\('pointerdown',event=>\{[\s\S]*?if\(!typingFocusActive\(\)\)return;[\s\S]*?if\(control&&!control\.disabled\)event\.preventDefault\(\);[\s\S]*?\},true\)/);
+  assert.match(app,/function panelIsOpen\(panel\)[\s\S]*?data-menu-open/);
+  assert.match(app,/function openPanel\(sel,anchorOverride=null\)[\s\S]*?panel\.setAttribute\('data-menu-open',''\)/);
+  assert.match(app,/function closePanel\(panel,returnFocus=false\)[\s\S]*?panel\.removeAttribute\('data-menu-open'\)/);
+  assert.match(app,/menuDismissLayer\?\.addEventListener\('pointerdown'[\s\S]*?event\.preventDefault\(\)/);
+  assert.match(app,/menuDismissLayer\?\.addEventListener\('click'[\s\S]*?closePanels\(\)/);
+  assert.match(src,/id="menuDismissLayer" className="menu-dismiss-layer" hidden/);
+  assert.doesNotMatch(src,/popoverTarget=/);
+  assert.match(src,/popover = null/);
+  assert.match(src,/popover=\{popover \|\| undefined\}/);
   assert.match(app,/if\(returnFocus\)focusMenuControl\(target,panel\)/);
   assert.match(app,/function focusLibraryStart\(\)\{return focusMenuControl\(one\('#libraryClose'\)\);\}/);
   assert.match(app,/librarySubmenuOpen\(\)&&!menu\.contains\(event\.target\)&&!isTypingEntry\(event\.target\)/);
@@ -731,8 +741,10 @@ test('step 6 persists drafts on the Railway volume, binds Telegram publication p
   assert.match(html,/\.library-menu-list\{gap:0\}/);
   assert.match(html,/\.library-entry\{[\s\S]*?background:var\(--glass-field-soft\)[\s\S]*?box-shadow:none/);
   assert.match(html,/\.library-entry>button:hover,.library-entry>button:focus-visible\{background:var\(--accent\);color:#fff\}/);
-  assert.match(app,/function librarySubmenuOpen\(\)[\s\S]*?one\('#libraryMenu'\)/);
+  assert.match(app,/function librarySubmenuOpen\(\)[\s\S]*?panelIsOpen\(one\('#libraryMenu'\)\)/);
   assert.match(app,/function togglePanel\(sel,anchorOverride=null\)/);
+  assert.match(html,/\.menu-dismiss-layer\{[\s\S]*?position:fixed[\s\S]*?z-index:39/);
+  assert.match(html,/\.glass-menu\[data-menu-open\],\.glass-menu\[popover\]:popover-open/);
   assert.match(app,/function setPublicationsExpanded\(expanded\)/);
   assert.doesNotMatch(app,/function setLibraryView\(open\)/);
   assert.doesNotMatch(app,/const libraryMode=/);

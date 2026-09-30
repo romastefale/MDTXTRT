@@ -9,6 +9,7 @@ if(!toast||!toastTextHost)throw new Error('Interface React incompleta: toast');
 const toastText = document.createTextNode('');
 toastTextHost.append(toastText);
 const fileInput = one('#fileInput');
+const menuDismissLayer = one('#menuDismissLayer');
 const STATE_VERSION=2;
 const FORMAT_CONTRACT=Object.freeze({
   files:Object.freeze({
@@ -503,11 +504,16 @@ function setDestination(value, notify=true, persist=true){
   if(persist)saveLocal();
   if(notify) showToast('Destino: ' + name);
 }
+function panelIsOpen(panel){
+  if(!panel)return false;
+  if(panel.hasAttribute('data-menu-open'))return true;
+  return panel.hasAttribute('popover')&&panel.matches(':popover-open');
+}
 function librarySubmenuOpen(){
-  return Boolean(one('#libraryMenu')?.matches(':popover-open'));
+  return panelIsOpen(one('#libraryMenu'));
 }
 function hasOpenLayer(){
-  return one('#dialogMenu').matches(':popover-open')||sheets.some(sel=>one(sel).matches(':popover-open'));
+  return panelIsOpen(one('#dialogMenu'))||sheets.some(sel=>panelIsOpen(one(sel)));
 }
 function syncBackButton(){
   if(session!=='ready')return;
@@ -516,9 +522,9 @@ function syncBackButton(){
 }
 function closeTopLayer(){
   const dialog=one('#dialogMenu');
-  if(dialog.matches(':popover-open')){finishDialog(dialogConfirm?false:null);return;}
+  if(panelIsOpen(dialog)){finishDialog(dialogConfirm?false:null);return;}
   if(librarySubmenuOpen()){closeLibrary();return;}
-  const sel=sheets.find(name=>one(name).matches(':popover-open'));
+  const sel=sheets.find(name=>panelIsOpen(one(name)));
   if(sel)closePanel(one(sel),true);
 }
 function clamp(value,min,max){return Math.max(min,Math.min(max,value));}
@@ -612,27 +618,69 @@ function placePanel(panel,anchorRect=null){
   panel.style.setProperty('--menu-left',left+'px');
   panel.style.setProperty('--menu-top',clamp(proposed,minTop,maxTop)+'px');
 }
+function syncMenuDismissLayer(){
+  if(!menuDismissLayer)return;
+  menuDismissLayer.hidden=!sheets.some(sel=>panelIsOpen(one(sel)));
+}
+function setMenuPanelOpen(panel,open){
+  if(!panel)return;
+  const next=Boolean(open);
+  if(next===panel.hasAttribute('data-menu-open'))return;
+  const anchor=panelAnchor(panel);
+  if(next){
+    panel.setAttribute('data-menu-open','');
+    const list=panel.querySelector('.menu-list');
+    if(list)list.scrollTop=0;
+    placePanel(panel);
+  }else{
+    panel.removeAttribute('data-menu-open');
+    panelAnchors.delete(panel);
+  }
+  if(anchor)anchor.setAttribute('aria-expanded',String(next));
+  syncMenuDismissLayer();
+  syncBackButton();
+  document.dispatchEvent(new Event('selectionchange'));
+}
+function closePanels(except=null){
+  for(const sel of sheets){
+    const panel=one(sel);
+    if(panel!==except&&panelIsOpen(panel))setMenuPanelOpen(panel,false);
+  }
+}
 function openPanel(sel,anchorOverride=null){
   const panel=one(sel);
   if(!panel)throw new Error('Painel indisponível: '+sel);
   saveSel();
+  closePanels(panel);
   if(anchorOverride)panelAnchors.set(panel,anchorOverride);else panelAnchors.delete(panel);
   const anchor=panelAnchor(panel);
   panelOpeners.set(panel,panelOrigin(anchor||document.activeElement));
   const anchorRect=anchor?.getBoundingClientRect()||null;
-  panel.showPopover();
+  panel.setAttribute('data-menu-open','');
+  const list=panel.querySelector('.menu-list');
+  if(list)list.scrollTop=0;
   placePanel(panel,anchorRect);
+  if(anchor)anchor.setAttribute('aria-expanded','true');
+  syncMenuDismissLayer();
+  syncBackButton();
+  document.dispatchEvent(new Event('selectionchange'));
 }
 function closePanel(panel,returnFocus=false){
-  if(!panel?.matches(':popover-open'))return;
+  if(!panelIsOpen(panel))return;
   const target=returnFocus?panelOpeners.get(panel):null;
-  panel.hidePopover();
+  const anchor=panelAnchor(panel);
+  panel.removeAttribute('data-menu-open');
+  panelAnchors.delete(panel);
+  if(anchor)anchor.setAttribute('aria-expanded','false');
+  syncMenuDismissLayer();
+  syncBackButton();
+  document.dispatchEvent(new Event('selectionchange'));
   if(returnFocus)focusMenuControl(target,panel);
 }
 function togglePanel(sel,anchorOverride=null){
   const panel=one(sel);
   if(!panel)throw new Error('Painel indisponível: '+sel);
-  if(panel.matches(':popover-open')){
+  if(panelIsOpen(panel)){
     closePanel(panel,true);
     return false;
   }
@@ -642,22 +690,10 @@ function togglePanel(sel,anchorOverride=null){
 function openPlusSubmenu(key){
   const sel='#plus-'+key+'-menu';
   if(!plusSubmenus.includes(sel))throw new Error('Categoria indisponível');
-  const root=one('#plusMenu');
-  if(root.matches(':popover-open'))root.hidePopover();
-  openPanel(sel);
+  openPanel(sel,one('#plusBtn'));
 }
 function openPlusRoot(){
-  for(const sel of plusSubmenus){
-    const panel=one(sel);
-    if(panel.matches(':popover-open'))panel.hidePopover();
-  }
-  openPanel('#plusMenu');
-}
-function closePanels(){
-  for(const sel of sheets){
-    const panel=one(sel);
-    if(panel.matches(':popover-open'))panel.hidePopover();
-  }
+  openPanel('#plusMenu',one('#plusBtn'));
 }
 function dialogOutsideBranches(dialog){
   const targets=[],seen=new Set();
@@ -765,28 +801,12 @@ document.addEventListener('focusin',event=>{
   const menu=one('#libraryMenu');
   if(librarySubmenuOpen()&&!menu.contains(event.target)&&!isTypingEntry(event.target))queueMicrotask(focusLibraryStart);
 });
-for(const sel of sheets){
-  one(sel).addEventListener('toggle',event=>{
-    if(event.newState==='open'){
-      saveSel();
-      const anchor=panelAnchor(event.currentTarget);
-      panelOpeners.set(event.currentTarget,panelOrigin(anchor||document.activeElement));
-      const list=event.currentTarget.querySelector('.menu-list');
-      if(list)list.scrollTop=0;
-      placePanel(event.currentTarget);
-    }else{
-      panelAnchors.delete(event.currentTarget);
-    }
-    syncBackButton();
-    document.dispatchEvent(new Event('selectionchange'));
-  });
-}
 document.addEventListener('keydown',event=>{
   if(event.key!=='Escape')return;
   const dialog=one('#dialogMenu');
   if(dialog.matches(':popover-open')){event.preventDefault();finishDialog(dialogConfirm?false:null);return;}
   if(librarySubmenuOpen()){event.preventDefault();closeLibrary();return;}
-  const sel=sheets.find(name=>one(name).matches(':popover-open'));
+  const sel=sheets.find(name=>panelIsOpen(one(name)));
   if(sel){event.preventDefault();closePanel(one(sel),true);}
 });
 function requireEditorCore(){
@@ -1381,8 +1401,6 @@ function setPublicationsExpanded(expanded){
   lists.hidden=!open;
 }
 function openLibrary(preferred=''){
-  const root=one('#exportMenu');
-  if(root?.matches(':popover-open'))root.hidePopover();
   setPublicationsExpanded(true);
   openPanel('#libraryMenu',one('#exportBtn'));
   const list=one('#libraryMenu .menu-list');
@@ -1393,8 +1411,8 @@ function openLibrary(preferred=''){
 }
 function closeLibrary(){
   const menu=one('#libraryMenu');
-  if(!menu?.matches(':popover-open'))return;
-  menu.hidePopover();
+  if(!panelIsOpen(menu))return;
+  closePanel(menu,false);
   setPublicationsExpanded(true);
   openPanel('#exportMenu',one('#exportBtn'));
   syncBackButton();
@@ -1402,7 +1420,7 @@ function closeLibrary(){
 }
 function dismissLibraryMenu(){
   const menu=one('#libraryMenu');
-  if(menu?.matches(':popover-open'))menu.hidePopover();
+  if(panelIsOpen(menu))closePanel(menu,false);
   syncBackButton();
   queueMicrotask(()=>focusControl(editor));
 }
@@ -1656,11 +1674,11 @@ function syncEditorSelectionUI(){
   saveSel();
   const kind=core.currentBlockKind();
   all('#typebar [data-cmd]').forEach(btn=>toggleToolbarState(btn,Boolean(core.activeMark(btn.dataset.cmd))));
-  toggleToolbarState(one('#listBtn'),Boolean(core.inBlock('li'))||one('#listMenu').matches(':popover-open'));
-  toggleToolbarState(one('#quoteBtn'),Boolean(core.inBlock('blockquote')||core.inBlock('aside'))||one('#quoteMenu')?.matches(':popover-open'));
-  toggleToolbarState(one('#headingBtn'),/^(h[1-6]|footer)$/.test(kind)||one('#headingMenu')?.matches(':popover-open'));
-  toggleToolbarState(one('#linkBtn'),Boolean(core.linkHref())||Boolean(one('#linkMenu')?.matches(':popover-open')));
-  one('#plusBtn')?.classList.toggle('on',one('#plusMenu')?.matches(':popover-open')||plusSubmenus.some(sel=>one(sel).matches(':popover-open')));
+  toggleToolbarState(one('#listBtn'),Boolean(core.inBlock('li'))||panelIsOpen(one('#listMenu')));
+  toggleToolbarState(one('#quoteBtn'),Boolean(core.inBlock('blockquote')||core.inBlock('aside'))||panelIsOpen(one('#quoteMenu')));
+  toggleToolbarState(one('#headingBtn'),/^(h[1-6]|footer)$/.test(kind)||panelIsOpen(one('#headingMenu')));
+  toggleToolbarState(one('#linkBtn'),Boolean(core.linkHref())||Boolean(panelIsOpen(one('#linkMenu'))));
+  one('#plusBtn')?.classList.toggle('on',panelIsOpen(one('#plusMenu'))||plusSubmenus.some(sel=>panelIsOpen(one(sel))));
   all('#headingMenu [data-block]').forEach(btn=>btn.classList.toggle('is-current',btn.dataset.block===kind));
   all('#quoteMenu [data-block],#quoteMenu [data-insert]').forEach(btn=>{
     const requested=btn.dataset.block||btn.dataset.insert;
@@ -1673,6 +1691,15 @@ document.addEventListener('pointerdown',event=>{
   const control=event.target?.closest?.('#ux-root button,#ux-root [role="button"],#ux-root a[href]');
   if(control&&!control.disabled)event.preventDefault();
 },true);
+menuDismissLayer?.addEventListener('pointerdown',event=>{
+  event.preventDefault();
+  event.stopPropagation();
+});
+menuDismissLayer?.addEventListener('click',event=>{
+  event.preventDefault();
+  event.stopPropagation();
+  closePanels();
+});
 all('#typebar [data-cmd], [data-plus-submenu] [data-cmd], #listMenu [data-cmd]').forEach(btn => btn.addEventListener('click', ()=>{try{exec(btn.dataset.cmd);closePanels();}catch(err){showToast(err.message);}}));
 all('#typebar [data-block], #headingMenu [data-block], #quoteMenu [data-block]').forEach(btn => btn.addEventListener('click', ()=>{try{formatBlock(btn.dataset.block);}catch(err){showToast(err.message);}}));
 document.querySelectorAll('[data-plus-submenu] [data-insert], #quoteMenu [data-insert], #listMenu [data-insert]').forEach(btn => btn.addEventListener('click', ()=>{void insertFeature(btn.dataset.insert).catch(err=>showToast(err.message));}));
@@ -1683,6 +1710,10 @@ const linkActions=Object.freeze({
   url:insertVisibleLink,
   button:insertLinkButton
 });
+one('#plusBtn')?.addEventListener('click',()=>togglePanel('#plusMenu',one('#plusBtn')));
+one('#headingBtn')?.addEventListener('click',()=>togglePanel('#headingMenu',one('#headingBtn')));
+one('#listBtn')?.addEventListener('click',()=>togglePanel('#listMenu',one('#listBtn')));
+one('#quoteBtn')?.addEventListener('click',()=>togglePanel('#quoteMenu',one('#quoteBtn')));
 linkBtn.addEventListener('click',()=>togglePanel('#linkMenu',linkBtn));
 all('#linkMenu [data-link-kind]').forEach(btn=>btn.addEventListener('click',()=>{
   const action=linkActions[btn.dataset.linkKind];
@@ -1706,7 +1737,7 @@ one('#exportBtn').addEventListener('click', ()=>{
   if(session==='pending'){showToast('Aguarde a validação da sessão Telegram');return;}
   if(session==='invalid'){showToast('Sessão inválida ou expirada. Reabra o Mini App.');return;}
   const library=one('#libraryMenu');
-  if(library?.matches(':popover-open')){
+  if(panelIsOpen(library)){
     closePanel(library,true);
     syncBackButton();
     return;
@@ -1898,7 +1929,7 @@ function syncBrowserViewport(){
     root.style.setProperty('--vv-bottom','0px');
     root.style.setProperty('--vv-height',Number.isFinite(stable)&&stable>0?stable+'px':'var(--tg-viewport-stable-height,100dvh)');
     root.removeAttribute('data-keyboard');
-    for(const sel of sheets){const panel=one(sel);if(panel?.matches(':popover-open'))placePanel(panel);}
+    for(const sel of sheets){const panel=one(sel);if(panelIsOpen(panel))placePanel(panel);}
     const dialog=one('#dialogMenu');
     if(dialog?.matches(':popover-open'))placePanel(dialog);
     return;
@@ -1909,7 +1940,7 @@ function syncBrowserViewport(){
   root.style.setProperty('--vv-top',bounds.top+'px');
   root.style.setProperty('--vv-bottom',inset+'px');
   root.style.setProperty('--vv-height',bounds.height+'px');
-  for(const sel of sheets){const panel=one(sel);if(panel?.matches(':popover-open'))placePanel(panel);}
+  for(const sel of sheets){const panel=one(sel);if(panelIsOpen(panel))placePanel(panel);}
   const dialog=one('#dialogMenu');
   if(dialog?.matches(':popover-open'))placePanel(dialog);
 }

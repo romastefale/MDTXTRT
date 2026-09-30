@@ -45,28 +45,29 @@ function mountReactContract(document){
       <div class="top-center"><span class="app-title">MDTXTRT</span><div class="theme-control"><button id="themeBtn"><span data-icon="light_mode"></span></button></div></div>
       <div class="top-right"><div class="seg"><button id="destBtn" title="Destino: Telegram"><span data-icon="telegram"></span></button><button id="exportBtn"></button></div></div>
     </header>
-    <div id="headingMenu" popover="auto" data-anchor="headingBtn" data-placement="top"><div class="menu-list">
+    <div id="menuDismissLayer" hidden></div>
+    <div id="headingMenu" data-anchor="headingBtn" data-placement="top"><div class="menu-list">
       <button data-block="h1"></button><button data-block="h2"></button><button data-block="h3"></button>
       <button data-block="h4"></button><button data-block="h5"></button><button data-block="h6"></button>
       <button data-block="p"></button><button data-block="footer"></button>
     </div></div>
-    <div id="listMenu" popover="auto" data-anchor="listBtn" data-placement="top"><div class="menu-list">
+    <div id="listMenu" data-anchor="listBtn" data-placement="top"><div class="menu-list">
       <button data-cmd="insertUnorderedList"></button><button data-insert="ordered"></button><button data-insert="task" data-telegram-only></button>
     </div></div>
-    <div id="quoteMenu" popover="auto" data-anchor="quoteBtn" data-placement="top"><div class="menu-list">
+    <div id="quoteMenu" data-anchor="quoteBtn" data-placement="top"><div class="menu-list">
       <button data-block="blockquote"></button><button data-insert="pullquote"></button><button data-insert="expandquote"></button>
     </div></div>
-    <div id="linkMenu" class="glass-menu" popover="auto" data-anchor="linkBtn" data-placement="top"><div class="menu-list">
+    <div id="linkMenu" class="glass-menu" data-anchor="linkBtn" data-placement="top"><div class="menu-list">
       <button data-link-kind="hyperlink"></button><button data-link-kind="url"></button><button data-link-kind="button" data-telegram-only></button>
     </div></div>
-    <div id="exportMenu" class="glass-menu export-menu" popover="auto" data-anchor="exportBtn" data-placement="auto">
+    <div id="exportMenu" class="glass-menu export-menu" data-anchor="exportBtn" data-placement="auto">
       <div class="menu-list">
         <button id="libraryBtn"></button>
         <button id="openAppBtn"><span data-icon="telegram"></span><span id="openAppLabel">Publicar no Telegram</span></button>
         <button id="exportMdBtn"></button><button id="exportTxtBtn"></button>
       </div>
     </div>
-    <div id="libraryMenu" class="glass-menu wide-menu plus-submenu library-menu" popover="auto" data-anchor="exportBtn" data-placement="auto" data-library-submenu>
+    <div id="libraryMenu" class="glass-menu wide-menu plus-submenu library-menu" data-anchor="exportBtn" data-placement="auto" data-library-submenu>
       <div class="menu-list library-menu-list">
         <button id="libraryClose"></button>
         <button id="libraryNew"></button>
@@ -80,7 +81,7 @@ function mountReactContract(document){
         <section id="draftLibrarySection"><span id="draftCount">0</span><div id="draftList"></div></section>
       </div>
     </div>
-    <div id="plusMenu" popover="auto" data-anchor="plusBtn" data-placement="top">
+    <div id="plusMenu" data-anchor="plusBtn" data-placement="top">
       <div class="document-tools"><input id="docName" value="Ideia"></div>
       <div class="menu-list">
         <button data-plus-category="file"></button>
@@ -90,23 +91,23 @@ function mountReactContract(document){
         <button data-plus-category="interaction" data-telegram-only></button>
       </div>
     </div>
-    <div id="plus-file-menu" popover="auto" data-anchor="plusBtn" data-placement="top" data-plus-submenu="file"><div class="menu-list">
+    <div id="plus-file-menu" data-anchor="plusBtn" data-placement="top" data-plus-submenu="file"><div class="menu-list">
       <button data-plus-back></button>
       <button id="importMdBtn"></button><button id="importTxtBtn"></button><button id="findBtn"></button>
     </div></div>
-    <div id="plus-format-menu" popover="auto" data-anchor="plusBtn" data-placement="top" data-plus-submenu="format"><div class="menu-list">
+    <div id="plus-format-menu" data-anchor="plusBtn" data-placement="top" data-plus-submenu="format"><div class="menu-list">
       <button data-plus-back></button>
       <button data-cmd="strike"></button><button data-cmd="mark" data-telegram-only></button>
       <button data-cmd="spoiler" data-telegram-only></button><button data-cmd="code"></button>
       <button data-cmd="sub" data-telegram-only></button><button data-cmd="sup" data-telegram-only></button>
     </div></div>
-    <div id="plus-structure-menu" popover="auto" data-anchor="plusBtn" data-placement="top" data-plus-submenu="structure"><div class="menu-list">
+    <div id="plus-structure-menu" data-anchor="plusBtn" data-placement="top" data-plus-submenu="structure"><div class="menu-list">
       <button data-plus-back></button>
       <button data-cmd="math" data-telegram-only></button><button data-insert="mathblock" data-telegram-only></button>
       <button data-insert="divider"></button><button data-insert="table" data-telegram-only></button>
       <button data-insert="details" data-telegram-only></button>
     </div></div>
-    <div id="plus-media-menu" popover="auto" data-anchor="plusBtn" data-placement="top" data-plus-submenu="media"><div class="menu-list">
+    <div id="plus-media-menu" data-anchor="plusBtn" data-placement="top" data-plus-submenu="media"><div class="menu-list">
       <button data-plus-back></button>
       <button data-insert="image"></button><button id="mediaBtn" data-telegram-only></button>
       <button id="voiceBtn" data-telegram-only></button><button data-insert="video"></button>
@@ -114,7 +115,7 @@ function mountReactContract(document){
       <button data-insert="document" data-telegram-only></button><button data-insert="map" data-telegram-only></button>
       <button data-insert="collage" data-telegram-only></button><button data-insert="slideshow" data-telegram-only></button>
     </div></div>
-    <div id="plus-interaction-menu" popover="auto" data-anchor="plusBtn" data-placement="top" data-plus-submenu="interaction"><div class="menu-list">
+    <div id="plus-interaction-menu" data-anchor="plusBtn" data-placement="top" data-plus-submenu="interaction"><div class="menu-list">
       <button data-plus-back></button>
       <button data-insert="anchor" data-telegram-only></button><button data-insert="reference" data-telegram-only></button>
       <button data-insert="time" data-telegram-only></button><button data-insert="emoji" data-telegram-only></button>
@@ -123,12 +124,12 @@ function mountReactContract(document){
     <input id="fileInput" type="file" hidden><input id="mediaInput" type="file" hidden>
     <div id="toast" role="status"><span id="toastTextHost"></span></div>
     <div id="dialogMenu" popover="manual"><div id="dialogLabel"></div><textarea id="dialogInput"></textarea><button id="dialogCancel"></button><button id="dialogOk"></button></div>
-    <div id="findMenu" popover="auto" data-anchor="findBtn" data-placement="auto"><input id="findText"><input id="replaceText"><button id="findNext"></button><button id="replaceOne"></button><button id="replaceAll"></button></div>
+    <div id="findMenu" data-anchor="findBtn" data-placement="auto"><input id="findText"><input id="replaceText"><button id="findNext"></button><button id="replaceOne"></button><button id="replaceAll"></button></div>
     <div class="bar-wrap"><div id="typebar">
-      <button id="plusBtn" class="more" popovertarget="plusMenu"></button>
+      <button id="plusBtn" class="more"></button>
       <button data-cmd="bold"></button><button data-cmd="italic"></button><button data-cmd="underline"></button>
-      <button id="linkBtn"></button><button id="headingBtn" popovertarget="headingMenu"></button>
-      <button id="listBtn" popovertarget="listMenu"></button><button id="quoteBtn" popovertarget="quoteMenu"></button>
+      <button id="linkBtn"></button><button id="headingBtn"></button>
+      <button id="listBtn"></button><button id="quoteBtn"></button>
     </div></div>
   `;
 }
@@ -180,6 +181,7 @@ function page(setup={}){
   };
   w.HTMLElement.prototype.showPopover=function(){
     if(this.hasAttribute('data-test-popover-open'))return;
+    if(setup.popoverBlursTyping&&w.document.activeElement?.blur)w.document.activeElement.blur();
     this.setAttribute('data-test-popover-open','');
     toggle(this,'open');
   };
@@ -495,14 +497,14 @@ test('mobile editor controls preserve active focus without reopening a dismissed
   w.close();
 });
 
-test('menu and submenu navigation never steals active typing focus while the keyboard is open',async()=>{
+test('menus preserve the active keyboard without invoking native popover focus and dismiss deterministically',async()=>{
   const fetch=async(url)=>{
     const target=String(url);
     if(target.endsWith('/api/library/list'))return {ok:true,status:200,json:async()=>({drafts:[],telegram:[],telegraph:[]})};
     if(target.endsWith('/api/telegraph/recover'))return {ok:false,status:404,json:async()=>({})};
     return {ok:false,status:404,json:async()=>({error:'not found'})};
   };
-  const w=page({fetch,visualViewport:{height:360}}),d=w.document,editor=d.querySelector('#editor');
+  const w=page({fetch,visualViewport:{height:360},popoverBlursTyping:true}),d=w.document,editor=d.querySelector('#editor');
   await wait(40);
   editor.focus();
 
@@ -515,42 +517,53 @@ test('menu and submenu navigation never steals active typing focus while the key
   };
 
   press(d.querySelector('#exportBtn'));
-  assert.equal(d.querySelector('#exportMenu').hasAttribute('data-test-popover-open'),true);
+  assert.equal(d.querySelector('#exportMenu').hasAttribute('data-menu-open'),true);
+  assert.equal(d.querySelector('#menuDismissLayer').hidden,false);
 
   press(d.querySelector('#libraryBtn'));
   await wait(5);
-  assert.equal(d.querySelector('#libraryMenu').hasAttribute('data-test-popover-open'),true);
-  assert.equal(d.querySelector('#exportMenu').hasAttribute('data-test-popover-open'),false);
+  assert.equal(d.querySelector('#libraryMenu').hasAttribute('data-menu-open'),true);
+  assert.equal(d.querySelector('#exportMenu').hasAttribute('data-menu-open'),false);
   assert.equal(d.activeElement,editor);
 
-  press(d.querySelector('#libraryClose'));
-  await wait(0);
-  assert.equal(d.querySelector('#libraryMenu').hasAttribute('data-test-popover-open'),false);
-  assert.equal(d.querySelector('#exportMenu').hasAttribute('data-test-popover-open'),true);
+  const dismiss=d.querySelector('#menuDismissLayer');
+  const dismissDown=new w.Event('pointerdown',{bubbles:true,cancelable:true});
+  dismiss.dispatchEvent(dismissDown);
+  assert.equal(dismissDown.defaultPrevented,true);
+  dismiss.click();
+  assert.equal(d.querySelector('#libraryMenu').hasAttribute('data-menu-open'),false);
+  assert.equal(dismiss.hidden,true);
   assert.equal(d.activeElement,editor);
 
   press(d.querySelector('#exportBtn'));
-  assert.equal(d.querySelector('#exportMenu').hasAttribute('data-test-popover-open'),false);
+  press(d.querySelector('#libraryBtn'));
+  press(d.querySelector('#libraryClose'));
+  await wait(0);
+  assert.equal(d.querySelector('#libraryMenu').hasAttribute('data-menu-open'),false);
+  assert.equal(d.querySelector('#exportMenu').hasAttribute('data-menu-open'),true);
   assert.equal(d.activeElement,editor);
 
-  w.eval("openPanel('#plusMenu',document.querySelector('#plusBtn'))");
+  dismiss.dispatchEvent(new w.Event('pointerdown',{bubbles:true,cancelable:true}));
+  dismiss.click();
+  assert.equal(d.querySelector('#exportMenu').hasAttribute('data-menu-open'),false);
   assert.equal(d.activeElement,editor);
+
+  press(d.querySelector('#plusBtn'));
+  assert.equal(d.querySelector('#plusMenu').hasAttribute('data-menu-open'),true);
   const category=d.querySelector('#plusMenu [data-plus-category="format"]');
   press(category);
-  assert.equal(d.querySelector('#plus-format-menu').hasAttribute('data-test-popover-open'),true);
-  assert.equal(d.querySelector('#plusMenu').hasAttribute('data-test-popover-open'),false);
-  assert.equal(d.activeElement,editor);
+  assert.equal(d.querySelector('#plus-format-menu').hasAttribute('data-menu-open'),true);
+  assert.equal(d.querySelector('#plusMenu').hasAttribute('data-menu-open'),false);
 
   const back=d.querySelector('#plus-format-menu [data-plus-back]');
   press(back);
-  assert.equal(d.querySelector('#plus-format-menu').hasAttribute('data-test-popover-open'),false);
-  assert.equal(d.querySelector('#plusMenu').hasAttribute('data-test-popover-open'),true);
-  assert.equal(d.activeElement,editor);
+  assert.equal(d.querySelector('#plus-format-menu').hasAttribute('data-menu-open'),false);
+  assert.equal(d.querySelector('#plusMenu').hasAttribute('data-menu-open'),true);
 
+  dismiss.dispatchEvent(new w.Event('pointerdown',{bubbles:true,cancelable:true}));
+  dismiss.click();
   press(d.querySelector('#linkBtn'));
-  assert.equal(d.querySelector('#linkMenu').hasAttribute('data-test-popover-open'),true);
-  press(d.querySelector('#linkBtn'));
-  assert.equal(d.querySelector('#linkMenu').hasAttribute('data-test-popover-open'),false);
+  assert.equal(d.querySelector('#linkMenu').hasAttribute('data-menu-open'),true);
   assert.equal(d.activeElement,editor);
   w.close();
 });
@@ -570,11 +583,11 @@ test('Mini App exposes the export menu and keeps publication as an explicit menu
   assert.equal(d.querySelector('#exportBtn').getAttribute('aria-label'),'Abrir menu de publicação, exportação e biblioteca');
   assert.equal(d.querySelector('#destBtn').getAttribute('aria-label'),'Alternar destino. Atual: Telegram');
   d.querySelector('#exportBtn').click();
-  assert.equal(d.querySelector('#exportMenu').hasAttribute('data-test-popover-open'),true);
+  assert.equal(d.querySelector('#exportMenu').hasAttribute('data-menu-open'),true);
   d.querySelector('#exportBtn').click();
-  assert.equal(d.querySelector('#exportMenu').hasAttribute('data-test-popover-open'),false);
+  assert.equal(d.querySelector('#exportMenu').hasAttribute('data-menu-open'),false);
   d.querySelector('#exportBtn').click();
-  assert.equal(d.querySelector('#exportMenu').hasAttribute('data-test-popover-open'),true);
+  assert.equal(d.querySelector('#exportMenu').hasAttribute('data-menu-open'),true);
   assert.equal(requests.filter(url=>url.endsWith('/api/telegram/send')).length,0);
   assert.ok(d.querySelector('#exportMdBtn'));
   assert.ok(d.querySelector('#exportTxtBtn'));
@@ -591,11 +604,11 @@ test('library uses the standard submenu lifecycle, stays scrollable with keyboar
   const w=page({fetch}),d=w.document,root=d.querySelector('#exportMenu'),library=d.querySelector('#libraryMenu');
 
   d.querySelector('#exportBtn').click();
-  assert.equal(root.hasAttribute('data-test-popover-open'),true);
+  assert.equal(root.hasAttribute('data-menu-open'),true);
   d.querySelector('#libraryBtn').click();
   await wait(5);
-  assert.equal(root.hasAttribute('data-test-popover-open'),false);
-  assert.equal(library.hasAttribute('data-test-popover-open'),true);
+  assert.equal(root.hasAttribute('data-menu-open'),false);
+  assert.equal(library.hasAttribute('data-menu-open'),true);
   assert.match(d.querySelector('#libraryStatus').textContent,/0 publicações · 0 rascunhos/);
   assert.ok(library.classList.contains('plus-submenu'));
   assert.ok(library.querySelector('.menu-list'));
@@ -604,13 +617,13 @@ test('library uses the standard submenu lifecycle, stays scrollable with keyboar
 
   d.querySelector('#libraryClose').click();
   await wait(0);
-  assert.equal(library.hasAttribute('data-test-popover-open'),false);
-  assert.equal(root.hasAttribute('data-test-popover-open'),true);
+  assert.equal(library.hasAttribute('data-menu-open'),false);
+  assert.equal(root.hasAttribute('data-menu-open'),true);
 
   d.querySelector('#libraryBtn').click();
   await wait(0);
-  assert.equal(library.hasAttribute('data-test-popover-open'),true);
-  assert.equal(root.hasAttribute('data-test-popover-open'),false);
+  assert.equal(library.hasAttribute('data-menu-open'),true);
+  assert.equal(root.hasAttribute('data-menu-open'),false);
   assert.equal(parseFloat(library.style.getPropertyValue('--menu-max-height')),420);
 
   w.visualViewport.height=360;
@@ -620,13 +633,13 @@ test('library uses the standard submenu lifecycle, stays scrollable with keyboar
   assert.ok(keyboardHeight>0&&keyboardHeight<=expectedKeyboardMax);
 
   d.querySelector('#exportBtn').click();
-  assert.equal(library.hasAttribute('data-test-popover-open'),false);
-  assert.equal(root.hasAttribute('data-test-popover-open'),false);
+  assert.equal(library.hasAttribute('data-menu-open'),false);
+  assert.equal(root.hasAttribute('data-menu-open'),false);
 
   d.querySelector('#exportBtn').click();
-  assert.equal(root.hasAttribute('data-test-popover-open'),true);
+  assert.equal(root.hasAttribute('data-menu-open'),true);
   d.querySelector('#exportBtn').click();
-  assert.equal(root.hasAttribute('data-test-popover-open'),false);
+  assert.equal(root.hasAttribute('data-menu-open'),false);
   w.close();
 });
 
@@ -1658,7 +1671,7 @@ test('visual viewport constrains overlays and Find stays anchored to a visible c
   };
 
   d.querySelector('#findBtn').click();
-  assert.equal(find.matches(':popover-open'),true);
+  assert.equal(find.hasAttribute('data-menu-open'),true);
   assert.equal(w.eval("panelAnchor(document.querySelector('#findMenu'))===document.querySelector('#plusBtn')"),true);
   const findLimit=parseFloat(find.style.getPropertyValue('--menu-max-height'));
   const findTop=parseFloat(find.style.getPropertyValue('--menu-top'));
@@ -1696,7 +1709,7 @@ test('link interactions stay above the bottom trigger and expose only destinatio
   };
 
   linkBtn.click();
-  assert.equal(linkMenu.matches(':popover-open'),true);
+  assert.equal(linkMenu.hasAttribute('data-menu-open'),true);
   assert.equal(w.eval("panelAnchor(document.querySelector('#linkMenu'))===document.querySelector('#linkBtn')"),true);
   const linkTop=parseFloat(linkMenu.style.getPropertyValue('--menu-top'));
   const linkHeight=Math.min(72,parseFloat(linkMenu.style.getPropertyValue('--menu-max-height'))||72);
@@ -1735,7 +1748,7 @@ test('link actions distinguish hyperlink, visible URL and Telegram URL button th
 
   const choose=async(kind,label)=>{
     linkBtn.click();
-    assert.equal(linkMenu.matches(':popover-open'),true);
+    assert.equal(linkMenu.hasAttribute('data-menu-open'),true);
     const choice=linkMenu.querySelector('[data-link-kind="'+kind+'"]');
     assert.ok(choice&&!choice.hidden);
     choice.click();
@@ -1819,7 +1832,7 @@ test('Escape closes a programmatic menu, restores its visible opener and keeps e
   d.querySelector('#docName').focus();
   assert.equal(w.eval('currentEditorCore().state.selection.from'),before);
   d.dispatchEvent(new w.KeyboardEvent('keydown',{key:'Escape',bubbles:true}));
-  assert.equal(menu.matches(':popover-open'),false);
+  assert.equal(menu.hasAttribute('data-menu-open'),false);
   assert.equal(d.activeElement,plus);
   assert.equal(w.eval('currentEditorCore().state.selection.from'),before);
   w.close();
