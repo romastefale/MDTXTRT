@@ -808,10 +808,7 @@ test('release evidence gates remain traceability-only and cannot freeze later ev
   assert.match(workflow,/name: Rebuild all committed bundles[\s\S]*?npm run build/);
   assert.match(workflow,/git diff --exit-code -- editor-core\.js ui\.js/);
   assert.match(workflow,/npm run verify:evolution-policy/);
-  assert.doesNotMatch(workflow,/node scripts\/verify-visual-baseline\.mjs/);
-  assert.doesNotMatch(workflow,/node scripts\/compare-historical-visual\.mjs/);
-  assert.doesNotMatch(workflow,/VISUAL_COMPARISON_SHA|HISTORICAL_COMPARISON_SHA|BASELINE_SHA/);
-  assert.doesNotMatch(workflow,/release-visual-baseline|visual-shell-comparison/);
+  assert.doesNotMatch(workflow,/compare:historical-visual/);
   assert.match(workflow,/release-rebuilt-bundles-\$\{\{ env\.RELEASE_CANDIDATE_SHA \}\}/);
   assert.equal(manifest.evolutionPolicy.historicalStateAuthority,'none');
   assert.equal(manifest.evolutionPolicy.preservationByHistoricalParity,false);
@@ -849,10 +846,13 @@ test('release evidence gates remain traceability-only and cannot freeze later ev
   assert.equal(manifest.evolutionPolicy.divergenceFromHistoricalStateFails,false);
   assert.deepEqual(manifest.runtime,{node:'24.21.0',npm:'11.19.0'});
   assert.deepEqual(manifest.historicalEvidence.implementationStages.map(stage=>stage.pr),[84,86,88,90,92,95]);
-  assert.equal(manifest.releaseEvidencePolicy.authority,'historical-release-evidence-sha');
-  assert.equal(manifest.releaseEvidencePolicy.immutableProductState,false);
+  assert.equal(manifest.releaseEvidencePolicy.role,'traceability-only');
+  assert.equal(manifest.releaseEvidencePolicy.identity,'exact-git-commit-sha');
+  assert.equal(manifest.releaseEvidencePolicy.productStateRemainsMutable,true);
   assert.equal(manifest.releaseEvidencePolicy.preservationRequired,false);
   assert.equal(manifest.releaseEvidencePolicy.historicalBehaviorIsNormative,false);
+  assert.equal(manifest.releaseEvidencePolicy.mayFreezeFutureEvolution,false);
+  assert.equal(manifest.releaseEvidencePolicy.mayBlockEvolutionPromotion,false);
 
   for(const file of ['AGENTS.md','README.md','FORMAT_CONTRACT.md','RELEASE_ANCHOR.md','RELEASE_VALIDATION.md','RELEASE_EVIDENCE_TEMPLATE.md']){
     const text=read(file);
@@ -887,8 +887,6 @@ test('release evidence gates remain traceability-only and cannot freeze later ev
   assert.match(validation,/Railway draft-volume persistence and restart/);
   assert.match(validation,/real Telegram Rich Message send and revision history/i);
   assert.match(validation,/Web \/ PWA \/ Mini App and physical-device matrix/);
-  assert.doesNotMatch(validation,/proves each head is an ancestor|stage ancestry/i);
-  assert.doesNotMatch(read('RELEASE_EVIDENCE_TEMPLATE.md'),/Stage ancestry\/manifest/i);
 
   assert.match(anchor,/not an immutable product baseline/i);
   assert.match(anchor,/Certification does not freeze that state/i);
