@@ -332,8 +332,15 @@
     .glass-menu[data-anchor],.glass-menu[data-runtime-positioned]{left:var(--menu-left,50%);top:var(--menu-top,50%);transform:none}
     .glass-menu.wide-menu{width:min(var(--menu-w),var(--menu-max-width,calc(100vw - 16px)))}
     .glass-menu.dialog-menu,.glass-menu.find-menu{width:min(280px,var(--menu-max-width,calc(100vw - 16px)))}
-    .glass-menu:not(:popover-open){display:none}
-    .glass-menu:popover-open{display:block;animation:glass-menu-in .14s cubic-bezier(.2,.75,.25,1)}
+    .menu-dismiss-layer{
+      position:fixed;inset:0;z-index:39;background:transparent;pointer-events:auto;touch-action:none
+    }
+    .menu-dismiss-layer[hidden]{display:none}
+    .glass-menu:not([data-menu-open]):not([popover]){display:none}
+    .glass-menu[popover]:not(:popover-open){display:none}
+    .glass-menu[data-menu-open],.glass-menu[popover]:popover-open{
+      display:block;animation:glass-menu-in .14s cubic-bezier(.2,.75,.25,1)
+    }
     #dialogMenu:popover-open::backdrop{background:transparent;pointer-events:auto}
     @keyframes glass-menu-in{from{opacity:0}to{opacity:1}}
     .glass-menu-material{border-radius:var(--menu-radius)}
