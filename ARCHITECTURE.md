@@ -8,6 +8,25 @@ This document records the implementation boundaries that are authoritative for M
 - Exported ZIP archives are snapshots for comparison and recovery. They are never promoted over a newer `main` solely because they contain a complete tree.
 - Changes should land as focused commits with regression coverage. A local reconstruction is valid only when its Git blob identities match the remote revision it claims to represent.
 
+## Evolution and evidence contract
+
+This repository is an evolving product, not a finished artifact. The current baseline is descriptive: it records a known working state for comparison, but it must not be treated as a preservation target when a correction or implementation request changes the required behavior.
+
+For future engineering agents and assistants:
+
+- explicit user requirements supersede baseline behavior when they conflict;
+- a defect present in `main` or in the baseline remains a defect;
+- do not preserve obsolete behavior through hidden fallbacks or compatibility paths;
+- automated tests validate only what they actually exercise;
+- source inspection is not equivalent to runtime verification;
+- CI success is not equivalent to physical-device confirmation;
+- deployment success is not proof of every user-facing behavior;
+- never claim a fact that was not actually checked;
+- when real behavior contradicts a test, repair the implementation and the test rather than rationalizing the mismatch;
+- after accepted evolution, update stale baseline/contracts so future work starts from the new reality.
+
+See [AGENTS.md](AGENTS.md) and [BASELINE.md](BASELINE.md) for the operational rules.
+
 ## Document identity, revision and local recovery
 
 - Every active document has a UUID and a non-negative local revision. The revision advances with document-semantic changes and is used to reject late asynchronous results that no longer match the document state that originated a request.
