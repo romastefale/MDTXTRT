@@ -132,6 +132,11 @@ test('server delivers every local asset the page, the manifest and the icons ref
     if(/^(?:[a-z]+:|\/\/)/i.test(value))continue;
     refs.add(value.replace(/^\.?\//,'').split('?')[0]);
   }
+  for(const [,value] of html.matchAll(/url\("([^"]+)"\)/g)){
+    if(/^(?:[a-z]+:|\/\/|#)/i.test(value))continue;
+    refs.add(value.replace(/^\.?\//,'').split('?')[0]);
+  }
+  assert.ok(refs.has('produto/fundo-claro.svg')&&refs.has('produto/fundo-escuro.svg'),'organic backgrounds were found');
   for(const icon of manifest.icons||[])refs.add(String(icon.src).replace(/^\.?\//,'').split('?')[0]);
   for(const name of readdirSync(new URL('icons/',root)))if(name.endsWith('.svg'))refs.add('icons/'+name);
   assert.ok(refs.has('editor-core.js')&&refs.has('ui.js'),'index.html scripts were found');

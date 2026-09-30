@@ -42,8 +42,10 @@ function restoreRangeAroundMarkers(doc,start,end){
   const range=doc.createRange();
   range.setStartAfter(start);
   range.setEndBefore(end);
-  selection.removeAllRanges();selection.addRange(range);
+  // Remove the markers before handing the live range to the selection: WebKit
+  // collapses a selection whose boundaries sit next to nodes removed afterwards.
   start.remove();end.remove();
+  selection.removeAllRanges();selection.addRange(range);
 }
 
 function replaceSelectedRange(root,range,fragment){

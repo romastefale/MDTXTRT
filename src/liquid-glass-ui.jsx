@@ -10,16 +10,22 @@ import { Glass } from "@samasante/liquid-glass";
  * Optical rendering is provided exclusively by @samasante/liquid-glass.
  * MDTXTRT owns only this application-specific React shell.
  */
+// Material neutro do site romastefale/HTML: fosco de 22px com saturação 1.6.
+// A tinta translúcida e o aro hairline vêm do CSS (index.html).
 export const MENU_LENS = {
   sheen: 0,
   glow: 0,
   specular: 0,
+  frost: 22,
+  saturate: 1.6,
 };
 
 const BAR_LENS = {
   sheen: 0,
   glow: 0,
   specular: 0,
+  frost: 22,
+  saturate: 1.6,
 };
 
 const MENU_RADIUS = 9;
