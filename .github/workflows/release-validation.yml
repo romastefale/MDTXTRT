@@ -84,7 +84,7 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
 
-      - name: Verify release lineage and runtime manifest
+      - name: Verify release manifest and runtime contract
         run: node scripts/verify-release-manifest.mjs
 
       - name: Verify evolution policy contract
