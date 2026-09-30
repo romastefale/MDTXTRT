@@ -410,7 +410,7 @@ function Chrome() {
       <LibrarySubmenu />
       <PlusMenu />
       <input id="fileInput" type="file" accept=".txt,.md,text/plain,text/markdown" hidden />
-      <input id="mediaInput" type="file" accept="image/*,video/*,audio/*,.pdf,.zip" hidden />
+      <input id="mediaInput" type="file" accept="image/*,video/*,audio/*,.pdf,.zip" multiple hidden />
       <Toast />
       <DialogMenu />
       <FindMenu />
