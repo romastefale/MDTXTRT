@@ -1,4 +1,4 @@
-import {rangeInside,saveSelection,restoreSelection,elementAtRangeStart,setCaret} from "./editor-selection.mjs";
+import {rangeInside,saveSelection,restoreSelection,selectionTextOffsets,elementAtRangeStart,setCaret} from "./editor-selection.mjs";
 import {createHistory} from "./editor-history.mjs";
 import {createFormatting} from "./editor-formatting.mjs";
 import {createStructure} from "./editor-structure.mjs";
@@ -6,7 +6,7 @@ import {createSearch} from "./editor-search.mjs";
 
 function currentTextBlock(root){
   const element=elementAtRangeStart(root);
-  const block=element?.closest?.("p,h1,h2,h3,h4,h5,h6,blockquote,aside,footer,pre,figcaption,caption,td,th,summary");
+  const block=element?.closest?.("p,div,h1,h2,h3,h4,h5,h6,blockquote,aside,footer,pre,figcaption,caption,td,th,summary");
   return block&&root.contains(block)?block:null;
 }
 
@@ -36,8 +36,8 @@ export function createEditorCore({element,onChange=()=>{},onSelectionChange=()=>
   if(!element)throw new Error("Elemento do editor ausente");
 
   let destroyed=false;
-  const notifySelection=()=>{if(!destroyed)onSelectionChange({});};
   let history;
+  const notifySelection=()=>{if(!destroyed){history?.rememberSelection();onSelectionChange({});}};
 
   const changed=()=>{
     if(destroyed)return;
@@ -91,7 +91,7 @@ export function createEditorCore({element,onChange=()=>{},onSelectionChange=()=>
   function applyMarkdownBlockRule({allowTask=true}={}){
     const range=rangeInside(element);
     const block=currentTextBlock(element);
-    if(!range||!range.collapsed||!block||block.localName!=="p")return false;
+    if(!range||!range.collapsed||!block||!["p","div"].includes(block.localName))return false;
     const text=block.textContent.replace(/\u00a0/g," ");
     const caret=textCaretOffset(block,range);
     const escaped=text.match(/^\\(#{1,6}|>|[-*+]|\d+\.) (?=\S)/);
@@ -139,6 +139,10 @@ export function createEditorCore({element,onChange=()=>{},onSelectionChange=()=>
       const open=text.lastIndexOf(rule.marker,closeStart-rule.marker.length);
       if(open<0)continue;
       if(rule.single&&(text[open-1]===rule.marker||text[open+1]===rule.marker))continue;
+      if(open>0&&text[open-1]==="\\"){
+        const next=text.slice(0,open-1)+text.slice(open);
+        replaceBlockText(block,next);setTextCaret(block,Math.max(0,offset-1));changed();notifySelection();return true;
+      }
       const value=text.slice(open+rule.marker.length,closeStart);
       if(!value||value.includes("\n"))continue;
       const left=text.slice(0,open),right=text.slice(offset);
@@ -159,12 +163,32 @@ export function createEditorCore({element,onChange=()=>{},onSelectionChange=()=>
       if(value===null||value===undefined||value==="")node.removeAttribute(key);
       else node.setAttribute(key,String(value));
     }
-    changed();
+    return true;
+  }
+
+  function deleteSelection(event){
+    const range=rangeInside(element);
+    if(!range||range.collapsed)return false;
+    event.preventDefault();
+    range.deleteContents();range.collapse(true);
+    const selection=element.ownerDocument.getSelection?.();
+    selection?.removeAllRanges();selection?.addRange(range);
+    changed();notifySelection();
     return true;
   }
 
   function handleBeforeInput(event){
-    return formatting.beforeInput(event);
+    if(formatting.beforeInput(event))return true;
+    if(event.inputType==="insertParagraph"&&structure.insertParagraph()){
+      event.preventDefault();return true;
+    }
+    if(String(event.inputType||"").startsWith("delete")){
+      if(deleteSelection(event))return true;
+      if(structure.normalizeEmptyFormattedBlock(event.inputType)){
+        event.preventDefault();return true;
+      }
+    }
+    return false;
   }
 
   function handleKeydown(event){
@@ -204,6 +228,7 @@ export function createEditorCore({element,onChange=()=>{},onSelectionChange=()=>
     saveSelection:captureSelection,
     captureSelection,
     restoreSelection:(saved)=>restore(saved),
+    rememberSelection:()=>history.rememberSelection(),
     expandWord,
     exec:formatting.toggle,
     activeMark:formatting.activeMark,
@@ -233,6 +258,7 @@ export function createEditorCore({element,onChange=()=>{},onSelectionChange=()=>
     selectRange:search.selectRange,
     selectedText:search.selectedText,
     selectionEmpty:()=>Boolean(rangeInside(element)?.collapsed),
+    selectionOffsets:()=>selectionTextOffsets(element),
     selectionMatches:search.selectionMatches,
     replaceSelection:search.replaceSelection,
     replaceAllLiteral:search.replaceAllLiteral,
