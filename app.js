@@ -392,14 +392,14 @@ async function openMiniApp(){
   if(busy)return;busy=true;
   try{
     saveLocal();
-    const local=editor.querySelector('[data-media-id]');
     const active=activeMedia();
-    if(local&&!active)throw new Error('O anexo local não pôde ser recuperado');
+    const localIds=[...editor.querySelectorAll('[data-media-id]')].map(node=>node.getAttribute('data-media-id'));
+    if(localIds.some(id=>!mediaFiles.has(id)))throw new Error('Há mídia local que precisa ser anexada novamente');
     const rich=buildRich();
     const form=new FormData();
     form.set('draft',JSON.stringify(draftState()));
-    form.set('action',JSON.stringify({type:'publish',html:rich.rich_message.html,kind:active?.kind||'',id:active?.id||''}));
-    if(active)form.set('upload',active.file,active.file.name);
+    form.set('action',JSON.stringify({type:'publish',html:rich.rich_message.html}));
+    for(const media of active)form.set('upload_'+media.id,media.file,media.file.name);
     const res=await fetch(API+'/api/handoff',{method:'POST',signal:AbortSignal.timeout(60000),body:form});
     const data=await readResponse(res);
     if(!res.ok)throw new Error(data.error||'Não foi possível abrir o Mini App');
@@ -411,7 +411,6 @@ async function openMiniApp(){
   }catch(err){showToast(err.name==='TimeoutError'?'Tempo de transferência esgotado':err.message||'Não foi possível abrir o Mini App');}
   finally{busy=false;}
 }
-
 async function verifyTelegram(){
   const initData=getTg()?.initData;
   if(!initData){
@@ -1183,17 +1182,16 @@ async function persistRemoteDraft(pagehide=false){
   appendRemoteIdentity(form);
   form.set('draft',JSON.stringify(snapshot));
   const active=activeMedia();
-  const includeMedia=Boolean(active&&remoteMediaSyncedId!==active.id);
-  if(includeMedia)form.set('upload',active.file,active.file.name);
+  const pending=active.filter(media=>!remoteMediaSyncedIds.has(media.id));
+  for(const media of pending)form.set('upload_'+media.id,media.file,media.file.name);
   const options={method:'POST',body:form};
-  if(!pagehide)options.signal=AbortSignal.timeout(15000);
-  else if(!includeMedia&&JSON.stringify(snapshot).length<60000)options.keepalive=true;
+  if(!pagehide)options.signal=AbortSignal.timeout(60000);
+  else if(!pending.length&&JSON.stringify(snapshot).length<60000)options.keepalive=true;
   const res=await fetch(API+'/api/drafts/save',options);
   const data=await readResponse(res);
   if(!res.ok)throw new Error(data.error||'Não foi possível persistir o rascunho no volume');
   if(data?.draft?.docId!==snapshot.docId||data?.draft?.revision!==snapshot.revision)throw new Error('Confirmação de persistência inválida');
-  if(includeMedia)remoteMediaSyncedId=active.id;
-  if(!active)remoteMediaSyncedId='';
+  remoteMediaSyncedIds=new Set(active.map(media=>media.id));
   remoteSaveNoticeShown=false;
   return true;
 }
@@ -1206,10 +1204,9 @@ function scheduleRemoteDraftSave(delay=650){
 async function applyPersistentDraftData(data,identity){
   exportOverride=null;
   const d=data.draft;
-  if(!d||d.version!==STATE_VERSION||typeof d.html!=='string'||typeof d.name!=='string'||d.name.length>120||!['telegram','telegraph'].includes(d.dest)||typeof d.telegraphPath!=='string'||!/^[a-f0-9-]{36}$/i.test(d.docId)||(d.revision!==undefined&&(!Number.isSafeInteger(d.revision)||d.revision<0))||typeof d.importedMd!=='string'||typeof d.importedTxt!=='string'||typeof d.importedHtml!=='string')throw new Error('Rascunho persistido incompatível');
+  if(!d||d.version!==STATE_VERSION||typeof d.html!=='string'||typeof d.name!=='string'||d.name.length>120||!['telegram','telegraph'].includes(d.dest)||typeof d.telegraphPath!=='string'||!/^[a-f0-9-]{36}$/i.test(d.docId)||(d.revision!==undefined&&(!Number.isSafeInteger(d.revision)||d.revision<0))||typeof d.importedMd!=='string'||typeof d.importedTxt!=='string'||typeof d.importedHtml!=='string'||!Array.isArray(d.media))throw new Error('Rascunho persistido incompatível');
   const html=cleanDraftHTML(d.html);
-  if(mediaFile?.url)URL.revokeObjectURL(mediaFile.url);
-  mediaFile=null;
+  clearRuntimeMedia();
   requireEditorCore().resetHTML(html,{silent:true});
   docName.value=d.name;
   telegraphPath=d.telegraphPath;
@@ -1221,13 +1218,16 @@ async function applyPersistentDraftData(data,identity){
   dest=d.dest;
   activeHandoff='';handoffAction=null;
   draftWriteBlocked=false;
-  if(data.media){
-    if(!data.media||data.media.id!==d.media?.id||data.media.kind!==d.media?.kind||typeof data.media.name!=='string'||typeof data.media.mime!=='string')throw new Error('Anexo persistido incompatível');
+  const media=Array.isArray(data.media)?data.media:[];
+  if(media.length!==d.media.length)throw new Error('Anexos persistidos incompatíveis');
+  for(const meta of media){
+    const expected=d.media.find(item=>item.id===meta.id&&item.kind===meta.kind);
+    if(!expected||typeof meta.name!=='string'||typeof meta.mime!=='string')throw new Error('Anexo persistido incompatível');
     const fileRes=await fetch(API+'/api/drafts/file',{
       method:'POST',
-      signal:AbortSignal.timeout(15000),
+      signal:AbortSignal.timeout(60000),
       headers:{'content-type':'application/json'},
-      body:JSON.stringify({...identity,doc:d.docId,id:data.media.id})
+      body:JSON.stringify({...identity,doc:d.docId,id:meta.id})
     });
     if(!fileRes.ok){
       let msg='Não foi possível recuperar o anexo persistido';
@@ -1235,12 +1235,9 @@ async function applyPersistentDraftData(data,identity){
       throw new Error(msg);
     }
     const blob=await fileRes.blob();
-    const file=new File([blob],data.media.name,{type:data.media.mime,lastModified:0});
-    await mediaStore({id:data.media.id,file,kind:data.media.kind,name:file.name,type:file.type,lastModified:file.lastModified});
-    await installMedia(file,data.media.id,data.media.kind);
-    remoteMediaSyncedId=data.media.id;
-  }else{
-    remoteMediaSyncedId='';
+    const file=new File([blob],meta.name,{type:meta.mime,lastModified:0});
+    await installMedia(file,meta.id,meta.kind);
+    remoteMediaSyncedIds.add(meta.id);
   }
   setDestination(dest,false,false);
   syncEditorSelectionUI();
