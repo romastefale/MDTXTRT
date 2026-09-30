@@ -14,18 +14,18 @@
     "node": "24.21.0"
   },
   "dependencies": {
-    "@samasante/liquid-glass": "github:romastefale/liquid-glass#9df1c6b91f569bfc8e4904e9686af640acc1f6be",
     "busboy": "^1.6.0",
     "htmlparser2": "^10.0.0",
     "marked": "^18.0.14",
-    "react": "19.3.0",
-    "react-dom": "19.3.0",
     "turndown": "^7.2.2"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0",
+    "@samasante/liquid-glass": "github:romastefale/liquid-glass#9df1c6b91f569bfc8e4904e9686af640acc1f6be",
     "esbuild": "0.28.2",
-    "jsdom": "^27.0.0"
+    "jsdom": "^27.0.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
   },
   "devEngines": {
     "runtime": {

@@ -27,10 +27,10 @@ test('browser bundle cache busters follow the committed Git blob SHAs',()=>{
 test('official Liquid Glass React dependencies and deterministic build are pinned',()=>{
   const pkg=JSON.parse(read('package.json'));
   const lock=JSON.parse(read('package-lock.json'));
-  const glassSpec=pkg.dependencies['@samasante/liquid-glass'];
+  const glassSpec=pkg.devDependencies['@samasante/liquid-glass'];
   assert.match(glassSpec,/^github:romastefale\/liquid-glass#[0-9a-f]{40}$/,'Liquid Glass must come from the romastefale fork pinned by commit');
-  assert.equal(pkg.dependencies.react,'19.3.0');
-  assert.equal(pkg.dependencies['react-dom'],'19.3.0');
+  assert.equal(pkg.devDependencies.react,'19.3.0');
+  assert.equal(pkg.devDependencies['react-dom'],'19.3.0');
   assert.equal(pkg.devDependencies.esbuild,'0.28.2');
   assert.equal(pkg.scripts.build,'npm run build:editor && npm run build:ui');
   assert.match(pkg.scripts['build:ui'],/src\/liquid-glass-ui\.jsx/);
@@ -347,7 +347,10 @@ test('execution toolchain is pinned and CI verifies committed browser bundles wi
   assert.doesNotMatch(workflow,/git push|contents: write/);
   assert.deepEqual(railpack.steps.install.deployOutputs,[]);
   assert.equal(railpack.steps.install.commands.at(-2),'npm --version | grep -Fx 11.19.0');
-  assert.equal(railpack.steps.install.commands.at(-1),'npm ci');
+  assert.equal(railpack.steps.install.commands.at(-1),'npm ci --omit=dev');
+  assert.equal(railpack.steps.build.commands.length,1);
+  assert.match(railpack.steps.build.commands[0].cmd,/^echo /,'Railway must not rebuild: bundles are committed and dev tools are omitted');
+  for(const name of ['@samasante/liquid-glass','react','react-dom'])assert.ok(pkg.devDependencies[name]&&!pkg.dependencies[name],name+' is build-only');
 });
 
 test('architecture provenance records official package use and copied example ownership',()=>{
