@@ -96,4 +96,4 @@ Não use `main`, o SHA da baseline, testes existentes, screenshots, documentaç�
 
 ## Relação com Release Anchor e validação
 
-Baseline visual, Release Anchor, testes automatizados e evidência de produção são contratos distintos. Nenhum deles, isoladamente, prova que o produto está finalizado ou que todo comportamento está correto.
+Baseline de trabalho, evidência histórica de release, testes automatizados e evidência de produção têm funções distintas. Nenhum SHA histórico ou comparação histórica define a baseline corrente, e nenhum deles pode bloquear por si só a evolução requerida.
