@@ -65,11 +65,11 @@ function draftFixture(html='<p>Teste</p>',doc=randomUUID(),revision=0,name='Test
 async function formPost(path,fields,file){
   const values={...fields};
   if(path==='/api/telegram/send'&&typeof values.draft!=='string'){
-    const draft=draftFixture(String(values.html||'<p>Teste</p>'));
-    if(file){
-      const id=String(values.id||'upload1'),kind=String(values.kind||'document');
-      draft.media=[{id,kind}];
-    }
+    const id=String(values.id||'upload1'),kind=String(values.kind||'document');
+    let draftHtml=String(values.html||'<p>Teste</p>');
+    if(file)draftHtml=draftHtml.replace(/\s+src="tg:\/\/[^"]+"/,' data-media-id="'+id+'"');
+    const draft=draftFixture(draftHtml);
+    if(file)draft.media=[{id,kind}];
     values.draft=JSON.stringify(draft);
   }
   const form=new FormData();
@@ -314,7 +314,7 @@ test('local attachment is represented as attach upload and stale tg media is rej
 test('Telegram Rich Message accepts the official maximum of 50 multipart media items and rejects 51',async()=>{
   const ids=Array.from({length:50},(_,index)=>'m'+String(index).padStart(2,'0'));
   const html=ids.map(id=>`<figure><img src="tg://photo?id=${id}"><figcaption>${id}</figcaption></figure>`).join('');
-  const draft=draftFixture(html);
+  const draft=draftFixture(ids.map(id=>'<figure><img data-media-id="'+id+'"><figcaption>'+id+'</figcaption></figure>').join(''));
   draft.media=ids.map(id=>({id,kind:'image'}));
   const form=new FormData();
   form.set('initData',init());
@@ -331,7 +331,7 @@ test('Telegram Rich Message accepts the official maximum of 50 multipart media i
 
   const overflowIds=[...ids,'m50'];
   const overflowHtml=overflowIds.map(id=>`<figure><img src="tg://photo?id=${id}"></figure>`).join('');
-  const overflowDraft=draftFixture(overflowHtml);
+  const overflowDraft=draftFixture(overflowIds.map(id=>'<figure><img data-media-id="'+id+'"></figure>').join(''));
   overflowDraft.media=overflowIds.map(id=>({id,kind:'image'}));
   const overflow=new FormData();
   overflow.set('initData',init());overflow.set('html',overflowHtml);overflow.set('draft',JSON.stringify(overflowDraft));
