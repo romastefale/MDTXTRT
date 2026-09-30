@@ -6,7 +6,7 @@ import { execFileSync, spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 
 const releaseManifest=JSON.parse(readFileSync(new URL('../RELEASE_MANIFEST.json',import.meta.url),'utf8'));
-const baselineSha=process.env.BASELINE_SHA||releaseManifest.visualBaseline;
+const baselineSha=process.env.BASELINE_SHA||releaseManifest.visualComparisonSnapshot;
 if(!/^[a-f0-9]{40}$/.test(baselineSha))throw new Error('BASELINE_SHA (comparison snapshot) inválido');
 
 const repo=process.cwd();
@@ -121,7 +121,7 @@ try{
     if(preservationRequired){
       throw new Error('Preservação visual foi explicitamente exigida e o shell divergiu do snapshot de comparação em: '+themes);
     }
-    console.warn('VISUAL EVOLUTION REVIEW: o candidato divergiu do snapshot de comparação em: '+themes+'. Isto não é falha automática. Revise se a divergência é evolução deliberada ou regressão; se aceita, avance RELEASE_MANIFEST.json.visualBaseline.');
+    console.warn('VISUAL EVOLUTION REVIEW: o candidato divergiu do snapshot de comparação em: '+themes+'. Isto não é falha automática. Revise se a divergência é evolução deliberada ou regressão; se aceita, avance RELEASE_MANIFEST.json.visualComparisonSnapshot.');
   } else {
     console.log('O candidato permanece visualmente idêntico à referência atual.');
   }
