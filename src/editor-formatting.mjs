@@ -112,17 +112,22 @@ export function createFormatting(root,{changed=()=>{},selectionChanged=()=>{}}={
     if(typingOverrides.has(command))return typingOverrides.get(command);
     const range=rangeInside(root);
     if(!range)return false;
-    if(range.collapsed)return Boolean(closestMark(root,command,range));
     const selector=commandSelector(command);
     if(!selector)return false;
-    const start=closestMark(root,command,range);
-    if(!start)return false;
-    const fragment=range.cloneContents();
-    const texts=[];
-    const walker=root.ownerDocument.createTreeWalker(fragment,root.ownerDocument.defaultView.NodeFilter.SHOW_TEXT);
-    let node;while((node=walker.nextNode()))if(node.data)texts.push(node);
-    if(!texts.length)return true;
-    return !fragment.querySelector?.("*:not("+selector.replaceAll(",","):not(")+")");
+    if(range.collapsed)return Boolean(closestMark(root,command,range));
+    const walker=root.ownerDocument.createTreeWalker(root,root.ownerDocument.defaultView.NodeFilter.SHOW_TEXT);
+    let node,seen=false;
+    while((node=walker.nextNode())){
+      if(!node.data)continue;
+      let intersects=false;
+      try{intersects=range.intersectsNode(node);}catch{}
+      if(!intersects)continue;
+      seen=true;
+      const element=node.parentElement;
+      const mark=element?.closest?.(selector)||null;
+      if(!mark||!root.contains(mark))return false;
+    }
+    return seen;
   }
 
   function toggle(command,value=null){
