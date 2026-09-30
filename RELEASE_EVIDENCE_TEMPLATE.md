@@ -35,7 +35,7 @@ Do not place tokens, raw Telegram initData, raw browser capabilities, passwords 
 | ui.js reproducible |  |  |
 | Stage ancestry/manifest |  |  |
 | Surface contract |  |  |
-| Automated visual shell comparison |  |  |
+| Optional historical visual diagnostic (if performed) | N/A or result | evidence ref if applicable |
 
 ## Railway draft persistence/restart
 
