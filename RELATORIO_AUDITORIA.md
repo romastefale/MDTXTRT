@@ -33,16 +33,17 @@ A documentação declara que a baseline é "sempre mutável", mas os testes e o 
 ## 3. Histórico: tentativas de destravar que reforçaram a trava
 
 - 1.061 commits, 186 deles sobre baseline, congelamento, imutabilidade ou histórico.
-- `source.test.mjs` cresceu de 86 linhas e 41 asserts para 884 linhas e 631 asserts. Os `doesNotMatch` (proibições) foram de 8 para 95.
+- `source.test.mjs` cresceu de 86 linhas e 41 asserts para 884 linhas e 622 asserts. Os `doesNotMatch` (proibições) foram de 8 para 95.
 - Ciclo de restaurar e fixar: "Restore Sep 27 design baseline (#24)", "Set current visual state as baseline (#40)", "Promote PR 50 state to baseline contract", "pin dde30467 as working baseline".
 - "Experiment: remove glass hairlines (#80)" apagou o aro e, no mesmo commit, criou os testes que proíbem o aro. Um experimento virou regra.
 - "Align bar finish with normative Liquid Glass material (#30)" foi o commit que proibiu os campos ópticos do fork.
-- O bloco "reject legacy freeze policy" / "stop freezing" (30/09, 12:07–12:32 BRT) alterou 17 arquivos, 12 deles `.md` só trocando palavras, e acrescentou 78 linhas de vigilância em `evolution-policy`. Nenhum assert de design foi removido, e o total subiu de 617 para 631.
+- O bloco "reject legacy freeze policy" / "stop freezing" (30/09, 12:07–12:32 BRT) alterou 17 arquivos, 12 deles `.md` só trocando palavras, e acrescentou 78 linhas de vigilância em `evolution-policy`. No `source.test.mjs` saíram 7 asserts (de 629 para 622), todos sobre texto de processo e metadados históricos. Nenhum assert de design foi removido.
 
 ## 4. Testes que não testam o produto
 
 - Nenhum teste roda em navegador real. `glass-runtime.test.mjs` usa JSDOM, que não renderiza `backdrop-filter`, filtro SVG nem WebGL, e troca o `ResizeObserver` por um que não faz nada. Não consegue observar a lente.
-- 555 asserções de texto estão no `source.test.mjs`, contra 41 no `editor.test.mjs`, que testa comportamento. Há 13 vezes mais testes sobre a forma do CSS do que sobre o editor funcionar.
+- O design inteiro é fiscalizado só por regex sobre o texto do código: dos 622 asserts do `source.test.mjs`, 537 são `match`/`doesNotMatch`. Nada visual é testado em navegador.
+- Editor e servidor têm cobertura real de comportamento: `editor.test.mjs` tem 427 asserts em 80 testes e `server.test.mjs` tem 380 em 47. Esses testes devem ser preservados.
 
 ## 5. Código que contradiz o que o projeto descreve
 
@@ -69,7 +70,7 @@ A documentação declara que a baseline é "sempre mutável", mas os testes e o 
 - Posicionamento automático dos menus.
 - Áreas seguras oficiais do Telegram e continuidade do `theme-color`.
 - Suporte a movimento reduzido.
-- Os testes de comportamento do editor e do servidor.
+- Os testes de comportamento do editor e do servidor (807 asserts).
 
 ## 8. Plano
 
