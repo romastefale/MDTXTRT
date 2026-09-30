@@ -23,6 +23,7 @@ jobs:
       - run: npm install --package-lock-only --ignore-scripts
       - run: npm ci
       - run: npm run build
+      - run: npm test
       - name: Commit lockfile and bundles
         shell: bash
         run: |
