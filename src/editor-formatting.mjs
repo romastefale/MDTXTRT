@@ -1,4 +1,4 @@
-import {rangeInside,rangeForTextOffsets,selectionTextOffsets,elementAtRangeStart,setCaret} from "./editor-selection.mjs";
+import {rangeInside,rangeForTextOffsets,selectionTextOffsets,textRanges,elementAtRangeStart,setCaret} from "./editor-selection.mjs";
 
 const COMMAND_TAG=Object.freeze({
   bold:"strong",
@@ -161,16 +161,13 @@ export function createFormatting(root,{changed=()=>{},selectionChanged=()=>{}}={
     const selector=commandSelector(command);
     if(!selector)return false;
     if(range.collapsed)return Boolean(closestMark(root,command,range));
-    const walker=root.ownerDocument.createTreeWalker(root,root.ownerDocument.defaultView.NodeFilter.SHOW_TEXT);
-    let node,seen=false;
-    while((node=walker.nextNode())){
-      if(!node.data)continue;
-      let intersects=false;
-      try{intersects=range.intersectsNode(node);}catch{}
-      if(!intersects)continue;
+    const offsets=selectionTextOffsets(root);
+    if(!offsets)return false;
+    let seen=false;
+    for(const row of textRanges(root).rows){
+      if(Math.max(row.start,offsets.from)>=Math.min(row.end,offsets.to))continue;
       seen=true;
-      const element=node.parentElement;
-      const mark=element?.closest?.(selector)||null;
+      const mark=row.node.parentElement?.closest?.(selector)||null;
       if(!mark||!root.contains(mark))return false;
     }
     return seen;
