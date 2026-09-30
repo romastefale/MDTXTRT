@@ -1,5 +1,5 @@
 import { createHash, createHmac, randomUUID, timingSafeEqual } from "node:crypto";
-import { createReadStream, existsSync, statSync, readFileSync, writeFileSync, renameSync, mkdirSync, unlinkSync, readdirSync } from "node:fs";
+import { createReadStream, createWriteStream, existsSync, statSync, readFileSync, writeFileSync, renameSync, mkdirSync, unlinkSync, readdirSync, copyFileSync, rmSync, openAsBlob } from "node:fs";
 import { DomUtils, parseDocument } from "htmlparser2";
 import { marked } from "marked";
 import Busboy from "busboy";
@@ -53,6 +53,7 @@ const TELEGRAPH_FILE = DATA + "/telegraph-token";
 const PAGES_FILE = TELEGRAPH_FILE + "-pages.json";
 const HANDOFF_DIR = DATA + "/handoffs";
 const DRAFT_DIR = DATA + "/drafts";
+const TMP_DIR = DATA + "/tmp";
 const HANDOFF_TTL = 15 * 60 * 1000;
 const BOT_IMPORT_DOWNLOAD_MAX = 20_000_000;
 const BOT_IMPORT_SOURCE_MAX = 240_000;
@@ -65,6 +66,7 @@ let telegraphQueue = Promise.resolve();
 let botLink;
 mkdirSync(HANDOFF_DIR, { recursive: true });
 mkdirSync(DRAFT_DIR, { recursive: true });
+mkdirSync(TMP_DIR, { recursive: true });
 if(existsSync(TELEGRAPH_FILE)){
   telegraphToken=readFileSync(TELEGRAPH_FILE,"utf8").trim();
   if(!telegraphToken)throw new Error("Credencial Telegraph persistida está vazia");
@@ -222,20 +224,64 @@ async function readJson(req, maxBytes = 80_000) {
 async function readMedia(req) {
   if (!/^multipart\/form-data;\s*boundary=/i.test(req.headers["content-type"] || "")) throw new Error("Formato de mídia inválido");
   return new Promise((resolve, reject) => {
-    const fields = {}, files = [];
-    const bus = Busboy({headers:req.headers,limits:{files:1,fileSize:20_000_000,fields:6,fieldSize:400000}});
+    const fields = {}, files = [], pending = [];
+    let failed=false;
+    const fail=error=>{
+      if(failed)return;
+      failed=true;
+      for(const file of files)try{if(file.path&&existsSync(file.path))unlinkSync(file.path);}catch{}
+      reject(error);
+    };
+    const bus = Busboy({headers:req.headers,limits:{files:50,fileSize:50_000_000,fields:8,fieldSize:400000}});
     bus.on("field",(key,value)=>{fields[key]=value;});
     bus.on("file",(key,stream,info)=>{
-      if (key !== "upload") {stream.resume();reject(new Error("Mídia inválida"));return;}
-      const chunks=[];
-      stream.on("data",chunk=>chunks.push(chunk));
-      stream.on("limit",()=>reject(new Error("Mídia grande demais")));
-      stream.on("end",()=>files.push({bytes:Buffer.concat(chunks),mime:info.mimeType,name:info.filename.slice(0,100)}));
+      if (!/^upload_[A-Za-z0-9_-]{1,64}$/.test(key)) {stream.resume();fail(new Error("Campo de mídia inválido"));return;}
+      const path=TMP_DIR+"/"+randomUUID()+".upload";
+      const file={field:key,id:key.slice(7),path,mime:info.mimeType,name:info.filename.slice(0,120),size:0};
+      files.push(file);
+      const task=new Promise((done,stop)=>{
+        const out=createWriteStream(path,{mode:0o600});
+        stream.on("data",chunk=>{file.size+=chunk.length;});
+        stream.on("limit",()=>{out.destroy();stop(new Error("Arquivo acima do limite de 50 MB para upload multipart do Telegram"));});
+        stream.on("error",error=>{out.destroy();stop(error);});
+        out.on("error",stop);
+        out.on("finish",done);
+        stream.pipe(out);
+      });
+      pending.push(task);
     });
-    bus.on("error",reject);
-    bus.on("close",()=>resolve({fields,file:files[0]}));
+    bus.on("filesLimit",()=>fail(new Error("O Telegram aceita no máximo 50 mídias por Rich Message")));
+    bus.on("error",fail);
+    bus.on("close",async()=>{
+      if(failed)return;
+      try{
+        await Promise.all(pending);
+        if(files.some(file=>file.size<1))throw new Error("Arquivo vazio");
+        resolve({fields,files});
+      }catch(error){
+        for(const file of files)try{if(file.path&&existsSync(file.path))unlinkSync(file.path);}catch{}
+        reject(error);
+      }
+    });
     req.pipe(bus);
   });
+}
+function cleanupIncomingMedia(media){
+  for(const file of media?.files||[])try{if(file.path&&existsSync(file.path))unlinkSync(file.path);}catch(error){console.error("Temporary upload cleanup",error);}
+}
+function validateTelegramUpload(file,kind){
+  if(!file||!/^[A-Za-z0-9_-]{1,64}$/.test(String(file.id||""))||!["image","video","audio","voice","document"].includes(kind))throw new Error("Mídia inválida");
+  const mimeContract={
+    image:/^image\//,
+    video:/^video\//,
+    audio:/^audio\//,
+    voice:/^audio\//,
+    document:/^(?:image|video|audio|application|text)\//
+  }[kind];
+  if(!mimeContract?.test(file.mime||""))throw new Error("Tipo de mídia inválido");
+  const max=kind==="image"?10_000_000:50_000_000;
+  if(!Number.isInteger(file.size)||file.size<1||file.size>max)throw new Error(kind==="image"?"Fotos enviadas por multipart podem ter até 10 MB":"Arquivos enviados por multipart podem ter até 50 MB");
+  return file;
 }
 
 function cleanFileName(value){
