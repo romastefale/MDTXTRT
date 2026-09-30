@@ -59,9 +59,26 @@ function mountReactContract(document){
     <div id="linkMenu" class="glass-menu" popover="auto" data-anchor="linkBtn" data-placement="top"><div class="menu-list">
       <button data-link-kind="hyperlink"></button><button data-link-kind="url"></button><button data-link-kind="button" data-telegram-only></button>
     </div></div>
-    <div id="exportMenu" popover="auto" data-anchor="exportBtn" data-placement="auto">
-      <button id="openAppBtn"><span data-icon="telegram"></span><span id="openAppLabel">Publicar no Telegram</span></button>
-      <button id="exportMdBtn"></button><button id="exportTxtBtn"></button>
+    <div id="exportMenu" class="glass-menu export-menu" popover="auto" data-anchor="exportBtn" data-placement="auto">
+      <div id="exportRootView">
+        <button id="libraryBtn"></button>
+        <button id="openAppBtn"><span data-icon="telegram"></span><span id="openAppLabel">Publicar no Telegram</span></button>
+        <button id="exportMdBtn"></button><button id="exportTxtBtn"></button>
+      </div>
+      <div id="librarySubmenu" hidden>
+        <button id="libraryClose"></button>
+        <h2 id="libraryTitle"></h2>
+        <button id="libraryNew"></button>
+        <div id="libraryStatus"></div>
+        <button id="publicationToggle" aria-expanded="true"></button>
+        <span id="publicationCount">0</span>
+        <div id="publicationLists">
+          <section id="telegramLibrarySection"><div id="telegramList"></div></section>
+          <section id="telegraphLibrarySection"><div id="telegraphList"></div></section>
+        </div>
+        <section id="draftLibrarySection"><span id="draftCount">0</span><div id="draftList"></div></section>
+        <div class="library-submenu-scroll"></div>
+      </div>
     </div>
     <div id="plusMenu" popover="auto" data-anchor="plusBtn" data-placement="top">
       <div class="document-tools"><input id="docName" value="Ideia"></div>
@@ -497,6 +514,32 @@ test('Mini App exposes the export menu and keeps publication as an explicit menu
   assert.equal(requests.filter(url=>url.endsWith('/api/telegram/send')).length,0);
   assert.ok(d.querySelector('#exportMdBtn'));
   assert.ok(d.querySelector('#exportTxtBtn'));
+  w.close();
+});
+
+test('library submenu opens inside the export popover and returns safely to the root menu',async()=>{
+  const fetch=async(url)=>{
+    const target=String(url);
+    if(target.endsWith('/api/library/list'))return {ok:true,status:200,json:async()=>({drafts:[],telegram:[],telegraph:[]})};
+    if(target.endsWith('/api/telegraph/recover'))return {ok:false,status:404,json:async()=>({})};
+    return {ok:false,status:404,json:async()=>({error:'not found'})};
+  };
+  const w=page({fetch}),d=w.document,menu=d.querySelector('#exportMenu');
+  d.querySelector('#exportBtn').click();
+  assert.equal(menu.hasAttribute('data-test-popover-open'),true);
+  assert.doesNotThrow(()=>d.querySelector('#libraryBtn').click());
+  await wait(5);
+  assert.equal(d.querySelector('#exportRootView').hidden,true);
+  assert.equal(d.querySelector('#librarySubmenu').hidden,false);
+  assert.equal(menu.classList.contains('library-open'),true);
+  assert.match(d.querySelector('#libraryStatus').textContent,/0 publicações · 0 rascunhos/);
+  assert.equal(d.querySelector('#libraryClose').getAttribute('disabled'),null);
+  d.querySelector('#libraryClose').click();
+  await wait(0);
+  assert.equal(d.querySelector('#exportRootView').hidden,false);
+  assert.equal(d.querySelector('#librarySubmenu').hidden,true);
+  assert.equal(menu.hasAttribute('data-test-popover-open'),true);
+  assert.equal(menu.classList.contains('library-open'),false);
   w.close();
 });
 
