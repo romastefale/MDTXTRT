@@ -122,7 +122,8 @@ export function rangeForTextOffsets(root,from,to){
   const locate=(pos,bias)=>{
     if(!rows.length)return {node:root,offset:0};
     if(bias==="backward"){
-      const row=[...rows].reverse().find(item=>pos>=item.start&&pos<=item.end)||rows[0];
+      if(pos===0)return {node:rows[0].node,offset:0};
+      const row=[...rows].reverse().find(item=>pos>item.start&&pos<=item.end)||rows[0];
       return {node:row.node,offset:Math.max(0,Math.min(pos-row.start,row.node.data.length))};
     }
     const row=rows.find(item=>pos>=item.start&&pos<item.end)||rows.at(-1);
