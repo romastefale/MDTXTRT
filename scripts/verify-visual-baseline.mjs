@@ -8,8 +8,8 @@ import { assertEvolutionPolicy, historicalDivergenceDecision } from './evolution
 
 const releaseManifest=JSON.parse(readFileSync(new URL('../RELEASE_MANIFEST.json',import.meta.url),'utf8'));
 assertEvolutionPolicy(releaseManifest);
-const comparisonSha=process.env.VISUAL_COMPARISON_SHA||releaseManifest.visualComparisonSnapshot;
-if(!/^[a-f0-9]{40}$/.test(comparisonSha))throw new Error('VISUAL_COMPARISON_SHA inválido');
+const comparisonSha=process.env.VISUAL_COMPARISON_SHA||'';
+if(!/^[a-f0-9]{40}$/.test(comparisonSha))throw new Error('VISUAL_COMPARISON_SHA deve ser informado explicitamente para diagnóstico histórico opcional');
 
 const repo=process.cwd();
 const tempRoot=mkdtempSync(join(tmpdir(),'mdtxtrt-visual-'));
