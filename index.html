@@ -392,6 +392,7 @@
     }
     #exportMenu{transition:width .16s cubic-bezier(.2,.75,.25,1)}
     #exportMenu.library-open{width:min(360px,var(--menu-max-width,calc(100vw - 16px)))}
+    #exportMenu.library-open::backdrop{background:transparent;pointer-events:auto}
     #exportMenu.library-open .glass-menu-content{padding:6px}
     .export-root-view{display:flex;flex-direction:column;min-height:0}
     .export-root-view[hidden],.library-submenu-view[hidden]{display:none}
