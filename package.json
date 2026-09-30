@@ -7,11 +7,10 @@
     "test": "node --test tests/*.test.mjs",
     "build": "npm run build:editor && npm run build:ui",
     "build:editor": "esbuild src/editor-core.mjs --bundle --format=iife --global-name=MDTXTRTEditorCore --platform=browser --target=es2022 --minify --legal-comments=eof --outfile=editor-core.js",
-    "build:ui": "esbuild src/liquid-glass-ui.jsx --bundle --format=esm --platform=browser --target=es2022 --define:process.env.NODE_ENV='\"production\"' --minify-syntax --minify-whitespace --legal-comments=eof --outfile=ui.js"
+    "build:ui": "esbuild src/liquid-glass-ui.jsx --bundle --format=esm --platform=browser --target=es2022 --define:process.env.NODE_ENV='\"production\"' --minify-syntax --minify-whitespace --legal-comments=eof --outfile=ui.js",
+    "verify:baseline-policy": "node scripts/verify-baseline-policy.mjs"
   },
-  "engines": {
-    "node": "24.21.0"
-  },
+  "engines": {"node": "24.21.0"},
   "dependencies": {
     "@samasante/liquid-glass": "0.1.1",
     "busboy": "^1.6.0",
@@ -21,15 +20,6 @@
     "react-dom": "19.3.0",
     "turndown": "^7.2.2"
   },
-  "devDependencies": {
-    "esbuild": "0.28.2",
-    "jsdom": "^27.0.0"
-  },
-  "devEngines": {
-    "runtime": {
-      "name": "node",
-      "version": "24.21.0",
-      "onFail": "error"
-    }
-  }
+  "devDependencies": {"esbuild": "0.28.2","jsdom": "^27.0.0"},
+  "devEngines": {"runtime":{"name":"node","version":"24.21.0","onFail":"error"}}
 }
