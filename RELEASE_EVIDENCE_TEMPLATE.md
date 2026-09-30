@@ -133,15 +133,15 @@ For every row record menu/dialog reachability, bottom-bar clearance, internal sc
 | explicit Telegram rejection |  | failed/explicit retry only |  |  |  |
 | stale persistent draft revision |  | reject stale overwrite |  |  |  |
 
-## Visual baseline manual verification
+## Visual comparison snapshot review
 
-- Baseline SHA: copy `RELEASE_MANIFEST.json.visualBaseline` for the candidate under verification
+- Comparison snapshot SHA: copy `RELEASE_MANIFEST.json.visualBaseline` used for visual review
 - Candidate/anchor SHA:
 - Light mode evidence:
 - Dark mode evidence:
 - Menus/dialogs evidence:
 - Title-label evidence:
-- Notes on intentional post-baseline placement changes:
+- Notes on intentional divergence from the comparison snapshot:
 - PASS/FAIL:
 
 ## Rollback
