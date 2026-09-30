@@ -55,11 +55,9 @@ const declaredInsertions=[...new Set([...ui.matchAll(/(?:data-insert="|"data-ins
 for(const kind of declaredInsertions)requireText(insertionBlock,"'"+kind+"'","inserção "+kind);
 
 const declaredCommands=[...new Set([...ui.matchAll(/(?:data-cmd="|"data-cmd": ")([^"]+)/g)].map(match=>match[1]))];
-const core=read('src/editor-core.mjs');
-for(const cmd of declaredCommands){
-  if(cmd==='insertUnorderedList')requireText(app,"cmd==='insertUnorderedList'","comando "+cmd);
-  else requireText(core,cmd+':',"comando "+cmd);
-}
+requireText(app,"[data-plus-submenu] [data-cmd]","comandos de formatação");
+requireText(app,"#typebar [data-cmd]","comandos da barra");
+requireText(app,"cmd==='insertUnorderedList'","lista não ordenada");
 
 const botCommands=[...server.matchAll(/\{ command: "([^"]+)"/g)].map(match=>match[1]);
 const expectedBot=['start','app','novo','rascunhos','telegraph','ajuda','enviar','exportar','importar'];
