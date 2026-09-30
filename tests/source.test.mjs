@@ -384,7 +384,8 @@ test('draft persistence and Telegram provenance stay documented',()=>{
   assert.match(app,/box\.innerHTML=requireEditorCore\(\)\.html\(\)/);
   assert.doesNotMatch(app,/editorCore\?editorCore\.html\(\):editor\.innerHTML/);
   assert.doesNotMatch(app,/else editor\.innerHTML=/);
-  assert.match(app,/edição bloqueada para não substituir um rascunho remoto/);
+  assert.match(app,/A edição fica pausada para não substituí-la/);
+  assert.match(app,/'Tentar de novo','Começar rascunho novo'/);
   assert.match(app,/function persistRemoteDraft\(pagehide=false\)/);
   assert.match(app,/function loadRemoteDraft\(doc=''\)/);
   assert.match(app,/form\.set\('draft',JSON\.stringify\(draftState\(\)\)\)/);

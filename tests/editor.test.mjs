@@ -317,19 +317,29 @@ test('volume recovery restores a missing local draft by persistent browser ident
   w.close();
 });
 
-test('volume recovery failure blocks editing instead of opening a degraded replacement draft',async()=>{
+test('volume recovery failure pauses editing and offers retry or a new draft',async()=>{
   const browserKey='aa'.repeat(32);
+  let volumeUp=false;
   const fetch=async(url)=>{
     const target=String(url);
-    if(target.endsWith('/api/drafts/load'))throw new TypeError('volume unavailable');
+    if(target.endsWith('/api/drafts/load')){
+      if(!volumeUp)throw new TypeError('volume unavailable');
+      return {ok:false,status:404,json:async()=>({error:'not found'})};
+    }
     if(target.endsWith('/api/telegraph/recover'))return {ok:false,status:404,json:async()=>({error:'Página não encontrada'})};
     return {ok:false,status:404,json:async()=>({error:'not found'})};
   };
   const w=page({fetch,local:{'mdtxtrt-browser-owner':browserKey}}),d=w.document;
   await wait(30);
   assert.equal(d.querySelector('#editor').getAttribute('contenteditable'),'false');
-  assert.match(d.querySelector('#toast').textContent,/edição bloqueada/i);
+  assert.match(d.querySelector('#dialogLabel').textContent,/edição fica pausada/i);
+  assert.equal(d.querySelector('#dialogOk').textContent,'Tentar de novo');
+  assert.equal(d.querySelector('#dialogCancel').textContent,'Começar rascunho novo');
   assert.equal(w.localStorage.getItem('rmdtxtml'),null);
+  volumeUp=true;
+  d.querySelector('#dialogOk').click();
+  await wait(30);
+  assert.equal(d.querySelector('#editor').getAttribute('contenteditable'),'true');
   w.close();
 });
 

@@ -748,7 +748,7 @@ function focusDialogStart(selectValue=false){
   const target=!dialogConfirm&&!input.hidden?input:one('#dialogOk');
   if(focusControl(target)&&selectValue&&!dialogConfirm&&input.rows===1)input.select();
 }
-let dialogResolve=null,dialogConfirm=false,lastInteractionControl=null;
+let dialogResolve=null,dialogConfirm=false,dialogChoice=false,lastInteractionControl=null;
 document.addEventListener('click',event=>{
   const control=event.target?.closest?.('button,input,textarea,select,[role="button"],[tabindex]');
   if(control&&!one('#dialogMenu').contains(control))lastInteractionControl=control;
@@ -770,7 +770,7 @@ function finishDialog(value){
   focusControl(target);
   if(resolve)resolve(value);
 }
-function dialogOpen(label,value='',rows=1,confirmMode=false,anchorOverride=null){
+function dialogOpen(label,value='',rows=1,confirmMode=false,anchorOverride=null,labels=null){
   if(dialogResolve)finishDialog(null);
   saveSel();
   dialogReturnFocus=dialogOrigin();
@@ -782,10 +782,12 @@ function dialogOpen(label,value='',rows=1,confirmMode=false,anchorOverride=null)
   const anchorRect=anchor?.getBoundingClientRect()||null;
   one('#dialogLabel').textContent=label;
   dialogConfirm=confirmMode;
+  dialogChoice=Boolean(labels);
   input.hidden=confirmMode;
   input.value=confirmMode?'':String(value===null||value===undefined?'':value);
   input.rows=Math.max(1,Math.min(5,rows));
-  one('#dialogOk').textContent=confirmMode?'Continuar':'OK';
+  one('#dialogOk').textContent=labels?.ok||(confirmMode?'Continuar':'OK');
+  one('#dialogCancel').textContent=labels?.cancel||'Cancelar';
   dialog.showPopover();
   setDialogModality(true);
   placePanel(dialog,anchorRect);
@@ -797,11 +799,12 @@ function dialogOpen(label,value='',rows=1,confirmMode=false,anchorOverride=null)
 }
 function ask(label,value='',rows=1,anchorOverride=null){return dialogOpen(label,value,rows,false,anchorOverride);}
 async function approve(label){return await dialogOpen(label,'',1,true)===true;}
+function chooseDialog(label,ok,cancel){return dialogOpen(label,'',1,true,null,{ok,cancel});}
 one('#dialogOk').addEventListener('click',()=>finishDialog(dialogConfirm?true:one('#dialogInput').value));
 one('#dialogCancel').addEventListener('click',()=>finishDialog(dialogConfirm?false:null));
 one('#dialogInput').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&e.currentTarget.rows===1){e.preventDefault();finishDialog(e.currentTarget.value);}});
 one('#dialogMenu').addEventListener('keydown',event=>{
-  if(event.key==='Escape'){event.preventDefault();finishDialog(dialogConfirm?false:null);return;}
+  if(event.key==='Escape'){event.preventDefault();finishDialog(dialogConfirm&&!dialogChoice?false:null);return;}
   if(event.key!=='Tab')return;
   const items=dialogFocusables();
   if(!items.length){event.preventDefault();return;}
@@ -2110,6 +2113,38 @@ window.addEventListener('resize',scheduleBrowserViewport);
 document.addEventListener('focusin',scheduleBrowserViewport);
 document.addEventListener('focusout',scheduleBrowserViewport);
 syncBrowserViewport();
+// Sem cópia local nem handoff, o editor espera a cópia do volume para não sobrescrevê-la.
+// Se o servidor falhar, a pessoa escolhe: tentar de novo ou começar um rascunho novo,
+// que ganha outro docId e portanto não substitui a cópia remota.
+let draftRecoveryPending=false;
+async function recoverPersistentDraft(){
+  try{
+    const loaded=await loadRemoteDraft();
+    draftRecoveryPending=false;
+    draftWriteBlocked=false;
+    editor.setAttribute('contenteditable','true');
+    if(loaded){
+      setDestination(dest,false,false);
+      syncEditorSelectionUI();
+      showToast('Rascunho recuperado do volume persistente');
+    }
+    return true;
+  }catch(error){
+    console.error('Persistent draft recovery',error);
+    draftWriteBlocked=true;
+    draftRecoveryPending=true;
+    editor.setAttribute('contenteditable','false');
+    void offerDraftRecovery();
+    return false;
+  }
+}
+async function offerDraftRecovery(){
+  const choice=await chooseDialog('Não foi possível buscar sua cópia salva no servidor. A edição fica pausada para não substituí-la.','Tentar de novo','Começar rascunho novo');
+  if(!draftRecoveryPending)return;
+  if(choice===true){showToast('Buscando a cópia salva…');await recoverPersistentDraft();return;}
+  if(choice===false){createNewDocumentLaunch();return;}
+}
+editor.addEventListener('pointerdown',()=>{if(draftRecoveryPending&&!dialogResolve)void offerDraftRecovery();});
 function boot(){
   const factory=window.MDTXTRTEditorCore?.createEditorCore;
   if(typeof factory!=='function')throw new Error('Núcleo de edição indisponível');
@@ -2146,23 +2181,7 @@ function boot(){
   if(recoverVolume)editor.setAttribute('contenteditable','false');
   void (async()=>{
     try{
-      if(recoverVolume){
-        try{
-          const loaded=await loadRemoteDraft();
-          if(loaded){
-            setDestination(dest,false,false);
-            syncEditorSelectionUI();
-            showToast('Rascunho recuperado do volume persistente');
-          }
-        }catch(error){
-          console.error('Persistent draft recovery',error);
-          draftWriteBlocked=true;
-          editor.setAttribute('contenteditable','false');
-          showToast('Não foi possível recuperar a cópia persistente; edição bloqueada para não substituir um rascunho remoto');
-        }finally{
-          if(!draftWriteBlocked)editor.setAttribute('contenteditable','true');
-        }
-      }
+      if(recoverVolume)await recoverPersistentDraft();
       await restoreMedia();
       await verifyTelegram();
       if(botLaunch)await runBotLaunchAction(botLaunch);
