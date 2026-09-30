@@ -33,7 +33,11 @@ const forbidden = [
   ['AGENTS.md', /authoritative working baseline sha/i],
   ['RELEASE_ANCHOR.md', /approved visual baseline/i],
   ['RELEASE_VALIDATION.md', /normative visual baseline/i],
-  ['ARCHITECTURE.md', /explicitly adopted visual reference/i]
+  ['ARCHITECTURE.md', /explicitly adopted visual reference/i],
+  ['ARCHITECTURE.md', /RELEASE_MANIFEST\.json\.visualBaseline/i],
+  ['README.md', /âncora canônica imutável/i],
+  ['PRODUCT_POLISH_STATUS.md', /anchor imutável/i],
+  ['scripts/verify-visual-baseline.mjs', /BASELINE_PRESERVATION_REQUIRED/i]
 ];
 for (const [file, pattern] of forbidden) {
   const content = readFileSync(new URL(file, root), 'utf8');
