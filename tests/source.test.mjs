@@ -675,6 +675,7 @@ test('draft persistence, Telegram provenance and explicit visual-baseline histor
   assert.match(drafts,/verified Telegram user identifier/);
   assert.match(drafts,/does \*\*not\*\* rewrite the earlier chat message/);
   assert.match(drafts,/Runtime-only ProseMirror/);
+  assert.match(baseline,/db6ae2240cbe2792bd7edb1a9c26399f068ea807/);
   assert.match(baseline,/1dbbdb2dfaeafbd8ef52cea859611ffa5f6699ad/);
   assert.match(baseline,/aac423e012745c7873908ddc4a76371fb8218aa3/);
   assert.match(baseline,/dde30467ed9b0d108bac2ae7ad9bcac1137c169e/);
@@ -804,6 +805,7 @@ test('final release gap analysis, surface audit and final-only anchor gates are 
   assert.match(workflow,/name: Rebuild all committed bundles[\s\S]*?npm run build/);
   assert.match(workflow,/git diff --exit-code -- editor-core\.js ui\.js/);
   assert.match(workflow,/node scripts\/verify-visual-baseline\.mjs/);
+  assert.match(workflow,/BASELINE_SHA: db6ae2240cbe2792bd7edb1a9c26399f068ea807/);
   assert.match(workflow,/release-rebuilt-bundles-\$\{\{ env\.RELEASE_CANDIDATE_SHA \}\}/);
   assert.match(workflow,/release-visual-baseline-\$\{\{ env\.RELEASE_CANDIDATE_SHA \}\}/);
   assert.match(workflow,/draft_persistence_evidence_ref:/);
@@ -813,7 +815,15 @@ test('final release gap analysis, surface audit and final-only anchor gates are 
   assert.match(workflow,/name: Audit release evidence record[\s\S]*?GITHUB_TOKEN:[\s\S]*?node scripts\/validate-release-evidence\.mjs/);
   assert.doesNotMatch(workflow,/contents:\s*write|git push/);
 
-  assert.match(read('scripts/verify-visual-baseline.mjs'),/for\(const theme of \['light','dark'\]\)/);
+  const visualBaselineScript=read('scripts/verify-visual-baseline.mjs');
+  assert.match(visualBaselineScript,/for\(const theme of \['light','dark'\]\)/);
+  assert.match(visualBaselineScript,/id:'app-menu'/);
+  assert.match(visualBaselineScript,/id:'library-menu'/);
+  assert.match(visualBaselineScript,/id:'plus-menu'/);
+  assert.match(visualBaselineScript,/id:'plus-format'/);
+  assert.match(visualBaselineScript,/id:'app-menu-keyboard'[\s\S]*?height:430/);
+  assert.match(visualBaselineScript,/id:'library-menu-keyboard'[\s\S]*?height:430/);
+  assert.match(visualBaselineScript,/data-release-visual-ready/);
   assert.match(evidence,/Final status[\s\S]*?RELEASE APPROVED/);
   assert.match(evidence,/iOS PWA/);
   assert.match(evidence,/Android PWA/);
@@ -823,7 +833,7 @@ test('final release gap analysis, surface audit and final-only anchor gates are 
   assert.match(evidence,/Telegram revision notice\/content timeout/);
   assert.match(evidence,/stale persistent draft revision/);
 
-  assert.equal(manifest.visualBaseline,'1dbbdb2dfaeafbd8ef52cea859611ffa5f6699ad');
+  assert.equal(manifest.visualBaseline,'db6ae2240cbe2792bd7edb1a9c26399f068ea807');
   assert.deepEqual(manifest.runtime,{node:'24.21.0',npm:'11.19.0'});
   assert.deepEqual(manifest.stages.map(stage=>stage.pr),[84,86,88,90,92,95]);
   assert.equal(manifest.stages.at(-1).head,'ec3def6622818c0411bbeb94165716c7f30fa927');
