@@ -4,10 +4,10 @@
 
 A baseline de trabalho vigente do MDTXTRT é:
 
-`7fe51e8401012232281db416ac0d9bd080c18ebf`
+`9c9f8d38313d5f0043283daf06d6ac015f90bded`
 
 - Data de adoção: 2026-09-30.
-- Origem: estado de produção após o PR #120.
+- Origem: estado de produção após o PR #123, com os fluxos privados do bot consolidados exclusivamente no Mini App e sem os caminhos legados substituídos.
 - Natureza: snapshot operacional do estado conhecido e aceito neste momento.
 - Esta baseline **não é o produto final**, **não é uma especificação imutável** e **não deve ser preservada contra solicitações de correção ou implementação**.
 
@@ -48,17 +48,18 @@ Para inspecionar exatamente o estado desta baseline:
 
 ```bash
 git fetch origin
-git checkout 7fe51e8401012232281db416ac0d9bd080c18ebf
+git checkout 9c9f8d38313d5f0043283daf06d6ac015f90bded
 ```
 
 Para comparar um estado posterior:
 
 ```bash
-git diff 7fe51e8401012232281db416ac0d9bd080c18ebf..HEAD
+git diff 9c9f8d38313d5f0043283daf06d6ac015f90bded..HEAD
 ```
 
 ## Histórico
 
+- `7fe51e8401012232281db416ac0d9bd080c18ebf` — baseline anterior após o PR #120; substituída após a evolução dos comandos privados do bot nos PRs #122 e #123, incluindo remoção dos caminhos legados e consolidação dos botões `web_app`.
 - `b22aee80bbaa79db63d12ef62ae523d968218aa5` — baseline anterior após o PR #118; substituída após tornar Rascunhos recolhível com a mesma normativa de Publicações no PR #120.
 - `db6ae2240cbe2792bd7edb1a9c26399f068ea807` — baseline anterior após o PR #116; substituída após a correção do toque móvel real no PR #118.
 - `1dbbdb2dfaeafbd8ef52cea859611ffa5f6699ad` — baseline histórica após o PR #107.
