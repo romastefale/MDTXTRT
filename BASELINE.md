@@ -82,21 +82,6 @@ Não use `main`, o SHA da baseline, testes existentes, screenshots, documentaç�
 
 ## Uso técnico
 
-Para inspecionar o snapshot atualmente associado:
-
-```bash
-git fetch origin
-git checkout 977d61554f75c943b626f89fe871bb3becae75f1
-```
-
-Para comparar o estado atual com esse ponto de partida:
-
-```bash
-git diff 977d61554f75c943b626f89fe871bb3becae75f1..HEAD
-```
-
-A comparação serve para identificar **o que evoluiu**. Ela não estabelece que diferenças sejam, por definição, erros.
-
 ## Histórico
 
 - `ac0f66ccb5bdd49fb4cd744403dac79d8d1965ce` — candidato funcional usado durante o PR #126; substituído pelo merge publicado e validado em produção `977d61554f75c943b626f89fe871bb3becae75f1`.
