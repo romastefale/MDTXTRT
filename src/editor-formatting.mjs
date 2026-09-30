@@ -56,6 +56,43 @@ function replaceSelectedRange(root,range,fragment){
   restoreRangeAroundMarkers(doc,start,end);
 }
 
+function nodeRange(node){
+  const range=node.ownerDocument.createRange();
+  range.selectNode(node);
+  return range;
+}
+
+function fullyContained(outer,node){
+  const inner=nodeRange(node);
+  const RangeCtor=node.ownerDocument.defaultView.Range;
+  return outer.compareBoundaryPoints(RangeCtor.START_TO_START,inner)<=0&&
+    outer.compareBoundaryPoints(RangeCtor.END_TO_END,inner)>=0;
+}
+
+function unwrap(node){
+  node.replaceWith(...node.childNodes);
+}
+
+function removeSelectedMark(root,range,selector){
+  const doc=root.ownerDocument;
+  const end=doc.createComment("selection-end"),start=doc.createComment("selection-start");
+  const endRange=range.cloneRange();endRange.collapse(false);endRange.insertNode(end);
+  const startRange=range.cloneRange();startRange.collapse(true);startRange.insertNode(start);
+  for(const marker of [start,end]){
+    let mark=marker.parentElement?.closest?.(selector)||null;
+    while(mark&&root.contains(mark)){
+      splitAncestorAtMarker(mark,marker);
+      mark=marker.parentElement?.closest?.(selector)||null;
+    }
+  }
+  const selected=doc.createRange();
+  selected.setStartAfter(start);selected.setEndBefore(end);
+  for(const node of [...root.querySelectorAll(selector)]){
+    if(fullyContained(selected,node))unwrap(node);
+  }
+  restoreRangeAroundMarkers(doc,start,end);
+}
+
 function splitAncestorAtMarker(ancestor,marker){
   const doc=ancestor.ownerDocument,parent=ancestor.parentNode;
   if(!parent)return;
@@ -145,19 +182,16 @@ export function createFormatting(root,{changed=()=>{},selectionChanged=()=>{}}={
     }
     typingOverrides.clear();
     const remove=activeMark(command);
-    const fragment=range.extractContents();
-    if(remove)stripElements(fragment,selector);
-    else{
+    if(remove){
+      removeSelectedMark(root,range,selector);
+    }else{
+      const fragment=range.extractContents();
       const wrapper=root.ownerDocument.createElement(tag);
       wrapper.append(fragment);
       const next=root.ownerDocument.createDocumentFragment();
       next.append(wrapper);
       replaceSelectedRange(root,range,next);
-      changed();
-      selectionChanged();
-      return true;
     }
-    replaceSelectedRange(root,range,fragment);
     changed();selectionChanged();
     return true;
   }
@@ -189,7 +223,6 @@ export function createFormatting(root,{changed=()=>{},selectionChanged=()=>{}}={
     const enabled=[...typingOverrides].filter(([,on])=>on).map(([command])=>command);
     escapeDisabledMarks(root,disabled);
     const inserted=insertMarkedText(root,event.data,enabled);
-    typingOverrides.clear();
     if(inserted){changed();selectionChanged();}
     return inserted;
   }
