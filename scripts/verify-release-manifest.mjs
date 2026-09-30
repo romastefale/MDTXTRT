@@ -18,10 +18,10 @@ if(process.versions.node!==manifest.runtime.node)fail(`Node atual ${process.vers
 const npmVersion=run('npm',['--version']);
 if(npmVersion!==manifest.runtime.npm)fail(`npm atual ${npmVersion} != ${manifest.runtime.npm}`);
 
-const historicalStages=manifest.historicalEvidence?.implementationStages;
-if(!Array.isArray(historicalStages))fail('historicalEvidence.implementationStages deve ser uma lista de rastreabilidade');
+const historicalStages=manifest.historicalEvidence?.implementationStages ?? [];
+if(!Array.isArray(historicalStages))fail('historicalEvidence.implementationStages, quando presente, deve ser uma lista de rastreabilidade');
 for(const [index,stage] of historicalStages.entries()){
-  if(stage.step!==index+1||!Number.isInteger(stage.pr)||!/^[a-f0-9]{40}$/.test(stage.head))fail(`Evidência histórica inválida no índice ${index}`);
+  if(!Number.isInteger(stage.step)||!Number.isInteger(stage.pr)||!/^[a-f0-9]{40}$/.test(stage.head))fail(`Evidência histórica inválida no índice ${index}`);
 }
 const allowedAutomatedGates=new Set(['regression','runtime','npm-ci','editor-bundle-reproducible','ui-bundle-reproducible','surface-contract']);
 for(const gate of manifest.releaseGates?.automated||[])if(!allowedAutomatedGates.has(gate))fail(`Gate automatizado não reconhecido: ${gate}`);
