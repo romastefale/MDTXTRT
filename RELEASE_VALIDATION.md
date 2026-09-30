@@ -34,7 +34,7 @@ Acceptance:
 
 Any bundle difference is a release failure.
 
-## Gate C — stage lineage and announced surface contract
+## Gate C — announced surface contract and optional historical traceability
 
 `RELEASE_MANIFEST.json` may retain the six implementation-stage PR heads as historical traceability. `scripts/verify-release-manifest.mjs` validates their record shape only; historical ancestry is not a release gate and cannot block a later evolution or promotion.
 
