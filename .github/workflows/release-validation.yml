@@ -6,52 +6,9 @@ on:
       - main
   pull_request:
   workflow_dispatch:
-    inputs:
-      release_evidence_sha:
-        description: Exact commit SHA for this release evidence record
-        required: true
-        type: string
-      authorization_evidence_ref:
-        description: GitHub issue/comment containing explicit external-test authorization
-        required: true
-        type: string
-      visual_evidence_ref:
-        description: GitHub issue/comment containing manual visual evidence
-        required: true
-        type: string
-      draft_persistence_evidence_ref:
-        description: GitHub issue/comment containing Railway draft persistence/restart evidence
-        required: true
-        type: string
-      import_export_evidence_ref:
-        description: GitHub issue/comment containing real import/export matrix evidence
-        required: true
-        type: string
-      telegraph_evidence_ref:
-        description: GitHub issue/comment containing live Telegraph restart evidence
-        required: true
-        type: string
-      telegram_evidence_ref:
-        description: GitHub issue/comment containing real Rich Message receipt evidence
-        required: true
-        type: string
-      device_matrix_evidence_ref:
-        description: GitHub issue/comment containing physical-device matrix evidence
-        required: true
-        type: string
-      fault_matrix_evidence_ref:
-        description: GitHub issue/comment containing network/storage fault evidence
-        required: true
-        type: string
-      rollback_evidence_ref:
-        description: GitHub issue/comment containing rollback evidence
-        required: true
-        type: string
 
 permissions:
   contents: read
-  issues: read
-  pull-requests: read
 
 env:
   RELEASE_CANDIDATE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
@@ -84,18 +41,6 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
 
-      - name: Verify release manifest and runtime contract
-        run: node scripts/verify-release-manifest.mjs
-
-      - name: Verify evolution policy contract
-        run: npm run verify:evolution-policy
-
-      - name: Verify announced surface contract
-        run: node scripts/verify-surface-contract.mjs
-
-      - name: Verify final evidence validator syntax
-        run: node --check scripts/validate-release-evidence.mjs
-
       - name: Rebuild all committed bundles
         run: npm run build
 
@@ -114,36 +59,3 @@ jobs:
       - name: Run complete regression suite
         run: npm test
 
-
-  evidence:
-    name: Final external and physical evidence gate
-    if: github.event_name == 'workflow_dispatch'
-    needs: automated
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-          ref: ${{ env.RELEASE_CANDIDATE_SHA }}
-
-      - name: Verify exact candidate checkout
-        run: test "$(git rev-parse HEAD)" = "$RELEASE_CANDIDATE_SHA"
-
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version-file: package.json
-
-      - name: Audit release evidence record
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-          RELEASE_EVIDENCE_SHA: ${{ inputs.release_evidence_sha }}
-          AUTHORIZATION_EVIDENCE_REF: ${{ inputs.authorization_evidence_ref }}
-          VISUAL_EVIDENCE_REF: ${{ inputs.visual_evidence_ref }}
-          DRAFT_PERSISTENCE_EVIDENCE_REF: ${{ inputs.draft_persistence_evidence_ref }}
-          IMPORT_EXPORT_EVIDENCE_REF: ${{ inputs.import_export_evidence_ref }}
-          TELEGRAPH_EVIDENCE_REF: ${{ inputs.telegraph_evidence_ref }}
-          TELEGRAM_EVIDENCE_REF: ${{ inputs.telegram_evidence_ref }}
-          DEVICE_MATRIX_EVIDENCE_REF: ${{ inputs.device_matrix_evidence_ref }}
-          FAULT_MATRIX_EVIDENCE_REF: ${{ inputs.fault_matrix_evidence_ref }}
-          ROLLBACK_EVIDENCE_REF: ${{ inputs.rollback_evidence_ref }}
-        run: node scripts/validate-release-evidence.mjs

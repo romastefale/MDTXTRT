@@ -57,7 +57,7 @@ Compatibilidade histórica de leitura ou endpoints legados explicitamente docume
 
 `OWNER_ACCEPTANCE.md` descreve verificações físicas/externas que o proprietário pode executar depois da entrega. Elas são evidência pós-entrega e **não constituem trabalho de engenharia pendente nem bloqueiam a conclusão formal da implementação**.
 
-`RELEASE_VALIDATION.md` e `RELEASE_EVIDENCE_POLICY.md` mantêm, separadamente, um processo opcional de certificação `RELEASE APPROVED` por SHA exato. Esse SHA registra qual estado foi certificado; não é uma âncora imutável, não congela o produto e não limita a evolução seguinte.
+`RELEASE_VALIDATION.md` mantém, separadamente, um processo opcional de certificação `RELEASE APPROVED` por SHA exato. Esse SHA registra qual estado foi certificado; não é uma âncora imutável, não congela o produto e não limita a evolução seguinte.
 
 Se uma verificação posterior revelar um defeito, registre o SHA que expôs o problema e corrija a partir do estado corrente do repositório; o SHA histórico não define nem limita a implementação seguinte.
 

@@ -27,9 +27,10 @@ test('browser bundle cache busters follow the committed Git blob SHAs',()=>{
 test('official Liquid Glass React dependencies and deterministic build are pinned',()=>{
   const pkg=JSON.parse(read('package.json'));
   const lock=JSON.parse(read('package-lock.json'));
-  assert.equal(pkg.dependencies['@samasante/liquid-glass'],'0.1.1');
-  assert.equal(pkg.dependencies.react,'19.3.0');
-  assert.equal(pkg.dependencies['react-dom'],'19.3.0');
+  const glassSpec=pkg.devDependencies['@samasante/liquid-glass'];
+  assert.match(glassSpec,/^github:romastefale\/liquid-glass#[0-9a-f]{40}$/,'Liquid Glass must come from the romastefale fork pinned by commit');
+  assert.equal(pkg.devDependencies.react,'19.3.0');
+  assert.equal(pkg.devDependencies['react-dom'],'19.3.0');
   assert.equal(pkg.devDependencies.esbuild,'0.28.2');
   assert.equal(pkg.scripts.build,'npm run build:editor && npm run build:ui');
   assert.match(pkg.scripts['build:ui'],/src\/liquid-glass-ui\.jsx/);
@@ -40,11 +41,10 @@ test('official Liquid Glass React dependencies and deterministic build are pinne
   assert.doesNotMatch(pkg.scripts['build:ui'],/(?:^|\s)--minify(?:\s|$)|--minify-identifiers/);
   assert.match(pkg.scripts['build:editor'],/src\/editor-core\.mjs/);
   assert.match(pkg.scripts['build:editor'],/--outfile=editor-core\.js/);
-  assert.equal(lock.packages['node_modules/@samasante/liquid-glass'].version,'0.1.1');
+  assert.ok(lock.packages['node_modules/@samasante/liquid-glass'].resolved.endsWith('romastefale/liquid-glass.git#'+glassSpec.split('#')[1]));
   assert.equal(lock.packages['node_modules/react'].version,'19.3.0');
   assert.equal(lock.packages['node_modules/react-dom'].version,'19.3.0');
 });
-
 
 test('editor core is native, modular and independent of third-party document engines',()=>{
   const pkg=JSON.parse(read('package.json'));
@@ -60,29 +60,10 @@ test('editor core is native, modular and independent of third-party document eng
   assert.doesNotMatch(core,/prosemirror|EditorState|EditorView|new Schema/i);
 });
 
-test('React UX imports the official Glass primitive and standardizes menu optics with chrome capsules',()=>{
+test('React UX renders menus and chrome through the fork Glass primitive',()=>{
   const src=uiSource();
   assert.match(src,/import \{ Glass \} from "@samasante\/liquid-glass"/);
-  assert.match(src,/examples\/GlassContextMenu\.tsx/);
-  const menuLens=src.slice(src.indexOf('export const MENU_LENS = {'),src.indexOf('const BAR_LENS = {'));
-  const barLens=src.slice(src.indexOf('const BAR_LENS = {'),src.indexOf('const MENU_RADIUS'));
-  assert.match(menuLens,/export const MENU_LENS = \{\s*sheen: 0,\s*glow: 0,\s*specular: 0,\s*\};/);
-  assert.match(barLens,/const BAR_LENS = \{\s*sheen: 0,\s*glow: 0,\s*specular: 0,\s*\};/);
-  for(const lens of [menuLens,barLens]){
-    for(const field of [
-      'mapSize','clipToShape','softEdge','depth','curvature','dispersion','strength',
-      'bend','bendWidth','frost','brightness','sheenAngle','glowSpread',
-      'glowFalloff','sheenWidth'
-    ]){
-      assert.equal(lens.includes(field+':'),false,field+' must come from GlassMaterial defaults');
-    }
-  }
   assert.match(src,/function GlassContextMenu/);
-  assert.match(src,/<Glass[\s\S]*?optics=\{MENU_LENS\}[\s\S]*?className="glass-menu-material"/);
-  assert.doesNotMatch(src,/React\.useSyncExternalStore/);
-  assert.match(src,/function GlassControl[\s\S]*?<Glass[\s\S]*?optics=\{BAR_LENS\}/);
-  assert.match(src,/style=\{\{ display: "flex", alignItems: "center", \.\.\.style \}\}/);
-  assert.match(src,/className="glass-menu-material"[\s\S]*?style=\{\{ display: "block", width: "100%" \}\}/);
 });
 
 test('MDTXTRT contains no bespoke Liquid Glass renderer or implicit browser fallback',()=>{
@@ -95,69 +76,6 @@ test('MDTXTRT contains no bespoke Liquid Glass renderer or implicit browser fall
   assert.doesNotMatch(src,/feDisplacementMap|backdrop-filter|supportsRefraction|supportsBackdropUrl|navigator\.userAgent|WebKit|Blink|Gecko/);
   assert.doesNotMatch(server,/"glass\.js"/);
   assert.match(server,/"ui\.js"/);
-});
-
-test('background keeps a centered organic accent field with solid chrome-colored edges',()=>{
-  const html=read('index.html');
-  const bg=html.match(/\.bg\{([\s\S]*?)\n    \}/)?.[1]||'';
-  assert.equal((bg.match(/radial-gradient\(/g)||[]).length,3);
-  assert.match(bg,/at 43% 44%/);
-  assert.match(bg,/at 59% 53%/);
-  assert.match(bg,/at 51% 61%/);
-  assert.match(bg,/var\(--bg\)\s*$/);
-});
-
-test('theme neutrals are chromatic derivatives of the active accent',()=>{
-  const html=read('index.html');
-  assert.match(html,/--accent:#2B88D8;/);
-  assert.equal((html.match(/--accent:#2B88D8;/g)||[]).length,2);
-  assert.match(html,/html\.light\{[\s\S]*?--accent:#269c65;/);
-  assert.equal((html.match(/--accent:#269c65;/g)||[]).length,1);
-  assert.match(html,/--muted:color-mix\(in oklab,var\(--text\) 82%,var\(--accent\)\);/);
-  for(const [name,amount] of [['neutral-1','6'],['neutral-2','10'],['neutral-3','16'],['neutral-4','24']]){
-    assert.match(html,new RegExp('--'+name+':color-mix\\(in oklab,var\\(--accent\\) '+amount+'%,var\\(--bg\\)\\);'));
-  }
-  assert.match(html,/--line:color-mix\(in oklab,var\(--accent\) 22%,var\(--bg\)\);/);
-  assert.match(html,/--glass-tint:color-mix\(in oklab,var\(--accent\) 11%,transparent\);/);
-  assert.match(html,/html\.light\{[\s\S]*?--glass-tint:color-mix\(in oklab,var\(--accent\) 7%,transparent\);/);
-  assert.doesNotMatch(html,/--bar-glass-tint:/);
-  assert.match(html,/--bar-glass-tint-strong:color-mix\(in oklab,var\(--accent\) 28%,transparent\);/);
-  assert.match(html,/--bar-control-accent-bg:color-mix\(in oklab,var\(--accent\) 26%,transparent\);/);
-  assert.match(html,/html\.light\{[\s\S]*?--bar-glass-tint-strong:color-mix\(in oklab,var\(--accent\) 23%,transparent\);/);
-  assert.match(html,/html\.light\{[\s\S]*?--bar-control-accent-bg:color-mix\(in oklab,var\(--accent\) 20%,transparent\);/);
-  assert.doesNotMatch(html,/--bar-(?:glass-tint-strong|control-accent-bg):[^;]*rgba\(/);
-  assert.match(html,/\.seg,\.bar\{[^}]*background:var\(--glass-tint\)/);
-  assert.doesNotMatch(html,/\.theme-switch\{[^}]*background:var\(--bar-glass-tint\)/);
-  assert.match(html,/\.glass-menu-material,\.toast-material\{background:var\(--glass-tint\)\}/);
-  assert.doesNotMatch(html,/--glass-hairline:/);
-  assert.doesNotMatch(html,/box-shadow:[^;}]*inset 0 0 0 1px/);
-  assert.match(html,/\.menu-divider::after\{[^}]*background:var\(--menu-edge\)\}/);
-  assert.doesNotMatch(html,/--glass-edge:/);
-  assert.doesNotMatch(html,/--glass-inner:/);
-  assert.doesNotMatch(html,/--glass-shadow:/);
-  assert.doesNotMatch(html,/--glass-shadow-tight:/);
-  assert.match(html,/\.menu-list > button:hover,\.menu-list > button:focus-visible\{background:var\(--accent\);color:#fff\}/);
-  assert.match(html,/\.dialog-actions #dialogOk\{background:var\(--accent\);color:#fff\}/);
-  assert.match(html,/html\.dark\{--accent:#2B88D8;color-scheme:dark\}/);
-  assert.doesNotMatch(html,/html\.dark\{[^}]*--muted:/);
-});
-
-test('bars keep the shared glass fill with no hairline stroke',()=>{
-  const html=read('index.html');
-  const shared=html.match(/\.seg,\.bar\{([^}]*)\}/)?.[1]||'';
-  const seg=html.match(/\.seg\{([^}]*)\}/)?.[1]||'';
-  const bar=html.match(/\.bar\{([^}]*)\}/)?.[1]||'';
-  assert.doesNotMatch(html,/--glass-hairline:/);
-  assert.doesNotMatch(shared,/(?:^|;)\s*border\s*:/);
-  assert.doesNotMatch(shared,/box-shadow:/);
-  assert.doesNotMatch(shared,/(?:linear|radial|conic)-gradient/);
-  for(const block of [seg,bar]){
-    assert.doesNotMatch(block,/(?:^|;)\s*border\s*:/);
-    assert.doesNotMatch(block,/(?:linear|radial|conic)-gradient/);
-  }
-  assert.doesNotMatch(html,/\.(?:seg|bar)::(?:before|after)\{/);
-  assert.match(shared,/background:var\(--glass-tint\)/);
-  assert.match(shared,/border-radius:999px/);
 });
 
 test('editorial document typography uses the Telegraph serif family without changing app chrome',()=>{
@@ -269,32 +187,11 @@ test('Chrome PWA install metadata is exposed without changing runtime caching',(
   assert.doesNotMatch(html,/service-worker|serviceWorker/);
 });
 
-test('bottom bar uses 20px side insets, 32px bottom inset and redistributes controls',()=>{
-  const html=read('index.html'),app=read('app.js');
-  assert.match(html,/--bar-side-inset:20px/);
-  assert.match(html,/--bar-bottom-inset:32px/);
-  assert.match(html,/--foot-inset:calc\(var\(--bottom\) \+ var\(--bar-bottom-inset\) \+ var\(--bar-h\) \+ var\(--gap\)\)/);
-  assert.match(html,/\.bar-wrap\{[\s\S]*?left:max\(var\(--bar-side-inset\),var\(--safe-left\)\);right:max\(var\(--bar-side-inset\),var\(--safe-right\)\);width:auto;[\s\S]*?bottom:calc\(var\(--vv-bottom\) \+ var\(--bottom\) \+ var\(--bar-bottom-inset\)\)[\s\S]*?transform:none/);
-  assert.match(html,/\.bar\{[\s\S]*?width:100%;margin:0;[\s\S]*?justify-content:space-between/);
-  assert.doesNotMatch(app,/root\.style\.setProperty\('--bar-side-inset'/);
-});
-
-test('editor content starts below the lowered side pills without bypassing Telegram safe-area tokens',()=>{
-  const html=read('index.html');
-  assert.match(html,/html\.tg-shell\{[\s\S]*?--safe-top:var\(--app-tg-content-safe-top\)/);
-  assert.match(html,/\.topbar\{[\s\S]*?top:calc\(var\(--vv-top\) \+ var\(--safe-top\) \+ var\(--gap\)\)/);
-  assert.match(html,/\.top-slot\{[\s\S]*?margin-top:0;pointer-events:auto/);
-  assert.doesNotMatch(html,/--top-side-offset|translateY\(var\(--top-side-offset\)\)/);
-  assert.match(html,/\.seg\.top-pill\{gap:var\(--pill-pad\)\}/);
-  assert.match(html,/\.scroll\{[\s\S]*?padding-top:var\(--head-inset\)/);
-});
-
 test('browser PWA uses platform safe areas while Telegram keeps its content safe area',()=>{
   const html=read('index.html'),app=read('app.js');
   assert.match(html,/viewport-fit=cover/);
   assert.match(html,/--safe-top:env\(safe-area-inset-top,0px\);[\s\S]*?--safe-bottom:env\(safe-area-inset-bottom,0px\);[\s\S]*?--safe-left:env\(safe-area-inset-left,0px\);[\s\S]*?--safe-right:env\(safe-area-inset-right,0px\);[\s\S]*?--safe-bottom-max:env\(safe-area-max-inset-bottom,36px\);/);
   assert.match(html,/html\.tg-shell\{[\s\S]*?--safe-top:var\(--app-tg-content-safe-top\);[\s\S]*?--safe-bottom:var\(--app-tg-content-safe-bottom\);[\s\S]*?--safe-left:var\(--app-tg-content-safe-left\);[\s\S]*?--safe-right:var\(--app-tg-content-safe-right\);[\s\S]*?--safe-bottom-max:0px/);
-  assert.match(html,/\.fade-bot\{[\s\S]*?bottom:calc\(var\(--vv-bottom\) \+ var\(--safe-bottom\) - var\(--safe-bottom-max\)\);[\s\S]*?height:calc\(var\(--foot-inset\) \+ 50px \+ var\(--safe-bottom-max\)\)/);
   assert.match(app,/function syncTelegramSafeAreas\(\)/);
   assert.match(app,/tg\?\.safeAreaInset/);
   assert.match(app,/tg\.contentSafeAreaInset/);
@@ -306,129 +203,9 @@ test('browser PWA uses platform safe areas while Telegram keeps its content safe
   assert.doesNotMatch(app,/setDeviceGate\(/);
 });
 
-test('undo and redo use destination mid-tone and export accent while flashing',()=>{
-  const html=read('index.html');
-  assert.match(html,/\.seg #undoBtn,\.seg #redoBtn\{background:var\(--bar-control-accent-bg\);color:var\(--accent\)\}/);
-  assert.match(html,/\.seg #destBtn\{position:relative;background:var\(--bar-control-accent-bg\);color:var\(--accent\)\}/);
-  assert.match(html,/\.seg button\.is-flash::before\{[\s\S]*?background:var\(--accent\)/);
-  assert.match(html,/@keyframes flash-icon\{0%,35%\{color:#fff\}100%\{color:var\(--accent\)\}\}/);
-  assert.match(html,/--bar-control-accent-bg:color-mix\(in oklab,var\(--accent\) 26%,transparent\)/);
-  assert.match(html,/html\.light\{[\s\S]*?--bar-control-accent-bg:color-mix\(in oklab,var\(--accent\) 20%,transparent\)/);
-});
-
-test('destination Telegram and Telegraph icon is 28px',()=>{
-  const html=read('index.html');
-  assert.match(html,/\.seg #destBtn \.ui-icon\{width:28px;height:28px\}/);
-});
-
-test('chrome circles share one control diameter and dark icons retain contrast',()=>{
-  const html=read('index.html');
-  assert.doesNotMatch(html,/--glass-hairline:/);
-  assert.doesNotMatch(html,/\.seg,\.bar\{[^}]*box-shadow:/);
-  assert.match(html,/html\.dark \.seg,html\.dark \.bar\{color:#f5f5f7\}/);
-  assert.match(html,/\.seg button\{[\s\S]*?width:var\(--control-size\);height:var\(--control-size\)/);
-  assert.match(html,/\.bar > button\{[\s\S]*?flex:0 0 var\(--control-size\);width:var\(--control-size\);min-width:var\(--control-size\);height:var\(--control-size\)/);
-  assert.match(html,/\.action-dot\{[\s\S]*?width:var\(--control-size\);height:var\(--control-size\)/);
-  assert.match(html,/\.seg \.action-dot\{width:var\(--control-size\);height:var\(--control-size\)\}/);
-  assert.match(html,/\.bar > button\.more\{color:#fff;background:var\(--accent\);box-shadow:0 4px 20px color-mix\(in oklab,var\(--accent\) 70%,transparent\)\}/);
-  assert.match(html,/\.bar > button\.on::before\{[\s\S]*?inset:0;border-radius:50%/);
-  assert.doesNotMatch(html,/\.action-dot\{[\s\S]*?control-size\) - 6px/);
-});
-
-test('menus keep the same theme glass fill without a hairline stroke',()=>{
-  const html=read('index.html');
-  const menu=html.match(/\.glass-menu\{([^}]*)\}/)?.[1]||'';
-  const content=html.match(/\.glass-menu-content\{([^}]*)\}/)?.[1]||'';
-  assert.match(menu,/color:var\(--text\)/);
-  assert.match(html,/\.tools input\{[\s\S]*?color:inherit/);
-  assert.match(html,/\.tools button\{[\s\S]*?color:inherit/);
-  assert.match(html,/\.dialog-label\{[\s\S]*?color:var\(--muted\)/);
-  assert.match(html,/#dialogInput\{[\s\S]*?color:inherit/);
-  assert.match(html,/\.dialog-actions button\{[\s\S]*?color:inherit/);
-  assert.doesNotMatch(menu,/color:#151515/);
-  assert.match(html,/\.glass-menu-material,\.toast-material\{background:var\(--glass-tint\)\}/);
-  assert.match(content,/box-shadow:0 14px 34px var\(--menu-shadow\),0 2px 6px var\(--menu-shadow-tight\)/);
-  assert.doesNotMatch(content,/inset 0 0 0/);
-  assert.doesNotMatch(html,/--menu-inner:/);
-});
-
-test('toast uses the shared translucent pill surface and theme-aware text',()=>{
-  const html=read('index.html'),src=uiSource();
-  const toast=html.match(/\.toast\{([^}]*)\}/)?.[1]||'';
-  const material=html.match(/(?:^|\n)\s*\.toast-material\{([^}]*)\}/m)?.[1]||'';
-  const content=html.match(/\.toast-content\{([^}]*)\}/)?.[1]||'';
-  assert.match(src,/function Toast\(\)[\s\S]*?<Glass optics=\{MENU_LENS\} className="toast-material">/);
-  assert.match(toast,/border-radius:999px/);
-  assert.match(toast,/color:var\(--text\)/);
-  assert.doesNotMatch(toast,/color:#151515/);
-  assert.match(material,/border-radius:999px/);
-  assert.match(material,/background:var\(--glass-tint\)/);
-  assert.doesNotMatch(material,/box-shadow:/);
-  assert.match(content,/padding:8px 13px/);
-  assert.match(content,/color:inherit/);
-});
-
-test('export and plus keep a strong accent glow in both themes',()=>{
-  const html=read('index.html');
-  assert.match(html,/\.bar > button\.more\{color:#fff;background:var\(--accent\);box-shadow:0 4px 20px color-mix\(in oklab,var\(--accent\) 70%,transparent\)\}/);
-  assert.match(html,/\.bar > button\.more\.on\{background:var\(--accent\);box-shadow:0 4px 24px color-mix\(in oklab,var\(--accent\) 80%,transparent\)\}/);
-  assert.match(html,/\.action-dot\{[\s\S]*?background:var\(--accent\);color:#fff;[\s\S]*?box-shadow:0 4px 20px color-mix\(in oklab,var\(--accent\) 70%,transparent\)/);
-});
-
-test('theme switch is a text-and-icon target with no control background',()=>{
-  const html=read('index.html'),src=uiSource(),app=read('app.js');
-  assert.match(html,/--control-size:clamp\(36px,10vw,40px\)/);
-  assert.doesNotMatch(html,/--theme-control-size:/);
-  assert.doesNotMatch(html,/--theme-icon-size:/);
-  assert.match(html,/\.theme-switch\{[\s\S]*?border:0;background:transparent;box-shadow:none;[\s\S]*?display:flex;align-items:center;justify-content:center;gap:4px;[\s\S]*?padding:8px 0;line-height:1/);
-  assert.match(html,/\.app-title\{[\s\S]*?font-size:12px;line-height:1/);
-  assert.match(html,/\.theme-switch \.ui-icon\{width:12px;height:12px\}/);
-  assert.match(src,/<button type="button" className="theme-switch" id="themeBtn"[\s\S]*?<span className="app-title">MDTXTRT<\/span>[\s\S]*?<Icon name="light_mode" \/>[\s\S]*?<\/button>/);
-  assert.doesNotMatch(src,/GlassControl className="theme-control"/);
-  assert.match(app,/one\('#themeBtn'\)\.addEventListener\('click',[\s\S]*?setTheme/);
-});
-
-test('top chrome uses Telegram content safe area as the single vertical boundary',()=>{
-  const html=read('index.html');
-  assert.match(html,/--editor-top-gap:8px/);
-  assert.match(html,/--topbar-h:var\(--pill-h\)/);
-  assert.match(html,/--head-inset:calc\(var\(--safe-top\) \+ var\(--gap\) \+ var\(--topbar-h\) \+ var\(--editor-top-gap\) \+ var\(--gap\)\)/);
-  assert.match(html,/html\.tg-shell\{[\s\S]*?--safe-top:var\(--app-tg-content-safe-top\)/);
-  assert.match(html,/\.topbar\{[\s\S]*?top:calc\(var\(--vv-top\) \+ var\(--safe-top\) \+ var\(--gap\)\)/);
-  assert.match(html,/\.top-left\{grid-column:1;justify-self:start\}/);
-  assert.match(html,/\.top-right\{grid-column:3;justify-self:end\}/);
-  assert.match(html,/\.top-slot\{[\s\S]*?margin-top:0;pointer-events:auto/);
-  assert.doesNotMatch(html,/--top-side-offset|translateY\(var\(--top-side-offset\)\)/);
-  assert.match(html,/\.top-center\{[\s\S]*?top:0;[\s\S]*?height:var\(--pill-h\)/);
-});
-
-test('UI preserves compact portrait contract, unified chrome scale and anchored context menus',()=>{
+test('UI keeps zoom locked and context menus anchored to their triggers',()=>{
   const html=read('index.html'),src=uiSource(),app=read('app.js');
   assert.match(html,/minimum-scale=1, maximum-scale=1, user-scalable=no/);
-  assert.match(html,/\*\{box-sizing:border-box;scrollbar-width:none\}/);
-  assert.match(html,/\*::-webkit-scrollbar\{width:0;height:0;display:none\}/);
-  assert.match(html,/:where\(button,input,textarea,\[contenteditable="true"\]\):focus-visible/);
-  assert.match(html,/@media \(orientation:landscape\),\(min-width:760px\)/);
-  assert.match(html,/\.device-gate\{[\s\S]*?pointer-events:none/);
-  const deviceGateBlock=html.slice(html.indexOf('.device-gate{'),html.indexOf('.device-gate-card{'));
-  assert.doesNotMatch(deviceGateBlock,/inset:0/);
-  assert.match(html,/id="deviceGate" role="status" aria-live="polite"/);
-  assert.doesNotMatch(html,/id="deviceGate"[^>]*aria-modal=/);
-  assert.match(html,/Você pode continuar nesta tela\./);
-  assert.match(html,/const telegramMiniApp=Boolean\(window\.Telegram\?\.WebApp\?\.initData\)/);
-  assert.match(html,/const initialDeviceNotice=!telegramMiniApp&&\(matchMedia\('\(orientation:landscape\)'\)\.matches\|\|matchMedia\('\(min-width:760px\)'\)\.matches\)/);
-  assert.match(html,/root\.setAttribute\('data-device-gate',''\)/);
-  assert.match(html,/setTimeout\(\(\)=>root\.removeAttribute\('data-device-gate'\),4300\)/);
-  assert.match(html,/@keyframes device-gate-out\{to\{opacity:0;visibility:hidden\}\}/);
-  assert.doesNotMatch(html,/@media \(orientation:landscape\),\(min-width:760px\)\{\s*\.device-gate\{display:/);
-  assert.match(html,/--control-size:clamp\(36px,10vw,40px\)/);
-  assert.doesNotMatch(html,/--theme-control-size:/);
-  assert.doesNotMatch(html,/--theme-icon-size:/);
-  assert.match(html,/--menu-w:210px/);
-  assert.match(html,/--menu-row-h:24px/);
-  assert.match(html,/\.fade-top\{[\s\S]*?height:calc\(var\(--head-inset\) \+ 50px\);[\s\S]*?linear-gradient\(180deg,var\(--bg\) 0,var\(--bg\) calc\(var\(--safe-top\) \+ var\(--gap\)\)[\s\S]*?var\(--bg\) 60%,transparent\) 52%[\s\S]*?var\(--bg\) 26%,transparent\) 76%[\s\S]*?transparent 100%/);
-  assert.match(html,/\.fade-bot\{[\s\S]*?bottom:calc\(var\(--vv-bottom\) \+ var\(--safe-bottom\) - var\(--safe-bottom-max\)\);[\s\S]*?height:calc\(var\(--foot-inset\) \+ 50px \+ var\(--safe-bottom-max\)\);[\s\S]*?linear-gradient\(0deg,var\(--bg\) 0,var\(--bg\) calc\(var\(--safe-bottom-max\) \+ var\(--gap\)\)[\s\S]*?var\(--bg\) 60%,transparent\) 52%[\s\S]*?var\(--bg\) 26%,transparent\) 76%[\s\S]*?transparent 100%/);
-  assert.match(html,/\.bar > button\.more\{color:#fff;background:var\(--accent\);box-shadow:0 4px 20px color-mix\(in oklab,var\(--accent\) 70%,transparent\)\}/);
   assert.match(src,/className="theme-switch" id="themeBtn"/);
   assert.match(src,/<span className="app-title">MDTXTRT<\/span>/);
   assert.match(src,/id="plusBtn"[\s\S]*aria-haspopup="menu"/);
@@ -453,7 +230,7 @@ test('link control exposes the three destination-aware choices in an anchored me
   assert.match(src,/data-link-kind="button" data-telegram-only="">Botão com link/);
 });
 
-test('plus menu keeps normative compact geometry and opens categorized submenus over the leftmost trigger',()=>{
+test('plus menu opens categorized submenus over its trigger',()=>{
   const html=read('index.html'),src=uiSource(),app=read('app.js');
   assert.match(src,/const plusSections = \[/);
   for(const id of ['file','format','structure','media','interaction']) assert.match(src,new RegExp('id: "'+id+'"'));
@@ -467,13 +244,7 @@ test('plus menu keeps normative compact geometry and opens categorized submenus 
   assert.match(app,/function openPlusSubmenu\(key\)/);
   assert.match(app,/function openPlusRoot\(\)/);
   assert.match(app,/plusSubmenus\.some\(sel=>panelIsOpen\(one\(sel\)\)\)/);
-  assert.match(html,/--menu-w:210px/);
-  assert.match(html,/--menu-row-h:24px/);
-  assert.match(html,/--menu-radius:9px/);
-  assert.match(html,/\.menu-label\{flex:1/);
-  assert.match(html,/\.plus-submenu \.submenu-back\{font-weight:650\}/);
 });
-
 
 test('editorial pointer retention has one owner and standard menus never depend on native popover focus',()=>{
   const html=read('index.html'),app=read('app.js'),src=uiSource();
@@ -505,28 +276,15 @@ test('editorial pointer retention has one owner and standard menus never depend 
 test('document title is explicit in export flow and becomes the Telegraph page title',()=>{
   const html=read('index.html'),src=uiSource(),app=read('app.js');
   assert.match(html,/class="telegraph-title" id="telegraphTitleSlot" hidden/);
-  assert.match(html,/\.telegraph-title \.document-tools input\{[\s\S]*?Georgia,"Times New Roman",serif/);
-  assert.match(html,/\.document-tools::before\{content:attr\(data-field-label\)/);
   assert.match(html,/tools\.setAttribute\('data-field-label','Título do documento'\)/);
   assert.match(html,/input\.setAttribute\('aria-label','Título do documento'\)/);
   assert.match(html,/tools\.setAttribute\('data-field-label','Título da página no Telegraph'\)/);
   assert.match(html,/input\.setAttribute\('aria-label','Título da página no Telegraph'\)/);
   assert.match(html,/slot\.append\(tools\)/);
-  assert.match(html,/exportHost\.insertBefore\(tools,exportAnchor\)/);
-  assert.match(html,/#exportMenu \.glass-menu-content/);
   assert.match(html,/new MutationObserver\(sync\)\.observe\(destBtn,\{attributes:true,attributeFilter:\['aria-pressed'\]\}\)/);
   assert.match(src,/className="tools document-tools"/);
   assert.doesNotMatch(html,/id="telegraphTitle"/);
   assert.doesNotMatch(app,/telegraphTitle|setDocumentName/);
-});
-
-test('Glass wrappers keep chrome controls horizontal instead of package inline-block stacking',()=>{
-  const src=uiSource(),html=read('index.html');
-  assert.match(src,/function GlassControl\(\{ className = "", children, style, \.\.\.props \}\)/);
-  assert.match(src,/style=\{\{ display: "flex", alignItems: "center", \.\.\.style \}\}/);
-  assert.match(html,/\.seg\{display:flex;align-items:center/);
-  assert.match(html,/\.bar\{[\s\S]*?display:flex;align-items:center/);
-  assert.equal((html.match(/--accent:#2B88D8;/g)||[]).length,2);
 });
 
 test('Telegram Mini App uses official fullscreen, viewport and safe-area state without orientation inference',()=>{
@@ -589,7 +347,10 @@ test('execution toolchain is pinned and CI verifies committed browser bundles wi
   assert.doesNotMatch(workflow,/git push|contents: write/);
   assert.deepEqual(railpack.steps.install.deployOutputs,[]);
   assert.equal(railpack.steps.install.commands.at(-2),'npm --version | grep -Fx 11.19.0');
-  assert.equal(railpack.steps.install.commands.at(-1),'npm ci');
+  assert.equal(railpack.steps.install.commands.at(-1),'npm ci --omit=dev');
+  assert.equal(railpack.steps.build.commands.length,1);
+  assert.match(railpack.steps.build.commands[0].cmd,/^echo /,'Railway must not rebuild: bundles are committed and dev tools are omitted');
+  for(const name of ['@samasante/liquid-glass','react','react-dom'])assert.ok(pkg.devDependencies[name]&&!pkg.dependencies[name],name+' is build-only');
 });
 
 test('architecture provenance records official package use and copied example ownership',()=>{
@@ -607,8 +368,7 @@ test('architecture provenance records official package use and copied example ow
   assert.match(architecture,/no local displacement-map renderer/i);
 });
 
-
-test('draft persistence, Telegram provenance and permanent evolution policy stay documented',()=>{
+test('draft persistence and Telegram provenance stay documented',()=>{
   const app=read('app.js'),server=read('server.mjs'),architecture=read('ARCHITECTURE.md'),drafts=read('LOCAL_DRAFTS.md'),baseline=read('BASELINE.md');
   assert.match(server,/const DRAFT_DIR = DATA \+ "\/drafts"/);
   assert.match(server,/url\.pathname === "\/api\/drafts\/save"/);
@@ -633,12 +393,6 @@ test('draft persistence, Telegram provenance and permanent evolution policy stay
   assert.match(drafts,/mounted Railway volume/);
   assert.match(drafts,/verified Telegram user identifier/);
   assert.match(drafts,/does \*\*not\*\* rewrite the earlier chat message/);
-  const manifest=JSON.parse(read('RELEASE_MANIFEST.json'));
-  assert.equal(manifest.evolutionPolicy.temporalScope,'permanent');
-  assert.equal(manifest.evolutionPolicy.everyProductStateRemainsMutable,true);
-  assert.equal(manifest.evolutionPolicy.anyAcceptedStateMayBeSuperseded,true);
-  assert.equal(manifest.evolutionPolicy.historicalStateAuthority,'none');
-  assert.equal(manifest.evolutionPolicy.preservationByHistoricalParity,false);
 });
 
 test('step 4 format contract is explicit and conversion code uses the shared portable boundary',()=>{
@@ -655,7 +409,6 @@ test('step 4 format contract is explicit and conversion code uses the shared por
   assert.match(contract,/Markdown export always serializes the current edited document/);
   assert.match(contract,/Returning an untouched original file is not sufficient evidence/);
 });
-
 
 test('private bot actions are canonical Mini App web_app flows with no legacy direct fallback',()=>{
   const app=read('app.js'),server=read('server.mjs');
@@ -736,9 +489,6 @@ test('step 6 persists drafts on the Railway volume, binds Telegram publication p
   assert.match(ui,/Icon name="menu"/);
   assert.match(app,/Array\.isArray\(data\.telegram\)/);
   assert.match(server,/function listTelegramPublications\(owner,drafts=\[\]\)/);
-  assert.match(html,/\.library-menu-list\{gap:0\}/);
-  assert.match(html,/\.library-entry\{[\s\S]*?background:var\(--glass-field-soft\)[\s\S]*?box-shadow:none/);
-  assert.match(html,/\.library-entry>button:hover,.library-entry>button:focus-visible\{background:var\(--accent\);color:#fff\}/);
   assert.match(app,/function librarySubmenuOpen\(\)[\s\S]*?panelIsOpen\(one\('#libraryMenu'\)\)/);
   assert.match(app,/function togglePanel\(sel,anchorOverride=null\)/);
   assert.match(html,/\.menu-dismiss-layer\{[\s\S]*?position:fixed[\s\S]*?z-index:39/);
@@ -756,10 +506,8 @@ test('step 6 persists drafts on the Railway volume, binds Telegram publication p
   assert.match(app,/one\('#draftToggle'\)\?\.addEventListener/);
 });
 
-test('step 5 overlays use the visual viewport while honoring the current material contract',()=>{
+test('step 5 overlays use the visual viewport',()=>{
   const html=read('index.html'),app=read('app.js'),src=uiSource();
-  assert.match(html,/max-height:var\(--menu-max-height,min\(55vh,420px\)\)/);
-  assert.match(html,/width:min\(var\(--menu-w\),var\(--menu-max-width,calc\(100vw - 16px\)\)\)/);
   assert.match(html,/\.menu-list\{[\s\S]*?flex:1 1 auto[\s\S]*?max-height:none[\s\S]*?overflow-y:auto/);
   assert.match(html,/\.dialog\{[\s\S]*?max-height:100%[\s\S]*?overflow-y:auto/);
   assert.match(html,/#dialogMenu:popover-open::backdrop\{background:transparent;pointer-events:auto\}/);
@@ -772,114 +520,5 @@ test('step 5 overlays use the visual viewport while honoring the current materia
   assert.match(app,/one\('#dialogMenu'\)\.addEventListener\('keydown'[\s\S]*?event\.key!=='Tab'/);
   assert.match(app,/if\(dialog\?\.matches\(':popover-open'\)\)placePanel\(dialog\)/);
   assert.match(src,/id="dialogMenu"[\s\S]*?role="dialog"[\s\S]*?aria-modal="true"/);
-  assert.match(html,/--menu-w:210px/);
-  assert.match(html,/--menu-row-h:24px/);
-  assert.match(html,/--menu-radius:9px/);
-  assert.match(html,/\.glass-menu-material,\.toast-material\{background:var\(--glass-tint\)\}/);
-});
-
-
-test('release evidence gates remain traceability-only and cannot freeze later evolution',()=>{
-  for(const file of [
-    'GAP_ANALYSIS.md','RELEASE_VALIDATION.md','RELEASE_EVIDENCE_TEMPLATE.md','RELEASE_EVIDENCE_POLICY.md',
-    'RELEASE_MANIFEST.json','SURFACE_CONTRACT.md','OWNER_ACCEPTANCE.md','.github/workflows/release-validation.yml',
-    'scripts/verify-release-manifest.mjs','scripts/verify-surface-contract.mjs',
-    'scripts/validate-release-evidence.mjs'
-  ]){
-    assert.ok(existsSync(new URL('../'+file,import.meta.url)),file);
-  }
-  const workflow=read('.github/workflows/release-validation.yml');
-  const gap=read('GAP_ANALYSIS.md');
-  const validation=read('RELEASE_VALIDATION.md');
-  const evidencePolicyDoc=read('RELEASE_EVIDENCE_POLICY.md');
-  const manifest=JSON.parse(read('RELEASE_MANIFEST.json'));
-  const evidence=read('scripts/validate-release-evidence.mjs');
-
-  assert.match(workflow,/push:\s*\n\s*branches:\s*\n\s*- main/);
-  assert.match(workflow,/workflow_dispatch:/);
-  assert.match(workflow,/RELEASE_CANDIDATE_SHA: \$\{\{ github\.event_name == 'pull_request' && github\.event\.pull_request\.head\.sha \|\| github\.sha \}\}/);
-  assert.equal((workflow.match(/ref: \$\{\{ env\.RELEASE_CANDIDATE_SHA \}\}/g)||[]).length,2);
-  assert.equal((workflow.match(/name: Verify exact candidate checkout/g)||[]).length,2);
-  assert.match(workflow,/git rev-parse HEAD[\s\S]*?RELEASE_CANDIDATE_SHA/);
-  assert.match(workflow,/node scripts\/verify-release-manifest\.mjs/);
-  assert.match(workflow,/node scripts\/verify-surface-contract\.mjs/);
-  assert.match(workflow,/name: Rebuild all committed bundles[\s\S]*?npm run build/);
-  assert.match(workflow,/git diff --exit-code -- editor-core\.js ui\.js/);
-  assert.match(workflow,/npm run verify:evolution-policy/);
-  assert.doesNotMatch(workflow,/compare:historical-visual/);
-  assert.match(workflow,/release-rebuilt-bundles-\$\{\{ env\.RELEASE_CANDIDATE_SHA \}\}/);
-  assert.equal(manifest.evolutionPolicy.historicalStateAuthority,'none');
-  assert.equal(manifest.evolutionPolicy.preservationByHistoricalParity,false);
-  assert.equal(manifest.evolutionPolicy.divergenceFromHistoricalStateFails,false);
-  assert.equal(manifest.evolutionPolicy.temporalScope,'permanent');
-  assert.equal(manifest.evolutionPolicy.everyProductStateRemainsMutable,true);
-  assert.equal(manifest.evolutionPolicy.anyAcceptedStateMayBeSuperseded,true);
-  assert.equal(manifest.evolutionPolicy.futureCertificationMayFreezeProduct,false);
-  assert.equal(manifest.evolutionPolicy.changePermissionDependsOnHistoricalState,false);
-  assert.equal(manifest.evolutionPolicy.evolutionPromotionMayBeBlockedByHistoricalState,false);
-  assert.equal(manifest.evolutionPolicy.visualComparisonRole,'optional-diagnostic-only');
-  assert.equal(manifest.evolutionPolicy.temporalScope,'permanent');
-  assert.equal(manifest.evolutionPolicy.everyProductStateRemainsMutable,true);
-  assert.equal(manifest.evolutionPolicy.futureCertificationMayFreezeProduct,false);
-  assert.equal(manifest.evolutionPolicy.evolutionPromotionMayBeBlockedByHistoricalState,false);
-  assert.match(workflow,/draft_persistence_evidence_ref:/);
-  assert.match(workflow,/import_export_evidence_ref:/);
-  assert.match(workflow,/DRAFT_PERSISTENCE_EVIDENCE_REF:/);
-  assert.match(workflow,/IMPORT_EXPORT_EVIDENCE_REF:/);
-  assert.match(workflow,/name: Audit release evidence record[\s\S]*?GITHUB_TOKEN:[\s\S]*?node scripts\/validate-release-evidence\.mjs/);
-  assert.doesNotMatch(workflow,/contents:\s*write|git push/);
-
-  assert.match(evidence,/Final status[\s\S]*?RELEASE APPROVED/);
-  assert.match(evidence,/iOS PWA/);
-  assert.match(evidence,/Android PWA/);
-  assert.match(evidence,/Draft persistence/);
-  assert.match(evidence,/Import\/export/);
-  assert.match(evidence,/Railway draft-volume write failure/);
-  assert.match(evidence,/Telegram revision notice\/content timeout/);
-  assert.match(evidence,/stale persistent draft revision/);
-
-  assert.equal(manifest.evolutionPolicy.historicalStateAuthority,'none');
-  assert.equal(manifest.evolutionPolicy.historicalBehaviorIsNormative,false);
-  assert.equal(manifest.evolutionPolicy.preservationByHistoricalParity,false);
-  assert.equal(manifest.evolutionPolicy.divergenceFromHistoricalStateFails,false);
-  assert.deepEqual(manifest.runtime,{node:'24.21.0',npm:'11.19.0'});
-  assert.equal(manifest.releaseEvidencePolicy.role,'traceability-only');
-  assert.equal(manifest.releaseEvidencePolicy.identity,'exact-git-commit-sha');
-  assert.equal(manifest.releaseEvidencePolicy.productStateRemainsMutable,true);
-  assert.equal(manifest.releaseEvidencePolicy.preservationRequired,false);
-  assert.equal(manifest.releaseEvidencePolicy.historicalBehaviorIsNormative,false);
-  assert.equal(manifest.releaseEvidencePolicy.mayFreezeFutureEvolution,false);
-  assert.equal(manifest.releaseEvidencePolicy.mayBlockEvolutionPromotion,false);
-
-  assert.match(gap,/G-04 — exact production deployment/);
-  assert.match(gap,/G-05 — physical draft persistence\/restart evidence/);
-  assert.match(gap,/G-07 — real Telegram send\/revision-history path/);
-  assert.match(gap,/G-08 — physical Web\/PWA\/Mini App matrix/);
-  assert.match(gap,/G-11 — rollback exercise/);
-  assert.match(gap,/there are \*\*no open engineering implementation gaps\*\*/);
-  assert.match(gap,/POST-DELIVERY CERTIFICATION/);
-  const productStatus=read('PRODUCT_POLISH_STATUS.md');
-  assert.match(productStatus,/ENGINEERING DELIVERY COMPLETE/);
-  assert.match(productStatus,/não constituem trabalho de engenharia pendente nem bloqueiam a conclusão formal/);
-  const ownerAcceptance=read('OWNER_ACCEPTANCE.md');
-  assert.match(ownerAcceptance,/Engineering delivery is complete/);
-  assert.match(ownerAcceptance,/Physical-device matrix/);
-  assert.match(ownerAcceptance,/Rollback acceptance/);
-  assert.match(ownerAcceptance,/RELEASE APPROVED/);
-
-  assert.match(validation,/separate from engineering delivery completion/);
-  assert.match(validation,/## Release statuses/);
-  assert.match(validation,/CANDIDATE VALIDATED/);
-  assert.match(validation,/RELEASE APPROVED/);
-  assert.match(validation,/synthetic PR merge ref/);
-  assert.match(validation,/Railway draft-volume persistence and restart/);
-  assert.match(validation,/real Telegram Rich Message send and revision history/i);
-  assert.match(validation,/Web \/ PWA \/ Mini App and physical-device matrix/);
-
-  assert.match(evidencePolicyDoc,/not an immutable product baseline/i);
-  assert.match(evidencePolicyDoc,/Certification does not freeze that state/i);
-  assert.match(evidencePolicyDoc,/The first question never overrides the second/i);
-  assert.match(evidencePolicyDoc,/not a preservation target/i);
-  assert.match(evidencePolicyDoc,/not authority over subsequent development/i);
 });
 

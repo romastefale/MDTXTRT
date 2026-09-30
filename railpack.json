@@ -17,7 +17,15 @@
           "dest": "package.json"
         },
         "npm --version | grep -Fx 11.19.0",
-        "npm ci"
+        "npm ci --omit=dev"
+      ]
+    },
+    "build": {
+      "commands": [
+        {
+          "cmd": "echo \"bundles já compilados no repositório (ui.js, editor-core.js); build pulado de propósito\"",
+          "customName": "Skip build: bundles are committed"
+        }
       ]
     }
   }
