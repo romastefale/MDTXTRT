@@ -826,8 +826,17 @@ function requireEditorCore(){
   return editorCore;
 }
 function currentEditorCore(){return requireEditorCore();}
-function saveSel(){savedRange=requireEditorCore().saveSelection();requireEditorCore().rememberSelection?.();}
-function restoreSel(){return savedRange?requireEditorCore().restoreSelection(savedRange):false;}
+function saveSel(){
+  const core=requireEditorCore(),next=core.saveSelection();
+  if(next)savedRange=next;
+  core.rememberSelection?.();
+  return savedRange;
+}
+function restoreSel(){
+  const core=requireEditorCore(),current=core.saveSelection();
+  if(current){savedRange=current;core.rememberSelection?.();return true;}
+  return savedRange?core.restoreSelection(savedRange):false;
+}
 function pushHist(){requireEditorCore().syncFromDOM({addToHistory:true});}
 function histUndo(){if(requireEditorCore().undo()){restoreActiveMediaVisual();syncEditorSelectionUI();}}
 function histRedo(){if(requireEditorCore().redo()){restoreActiveMediaVisual();syncEditorSelectionUI();}}
