@@ -28,7 +28,7 @@ jobs:
         run: |
           EDITOR_SHA="$(git hash-object editor-core.js | cut -c1-12)"
           UI_SHA="$(git hash-object ui.js | cut -c1-12)"
-          node -e "const fs=require('fs');let s=fs.readFileSync('index.html','utf8');s=s.replace(/editor-core\\.js\\?v=[a-f0-9]{12}/,'editor-core.js?v='+process.env.EDITOR_SHA).replace(/ui\\.js\\?v=[a-f0-9]{12}/,'ui.js?v='+process.env.UI_SHA);fs.writeFileSync('index.html',s)"             EDITOR_SHA="$EDITOR_SHA" UI_SHA="$UI_SHA"
+          EDITOR_SHA="$EDITOR_SHA" UI_SHA="$UI_SHA" node -e "const fs=require('fs');let s=fs.readFileSync('index.html','utf8');s=s.replace(/editor-core\\.js\\?v=[a-f0-9]{12}/,'editor-core.js?v='+process.env.EDITOR_SHA).replace(/ui\\.js\\?v=[a-f0-9]{12}/,'ui.js?v='+process.env.UI_SHA);fs.writeFileSync('index.html',s)"
       - run: npm test
       - name: Commit lockfile and bundles
         shell: bash
