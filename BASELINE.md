@@ -94,7 +94,7 @@ Não use `main`, o SHA da baseline, testes existentes, screenshots, documentaç�
 - `aac423e012745c7873908ddc4a76371fb8218aa3` — shell translúcido consolidado após a etapa 2/6, PR #86.
 - `dde30467ed9b0d108bac2ae7ad9bcac1137c169e` — referência histórica anterior, merge do PR #53.
 
-## Relação com Release Anchor e validação
+## Relação com evidência de release e validação
 
 Baseline de trabalho, evidência histórica de release, testes automatizados e evidência de produção têm funções distintas. Nenhum SHA histórico ou comparação histórica define a baseline corrente, e nenhum deles pode bloquear por si só a evolução requerida.
 
