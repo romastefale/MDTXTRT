@@ -1,6 +1,5 @@
 {
   "schema": 2,
-  "visualBaseline": "977d61554f75c943b626f89fe871bb3becae75f1",
   "baselinePolicy": {
     "role": "evolutionary-reference",
     "immutable": false,
@@ -87,5 +86,6 @@
     "immutable": true,
     "supersedeInsteadOfMove": true,
     "sealAfter": "release-approved"
-  }
+  },
+  "visualComparisonSnapshot": "977d61554f75c943b626f89fe871bb3becae75f1"
 }
