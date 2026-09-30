@@ -540,6 +540,23 @@ test('library submenu opens inside the export popover and returns safely to the 
   assert.equal(d.querySelector('#librarySubmenu').hidden,true);
   assert.equal(menu.hasAttribute('data-test-popover-open'),true);
   assert.equal(menu.classList.contains('library-open'),false);
+
+  d.querySelector('#libraryBtn').click();
+  await wait(0);
+  assert.equal(d.querySelector('#librarySubmenu').hidden,false);
+  assert.equal(parseFloat(menu.style.getPropertyValue('--menu-max-height')),520);
+
+  w.visualViewport.height=360;
+  w.eval('syncBrowserViewport()');
+  const keyboardHeight=parseFloat(menu.style.getPropertyValue('--menu-max-height'));
+  assert.ok(keyboardHeight>0&&keyboardHeight<=281);
+
+  const outside=d.querySelector('#editor');
+  const outsideDown=new w.MouseEvent('pointerdown',{bubbles:true,cancelable:true,clientX:380,clientY:790});
+  outside.dispatchEvent(outsideDown);
+  assert.equal(outsideDown.defaultPrevented,true);
+  assert.equal(menu.hasAttribute('data-test-popover-open'),false);
+  assert.equal(d.querySelector('#librarySubmenu').hidden,true);
   w.close();
 });
 
