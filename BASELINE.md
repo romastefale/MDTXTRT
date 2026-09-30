@@ -25,7 +25,7 @@ O snapshot atualmente registrado como referência de comparação é:
 `977d61554f75c943b626f89fe871bb3becae75f1`
 
 - Data de adoção: 2026-09-30.
-- Registro canônico: `RELEASE_MANIFEST.json.visualBaseline`.
+- Registro canônico: `RELEASE_MANIFEST.json.visualComparisonSnapshot`.
 - Papel: permitir comparação e rastreabilidade do estado a partir do qual o produto continua evoluindo.
 - Mutabilidade: **substituível**. Quando o estado intencional do produto evoluir e for aceito, uma referência posterior deve suceder esta.
 - Autoridade normativa: **nenhuma por mera existência no snapshot**.
