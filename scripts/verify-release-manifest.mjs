@@ -35,6 +35,6 @@ for(const [index,stage] of manifest.stages.entries()){
   if(previous&&spawnSync('git',['merge-base','--is-ancestor',previous,stage.head]).status!==0)fail(`Etapa ${stage.step} não descende da etapa anterior`);
   previous=stage.head;
 }
-if(manifest.anchorPolicy?.authority!=='full-git-commit-sha'||manifest.anchorPolicy?.immutable!==true||manifest.anchorPolicy?.supersedeInsteadOfMove!==true||manifest.anchorPolicy?.sealAfter!=='release-approved')fail('Política de Release Anchor incompleta');
+if(manifest.anchorPolicy?.authority!=='historical-release-evidence-sha'||manifest.anchorPolicy?.immutable!==false||manifest.anchorPolicy?.preservationRequired!==false||manifest.anchorPolicy?.historicalBehaviorIsNormative!==false||manifest.anchorPolicy?.supersedeInsteadOfMove!==true||manifest.anchorPolicy?.sealAfter!=='release-approved')fail('Política de referência histórica de release incompleta ou regressiva');
 
 console.log(JSON.stringify({ok:true,head,comparisonSnapshot:manifest.visualComparisonSnapshot,baselinePolicy:manifest.baselinePolicy,stages:manifest.stages.map(({step,pr,head})=>({step,pr,head})),runtime:manifest.runtime},null,2));
