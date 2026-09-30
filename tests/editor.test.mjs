@@ -495,6 +495,66 @@ test('mobile editor controls preserve active focus without reopening a dismissed
   w.close();
 });
 
+test('menu and submenu navigation never steals active typing focus while the keyboard is open',async()=>{
+  const fetch=async(url)=>{
+    const target=String(url);
+    if(target.endsWith('/api/library/list'))return {ok:true,status:200,json:async()=>({drafts:[],telegram:[],telegraph:[]})};
+    if(target.endsWith('/api/telegraph/recover'))return {ok:false,status:404,json:async()=>({})};
+    return {ok:false,status:404,json:async()=>({error:'not found'})};
+  };
+  const w=page({fetch,visualViewport:{height:360}}),d=w.document,editor=d.querySelector('#editor');
+  await wait(40);
+  editor.focus();
+
+  const press=element=>{
+    const down=new w.Event('pointerdown',{bubbles:true,cancelable:true});
+    element.dispatchEvent(down);
+    assert.equal(down.defaultPrevented,true);
+    element.click();
+    assert.equal(d.activeElement,editor);
+  };
+
+  press(d.querySelector('#exportBtn'));
+  assert.equal(d.querySelector('#exportMenu').hasAttribute('data-test-popover-open'),true);
+
+  press(d.querySelector('#libraryBtn'));
+  await wait(5);
+  assert.equal(d.querySelector('#libraryMenu').hasAttribute('data-test-popover-open'),true);
+  assert.equal(d.querySelector('#exportMenu').hasAttribute('data-test-popover-open'),false);
+  assert.equal(d.activeElement,editor);
+
+  press(d.querySelector('#libraryClose'));
+  await wait(0);
+  assert.equal(d.querySelector('#libraryMenu').hasAttribute('data-test-popover-open'),false);
+  assert.equal(d.querySelector('#exportMenu').hasAttribute('data-test-popover-open'),true);
+  assert.equal(d.activeElement,editor);
+
+  press(d.querySelector('#exportBtn'));
+  assert.equal(d.querySelector('#exportMenu').hasAttribute('data-test-popover-open'),false);
+  assert.equal(d.activeElement,editor);
+
+  w.eval("openPanel('#plusMenu',document.querySelector('#plusBtn'))");
+  assert.equal(d.activeElement,editor);
+  const category=d.querySelector('#plusMenu [data-plus-category="format"]');
+  press(category);
+  assert.equal(d.querySelector('#plus-format-menu').hasAttribute('data-test-popover-open'),true);
+  assert.equal(d.querySelector('#plusMenu').hasAttribute('data-test-popover-open'),false);
+  assert.equal(d.activeElement,editor);
+
+  const back=d.querySelector('#plus-format-menu [data-plus-back]');
+  press(back);
+  assert.equal(d.querySelector('#plus-format-menu').hasAttribute('data-test-popover-open'),false);
+  assert.equal(d.querySelector('#plusMenu').hasAttribute('data-test-popover-open'),true);
+  assert.equal(d.activeElement,editor);
+
+  press(d.querySelector('#linkBtn'));
+  assert.equal(d.querySelector('#linkMenu').hasAttribute('data-test-popover-open'),true);
+  press(d.querySelector('#linkBtn'));
+  assert.equal(d.querySelector('#linkMenu').hasAttribute('data-test-popover-open'),false);
+  assert.equal(d.activeElement,editor);
+  w.close();
+});
+
 test('Mini App exposes the export menu and keeps publication as an explicit menu action',async()=>{
   const requests=[];
   const fetch=async(url)=>{
