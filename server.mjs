@@ -707,7 +707,7 @@ function handoffActionValid(action,draft,file){
   if(action.request!==null)handoffPublishRequestValid(action.request,draft,file);
   if(action.status!=="uncertain"&&action.request===null)throw new Error("Estado de publicação da transferência inválido");
   if(action.status==="succeeded"){
-    if(!action.result||!["sendRichMessage","editMessageText"].includes(action.result.via)||!Number.isInteger(action.result.messageId)||action.result.messageId<=0)throw new Error("Resultado da publicação transferida inválido");
+    if(!action.result||action.result.via!=="sendRichMessage"||!Number.isInteger(action.result.messageId)||action.result.messageId<=0)throw new Error("Resultado da publicação transferida inválido");
   }else if(action.result!==null){
     throw new Error("Estado de publicação da transferência inválido");
   }
@@ -1408,99 +1408,6 @@ function telegraphContentHTML(content){
   return content.map(render).join("");
 }
 
-function safeLink(value){
-  let url;
-  try{url=new URL(value);}catch{throw new Error("Link inválido");}
-  if(!["http:","https:","tg:","mailto:","tel:"].includes(url.protocol))throw new Error("Link inválido");
-  return url.href;
-}
-
-function entityWrap(entity, inner, text, mode) {
-  const raw = text.slice(entity.start, entity.end);
-  const link = entity.type === "text_link" ? safeLink(entity.url || "") : entity.type === "url" ? safeLink(raw) : entity.type === "text_mention" && entity.user?.id ? "tg://user?id=" + entity.user.id : "";
-  if (mode === "md") {
-    if (entity.type === "bold") return "**" + inner + "**";
-    if (entity.type === "italic") return "*" + inner + "*";
-    if (entity.type === "underline") return "<u>" + inner + "</u>";
-    if (entity.type === "strikethrough") return "~~" + inner + "~~";
-    if (entity.type === "spoiler") return "||" + inner + "||";
-    if (entity.type === "code" || entity.type === "pre") return "\`" + raw.replace(/\`/g, "\\\`") + "\`";
-    if (link) return "[" + inner + "](<" + link + ">)";
-    return inner;
-  }
-  if (entity.type === "bold") return "<b>" + inner + "</b>";
-  if (entity.type === "italic") return "<i>" + inner + "</i>";
-  if (entity.type === "underline") return "<u>" + inner + "</u>";
-  if (entity.type === "strikethrough") return "<s>" + inner + "</s>";
-  if (entity.type === "spoiler") return "<tg-spoiler>" + inner + "</tg-spoiler>";
-  if (entity.type === "code" || entity.type === "pre") return "<code>" + htmlEscape(raw) + "</code>";
-  if (link) return "<a href=\"" + htmlEscape(link) + "\">" + inner + "</a>";
-  return inner;
-}
-
-function formatText(text, entities, mode) {
-  const root = { start: 0, end: text.length, children: [] };
-  const stack = [root];
-  const types = new Set(["bold", "italic", "underline", "strikethrough", "spoiler", "code", "pre", "text_link", "url", "text_mention"]);
-  const spans = (entities || []).filter(e => types.has(e.type) && Number.isInteger(e.offset) && Number.isInteger(e.length) && e.offset >= 0 && e.length > 0 && e.offset + e.length <= text.length)
-    .map(e => ({ ...e, start: e.offset, end: e.offset + e.length }))
-    .sort((a, b) => a.start - b.start || b.end - a.end);
-  for (const span of spans) {
-    while (stack.length > 1 && span.start >= stack[stack.length - 1].end) stack.pop();
-    const parent = stack[stack.length - 1];
-    if (span.start < parent.start || span.end > parent.end) continue;
-    const node = { ...span, children: [] };
-    parent.children.push(node);
-    stack.push(node);
-  }
-  const render = node => {
-    let out = "";
-    let at = node.start;
-    for (const child of node.children) {
-      if (child.start < at) continue;
-      out += htmlEscape(text.slice(at, child.start)) + render(child);
-      at = child.end;
-    }
-    out += htmlEscape(text.slice(at, node.end));
-    return node === root ? out : entityWrap(node, out, text, mode);
-  };
-  return render(root);
-}
-
-function richHTML(text, entities) {
-  return "<p>" + formatText(text, entities, "html").replace(/\n/g, "<br>") + "</p>";
-}
-
-function commandBody(message) {
-  const text = String(message.text || "");
-  const prefix = /^\/[a-z0-9_]+(?:@[a-z0-9_]+)?(?:\s+|$)/i.exec(text)?.[0].length || text.length;
-  const rest = text.slice(prefix);
-  const lead = rest.length - rest.trimStart().length;
-  const body = rest.trim();
-  const start = prefix + lead;
-  const end = start + body.length;
-  const entities = (message.entities || []).filter(e => e.offset >= start && e.offset + e.length <= end).map(e => ({ ...e, offset: e.offset - start }));
-  return { text: body, entities };
-}
-
-function repliedBody(message) {
-  const reply = message.reply_to_message;
-  if (!reply) return { text: "", entities: [] };
-  const source = typeof reply.text === "string" ? reply.text : String(reply.caption || "");
-  const sourceEntities = typeof reply.text === "string" ? reply.entities : reply.caption_entities;
-  return { text: source, entities: sourceEntities || [] };
-}
-
-function cutBody(body, length) {
-  const rest = body.text.slice(length);
-  const lead = rest.length - rest.trimStart().length;
-  const text = rest.slice(lead).trimEnd();
-  const start = length + lead;
-  const end = start + text.length;
-  const entities = body.entities.filter(e => e.offset >= start && e.offset + e.length <= end).map(e => ({ ...e, offset: e.offset - start }));
-  return { text, entities };
-}
-
 async function sendBotRich(chatId,html,replyTo){
   const body = { chat_id: chatId, rich_message: { html } };
   if (replyTo) body.reply_parameters = { message_id: replyTo };
@@ -1522,11 +1429,8 @@ function documentLaunchURL(base,newToken="",view="") {
 
 function appButton(newToken="",view="") {
   const miniURL=documentLaunchURL(MINI_APP_URL,newToken,view);
-  const browserURL=documentLaunchURL(WEBHOOK_BASE + "/",newToken,view);
   const miniLabel=newToken?"Criar novo documento no Mini App":view==="telegraph"?"Abrir Telegraph no Mini App":view==="library"?"Abrir rascunhos no Mini App":"Mini App MDTXTRT";
-  const browserLabel=newToken?"Criar novo documento no browser":view==="telegraph"?"Abrir Telegraph no browser":view==="library"?"Abrir rascunhos no browser":"Abrir MDTXTRT no browser";
-  return "<tg-button-row align=\"center\"><tg-button type=\"web_app\" style=\"success\" url=\"" + htmlEscape(miniURL) + "\">"+miniLabel+"</tg-button></tg-button-row>" +
-    "<tg-button-row align=\"center\"><tg-button type=\"url\" style=\"danger\" url=\"" + htmlEscape(browserURL) + "\">"+browserLabel+"</tg-button></tg-button-row>";
+  return "<tg-button-row align=\"center\"><tg-button type=\"web_app\" style=\"success\" url=\"" + htmlEscape(miniURL) + "\">"+miniLabel+"</tg-button></tg-button-row>";
 }
 
 function appMessage(title,newToken="",view="") {
@@ -1571,17 +1475,15 @@ function telegraphEditorLaunchURL(base){
   return url.href;
 }
 
-function botActionLaunchURL(base,action,kind,doc,format=""){
+function botActionLaunchURL(base,action,kind,doc){
   if(!["send","export"].includes(action))throw new Error("Ação do Mini App inválida");
   if(!/^[a-f0-9-]{36}$/i.test(String(doc||"")))throw new Error("Documento inválido");
   if(action==="send"&&kind!=="d")throw new Error("Origem de envio inválida");
   if(action==="export"&&!["d","t","g"].includes(kind))throw new Error("Origem de exportação inválida");
-  if(format&&!["txt","md"].includes(format))throw new Error("Formato de exportação inválido");
   const url=new URL(base);
   url.searchParams.set("botAction",action);
   url.searchParams.set("source",kind);
   url.searchParams.set("doc",String(doc));
-  if(format)url.searchParams.set("format",format);
   return url.href;
 }
 
@@ -1640,18 +1542,17 @@ function exportChoices(owner){
   ];
 }
 
-function botExportListPages(owner,format=""){
-  if(format&&!["txt","md"].includes(format))throw new Error("Formato de exportação inválido");
+function botExportListPages(owner){
   const choices=exportChoices(owner);
   if(!choices.length)return ["<h1>Exportar</h1><p>Nenhum rascunho ou publicação foi encontrado.</p>"+appButton()];
   const items=choices.map(item=>({
     label:item.label,
-    url:botActionLaunchURL(MINI_APP_URL,"export",item.kind,item.docId,format),
+    url:botActionLaunchURL(MINI_APP_URL,"export",item.kind,item.docId),
     style:"success"
   }));
   return botWebAppPages(
     "Exportar",
-    "Qual rascunho ou publicação você quer exportar"+(format?" como <b>"+format.toUpperCase()+"</b>":"")+"?",
+    "Qual rascunho ou publicação você quer exportar?",
     items
   );
 }
@@ -1671,9 +1572,8 @@ async function selectedExportDocument(owner,kind,doc){
   if(kind==="d")return {name:record.draft.name,html:record.draft.html};
   const publication=record.publication.telegram;
   if(!publication||publication.status!=="succeeded")throw new Error("Publicação Telegram não encontrada");
-  if(publication.snapshot)return {name:publication.snapshot.name,html:publication.snapshot.html};
-  if(publication.revision===record.draft.revision)return {name:record.draft.name,html:record.draft.html};
-  throw new Error("Esta publicação Telegram é de uma revisão anterior e não possui snapshot exportável");
+  if(!publication.snapshot)throw new Error("Esta publicação Telegram não possui snapshot exato da revisão publicada");
+  return {name:publication.snapshot.name,html:publication.snapshot.html};
 }
 
 function telegraphEditorButton(){
@@ -1682,8 +1582,9 @@ function telegraphEditorButton(){
 
 function importAppButton(token){
   if(!/^[a-f0-9]{32}$/.test(token))throw new Error("Token de importação inválido");
-  const url=WEBHOOK_BASE+"/telegram/open?handoff="+token;
-  return "<tg-button-row align=\"center\"><tg-button type=\"url\" style=\"success\" url=\"" + htmlEscape(url) + "\">Continuar no Mini App</tg-button></tg-button-row>";
+  const url=new URL(MINI_APP_URL);
+  url.searchParams.set("handoff",token);
+  return botWebAppRow("Continuar no Mini App",url.href,"success");
 }
 
 async function replyImportResult(message,document){
@@ -1699,32 +1600,7 @@ async function replyImportResult(message,document){
   }
 }
 
-async function sendDocument(chatId,name,content,type){
-  if(typeof content!=="string"||!content.trim())throw new Error("Não há texto para exportar");
-  if(Buffer.byteLength(content,"utf8")>1_500_000)throw new Error("O arquivo excede o limite de exportação");
-  const fileName=cleanFileName(name);
-  const mime=type==="text/markdown"?"text/markdown":type==="text/plain"?"text/plain":"";
-  if(!mime)throw new Error("Formato de exportação inválido");
-  const ext=type==="text/markdown"?".md":".txt";
-  if(!fileName.toLowerCase().endsWith(ext))throw new Error("Extensão de arquivo incompatível");
-  const data=content;
-  const form = new FormData();
-  form.set("chat_id", String(chatId));
-  form.set("caption", "Exportado pelo MDTXTRT");
-  form.set("document", new Blob([data], { type: mime }), fileName);
-  const sent = await telegramCall("sendDocument", form);
-  return { messageId: sent.message_id, fileName };
-}
-
 async function handleBotUpdate(update) {
-  if(update.callback_query){
-    const q=update.callback_query;
-    await telegramCall("answerCallbackQuery",{
-      callback_query_id: q.id,
-      text: q.data ? String(q.data).slice(0, 200) : "OK"
-    });
-    return;
-  }
   const message = update.message;
   if (!message || !message.chat) return;
   const text=typeof message.text==="string"?message.text:"";
@@ -1749,11 +1625,10 @@ async function handleBotUpdate(update) {
     return;
   }
   if(message.document&&captionMatch){
-    await sendBotRich(chatId,"<p>O documento anexado só pode ser usado com <b>/importar</b>. Para <b>/enviar</b> ou <b>/exportar</b>, responda a uma mensagem de texto.</p>",message.message_id);
+    await sendBotRich(chatId,"<p>O documento anexado só pode ser usado com <b>/importar</b>. <b>/enviar</b> e <b>/exportar</b> trabalham exclusivamente com rascunhos e publicações persistidos.</p>",message.message_id);
     return;
   }
   if(!textMatch)return;
-  const body = commandBody(message);
   if (command === "start" || command === "app") {
     await sendBotRich(chatId, appMessage("Edite, publique e exporte seus textos do Telegram."), message.message_id);
     return;
@@ -1773,41 +1648,19 @@ async function handleBotUpdate(update) {
     return;
   }
   if (command === "ajuda") {
-    const html = "<h1>Comandos</h1><p><b>/app</b> abre o documento local ativo no Mini App.</p><p><b>/novo</b> abre outro documento e preserva o rascunho local anterior neste dispositivo.</p><p><b>/rascunhos</b> lista os rascunhos no chat com botões que abrem cada documento diretamente no Mini App.</p><p><b>/telegraph</b> abre o Mini App já no editor para Telegraph.</p><p><b>/enviar</b> pergunta qual rascunho deve ser enviado; <b>/enviar texto</b> continua aceitando texto direto ou resposta a mensagem.</p><p><b>/exportar</b> pergunta qual rascunho ou publicação deve ser exportado e permite TXT ou Markdown.</p><p><b>/importar</b> importa um documento .md ou .txt anexado ou respondido.</p>" + appButton();
+    const html = "<h1>Comandos</h1><p><b>/app</b> abre o Mini App.</p><p><b>/novo</b> cria outro documento sem substituir o rascunho local atual.</p><p><b>/rascunhos</b> lista os rascunhos no chat e abre o documento escolhido diretamente no Mini App.</p><p><b>/telegraph</b> abre o Mini App já no editor Telegraph.</p><p><b>/enviar</b> lista os rascunhos para escolher qual será enviado.</p><p><b>/exportar</b> lista rascunhos e publicações para escolher o que exportar em TXT ou Markdown.</p><p><b>/importar</b> importa um documento .md ou .txt anexado ou respondido e continua diretamente no Mini App.</p>" + appButton();
     await sendBotRich(chatId, html, message.message_id);
     return;
   }
   if (command === "enviar") {
-    const content = body.text ? body : repliedBody(message);
-    if (!content.text.trim()) {
-      const owner=ownerFromBotMessage(message);
-      await sendBotRichPages(chatId,botSendListPages(owner),message.message_id);
-      return;
-    }
-    await sendBotRich(chatId, richHTML(content.text, content.entities), message.message_id);
+    const owner=ownerFromBotMessage(message);
+    await sendBotRichPages(chatId,botSendListPages(owner),message.message_id);
     return;
   }
   if (command === "exportar") {
-    let content = body;
-    let type = "txt";
-    let preferredFormat = "";
-    const choice = /^(txt|md)(?:\s+|$)/i.exec(body.text);
-    if (choice) {
-      type = choice[1].toLowerCase() === "txt" ? "txt" : "md";
-      preferredFormat=type;
-      content = cutBody(body, choice[0].length);
-    }
-    if (!content.text) {
-      const replied=repliedBody(message);
-      if(replied.text.trim())content=replied;
-    }
-    if (!content.text.trim()) {
-      const owner=ownerFromBotMessage(message);
-      await sendBotRichPages(chatId,botExportListPages(owner,preferredFormat),message.message_id);
-      return;
-    }
-    const output = type === "md" ? formatText(content.text, content.entities, "md") : content.text;
-    await sendDocument(chatId, "mdtxtrt." + type, output, type === "md" ? "text/markdown" : "text/plain");
+    const owner=ownerFromBotMessage(message);
+    await sendBotRichPages(chatId,botExportListPages(owner),message.message_id);
+    return;
   }
 }
 
@@ -1819,7 +1672,7 @@ async function configureBot(){
   await telegramCall("setMyCommands",{commands:BOT_COMMANDS,scope:{type:"all_private_chats"}});
   await telegramCall("deleteMyCommands",{scope:{type:"default"}});
   await telegramCall("setChatMenuButton",{menu_button:{type:"web_app",text:"Mini App MDTXTRT",web_app:{url:MINI_APP_URL}}});
-  await telegramCall("setWebhook",{url:WEBHOOK_BASE+"/telegram/webhook",secret_token:secret,allowed_updates:["message","callback_query"]});
+  await telegramCall("setWebhook",{url:WEBHOOK_BASE+"/telegram/webhook",secret_token:secret,allowed_updates:["message"]});
   console.log("Telegram ready");
 }
 

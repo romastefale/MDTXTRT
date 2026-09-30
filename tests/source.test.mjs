@@ -703,24 +703,40 @@ test('step 4 format contract is explicit and conversion code uses the shared por
 });
 
 
-test('private bot draft actions use Mini App web_app buttons and preserve Telegram ownership',()=>{
+test('private bot actions are canonical Mini App web_app flows with no legacy direct fallback',()=>{
   const app=read('app.js'),server=read('server.mjs');
   assert.match(server,/function botWebAppRow\(label,url,style="success"\)/);
   assert.match(server,/type=\\"web_app\\"/);
   assert.doesNotMatch(server,/function botCallbackRow\(/);
+  assert.doesNotMatch(server,/function commandBody\(/);
+  assert.doesNotMatch(server,/function repliedBody\(/);
+  assert.doesNotMatch(server,/function richHTML\(/);
+  assert.doesNotMatch(server,/function formatText\(/);
+  assert.doesNotMatch(server,/async function sendDocument\(/);
+  assert.match(server,/function appButton\(newToken="",view=""\)[\s\S]*?type=\\"web_app\\"/);
+  assert.doesNotMatch(server,/function appButton\(newToken="",view=""\)[\s\S]*?type=\\"url\\"/);
+  assert.match(server,/function importAppButton\(token\)[\s\S]*?url\.searchParams\.set\("handoff",token\)[\s\S]*?botWebAppRow/);
   assert.match(server,/function botDraftListPages\(owner\)/);
   assert.match(server,/function botSendListPages\(owner\)/);
-  assert.match(server,/function botExportListPages\(owner,format=""\)/);
+  assert.match(server,/function botExportListPages\(owner\)/);
   assert.match(server,/botActionLaunchURL\(MINI_APP_URL,"send","d",item\.docId\)/);
-  assert.match(server,/botActionLaunchURL\(MINI_APP_URL,"export",item\.kind,item\.docId,format\)/);
+  assert.match(server,/botActionLaunchURL\(MINI_APP_URL,"export",item\.kind,item\.docId\)/);
+  assert.doesNotMatch(server,/botActionLaunchURL\(base,action,kind,doc,format/);
+  assert.match(server,/allowed_updates:\["message"\]/);
+  assert.doesNotMatch(server,/answerCallbackQuery/);
   assert.match(server,/url\.pathname === "\/api\/export\/source"/);
   assert.match(server,/const owner=draftOwner\(body\)/);
+  assert.match(server,/if\(!publication\.snapshot\)throw new Error\("Esta publicação Telegram não possui snapshot exato da revisão publicada"\)/);
+  assert.doesNotMatch(server,/publication\.revision===record\.draft\.revision/);
+  assert.match(app,/function handoffToken\(\)[\s\S]*?searchParams\.get\('handoff'\)/);
   assert.match(app,/function consumeBotLaunchAction\(\)/);
+  assert.doesNotMatch(app,/const format=url\.searchParams\.get\('format'\)/);
   assert.match(app,/async function runBotLaunchAction\(selection\)/);
   assert.match(app,/async function loadBotExportSource\(selection\)/);
   assert.match(app,/API\+'\/api\/export\/source'/);
   assert.match(app,/await loadRemoteDraft\(selection\.doc\)/);
   assert.match(app,/await publishTelegram\(\)/);
+  assert.doesNotMatch(app,/editMessageText/);
 });
 
 test('step 6 persists drafts on the Railway volume, binds Telegram publication provenance and labels the document title explicitly',()=>{
