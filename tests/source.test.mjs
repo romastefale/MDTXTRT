@@ -783,7 +783,7 @@ test('step 5 overlays use the visual viewport while honoring the current materia
 
 test('release evidence gates remain traceability-only and cannot freeze later evolution',()=>{
   for(const file of [
-    'GAP_ANALYSIS.md','RELEASE_VALIDATION.md','RELEASE_EVIDENCE_TEMPLATE.md','RELEASE_ANCHOR.md',
+    'GAP_ANALYSIS.md','RELEASE_VALIDATION.md','RELEASE_EVIDENCE_TEMPLATE.md','RELEASE_EVIDENCE_POLICY.md',
     'RELEASE_MANIFEST.json','SURFACE_CONTRACT.md','OWNER_ACCEPTANCE.md','.github/workflows/release-validation.yml',
     'scripts/verify-release-manifest.mjs','scripts/verify-surface-contract.mjs',
     'scripts/validate-release-evidence.mjs'
@@ -793,7 +793,7 @@ test('release evidence gates remain traceability-only and cannot freeze later ev
   const workflow=read('.github/workflows/release-validation.yml');
   const gap=read('GAP_ANALYSIS.md');
   const validation=read('RELEASE_VALIDATION.md');
-  const anchor=read('RELEASE_ANCHOR.md');
+  const evidencePolicyDoc=read('RELEASE_EVIDENCE_POLICY.md');
   const manifest=JSON.parse(read('RELEASE_MANIFEST.json'));
   const evidence=read('scripts/validate-release-evidence.mjs');
 
@@ -854,7 +854,7 @@ test('release evidence gates remain traceability-only and cannot freeze later ev
   assert.equal(manifest.releaseEvidencePolicy.mayFreezeFutureEvolution,false);
   assert.equal(manifest.releaseEvidencePolicy.mayBlockEvolutionPromotion,false);
 
-  for(const file of ['AGENTS.md','README.md','FORMAT_CONTRACT.md','RELEASE_ANCHOR.md','RELEASE_VALIDATION.md','RELEASE_EVIDENCE_TEMPLATE.md']){
+  for(const file of ['AGENTS.md','README.md','FORMAT_CONTRACT.md','RELEASE_EVIDENCE_POLICY.md','RELEASE_VALIDATION.md','RELEASE_EVIDENCE_TEMPLATE.md']){
     const text=read(file);
     assert.doesNotMatch(text,/RELEASE_MANIFEST\.json\.visualBaseline|current visual baseline/i);
     assert.doesNotMatch(text,/Current working baseline:\s*`[a-f0-9]{40}`/);
@@ -888,9 +888,9 @@ test('release evidence gates remain traceability-only and cannot freeze later ev
   assert.match(validation,/real Telegram Rich Message send and revision history/i);
   assert.match(validation,/Web \/ PWA \/ Mini App and physical-device matrix/);
 
-  assert.match(anchor,/not an immutable product baseline/i);
-  assert.match(anchor,/Certification does not freeze that state/i);
-  assert.match(anchor,/The first question never overrides the second/i);
-  assert.doesNotMatch(anchor,/final immutable Release Anchor|preservation target.*authority over subsequent development/i);
+  assert.match(evidencePolicyDoc,/not an immutable product baseline/i);
+  assert.match(evidencePolicyDoc,/Certification does not freeze that state/i);
+  assert.match(evidencePolicyDoc,/The first question never overrides the second/i);
+  assert.doesNotMatch(evidencePolicyDoc,/freeze product behavior|preservation target.*authority over subsequent development/i);
 });
 
