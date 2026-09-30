@@ -498,8 +498,8 @@ test('editorial pointer retention has one owner and standard menus never depend 
   assert.match(app,/function focusLibraryStart\(\)\{return focusMenuControl\(one\('#libraryClose'\)\);\}/);
   assert.match(app,/librarySubmenuOpen\(\)&&!menu\.contains\(event\.target\)&&!isTypingEntry\(event\.target\)/);
   assert.doesNotMatch(app,/addEventListener\('mousedown', e => e\.preventDefault\(\)\)/);
-  assert.match(app,/function setTheme\(mode\)[\s\S]*?applyScheme\(mode\)/);
-  assert.doesNotMatch(app,/function setTheme\(mode\)[\s\S]*?window\.location\.reload\(\)/);
+  assert.match(app,/function setTheme\(mode\)[\s\S]*?window\.location\.reload\(\)/);
+  assert.doesNotMatch(app,/function setTheme\(mode\)[\s\S]*?applyScheme\(mode\)/);
 });
 
 test('document title is explicit in export flow and becomes the Telegraph page title',()=>{
