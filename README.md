@@ -2,7 +2,7 @@
 
 ## Baseline de trabalho — ponto de partida evolutivo
 
-A baseline de trabalho é o **estado corrente a partir do qual o produto continua evoluindo**. Comparações com SHAs históricos são diagnósticos opcionais e explícitos; nenhum SHA histórico fica associado permanentemente à baseline.
+A baseline de trabalho é **sempre um estado mutável a partir do qual o produto continua evoluindo**. A regra vale permanentemente para estados atuais e futuros. Comparações com SHAs históricos são diagnósticos opcionais e explícitos; nenhum SHA histórico fica associado permanentemente à baseline.
 
 **A baseline não é uma base imutável, um estado a ser congelado nem um alvo de reprodução permanente.** Ela é o ponto de partida conhecido do produto para que a próxima evolução possa ser implementada, comparada e validada com rastreabilidade.
 
@@ -35,3 +35,6 @@ Para agentes/assistentes: não use a baseline, `main`, testes antigos ou um PASS
 - [RELEASE_ANCHOR.md](RELEASE_ANCHOR.md): política de evidência histórica por SHA, sem autoridade para congelar a evolução.
 - [RELEASE_MANIFEST.json](RELEASE_MANIFEST.json): linhagem executável das seis etapas de implementação e requisitos da Etapa 7/7.
 - [OWNER_ACCEPTANCE.md](OWNER_ACCEPTANCE.md): testes físicos/externos pós-entrega reservados ao proprietário.
+
+
+A mutabilidade é uma invariante permanente do projeto: nenhum candidato, release, aprovação, SHA, tag ou evidência futura pode congelar o produto. Estados aceitos continuam substituíveis, mudanças continuam permitidas e evoluções corretas continuam promovíveis sem obrigação de paridade histórica.
