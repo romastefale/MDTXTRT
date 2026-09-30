@@ -1475,17 +1475,15 @@ function telegraphEditorLaunchURL(base){
   return url.href;
 }
 
-function botActionLaunchURL(base,action,kind,doc,format=""){
+function botActionLaunchURL(base,action,kind,doc){
   if(!["send","export"].includes(action))throw new Error("Ação do Mini App inválida");
   if(!/^[a-f0-9-]{36}$/i.test(String(doc||"")))throw new Error("Documento inválido");
   if(action==="send"&&kind!=="d")throw new Error("Origem de envio inválida");
   if(action==="export"&&!["d","t","g"].includes(kind))throw new Error("Origem de exportação inválida");
-  if(format&&!["txt","md"].includes(format))throw new Error("Formato de exportação inválido");
   const url=new URL(base);
   url.searchParams.set("botAction",action);
   url.searchParams.set("source",kind);
   url.searchParams.set("doc",String(doc));
-  if(format)url.searchParams.set("format",format);
   return url.href;
 }
 
@@ -1544,18 +1542,17 @@ function exportChoices(owner){
   ];
 }
 
-function botExportListPages(owner,format=""){
-  if(format&&!["txt","md"].includes(format))throw new Error("Formato de exportação inválido");
+function botExportListPages(owner){
   const choices=exportChoices(owner);
   if(!choices.length)return ["<h1>Exportar</h1><p>Nenhum rascunho ou publicação foi encontrado.</p>"+appButton()];
   const items=choices.map(item=>({
     label:item.label,
-    url:botActionLaunchURL(MINI_APP_URL,"export",item.kind,item.docId,format),
+    url:botActionLaunchURL(MINI_APP_URL,"export",item.kind,item.docId),
     style:"success"
   }));
   return botWebAppPages(
     "Exportar",
-    "Qual rascunho ou publicação você quer exportar"+(format?" como <b>"+format.toUpperCase()+"</b>":"")+"?",
+    "Qual rascunho ou publicação você quer exportar?",
     items
   );
 }
@@ -1575,9 +1572,8 @@ async function selectedExportDocument(owner,kind,doc){
   if(kind==="d")return {name:record.draft.name,html:record.draft.html};
   const publication=record.publication.telegram;
   if(!publication||publication.status!=="succeeded")throw new Error("Publicação Telegram não encontrada");
-  if(publication.snapshot)return {name:publication.snapshot.name,html:publication.snapshot.html};
-  if(publication.revision===record.draft.revision)return {name:record.draft.name,html:record.draft.html};
-  throw new Error("Esta publicação Telegram é de uma revisão anterior e não possui snapshot exportável");
+  if(!publication.snapshot)throw new Error("Esta publicação Telegram não possui snapshot exato da revisão publicada");
+  return {name:publication.snapshot.name,html:publication.snapshot.html};
 }
 
 function telegraphEditorButton(){
@@ -1629,7 +1625,7 @@ async function handleBotUpdate(update) {
     return;
   }
   if(message.document&&captionMatch){
-    await sendBotRich(chatId,"<p>O documento anexado só pode ser usado com <b>/importar</b>. Para <b>/enviar</b> ou <b>/exportar</b>, responda a uma mensagem de texto.</p>",message.message_id);
+    await sendBotRich(chatId,"<p>O documento anexado só pode ser usado com <b>/importar</b>. <b>/enviar</b> e <b>/exportar</b> trabalham exclusivamente com rascunhos e publicações persistidos.</p>",message.message_id);
     return;
   }
   if(!textMatch)return;
