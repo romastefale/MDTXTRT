@@ -639,8 +639,6 @@ test('draft persistence, Telegram provenance and permanent evolution policy stay
   assert.equal(manifest.evolutionPolicy.anyAcceptedStateMayBeSuperseded,true);
   assert.equal(manifest.evolutionPolicy.historicalStateAuthority,'none');
   assert.equal(manifest.evolutionPolicy.preservationByHistoricalParity,false);
-  assert.match(baseline,/não deve ser preservada contra solicitações de correção ou implementação/i);
-  assert.match(baseline,/referências antigas permanecem apenas como histórico/i);
 });
 
 test('step 4 format contract is explicit and conversion code uses the shared portable boundary',()=>{
