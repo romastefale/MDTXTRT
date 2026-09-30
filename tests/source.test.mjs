@@ -523,10 +523,10 @@ test('editorial pointer retention has one owner and menu navigation preserves ac
   const html=read('index.html'),app=read('app.js');
   assert.doesNotMatch(html,/keyboardPolicyReady|applyThemeWithoutReload|interactionFocus/);
   assert.match(app,/function isTypingEntry\(element\)[\s\S]*?\[contenteditable="true"\]/);
-  assert.match(app,/function typingFocusActive\(\)[\s\S]*?isTypingEntry\(document\.activeElement\)/);
-  assert.match(app,/function focusMenuControl\(element\)[\s\S]*?if\(typingFocusActive\(\)\)return false;[\s\S]*?focusControl\(element\)/);
+  assert.match(app,/function typingFocusActive\(outsidePanel=null\)[\s\S]*?isTypingEntry\(active\)&&\(!outsidePanel\|\|!outsidePanel\.contains\(active\)\)/);
+  assert.match(app,/function focusMenuControl\(element,outsidePanel=null\)[\s\S]*?if\(typingFocusActive\(outsidePanel\)\)return false;[\s\S]*?focusControl\(element\)/);
   assert.match(app,/document\.addEventListener\('pointerdown',event=>\{[\s\S]*?if\(!typingFocusActive\(\)\)return;[\s\S]*?if\(control&&!control\.disabled\)event\.preventDefault\(\);[\s\S]*?\},true\)/);
-  assert.match(app,/if\(returnFocus\)focusMenuControl\(target\)/);
+  assert.match(app,/if\(returnFocus\)focusMenuControl\(target,panel\)/);
   assert.match(app,/function focusLibraryStart\(\)\{return focusMenuControl\(one\('#libraryClose'\)\);\}/);
   assert.match(app,/librarySubmenuOpen\(\)&&!menu\.contains\(event\.target\)&&!isTypingEntry\(event\.target\)/);
   assert.doesNotMatch(app,/addEventListener\('mousedown', e => e\.preventDefault\(\)\)/);
