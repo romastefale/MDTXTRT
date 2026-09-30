@@ -37,7 +37,7 @@ A implementação e a regressão cobrem:
 - PWA standalone;
 - fullscreen/viewport/safe areas oficiais no Mini App e `visualViewport` no browser;
 - posicionamento de menus/diálogos acima da barra inferior;
-- build determinístico, bundles reproduzíveis, auditoria de superfícies e baseline visual automatizada.
+- build determinístico, bundles reproduzíveis e auditoria de superfícies; comparação visual histórica é apenas diagnóstico opcional.
 
 ## Persistência e degradação
 
