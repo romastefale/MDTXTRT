@@ -51,11 +51,11 @@ export function restoreSelection(root,saved,{focus=true}={}){
   const selection=root.ownerDocument.getSelection?.();
   if(!selection)return false;
   try{
+    if(focus)root.focus({preventScroll:true});
     selection.setBaseAndExtent(
       anchor,Math.max(0,Math.min(saved.anchorOffset,maxOffset(anchor))),
       focusNode,Math.max(0,Math.min(saved.focusOffset,maxOffset(focusNode)))
     );
-    if(focus)root.focus({preventScroll:true});
     return true;
   }catch{return false;}
 }
