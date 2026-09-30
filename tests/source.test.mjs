@@ -634,8 +634,9 @@ test('draft persistence, Telegram provenance and explicit visual-baseline histor
   assert.match(drafts,/verified Telegram user identifier/);
   assert.match(drafts,/does \*\*not\*\* rewrite the earlier chat message/);
   const manifest=JSON.parse(read('RELEASE_MANIFEST.json'));
-  const current=baseline.match(/## Baseline vigente[\s\S]*?`([a-f0-9]{40})`/)?.[1];
-  assert.equal(current,manifest.visualBaseline);
+  assert.equal(manifest.evolutionPolicy.currentStateRole,'starting-point-for-next-evolution');
+  assert.equal(manifest.evolutionPolicy.historicalStateAuthority,'none');
+  assert.equal(manifest.evolutionPolicy.preservationByHistoricalParity,false);
   assert.match(baseline,/não deve ser preservada contra solicitações de correção ou implementação/i);
   assert.match(baseline,/referências antigas permanecem apenas como histórico/i);
 });
@@ -783,7 +784,7 @@ test('final release gap analysis, surface audit and final-only anchor gates are 
     'GAP_ANALYSIS.md','RELEASE_VALIDATION.md','RELEASE_EVIDENCE_TEMPLATE.md','RELEASE_ANCHOR.md',
     'RELEASE_MANIFEST.json','SURFACE_CONTRACT.md','OWNER_ACCEPTANCE.md','.github/workflows/release-validation.yml',
     'scripts/verify-release-manifest.mjs','scripts/verify-surface-contract.mjs',
-    'scripts/verify-visual-baseline.mjs','scripts/validate-release-evidence.mjs'
+    'scripts/validate-release-evidence.mjs'
   ]){
     assert.ok(existsSync(new URL('../'+file,import.meta.url)),file);
   }
@@ -820,7 +821,6 @@ test('final release gap analysis, surface audit and final-only anchor gates are 
   assert.match(workflow,/name: Audit release evidence record[\s\S]*?GITHUB_TOKEN:[\s\S]*?node scripts\/validate-release-evidence\.mjs/);
   assert.doesNotMatch(workflow,/contents:\s*write|git push/);
 
-  assert.match(read('scripts/verify-visual-baseline.mjs'),/for\(const theme of \['light','dark'\]\)/);
   assert.match(evidence,/Final status[\s\S]*?RELEASE APPROVED/);
   assert.match(evidence,/iOS PWA/);
   assert.match(evidence,/Android PWA/);
@@ -830,20 +830,22 @@ test('final release gap analysis, surface audit and final-only anchor gates are 
   assert.match(evidence,/Telegram revision notice\/content timeout/);
   assert.match(evidence,/stale persistent draft revision/);
 
-  assert.match(manifest.visualBaseline,/^[a-f0-9]{40}$/);
-  const baselineDoc=read('BASELINE.md');
-  assert.equal(baselineDoc.match(/## Baseline vigente[\s\S]*?`([a-f0-9]{40})`/)?.[1],manifest.visualBaseline);
+  assert.equal(manifest.evolutionPolicy.historicalStateAuthority,'none');
+  assert.equal(manifest.evolutionPolicy.historicalBehaviorIsNormative,false);
+  assert.equal(manifest.evolutionPolicy.preservationByHistoricalParity,false);
+  assert.equal(manifest.evolutionPolicy.divergenceFromHistoricalStateFails,false);
   assert.deepEqual(manifest.runtime,{node:'24.21.0',npm:'11.19.0'});
   assert.deepEqual(manifest.stages.map(stage=>stage.pr),[84,86,88,90,92,95]);
   assert.equal(manifest.stages.at(-1).head,'ec3def6622818c0411bbeb94165716c7f30fa927');
   assert.equal(manifest.stages.at(-1).validatedHead,'ad2b05d82770a5057d22b2f92d7fc02255bdfb1c');
-  assert.equal(manifest.anchorPolicy.authority,'full-git-commit-sha');
-  assert.equal(manifest.anchorPolicy.immutable,true);
-  assert.equal(manifest.anchorPolicy.sealAfter,'release-approved');
+  assert.equal(manifest.releaseEvidencePolicy.authority,'historical-release-evidence-sha');
+  assert.equal(manifest.releaseEvidencePolicy.immutableProductState,false);
+  assert.equal(manifest.releaseEvidencePolicy.preservationRequired,false);
+  assert.equal(manifest.releaseEvidencePolicy.historicalBehaviorIsNormative,false);
 
   for(const file of ['AGENTS.md','README.md','FORMAT_CONTRACT.md','RELEASE_ANCHOR.md','RELEASE_VALIDATION.md','RELEASE_EVIDENCE_TEMPLATE.md']){
     const text=read(file);
-    assert.match(text,/RELEASE_MANIFEST\.json(?:\.visualBaseline)?|RELEASE_MANIFEST\.json\.visualBaseline/);
+    assert.doesNotMatch(text,/RELEASE_MANIFEST\.json\.visualBaseline|current visual baseline/i);
     assert.doesNotMatch(text,/Current working baseline:\s*`[a-f0-9]{40}`/);
     assert.doesNotMatch(text,/baseline de trabalho vigente é `[a-f0-9]{40}`/i);
     assert.doesNotMatch(text,/Normative visual baseline:\s*`[a-f0-9]{40}`/);
