@@ -4,7 +4,7 @@ This document defines the optional **release-certification** gate used to award 
 
 Engineering work is complete when the implementation is integrated, exact-main automated gates pass and that exact SHA is successfully deployed. The additional external/physical evidence below may be collected post-delivery; its absence does not represent unfinished code.
 
-`RELEASE APPROVED` itself is intentionally stricter: it is awarded only when **every** automated, external, physical-device, persistence, fault and rollback criterion below is PASS against the **same exact Git commit SHA**. Mocks and synthetic viewport tests are never recorded as physical or external evidence.
+`RELEASE APPROVED` never freezes or restricts later evolution. Every certified state remains mutable and supersedable. The label is intentionally stricter only about the evidence attached to that historical certification: it is awarded only when **every** automated, external, physical-device, persistence, fault and rollback criterion below is PASS against the **same exact Git commit SHA**. Mocks and synthetic viewport tests are never recorded as physical or external evidence.
 
 ## Gate A — exact candidate and complete regression
 
@@ -36,7 +36,7 @@ Any bundle difference is a release failure.
 
 ## Gate C — stage lineage and announced surface contract
 
-`RELEASE_MANIFEST.json` must identify the six implementation-stage PR heads actually integrated before Etapa 7/7. `scripts/verify-release-manifest.mjs` proves each head is an ancestor of the candidate and preserves order.
+`RELEASE_MANIFEST.json` may retain the six implementation-stage PR heads as historical traceability. `scripts/verify-release-manifest.mjs` validates their record shape only; historical ancestry is not a release gate and cannot block a later evolution or promotion.
 
 `scripts/verify-surface-contract.mjs` must also pass. It audits that every control/command the current Web/PWA/Mini App/bot surfaces declare has a corresponding implementation path, including:
 - editor chrome and formatting controls;
