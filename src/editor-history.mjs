@@ -34,6 +34,11 @@ export function createHistory(root,{depth=120,onRestore=()=>{}}={}){
     onRestore(item);
     return true;
   }
+  function rememberSelection(){
+    if(restoring||index<0)return false;
+    stack[index].selection=saveSelection(root);
+    return true;
+  }
   function reset(){
     stack.length=0;index=-1;commit();
   }
@@ -47,5 +52,5 @@ export function createHistory(root,{depth=120,onRestore=()=>{}}={}){
   }
 
   reset();
-  return {commit,reset,undo,redo,get restoring(){return restoring;}};
+  return {commit,rememberSelection,reset,undo,redo,get restoring(){return restoring;}};
 }
