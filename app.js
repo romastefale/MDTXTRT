@@ -89,7 +89,7 @@ function setTheme(mode){
   if(mode!=='light'&&mode!=='dark')throw new Error('Tema inválido');
   themePreference=mode;
   try{localStorage.setItem(THEME_KEY,mode);}catch{}
-  window.location.reload();
+  applyScheme(mode);
 }
 function normalizedRevision(value){return Number.isSafeInteger(value)&&value>=0?value:0;}
 function bumpDocumentRevision(){
