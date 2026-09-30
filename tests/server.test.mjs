@@ -132,7 +132,9 @@ test('server delivers every local asset the page, the manifest and the icons ref
     if(/^(?:[a-z]+:|\/\/)/i.test(value))continue;
     refs.add(value.replace(/^\.?\//,'').split('?')[0]);
   }
-  for(const [,value] of html.matchAll(/url\("([^"]+)"\)/g)){
+  const css=readFileSync(new URL('styles.css',root),'utf8');
+  assert.match(html,/<link rel="stylesheet" href="styles\.css\?v=[a-f0-9]{12}" \/>/);
+  for(const [,value] of css.matchAll(/url\("([^"]+)"\)/g)){
     if(/^(?:[a-z]+:|\/\/|#)/i.test(value))continue;
     refs.add(value.replace(/^\.?\//,'').split('?')[0]);
   }

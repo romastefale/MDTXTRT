@@ -7,6 +7,8 @@ import vm from 'node:vm';
 const root=new URL('../',import.meta.url);
 const read=name=>readFileSync(new URL(name,root),'utf8');
 const uiSource=()=>read('src/liquid-glass-ui.jsx');
+// A página é o HTML mais a folha de estilos que ele carrega.
+const page=()=>read('index.html')+'\n'+read('styles.css');
 
 test('application controller parses and committed browser bundles are present',()=>{
   assert.doesNotThrow(()=>new vm.Script(read('app.js'),{filename:'app.js'}));
@@ -16,8 +18,8 @@ test('application controller parses and committed browser bundles are present',(
 });
 
 test('browser bundle cache busters follow the committed Git blob SHAs',()=>{
-  const html=read('index.html');
-  for(const file of ['ui.js','editor-core.js']){
+  const html=page();
+  for(const file of ['ui.js','editor-core.js','styles.css']){
     const bytes=readFileSync(new URL('../'+file,import.meta.url));
     const sha=createHash('sha1').update(Buffer.from('blob '+bytes.length+'\0')).update(bytes).digest('hex').slice(0,12);
     assert.ok(html.includes(file+'?v='+sha),file+' cache buster must match committed blob');
@@ -67,7 +69,7 @@ test('React UX renders menus and chrome through the fork Glass primitive',()=>{
 });
 
 test('MDTXTRT contains no bespoke Liquid Glass renderer or implicit browser fallback',()=>{
-  const html=read('index.html'),src=uiSource(),server=read('server.mjs');
+  const html=page(),src=uiSource(),server=read('server.mjs');
   assert.match(html,/id="ux-root"/);
   assert.match(html,/<script type="module" src="ui\.js\?v=[a-f0-9]{12}"><\/script>/);
   assert.doesNotMatch(html,/glass\.js/);
@@ -79,7 +81,7 @@ test('MDTXTRT contains no bespoke Liquid Glass renderer or implicit browser fall
 });
 
 test('editorial document typography uses the Telegraph serif family without changing app chrome',()=>{
-  const html=read('index.html');
+  const html=page();
   assert.match(html,/\.editor\{[\s\S]*?font-family:Georgia,"Times New Roman",serif;/);
   assert.match(html,/\.editor h1,\.editor h2,\.editor h3,\.editor h4,\.editor h5,\.editor h6\{font-family:inherit;/);
   assert.match(html,/body\{[\s\S]*?font:16px\/1\.45 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif/);
@@ -87,7 +89,7 @@ test('editorial document typography uses the Telegraph serif family without chan
 });
 
 test('theme switch owns browser and Telegram chrome without mixed system bars',()=>{
-  const html=read('index.html'),src=uiSource(),app=read('app.js');
+  const html=page(),src=uiSource(),app=read('app.js');
   assert.match(html,/id="statusBarStyle"/);
   assert.match(html,/name="color-scheme" id="colorScheme"/);
   assert.match(html,/mdtxtrt-theme/);
@@ -112,7 +114,7 @@ test('theme switch owns browser and Telegram chrome without mixed system bars',(
 });
 
 test('interface icon assets are vector SVG only and referenced from React source',()=>{
-  const html=read('index.html'),src=uiSource();
+  const html=page(),src=uiSource();
   assert.match(html,/rel="icon" type="image\/svg\+xml" href="favicon\.svg"/);
   assert.match(html,/rel="apple-touch-icon" href="logo\.svg"/);
   assert.ok(existsSync(new URL('../logo.svg',import.meta.url)));
@@ -126,7 +128,7 @@ test('interface icon assets are vector SVG only and referenced from React source
 });
 
 test('editor publication controls contain no instructional fixture content',()=>{
-  const app=read('app.js'),html=read('index.html');
+  const app=read('app.js'),html=page();
   assert.match(app,/if\(kind==='expandquote'\)return formatBlock\('expandquote'\)/);
   assert.match(app,/if\(kind==='pullquote'\)return formatBlock\('pullquote'\)/);
   assert.doesNotMatch(app,/Citação expansível|Citação em destaque|Nova tarefa|Texto expansível|<th>A<\/th>|<td>—<\/td>/);
@@ -167,7 +169,7 @@ test('server exposes every React-referenced local SVG icon and vector app icon',
 });
 
 test('Chrome PWA install metadata is exposed without changing runtime caching',()=>{
-  const html=read('index.html'),server=read('server.mjs');
+  const html=page(),server=read('server.mjs');
   const manifest=JSON.parse(read('manifest.webmanifest'));
   assert.match(html,/<link rel="manifest" href="manifest\.webmanifest" \/>/);
   assert.equal(manifest.name,'MDTXTRT');
@@ -188,7 +190,7 @@ test('Chrome PWA install metadata is exposed without changing runtime caching',(
 });
 
 test('browser PWA uses platform safe areas while Telegram keeps its content safe area',()=>{
-  const html=read('index.html'),app=read('app.js');
+  const html=page(),app=read('app.js');
   assert.match(html,/viewport-fit=cover/);
   assert.match(html,/--safe-top:env\(safe-area-inset-top,0px\);[\s\S]*?--safe-bottom:env\(safe-area-inset-bottom,0px\);[\s\S]*?--safe-left:env\(safe-area-inset-left,0px\);[\s\S]*?--safe-right:env\(safe-area-inset-right,0px\);[\s\S]*?--safe-bottom-max:env\(safe-area-max-inset-bottom,36px\);/);
   assert.match(html,/html\.tg-shell\{[\s\S]*?--safe-top:var\(--app-tg-content-safe-top\);[\s\S]*?--safe-bottom:var\(--app-tg-content-safe-bottom\);[\s\S]*?--safe-left:var\(--app-tg-content-safe-left\);[\s\S]*?--safe-right:var\(--app-tg-content-safe-right\);[\s\S]*?--safe-bottom-max:0px/);
@@ -204,7 +206,7 @@ test('browser PWA uses platform safe areas while Telegram keeps its content safe
 });
 
 test('UI keeps zoom locked and context menus anchored to their triggers',()=>{
-  const html=read('index.html'),src=uiSource(),app=read('app.js');
+  const html=page(),src=uiSource(),app=read('app.js');
   assert.match(html,/minimum-scale=1, maximum-scale=1, user-scalable=no/);
   assert.match(src,/className="theme-switch" id="themeBtn"/);
   assert.match(src,/<span className="app-title">MDTXTRT<\/span>/);
@@ -231,7 +233,7 @@ test('link control exposes the three destination-aware choices in an anchored me
 });
 
 test('plus menu opens categorized submenus over its trigger',()=>{
-  const html=read('index.html'),src=uiSource(),app=read('app.js');
+  const html=page(),src=uiSource(),app=read('app.js');
   assert.match(src,/const plusSections = \[/);
   for(const id of ['file','format','structure','media','interaction']) assert.match(src,new RegExp('id: "'+id+'"'));
   assert.ok(src.includes('id={`plus-${section.id}-menu`}'));
@@ -247,7 +249,7 @@ test('plus menu opens categorized submenus over its trigger',()=>{
 });
 
 test('editorial pointer retention has one owner and standard menus never depend on native popover focus',()=>{
-  const html=read('index.html'),app=read('app.js'),src=uiSource();
+  const html=page(),app=read('app.js'),src=uiSource();
   assert.doesNotMatch(html,/keyboardPolicyReady|applyThemeWithoutReload|interactionFocus/);
   assert.match(app,/function isTypingEntry\(element\)[\s\S]*?\[contenteditable="true"\]/);
   assert.match(app,/function typingFocusActive\(outsidePanel=null\)[\s\S]*?isTypingEntry\(active\)&&\(!outsidePanel\|\|!outsidePanel\.contains\(active\)\)/);
@@ -272,7 +274,7 @@ test('editorial pointer retention has one owner and standard menus never depend 
 });
 
 test('document title is explicit in export flow and becomes the Telegraph page title',()=>{
-  const html=read('index.html'),src=uiSource(),app=read('app.js');
+  const html=page(),src=uiSource(),app=read('app.js');
   assert.match(html,/class="telegraph-title" id="telegraphTitleSlot" hidden/);
   assert.match(html,/tools\.setAttribute\('data-field-label','Título do documento'\)/);
   assert.match(html,/input\.setAttribute\('aria-label','Título do documento'\)/);
@@ -446,7 +448,7 @@ test('private bot actions are canonical Mini App web_app flows with no legacy di
 });
 
 test('step 6 persists drafts on the Railway volume, binds Telegram publication provenance and labels the document title explicitly',()=>{
-  const html=read('index.html'),app=read('app.js'),server=read('server.mjs');
+  const html=page(),app=read('app.js'),server=read('server.mjs');
   assert.match(server,/const DRAFT_DIR = DATA \+ "\/drafts"/);
   assert.match(server,/function savePersistentDraft\(owner,draft,files=\[\]\)/);
   assert.match(server,/url\.pathname === "\/api\/drafts\/save"/);
@@ -506,7 +508,7 @@ test('step 6 persists drafts on the Railway volume, binds Telegram publication p
 });
 
 test('step 5 overlays use the visual viewport',()=>{
-  const html=read('index.html'),app=read('app.js'),src=uiSource();
+  const html=page(),app=read('app.js'),src=uiSource();
   assert.match(html,/\.menu-list\{[\s\S]*?flex:1 1 auto[\s\S]*?max-height:none[\s\S]*?overflow-y:auto/);
   assert.match(html,/\.dialog\{[\s\S]*?max-height:100%[\s\S]*?overflow-y:auto/);
   assert.match(html,/#dialogMenu:popover-open::backdrop\{background:transparent;pointer-events:auto\}/);
