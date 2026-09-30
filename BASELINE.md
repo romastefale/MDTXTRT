@@ -2,42 +2,68 @@
 
 ## Baseline vigente
 
-A referência visual vigente do MDTXTRT é:
+A baseline de trabalho vigente do MDTXTRT é:
 
-`db6ae2240cbe2792bd7edb1a9c26399f068ea807`
+`b22aee80bbaa79db63d12ef62ae523d968218aa5`
 
 - Data de adoção: 2026-09-30.
-- Origem: estado de produção após o PR #116.
-- Motivo: a baseline anterior `1dbbdb2dfaeafbd8ef52cea859611ffa5f6699ad` foi preservada depois de mudanças visuais deliberadas nos menus e deixou de representar corretamente o estado vigente.
-- Finalidade: restabelecer uma referência visual coerente com o código atualmente aceito em produção.
+- Origem: estado de produção após o PR #118.
+- Natureza: snapshot operacional do estado conhecido e aceito neste momento.
+- Esta baseline **não é o produto final**, **não é uma especificação imutável** e **não deve ser preservada contra solicitações de correção ou implementação**.
 
-## Natureza da baseline
+## Regra de evolução
 
-Esta baseline é uma referência de trabalho, não um congelamento do projeto.
+A baseline existe para dar contexto e permitir comparação. Ela não existe para impedir mudanças.
 
-O código pode continuar evoluindo depois desse commit. Correções, refatorações e alterações visuais podem ser incorporadas normalmente à `main`. Quando uma mudança visual deliberada tornar a referência vigente incorreta, a baseline deve ser substituída explicitamente no repositório.
+Quando uma solicitação do usuário exigir correção, refinamento, refatoração ou nova implementação:
+
+1. a solicitação explícita prevalece sobre o estado da baseline;
+2. comportamento incorreto presente na baseline deve ser corrigido, não defendido;
+3. não introduza fallbacks, compatibilidades ou degradações apenas para manter o comportamento anterior;
+4. após uma mudança deliberada e integrada, a baseline pode e deve avançar para o novo estado aceito;
+5. referências antigas permanecem apenas como histórico.
+
+Uma regressão não se torna correta por existir na baseline. Um teste antigo não prevalece sobre um requisito atualizado.
+
+## Contrato para agentes e assistentes
+
+Ao trabalhar neste repositório:
+
+- trate `main` como o estado publicado atual, não como prova de que todo comportamento está correto;
+- trate esta baseline como ponto de partida descritivo, nunca como objetivo de preservação;
+- não conclua que um defeito está corrigido apenas porque existe código correspondente ou um teste automatizado passou;
+- não transforme ausência de evidência em evidência positiva;
+- não afirme execução em dispositivo real, comportamento físico, persistência de bytes, deploy ou resultado externo sem ter verificado exatamente esse fato;
+- diferencie claramente: código implementado, teste automatizado aprovado, deploy concluído e comportamento observado em ambiente/dispositivo real;
+- quando o usuário relatar que o comportamento real diverge do teste, investigue o caminho real de interação em vez de usar o teste para invalidar o relato;
+- não invente SHAs, run IDs, deployment IDs, resultados ou estados;
+- não amplie uma solicitação para mudanças periféricas como forma de evitar a correção central;
+- mantenha mudanças focadas e atualize contratos/documentos que ficarem factualmente obsoletos.
+
+Estas regras também estão resumidas em [AGENTS.md](AGENTS.md).
 
 ## Uso
 
-Para inspecionar exatamente o estado da baseline:
+Para inspecionar exatamente o estado desta baseline:
 
 ```bash
 git fetch origin
-git checkout db6ae2240cbe2792bd7edb1a9c26399f068ea807
+git checkout b22aee80bbaa79db63d12ef62ae523d968218aa5
 ```
 
-Para comparar um estado posterior com a baseline:
+Para comparar um estado posterior:
 
 ```bash
-git diff db6ae2240cbe2792bd7edb1a9c26399f068ea807..HEAD
+git diff b22aee80bbaa79db63d12ef62ae523d968218aa5..HEAD
 ```
 
 ## Histórico
 
-- `1dbbdb2dfaeafbd8ef52cea859611ffa5f6699ad` — baseline anterior após o PR #107; substituída por ter permanecido vigente após mudanças visuais posteriores.
+- `db6ae2240cbe2792bd7edb1a9c26399f068ea807` — baseline anterior após o PR #116; substituída após a correção do toque móvel real no PR #118.
+- `1dbbdb2dfaeafbd8ef52cea859611ffa5f6699ad` — baseline histórica após o PR #107.
 - `aac423e012745c7873908ddc4a76371fb8218aa3` — shell translúcido consolidado após a etapa 2/6, PR #86.
 - `dde30467ed9b0d108bac2ae7ad9bcac1137c169e` — referência histórica anterior, merge do PR #53.
 
-## Relação com a Release Anchor
+## Relação com Release Anchor e validação
 
-A baseline visual continua sendo um contrato distinto da Release Anchor. A atualização desta referência não move nem substitui implicitamente a Release Anchor.
+Baseline visual, Release Anchor, testes automatizados e evidência de produção são contratos distintos. Nenhum deles, isoladamente, prova que o produto está finalizado ou que todo comportamento está correto.
