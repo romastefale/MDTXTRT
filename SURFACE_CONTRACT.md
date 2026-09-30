@@ -33,7 +33,7 @@ The Mini App uses the same shell after server validation of Telegram `initData`.
 | Editor/import/export controls | same Web shell after `/api/telegram/session` succeeds |
 | Telegram publish | `publishTelegram()` → verified owner → durable provenance → `sendRichMessage` |
 | Publish a revised Telegram document | durable owner/document provenance → revision notice replying to prior message → new `sendRichMessage`; prior message is preserved |
-| Draft / publication library | same owner-scoped inline submenu as Web/PWA; it replaces the root application-menu view in place, expands within visual-viewport bounds, blocks background activation while open, and shows Telegram/Telegraph publications before drafts |
+| Draft / publication library | same owner-scoped inline submenu as Web/PWA; it replaces the root application-menu view in place, expands within visual-viewport bounds, uses the popover top-layer backdrop to block click-through while open, and shows Telegram/Telegraph publications before drafts |
 | Telegraph publish/edit | same Telegraph path with verified Telegram owner |
 | Handoff recovery | `/api/handoff/claim`; claim is passive until explicit publish |
 | Settings / Back integration | official Mini App SettingsButton / BackButton events |
