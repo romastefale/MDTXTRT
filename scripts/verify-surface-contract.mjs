@@ -12,7 +12,7 @@ const pwa=JSON.parse(read('manifest.webmanifest'));
 
 const requiredIds=[
   'undoBtn','redoBtn','themeBtn','destBtn','exportBtn','openAppBtn','exportMdBtn','exportTxtBtn',
-  'plusBtn','linkBtn','headingBtn','listBtn','quoteBtn','docName','libraryBtn','libraryScreen','libraryClose','draftList','telegraphList','importMdBtn','importTxtBtn','findBtn',
+  'plusBtn','linkBtn','headingBtn','listBtn','quoteBtn','docName','libraryBtn','librarySubmenu','libraryClose','libraryNew','publicationToggle','draftList','telegraphList','importMdBtn','importTxtBtn','findBtn',
   'mediaBtn','voiceBtn','dialogMenu','findMenu','fileInput','mediaInput'
 ];
 for(const id of requiredIds){
@@ -32,6 +32,8 @@ for(const [id,fragment] of Object.entries({
   importTxtBtn:"one('#importTxtBtn').addEventListener",
   libraryBtn:"one('#libraryBtn')?.addEventListener",
   libraryClose:"one('#libraryClose')?.addEventListener",
+  libraryNew:"one('#libraryNew')?.addEventListener",
+  publicationToggle:"one('#publicationToggle')?.addEventListener",
   findBtn:"one('#findBtn').addEventListener",
   mediaBtn:"one('#mediaBtn').addEventListener",
   voiceBtn:"one('#voiceBtn').addEventListener"

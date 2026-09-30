@@ -20,7 +20,7 @@ The Web/PWA shell uses the same editor and document model.
 | Local attachment | media/voice input → IndexedDB + draft metadata |
 | Telegraph publish | top hamburger application menu → `publishTelegraph()` → backend ownership/path contract |
 | Telegram from browser/PWA | explicit browser-to-Mini-App handoff; browser mode never pretends to possess Telegram identity |
-| Draft persistence / library | local recovery plus Railway-volume records; top hamburger → Rascunhos e publicações → responsive owner-scoped cards |
+| Draft persistence / library | local recovery plus Railway-volume records; top hamburger → Rascunhos e publicações → adaptive inline submenu with owner-scoped publication/draft cards |
 | Telegram publication library/edit | existing durable Telegram provenance → publication summary card → linked current draft opened in editor; prior messages remain unchanged |
 | Telegraph page library/edit | owner-scoped page list → authoritative `/api/telegraph/load` → same document/path opened in editor |
 
@@ -33,7 +33,7 @@ The Mini App uses the same shell after server validation of Telegram `initData`.
 | Editor/import/export controls | same Web shell after `/api/telegram/session` succeeds |
 | Telegram publish | `publishTelegram()` → verified owner → durable provenance → `sendRichMessage` |
 | Publish a revised Telegram document | durable owner/document provenance → revision notice replying to prior message → new `sendRichMessage`; prior message is preserved |
-| Draft / publication library | same owner-scoped library screen as Web/PWA; drafts, Telegram publication summaries and Telegraph pages are shown as responsive cards with linked editing paths |
+| Draft / publication library | same owner-scoped inline submenu as Web/PWA; it replaces the root application-menu view in place, expands within visual-viewport bounds, blocks background activation while open, and shows Telegram/Telegraph publications before drafts |
 | Telegraph publish/edit | same Telegraph path with verified Telegram owner |
 | Handoff recovery | `/api/handoff/claim`; claim is passive until explicit publish |
 | Settings / Back integration | official Mini App SettingsButton / BackButton events |
