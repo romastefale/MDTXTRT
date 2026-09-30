@@ -8,8 +8,8 @@ const pkg=JSON.parse(readFileSync(new URL('../package.json',import.meta.url),'ut
 const baselineDoc=readFileSync(new URL('../BASELINE.md',import.meta.url),'utf8');
 
 if(manifest.schema!==2)fail('Release manifest schema inválido: esperado schema 2 com baselinePolicy explícita');
-if(!/^[a-f0-9]{40}$/.test(String(manifest.visualBaseline||'')))fail('Snapshot visual de comparação inválido');
-if(!baselineDoc.includes(manifest.visualBaseline))fail('BASELINE.md deve registrar o snapshot visual atualmente associado');
+if(!/^[a-f0-9]{40}$/.test(String(manifest.visualComparisonSnapshot||'')))fail('Snapshot visual de comparação inválido');
+if(!baselineDoc.includes(manifest.visualComparisonSnapshot))fail('BASELINE.md deve registrar o snapshot visual atualmente associado');
 if(
   manifest.baselinePolicy?.role!=='evolutionary-reference' ||
   manifest.baselinePolicy?.immutable!==false ||
@@ -37,4 +37,4 @@ for(const [index,stage] of manifest.stages.entries()){
 }
 if(manifest.anchorPolicy?.authority!=='full-git-commit-sha'||manifest.anchorPolicy?.immutable!==true||manifest.anchorPolicy?.supersedeInsteadOfMove!==true||manifest.anchorPolicy?.sealAfter!=='release-approved')fail('Política de Release Anchor incompleta');
 
-console.log(JSON.stringify({ok:true,head,comparisonSnapshot:manifest.visualBaseline,baselinePolicy:manifest.baselinePolicy,stages:manifest.stages.map(({step,pr,head})=>({step,pr,head})),runtime:manifest.runtime},null,2));
+console.log(JSON.stringify({ok:true,head,comparisonSnapshot:manifest.visualComparisonSnapshot,baselinePolicy:manifest.baselinePolicy,stages:manifest.stages.map(({step,pr,head})=>({step,pr,head})),runtime:manifest.runtime},null,2));
