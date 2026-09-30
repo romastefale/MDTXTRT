@@ -56,41 +56,67 @@ function replaceSelectedRange(root,range,fragment){
   restoreRangeAroundMarkers(doc,start,end);
 }
 
-function nodeRange(node){
-  const range=node.ownerDocument.createRange();
-  range.selectNode(node);
-  return range;
+function fragmentHasContent(fragment){
+  return Boolean(fragment.childNodes.length);
 }
 
-function fullyContained(outer,node){
-  const inner=nodeRange(node);
-  const RangeCtor=node.ownerDocument.defaultView.Range;
-  return outer.compareBoundaryPoints(RangeCtor.START_TO_START,inner)<=0&&
-    outer.compareBoundaryPoints(RangeCtor.END_TO_END,inner)>=0;
-}
-
-function unwrap(node){
-  node.replaceWith(...node.childNodes);
+function liftBoundaryOut(root,marker,selector){
+  const doc=root.ownerDocument;
+  let current=marker.parentElement?.closest?.(selector)||null;
+  while(current&&root.contains(current)){
+    const parent=current.parentNode;
+    if(!parent)break;
+    const beforeRange=doc.createRange();
+    beforeRange.selectNodeContents(current);
+    beforeRange.setEndBefore(marker);
+    const afterRange=doc.createRange();
+    afterRange.selectNodeContents(current);
+    afterRange.setStartAfter(marker);
+    const before=beforeRange.cloneContents(),after=afterRange.cloneContents();
+    const beforeClone=current.cloneNode(false),afterClone=current.cloneNode(false);
+    beforeClone.append(before);afterClone.append(after);
+    if(fragmentHasContent(beforeClone))parent.insertBefore(beforeClone,current);
+    parent.insertBefore(marker,current);
+    if(fragmentHasContent(afterClone))parent.insertBefore(afterClone,current);
+    current.remove();
+    current=marker.parentElement?.closest?.(selector)||null;
+  }
 }
 
 function removeSelectedMark(root,range,selector){
   const doc=root.ownerDocument;
-  const end=doc.createComment("selection-end"),start=doc.createComment("selection-start");
+  const key=Math.random().toString(36).slice(2);
+  const start=doc.createElement("span"),end=doc.createElement("span");
+  start.setAttribute("data-native-selection-start",key);
+  end.setAttribute("data-native-selection-end",key);
   const endRange=range.cloneRange();endRange.collapse(false);endRange.insertNode(end);
   const startRange=range.cloneRange();startRange.collapse(true);startRange.insertNode(start);
-  for(const marker of [start,end]){
-    let mark=marker.parentElement?.closest?.(selector)||null;
-    while(mark&&root.contains(mark)){
-      splitAncestorAtMarker(mark,marker);
-      mark=marker.parentElement?.closest?.(selector)||null;
-    }
-  }
+
+  let liveEnd=root.querySelector('[data-native-selection-end="'+key+'"]');
+  if(!liveEnd)return false;
+  liftBoundaryOut(root,liveEnd,selector);
+  let liveStart=root.querySelector('[data-native-selection-start="'+key+'"]');
+  liveEnd=root.querySelector('[data-native-selection-end="'+key+'"]');
+  if(!liveStart||!liveEnd)return false;
+  liftBoundaryOut(root,liveStart,selector);
+  liveStart=root.querySelector('[data-native-selection-start="'+key+'"]');
+  liveEnd=root.querySelector('[data-native-selection-end="'+key+'"]');
+  if(!liveStart||!liveEnd)return false;
+
   const selected=doc.createRange();
-  selected.setStartAfter(start);selected.setEndBefore(end);
-  for(const node of [...root.querySelectorAll(selector)]){
-    if(fullyContained(selected,node))unwrap(node);
+  selected.setStartAfter(liveStart);selected.setEndBefore(liveEnd);
+  for(const mark of [...root.querySelectorAll(selector)]){
+    let intersects=false;
+    try{intersects=selected.intersectsNode(mark);}catch{}
+    if(intersects)mark.replaceWith(...mark.childNodes);
   }
-  restoreRangeAroundMarkers(doc,start,end);
+
+  const selection=doc.getSelection?.();
+  const restored=doc.createRange();
+  restored.setStartAfter(liveStart);restored.setEndBefore(liveEnd);
+  selection?.removeAllRanges();selection?.addRange(restored);
+  liveStart.remove();liveEnd.remove();
+  return true;
 }
 
 function splitAncestorAtMarker(ancestor,marker){
