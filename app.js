@@ -1393,15 +1393,22 @@ async function renderLibrary(preferred=''){
     telegraphList.append(emptyLibraryItem('Biblioteca indisponível.'));
   }
 }
-function setPublicationsExpanded(expanded){
-  const toggle=one('#publicationToggle'),lists=one('#publicationLists');
-  if(!toggle||!lists)return;
+function setLibrarySectionExpanded(toggleId,contentId,expanded){
+  const toggle=one(toggleId),content=one(contentId);
+  if(!toggle||!content)return;
   const open=Boolean(expanded);
   toggle.setAttribute('aria-expanded',String(open));
-  lists.hidden=!open;
+  content.hidden=!open;
+}
+function setPublicationsExpanded(expanded){
+  setLibrarySectionExpanded('#publicationToggle','#publicationLists',expanded);
+}
+function setDraftsExpanded(expanded){
+  setLibrarySectionExpanded('#draftToggle','#draftLists',expanded);
 }
 function openLibrary(preferred=''){
   setPublicationsExpanded(true);
+  setDraftsExpanded(true);
   openPanel('#libraryMenu',one('#exportBtn'));
   const list=one('#libraryMenu .menu-list');
   if(list)list.scrollTop=0;
@@ -1414,6 +1421,7 @@ function closeLibrary(){
   if(!panelIsOpen(menu))return;
   closePanel(menu,false);
   setPublicationsExpanded(true);
+  setDraftsExpanded(true);
   openPanel('#exportMenu',one('#exportBtn'));
   syncBackButton();
   queueMicrotask(()=>focusMenuControl(one('#libraryBtn')));
@@ -1821,6 +1829,7 @@ one('#libraryBtn')?.addEventListener('click',()=>openLibrary());
 one('#libraryClose')?.addEventListener('click',closeLibrary);
 one('#libraryNew')?.addEventListener('click',createNewDocumentLaunch);
 one('#publicationToggle')?.addEventListener('click',event=>setPublicationsExpanded(event.currentTarget.getAttribute('aria-expanded')!=='true'));
+one('#draftToggle')?.addEventListener('click',event=>setDraftsExpanded(event.currentTarget.getAttribute('aria-expanded')!=='true'));
 one('#libraryMenu')?.addEventListener('keydown',event=>{
   if(!librarySubmenuOpen()||event.key!=='Tab')return;
   const items=libraryFocusables();

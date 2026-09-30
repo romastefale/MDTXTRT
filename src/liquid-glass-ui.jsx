@@ -340,11 +340,20 @@ function LibrarySubmenu() {
           </section>
         </div>
         <div className="menu-divider" role="separator" />
-        <div className="library-section-heading" id="draftLibrarySection">
-          <h3 id="draftLibraryTitle">Rascunhos</h3>
+        <MenuItem
+          icon="sticky_note_2"
+          id="draftToggle"
+          className="library-section-toggle"
+          aria-expanded="true"
+          aria-controls="draftLists"
+        >
+          <span id="draftLibraryTitle" className="menu-label">Rascunhos</span>
           <span id="draftCount" className="library-section-count">0</span>
+          <span className="menu-chevron"><Icon name="chevron_right" /></span>
+        </MenuItem>
+        <div id="draftLists" className="library-draft-groups">
+          <div id="draftList" className="library-list" aria-labelledby="draftLibraryTitle" />
         </div>
-        <div id="draftList" className="library-list" aria-labelledby="draftLibraryTitle" />
       </div>
     </GlassContextMenu>
   );

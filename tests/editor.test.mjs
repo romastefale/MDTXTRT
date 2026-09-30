@@ -78,7 +78,9 @@ function mountReactContract(document){
           <section id="telegramLibrarySection"><div id="telegramList"></div></section>
           <section id="telegraphLibrarySection"><div id="telegraphList"></div></section>
         </div>
-        <section id="draftLibrarySection"><span id="draftCount">0</span><div id="draftList"></div></section>
+        <button id="draftToggle" aria-expanded="true"></button>
+        <span id="draftCount">0</span>
+        <div id="draftLists"><div id="draftList"></div></div>
       </div>
     </div>
     <div id="plusMenu" data-anchor="plusBtn" data-placement="top">
@@ -623,6 +625,24 @@ test('library uses the standard submenu lifecycle, stays scrollable with keyboar
   assert.ok(library.querySelector('.menu-list'));
   assert.equal(library.querySelector('#libraryClose').closest('.menu-list'),library.querySelector('.menu-list'));
   assert.equal(library.querySelector('#libraryNew').closest('.menu-list'),library.querySelector('.menu-list'));
+
+  const publicationsToggle=d.querySelector('#publicationToggle');
+  const publicationLists=d.querySelector('#publicationLists');
+  publicationsToggle.click();
+  assert.equal(publicationsToggle.getAttribute('aria-expanded'),'false');
+  assert.equal(publicationLists.hidden,true);
+  publicationsToggle.click();
+  assert.equal(publicationsToggle.getAttribute('aria-expanded'),'true');
+  assert.equal(publicationLists.hidden,false);
+
+  const draftToggle=d.querySelector('#draftToggle');
+  const draftLists=d.querySelector('#draftLists');
+  draftToggle.click();
+  assert.equal(draftToggle.getAttribute('aria-expanded'),'false');
+  assert.equal(draftLists.hidden,true);
+  draftToggle.click();
+  assert.equal(draftToggle.getAttribute('aria-expanded'),'true');
+  assert.equal(draftLists.hidden,false);
 
   d.querySelector('#libraryClose').click();
   await wait(0);
