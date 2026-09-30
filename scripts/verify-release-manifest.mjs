@@ -6,6 +6,8 @@ const fail=message=>{throw new Error(message);};
 const run=(command,args)=>execFileSync(command,args,{encoding:'utf8'}).trim();
 const manifest=JSON.parse(readFileSync(new URL('../RELEASE_MANIFEST.json',import.meta.url),'utf8'));
 const pkg=JSON.parse(readFileSync(new URL('../package.json',import.meta.url),'utf8'));
+const head=process.env.RELEASE_CANDIDATE_SHA||run('git',['rev-parse','HEAD']);
+if(!/^[a-f0-9]{40}$/.test(head))fail('HEAD/candidato deve ser SHA Git completo');
 
 assertEvolutionPolicy(manifest);
 
