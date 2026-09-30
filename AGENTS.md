@@ -10,7 +10,7 @@ There is **no authoritative baseline SHA that defines required product behavior*
 
 ## Baseline semantics — mandatory
 
-The baseline is a **replaceable evolutionary starting point**. It is not an immutable foundation, preservation target, golden implementation, or requirement to reproduce every behavior present in its SHA.
+The baseline is a **permanently replaceable evolutionary starting point**. This is not scoped to the current candidate: every future accepted, certified, tagged, deployed, or released state remains mutable and supersedable. It is not an immutable foundation, preservation target, golden implementation, or requirement to reproduce every behavior present in its SHA.
 
 Use it to answer: **“what known state are we evolving from?”**
 
@@ -74,3 +74,8 @@ The operative rule is:
 > **Preserve intentional contracts; evolve everything else when the product requirement calls for it. The baseline records where evolution starts, not where it must stop.**
 
 Do not use "baseline preservation", snapshot parity, historical compatibility, or an old PASS as a reason to avoid a requested correction or evolution.
+
+
+## Permanent mutability invariant
+
+No present or future candidate, release, approval, tag, SHA, test result, screenshot, or evidence record may acquire authority to freeze product behavior. Change permission must never depend on historical parity. A correct evolution must remain promotable even when it supersedes previously accepted behavior. Any future test, workflow, script, or document that introduces such a freeze is itself a regression in repository policy.
