@@ -50,12 +50,12 @@ Any bundle difference is a release failure.
 
 Static surface success does not replace live execution required below.
 
-## Gate D — visual baseline
+## Gate D — visual comparison snapshot
 
 `RELEASE_MANIFEST.json.visualComparisonSnapshot` records the current **visual comparison snapshot** mirrored in `BASELINE.md`. It is not normative product behavior and it does not define the working baseline. The working baseline is the current state from which development proceeds. The snapshot exists only to make visual change inspectable; deliberate divergence is valid when required by current requirements or intentional contracts, and an accepted new state may supersede the snapshot.
 
 Automated component:
-- render candidate and baseline with the same Chrome binary and 390×844 stable browser viewport;
+- render candidate and comparison snapshot with the same Chrome binary and 390×844 stable browser viewport;
 - light/dark shell screenshots are compared with the recorded snapshot; divergence requires review and evidence, not automatic preservation of the old rendering;
 - retain screenshot/summary artifact.
 
@@ -204,7 +204,7 @@ Rollback:
 
 Evidence completeness:
 - use `RELEASE_EVIDENCE_TEMPLATE.md`;
-- every PASS includes exact anchor SHA, UTC timestamp, tester/operator, environment/device, authorization reference and evidence reference;
+- every PASS includes exact release-evidence SHA, UTC timestamp, tester/operator, environment/device, authorization reference and evidence reference;
 - the certification workflow validates references; an unchecked boolean is not proof.
 
 ## Release statuses
