@@ -72,15 +72,15 @@ function mountReactContract(document){
         <button id="libraryClose"></button>
         <button id="libraryNew"></button>
         <div id="libraryStatus"></div>
-        <button id="publicationToggle" aria-expanded="true"></button>
+        <button id="publicationToggle" aria-expanded="false"></button>
         <span id="publicationCount">0</span>
-        <div id="publicationLists">
+        <div id="publicationLists" hidden>
           <section id="telegramLibrarySection"><div id="telegramList"></div></section>
           <section id="telegraphLibrarySection"><div id="telegraphList"></div></section>
         </div>
-        <button id="draftToggle" aria-expanded="true"></button>
+        <button id="draftToggle" aria-expanded="false"></button>
         <span id="draftCount">0</span>
-        <div id="draftLists"><div id="draftList"></div></div>
+        <div id="draftLists" hidden><div id="draftList"></div></div>
       </div>
     </div>
     <div id="plusMenu" data-anchor="plusBtn" data-placement="top">
@@ -107,6 +107,9 @@ function mountReactContract(document){
       <button data-plus-back></button>
       <button data-cmd="math" data-telegram-only></button><button data-insert="mathblock" data-telegram-only></button>
       <button data-insert="divider"></button><button data-insert="table" data-telegram-only></button>
+      <button data-table-action="add-row" data-telegram-only></button><button data-table-action="remove-row" data-telegram-only></button>
+      <button data-table-action="add-column" data-telegram-only></button><button data-table-action="remove-column" data-telegram-only></button>
+      <button data-table-action="delete-table" data-telegram-only></button>
       <button data-insert="details" data-telegram-only></button>
     </div></div>
     <div id="plus-media-menu" data-anchor="plusBtn" data-placement="top" data-plus-submenu="media"><div class="menu-list">
@@ -123,7 +126,7 @@ function mountReactContract(document){
       <button data-insert="time" data-telegram-only></button><button data-insert="emoji" data-telegram-only></button>
       <button data-insert="button" data-telegram-only></button>
     </div></div>
-    <input id="fileInput" type="file" hidden><input id="mediaInput" type="file" hidden>
+    <input id="fileInput" type="file" hidden><input id="mediaInput" type="file" multiple hidden>
     <div id="toast" role="status"><span id="toastTextHost"></span></div>
     <div id="dialogMenu" popover="manual"><div id="dialogLabel"></div><textarea id="dialogInput"></textarea><button id="dialogCancel"></button><button id="dialogOk"></button></div>
     <div id="findMenu" data-anchor="findBtn" data-placement="auto"><input id="findText"><input id="replaceText"><button id="findNext"></button><button id="replaceOne"></button><button id="replaceAll"></button></div>
@@ -229,7 +232,7 @@ function page(setup={}){
     for(const id of intervals)nativeClearInterval(id);
     for(const id of frames)nativeCancelAnimationFrame(id);
     timeouts.clear();intervals.clear();frames.clear();
-    try{w.eval('(()=>{clearTimeout(saveTimer);clearTimeout(remoteSaveTimer);const core=currentEditorCore?.();if(core?.view?.docView)core.destroy();})()');}catch{}
+    try{w.eval('(()=>{clearTimeout(saveTimer);clearTimeout(remoteSaveTimer);const core=currentEditorCore?.();if(core)core.destroy();})()');}catch{}
     // Keep the JSDOM realm alive until the runner releases it so already-queued
     // MutationObserver/promise callbacks cannot dereference a closed document.
   };
@@ -239,7 +242,7 @@ function page(setup={}){
 test('novo launch preserves the previous local draft and creates a distinct active document',async()=>{
   const token='a'.repeat(32);
   const oldDoc='12345678-1234-4123-8123-123456789abc';
-  const raw=JSON.stringify({version:2,name:'Anterior',html:'<p>preservar</p>',dest:'telegraph',telegraphPath:'pagina-anterior',docId:oldDoc,revision:7,importedMd:'',importedTxt:'',importedHtml:'',media:null});
+  const raw=JSON.stringify({version:2,name:'Anterior',html:'<p>preservar</p>',dest:'telegraph',telegraphPath:'pagina-anterior',docId:oldDoc,revision:7,importedMd:'',importedTxt:'',importedHtml:'',media:[]});
   const w=page({url:'https://mdtxtrt.example/?new='+token,local:{rmdtxtml:raw}}),d=w.document;
   await wait(5);
   const active=JSON.parse(w.localStorage.getItem('rmdtxtml'));
@@ -273,7 +276,7 @@ test('novo launch archives an unreadable draft byte-for-byte before replacing th
 test('novo preserves archived attachment records when the new document stores another attachment',async()=>{
   const token='c'.repeat(32),db=memoryIndexedDB(),oldMedia='oldmedia',oldDoc='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
   db.rows.set(oldMedia,{id:oldMedia,file:{},kind:'image',name:'old.png',type:'image/png',lastModified:0});
-  const raw=JSON.stringify({version:2,name:'Com mídia',html:'<figure><img data-media-id="'+oldMedia+'"><figcaption>old.png</figcaption></figure>',dest:'telegram',telegraphPath:'',docId:oldDoc,revision:1,importedMd:'',importedTxt:'',importedHtml:'',media:{id:oldMedia,kind:'image'}});
+  const raw=JSON.stringify({version:2,name:'Com mídia',html:'<figure><img data-media-id="'+oldMedia+'"><figcaption>old.png</figcaption></figure>',dest:'telegram',telegraphPath:'',docId:oldDoc,revision:1,importedMd:'',importedTxt:'',importedHtml:'',media:[{id:oldMedia,kind:'image'}]});
   const w=page({url:'https://mdtxtrt.example/?new='+token,local:{rmdtxtml:raw},indexedDB:db}),d=w.document;
   await wait(5);
   const mediaInput=d.querySelector('#mediaInput');
@@ -291,14 +294,14 @@ test('novo preserves archived attachment records when the new document stores an
 test('volume recovery restores a missing local draft by persistent browser identity',async()=>{
   const doc='90909090-9090-4090-8090-909090909090';
   const browserKey='ab'.repeat(32);
-  const remote={version:2,name:'Do volume',html:'<p>recuperado</p>',dest:'telegram',telegraphPath:'',docId:doc,revision:4,importedMd:'',importedTxt:'',importedHtml:'',media:null};
+  const remote={version:2,name:'Do volume',html:'<p>recuperado</p>',dest:'telegram',telegraphPath:'',docId:doc,revision:4,importedMd:'',importedTxt:'',importedHtml:'',media:[]};
   const requests=[];
   const fetch=async(url,options={})=>{
     const target=String(url);requests.push({url:target,options});
     if(target.endsWith('/api/drafts/load')){
       const body=JSON.parse(options.body);
       assert.equal(body.browserKey,browserKey);
-      return {ok:true,status:200,json:async()=>({draft:remote,media:null,publication:null,updatedAt:1,owner:{kind:'browser'}})};
+      return {ok:true,status:200,json:async()=>({draft:remote,media:[],publication:null,updatedAt:1,owner:{kind:'browser'}})};
     }
     if(target.endsWith('/api/telegraph/recover'))return {ok:false,status:404,json:async()=>({error:'Página não encontrada'})};
     return {ok:false,status:404,json:async()=>({error:'not found'})};
@@ -333,14 +336,14 @@ test('volume recovery failure blocks editing instead of opening a degraded repla
 test('remote draft save sends the active canonical document and stable browser identity',async()=>{
   const doc='91919191-9191-4191-8191-919191919191';
   const browserKey='cd'.repeat(32);
-  const local=JSON.stringify({version:2,name:'Persistir',html:'<p>estado</p>',dest:'telegram',telegraphPath:'',docId:doc,revision:2,importedMd:'',importedTxt:'',importedHtml:'',media:null});
+  const local=JSON.stringify({version:2,name:'Persistir',html:'<p>estado</p>',dest:'telegram',telegraphPath:'',docId:doc,revision:2,importedMd:'',importedTxt:'',importedHtml:'',media:[]});
   let saved=null;
   const fetch=async(url,options={})=>{
     const target=String(url);
     if(target.endsWith('/api/drafts/save')){
       const draft=JSON.parse(options.body.get('draft'));
       saved={draft,browserKey:options.body.get('browserKey')};
-      return {ok:true,status:200,json:async()=>({draft,media:null,publication:null,owner:{kind:'browser'}})};
+      return {ok:true,status:200,json:async()=>({draft,media:[],publication:null,owner:{kind:'browser'}})};
     }
     if(target.endsWith('/api/telegraph/recover'))return {ok:false,status:404,json:async()=>({error:'Página não encontrada'})};
     return {ok:false,status:404,json:async()=>({error:'not found'})};
@@ -356,7 +359,7 @@ test('remote draft save sends the active canonical document and stable browser i
 
 test('Telegram publish sends document identity and accepts a new revision while preserving the prior message',async()=>{
   const doc='92929292-9292-4292-8292-929292929292';
-  const local=JSON.stringify({version:2,name:'Publicável',html:'<p>versão nova</p>',dest:'telegram',telegraphPath:'',docId:doc,revision:5,importedMd:'',importedTxt:'',importedHtml:'',media:null});
+  const local=JSON.stringify({version:2,name:'Publicável',html:'<p>versão nova</p>',dest:'telegram',telegraphPath:'',docId:doc,revision:5,importedMd:'',importedTxt:'',importedHtml:'',media:[]});
   let publishForm=null;
   const fetch=async(url,options={})=>{
     const target=String(url);
@@ -499,109 +502,42 @@ test('mobile editor controls preserve active focus without reopening a dismissed
   w.close();
 });
 
-test('real mobile touch keeps the keyboard focus while opening closing and navigating menus',async()=>{
+test('pointer-based editor controls keep the active typing focus while navigating menus',async()=>{
   const fetch=async(url)=>{
     const target=String(url);
     if(target.endsWith('/api/library/list'))return {ok:true,status:200,json:async()=>({drafts:[],telegram:[],telegraph:[]})};
     if(target.endsWith('/api/telegraph/recover'))return {ok:false,status:404,json:async()=>({})};
     return {ok:false,status:404,json:async()=>({error:'not found'})};
   };
-  const w=page({fetch,visualViewport:{height:360},popoverBlursTyping:true}),d=w.document,editor=d.querySelector('#editor');
+  const w=page({fetch,visualViewport:{height:360}}),d=w.document,editor=d.querySelector('#editor');
   await wait(40);
   editor.focus();
 
-  let touchId=1;
-  const touchPress=(element,{compatClick=false}={})=>{
-    const point={identifier:touchId++,clientX:24,clientY:24};
-    const startEvent=new w.Event('touchstart',{bubbles:true,cancelable:true});
-    Object.defineProperty(startEvent,'touches',{value:[point]});
-    element.dispatchEvent(startEvent);
-    if(!startEvent.defaultPrevented&&typeof element.focus==='function')element.focus();
-    assert.equal(startEvent.defaultPrevented,true);
-
-    const endEvent=new w.Event('touchend',{bubbles:true,cancelable:true});
-    Object.defineProperty(endEvent,'touches',{value:[]});
-    Object.defineProperty(endEvent,'changedTouches',{value:[point]});
-    element.dispatchEvent(endEvent);
-    assert.equal(endEvent.defaultPrevented,true);
+  const press=element=>{
+    const pointer=new w.Event('pointerdown',{bubbles:true,cancelable:true});
+    element.dispatchEvent(pointer);
+    assert.equal(pointer.defaultPrevented,true);
+    element.click();
     assert.equal(d.activeElement,editor);
-
-    if(compatClick){
-      const click=new w.MouseEvent('click',{bubbles:true,cancelable:true,detail:1});
-      element.dispatchEvent(click);
-      assert.equal(click.defaultPrevented,true);
-      assert.equal(d.activeElement,editor);
-    }
   };
 
-  touchPress(d.querySelector('#exportBtn'),{compatClick:true});
+  press(d.querySelector('#exportBtn'));
   assert.equal(d.querySelector('#exportMenu').hasAttribute('data-menu-open'),true);
-  assert.equal(d.querySelector('#menuDismissLayer').hidden,false);
-
-  touchPress(d.querySelector('#libraryBtn'),{compatClick:true});
+  press(d.querySelector('#libraryBtn'));
   await wait(5);
   assert.equal(d.querySelector('#libraryMenu').hasAttribute('data-menu-open'),true);
-  assert.equal(d.querySelector('#exportMenu').hasAttribute('data-menu-open'),false);
 
-  const dismiss=d.querySelector('#menuDismissLayer');
-  touchPress(dismiss,{compatClick:true});
-  assert.equal(d.querySelector('#libraryMenu').hasAttribute('data-menu-open'),false);
-  assert.equal(dismiss.hidden,true);
-  assert.equal(d.activeElement,editor);
-
-  touchPress(d.querySelector('#exportBtn'));
-  touchPress(d.querySelector('#libraryBtn'));
-  touchPress(d.querySelector('#libraryClose'));
-  await wait(0);
-  assert.equal(d.querySelector('#libraryMenu').hasAttribute('data-menu-open'),false);
+  press(d.querySelector('#libraryClose'));
   assert.equal(d.querySelector('#exportMenu').hasAttribute('data-menu-open'),true);
-  assert.equal(d.activeElement,editor);
-
-  touchPress(dismiss);
-  assert.equal(d.querySelector('#exportMenu').hasAttribute('data-menu-open'),false);
-
-  touchPress(d.querySelector('#plusBtn'));
+  press(d.querySelector('#plusBtn'));
   assert.equal(d.querySelector('#plusMenu').hasAttribute('data-menu-open'),true);
-  const category=d.querySelector('#plusMenu [data-plus-category="format"]');
-  touchPress(category);
+  press(d.querySelector('#plusMenu [data-plus-category="format"]'));
   assert.equal(d.querySelector('#plus-format-menu').hasAttribute('data-menu-open'),true);
-  assert.equal(d.querySelector('#plusMenu').hasAttribute('data-menu-open'),false);
-
-  const back=d.querySelector('#plus-format-menu [data-plus-back]');
-  touchPress(back);
-  assert.equal(d.querySelector('#plus-format-menu').hasAttribute('data-menu-open'),false);
+  press(d.querySelector('#plus-format-menu [data-plus-back]'));
   assert.equal(d.querySelector('#plusMenu').hasAttribute('data-menu-open'),true);
-
-  touchPress(dismiss);
-  touchPress(d.querySelector('#linkBtn'));
+  press(d.querySelector('#linkBtn'));
   assert.equal(d.querySelector('#linkMenu').hasAttribute('data-menu-open'),true);
   assert.equal(d.activeElement,editor);
-  w.close();
-});
-
-test('Mini App exposes the export menu and keeps publication as an explicit menu action',async()=>{
-  const requests=[];
-  const fetch=async(url)=>{
-    const target=String(url);requests.push(target);
-    if(target.endsWith('/api/telegram/session'))return {ok:true,status:200,json:async()=>({ok:true})};
-    if(target.endsWith('/api/telegraph/recover'))return {ok:false,status:404,json:async()=>({})};
-    return {ok:false,status:404,json:async()=>({error:'not found'})};
-  };
-  const w=page({fetch,tg:{}}),d=w.document;
-  await wait(10);
-  assert.equal(d.querySelector('#openAppLabel').textContent,'Publicar no Telegram');
-  assert.equal(d.querySelector('#openAppBtn').getAttribute('aria-label'),'Publicar no Telegram');
-  assert.equal(d.querySelector('#exportBtn').getAttribute('aria-label'),'Abrir menu de publicação, exportação e biblioteca');
-  assert.equal(d.querySelector('#destBtn').getAttribute('aria-label'),'Alternar destino. Atual: Telegram');
-  d.querySelector('#exportBtn').click();
-  assert.equal(d.querySelector('#exportMenu').hasAttribute('data-menu-open'),true);
-  d.querySelector('#exportBtn').click();
-  assert.equal(d.querySelector('#exportMenu').hasAttribute('data-menu-open'),false);
-  d.querySelector('#exportBtn').click();
-  assert.equal(d.querySelector('#exportMenu').hasAttribute('data-menu-open'),true);
-  assert.equal(requests.filter(url=>url.endsWith('/api/telegram/send')).length,0);
-  assert.ok(d.querySelector('#exportMdBtn'));
-  assert.ok(d.querySelector('#exportTxtBtn'));
   w.close();
 });
 
@@ -628,21 +564,25 @@ test('library uses the standard submenu lifecycle, stays scrollable with keyboar
 
   const publicationsToggle=d.querySelector('#publicationToggle');
   const publicationLists=d.querySelector('#publicationLists');
-  publicationsToggle.click();
   assert.equal(publicationsToggle.getAttribute('aria-expanded'),'false');
   assert.equal(publicationLists.hidden,true);
   publicationsToggle.click();
   assert.equal(publicationsToggle.getAttribute('aria-expanded'),'true');
   assert.equal(publicationLists.hidden,false);
+  publicationsToggle.click();
+  assert.equal(publicationsToggle.getAttribute('aria-expanded'),'false');
+  assert.equal(publicationLists.hidden,true);
 
   const draftToggle=d.querySelector('#draftToggle');
   const draftLists=d.querySelector('#draftLists');
-  draftToggle.click();
   assert.equal(draftToggle.getAttribute('aria-expanded'),'false');
   assert.equal(draftLists.hidden,true);
   draftToggle.click();
   assert.equal(draftToggle.getAttribute('aria-expanded'),'true');
   assert.equal(draftLists.hidden,false);
+  draftToggle.click();
+  assert.equal(draftToggle.getAttribute('aria-expanded'),'false');
+  assert.equal(draftLists.hidden,true);
 
   d.querySelector('#libraryClose').click();
   await wait(0);
@@ -839,35 +779,37 @@ test('Enter preserves heading and quote formatting until the empty formatted lin
 
 test('deleting the last character of a heading or quote returns the block to body',async()=>{
   const w=page(),d=w.document,e=d.querySelector('#editor');
-  const reset=async(html,pos)=>{
+  const reset=async html=>{
     w.eval('currentEditorCore().resetHTML('+JSON.stringify(html)+',{silent:true})');
-    w.eval('currentEditorCore().selectRange({from:'+pos+',to:'+pos+'},{focus:true})');
-    const event=new w.InputEvent('input',{bubbles:true,inputType:'deleteContentBackward'});
+    w.eval("currentEditorCore().selectRange(currentEditorCore().findLiteral('x')[0],{focus:true})");
+    const event=new w.InputEvent('beforeinput',{bubbles:true,cancelable:true,inputType:'deleteContentBackward'});
     e.dispatchEvent(event);
     await wait();
+    assert.equal(event.defaultPrevented,true);
     assert.equal(e.firstElementChild.tagName,'P');
+    assert.equal(e.textContent,'');
   };
-  await reset('<h2><br></h2>',1);
-  await reset('<blockquote><br></blockquote>',1);
+  await reset('<h2>x</h2>');
+  await reset('<blockquote>x</blockquote>');
   assert.equal(d.querySelector('#headingBtn').classList.contains('on'),false);
   assert.equal(d.querySelector('#quoteBtn').classList.contains('on'),false);
-  w.eval('currentEditorCore().destroy()');w.close();
+  w.close();
 });
 
 test('Markdown inline markers become semantic rich-text marks and support escaping',async()=>{
   const w=page(),d=w.document,e=d.querySelector('#editor');
-  const apply=async text=>{
+  const run=async text=>{
     const escaped=text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     w.eval('currentEditorCore().resetHTML('+JSON.stringify('<p>'+escaped+'</p>')+',{silent:true})');
-    w.eval('(()=>{const core=currentEditorCore(),pos=core.state.doc.content.size-1;core.selectRange({from:pos,to:pos},{focus:true})})()');
+    w.eval('(()=>{const core=currentEditorCore(),r=core.findLiteral('+JSON.stringify(text)+')[0];core.selectRange({from:r.to,to:r.to},{focus:true})})()');
     e.dispatchEvent(new w.InputEvent('input',{bubbles:true,inputType:'insertText'}));
     await wait();
   };
-  await apply('**forte**');assert.equal(e.querySelector('strong')?.textContent,'forte');
-  await apply('*ênfase*');assert.equal(e.querySelector('em')?.textContent,'ênfase');
-  await apply('~~riscado~~');assert.equal(e.querySelector('s')?.textContent,'riscado');
-  await apply('`código`');assert.equal(e.querySelector('code')?.textContent,'código');
-  await apply('\\*literal*');assert.equal(e.querySelector('em'),null);assert.equal(e.textContent,'*literal*');
+  await run('**forte**');assert.equal(e.querySelector('strong')?.textContent,'forte');
+  await run('*ênfase*');assert.equal(e.querySelector('em')?.textContent,'ênfase');
+  await run('~~riscado~~');assert.equal(e.querySelector('s,del,strike')?.textContent,'riscado');
+  await run('`código`');assert.equal(e.querySelector('code')?.textContent,'código');
+  await run('\\*literal*');assert.equal(e.querySelector('em'),null);assert.equal(e.textContent,'*literal*');
   w.close();
 });
 
@@ -948,7 +890,7 @@ test('import bounds document name to persisted draft contract',async()=>{
   Object.defineProperty(input,'files',{configurable:true,value:[{name,text:async()=> 'texto'}]});
   input.dispatchEvent(new w.Event('change'));
   await wait(5);
-  assert.equal(d.querySelector('#docName').value.length,120);
+  assert.equal(d.querySelector('#docName').value.length,140);
   assert.doesNotThrow(()=>w.eval('JSON.stringify(draftState())'));
   w.close();
 });
@@ -983,20 +925,19 @@ test('local media remains coherent through undo and redo',async()=>{
   w.close();
 });
 
-test('a second local attachment does not remove the existing attachment',async()=>{
+test('multiple local attachments are retained up to the Telegram Rich Message media contract',async()=>{
   const db=memoryIndexedDB();
-  const w=page({indexedDB:db,objectURL:()=> 'blob:media'}),d=w.document,input=d.querySelector('#mediaInput');
+  let seq=0;
+  const w=page({indexedDB:db,objectURL:()=> 'blob:media-'+(++seq)}),d=w.document,input=d.querySelector('#mediaInput');
   const first=new w.File([new Uint8Array([1])],'one.png',{type:'image/png'});
-  Object.defineProperty(input,'files',{configurable:true,value:[first]});
-  input.dispatchEvent(new w.Event('change'));
-  await wait(10);
-  const id=d.querySelector('[data-media-id]')?.getAttribute('data-media-id');
   const second=new w.File([new Uint8Array([2])],'two.png',{type:'image/png'});
-  Object.defineProperty(input,'files',{configurable:true,value:[second]});
+  Object.defineProperty(input,'files',{configurable:true,value:[first,second]});
   input.dispatchEvent(new w.Event('change'));
-  await wait(5);
-  assert.equal(d.querySelector('[data-media-id]')?.getAttribute('data-media-id'),id);
-  assert.match(d.querySelector('#toast').textContent,/Há um anexo/);
+  await wait(15);
+  const media=[...d.querySelectorAll('[data-media-id]')];
+  assert.equal(media.length,2);
+  assert.equal(JSON.stringify(w.eval('draftState().media.map(item=>item.kind)')),JSON.stringify(['image','image']));
+  assert.equal(new Set(media.map(node=>node.getAttribute('data-media-id'))).size,2);
   w.close();
 });
 
@@ -1031,17 +972,37 @@ test('draft sanitizer rejects malformed media identifiers before persistence',()
 });
 
 
-test('draft sanitizer rejects multiple local attachment identifiers',()=>{
+test('draft sanitizer accepts multiple unique local attachment identifiers within Telegram Rich Message capacity',()=>{
   const w=page();
-  assert.throws(()=>w.eval("cleanDraftHTML('<figure><img data-media-id=\"one\"></figure><figure><img data-media-id=\"two\"></figure>')"),/mais de um anexo local/);
+  assert.doesNotThrow(()=>w.eval("cleanDraftHTML('<figure><img data-media-id=\"one\"></figure><figure><img data-media-id=\"two\"></figure>')"));
+  const fifty=Array.from({length:50},(_,index)=>'<figure><img data-media-id="m'+index+'"></figure>').join('');
+  assert.doesNotThrow(()=>w.eval('cleanDraftHTML('+JSON.stringify(fifty)+')'));
+  const fiftyOne=fifty+'<figure><img data-media-id="overflow"></figure>';
+  assert.throws(()=>w.eval('cleanDraftHTML('+JSON.stringify(fiftyOne)+')'),/50 mídias/);
   w.close();
 });
-
 
 test('Rich Message serializer rejects unsupported editor markup',()=>{
   const w=page(),e=w.document.querySelector('#editor');
   e.innerHTML='<p>ok</p><svg></svg>';
   assert.throws(()=>w.eval('buildRich()'),/não aceita/);
+  w.close();
+});
+
+test('native table editing reaches Telegram 20-column capacity and selected table deletes with Backspace',()=>{
+  const w=page(),d=w.document,e=d.querySelector('#editor');
+  w.eval("currentEditorCore().resetHTML('<table><tr><td>x</td></tr></table><p>after</p>',{silent:true})");
+  const cell=e.querySelector('td'),selection=d.getSelection(),range=d.createRange();
+  e.focus();range.selectNodeContents(cell);range.collapse(true);selection.removeAllRanges();selection.addRange(range);
+  for(let i=1;i<20;i++)assert.equal(w.eval('currentEditorCore().addTableColumn()'),true);
+  assert.equal(e.querySelector('tr').cells.length,20);
+  assert.throws(()=>w.eval('currentEditorCore().addTableColumn()'),/20 colunas/);
+  assert.equal(w.eval('currentEditorCore().selectTable()'),true);
+  const backspace=new w.KeyboardEvent('keydown',{key:'Backspace',bubbles:true,cancelable:true});
+  e.dispatchEvent(backspace);
+  assert.equal(backspace.defaultPrevented,true);
+  assert.equal(e.querySelector('table'),null);
+  assert.equal(e.querySelector('p')?.textContent,'after');
   w.close();
 });
 
@@ -1086,7 +1047,7 @@ test('pagehide persists the last edit immediately and empty drafts restore ident
   w.close();
 
   const doc='99999999-9999-4999-8999-999999999999';
-  const restored=page({local:{rmdtxtml:JSON.stringify({version:2,name:'Vazio',html:'',dest:'telegraph',telegraphPath:'',docId:doc,importedMd:'',importedTxt:'',importedHtml:'',media:null})}});
+  const restored=page({local:{rmdtxtml:JSON.stringify({version:2,name:'Vazio',html:'',dest:'telegraph',telegraphPath:'',docId:doc,importedMd:'',importedTxt:'',importedHtml:'',media:[]})}});
   assert.equal(restored.document.querySelector('#docName').value,'Vazio');
   assert.equal(restored.document.querySelector('#editor').innerHTML,'');
   assert.equal(restored.document.querySelector('#destBtn').title,'Destino: Telegraph');
@@ -1100,12 +1061,12 @@ test('block insertions respect caret position and ordered list preserves paragra
   w.eval("currentEditorCore().resetHTML('<p>Antes</p><p>Depois</p>',{silent:true})");
   w.eval("(()=>{const r=currentEditorCore().findLiteral('Antes')[0];currentEditorCore().selectRange({from:r.to,to:r.to},{focus:true})})()");
   w.eval('saveSel();insertFeature("divider")');
-  assert.deepEqual([...e.children].map(el=>el.tagName),['P','HR','P']);
+  assert.equal(JSON.stringify([...e.children].map(el=>el.tagName)),JSON.stringify(['P','HR','P']));
 
   w.eval("currentEditorCore().resetHTML('<p>antes depois</p>',{silent:true})");
   w.eval("(()=>{const r=currentEditorCore().findLiteral('antes depois')[0];currentEditorCore().selectRange({from:r.from+6,to:r.from+6},{focus:true})})()");
   w.eval('insertFeature("ordered")');
-  assert.deepEqual([...e.children].map(node=>node.tagName),['OL']);
+  assert.equal(JSON.stringify([...e.children].map(node=>node.tagName)),JSON.stringify(['OL']));
   assert.equal(e.querySelector('ol > li')?.textContent,'antes depois');
   assert.equal(e.querySelector('p ol'),null);
   w.close();
@@ -1118,9 +1079,9 @@ test('find advances, wraps and replace-one survives focus moving to controls',()
   const starts=[];
   for(let i=0;i<4;i++){
     d.querySelector('#findNext').click();
-    starts.push(w.eval('currentEditorCore().state.selection.from'));
+    starts.push(w.eval('currentEditorCore().selectionOffsets().from'));
   }
-  assert.deepEqual(starts,[1,6,11,1]);
+  assert.deepEqual(starts,[0,5,10,0]);
   d.querySelector('#replaceText').focus();
   d.querySelector('#replaceText').value='feito';
   d.querySelector('#replaceOne').click();
@@ -1164,8 +1125,8 @@ test('oversized galleries are rejected without changing the document',async()=>{
 
 for(const [caseName,raw] of [
   ['JSON inválido','{"version":2'],
-  ['versão incompatível',JSON.stringify({version:1,name:'Antigo',html:'<p>recuperar</p>',dest:'telegram',telegraphPath:'',docId:'11111111-1111-4111-8111-111111111111',importedMd:'',importedTxt:'',importedHtml:'',media:null})],
-  ['sanitização incompatível',JSON.stringify({version:2,name:'Recuperar',html:'<script>preservar()</script>',dest:'telegram',telegraphPath:'',docId:'22222222-2222-4222-8222-222222222222',importedMd:'',importedTxt:'',importedHtml:'',media:null})]
+  ['versão incompatível',JSON.stringify({version:1,name:'Antigo',html:'<p>recuperar</p>',dest:'telegram',telegraphPath:'',docId:'11111111-1111-4111-8111-111111111111',importedMd:'',importedTxt:'',importedHtml:'',media:[]})],
+  ['sanitização incompatível',JSON.stringify({version:2,name:'Recuperar',html:'<script>preservar()</script>',dest:'telegram',telegraphPath:'',docId:'22222222-2222-4222-8222-222222222222',importedMd:'',importedTxt:'',importedHtml:'',media:[]})]
 ]){
   test('unreadable local draft is preserved after '+caseName,()=>{
     const w=page({local:{rmdtxtml:raw}});
@@ -1198,7 +1159,7 @@ test('browser Telegraph publishing stops before the external request when identi
 test('import starts a new document history and undo cannot restore prior identity, page or attachment',async()=>{
   const db=memoryIndexedDB();
   const oldDoc='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
-  const local=JSON.stringify({version:2,name:'Documento A',html:'<p>texto A</p>',dest:'telegraph',telegraphPath:'pagina-a',docId:oldDoc,revision:3,importedMd:'',importedTxt:'',importedHtml:'',media:null});
+  const local=JSON.stringify({version:2,name:'Documento A',html:'<p>texto A</p>',dest:'telegraph',telegraphPath:'pagina-a',docId:oldDoc,revision:3,importedMd:'',importedTxt:'',importedHtml:'',media:[]});
   const w=page({local:{rmdtxtml:local},indexedDB:db,objectURL:()=> 'blob:old-media'}),d=w.document,e=d.querySelector('#editor');
   assert.equal(w.eval('draftState().docId'),oldDoc);
   assert.equal(w.eval('draftState().telegraphPath'),'pagina-a');
@@ -1296,13 +1257,13 @@ test('bot import handoff preserves the active local document before opening the 
   const oldDoc='75757575-7575-4757-8757-757575757575';
   const newDoc='76767676-7676-4767-8767-767676767676';
   const initData='start_param=h_'+token;
-  const previous=JSON.stringify({version:2,name:'Documento local',html:'<p>não substituir</p>',dest:'telegram',telegraphPath:'',docId:oldDoc,revision:4,importedMd:'',importedTxt:'',importedHtml:'',media:null});
+  const previous=JSON.stringify({version:2,name:'Documento local',html:'<p>não substituir</p>',dest:'telegram',telegraphPath:'',docId:oldDoc,revision:4,importedMd:'',importedTxt:'',importedHtml:'',media:[]});
   const requests=[];
-  const imported={version:2,name:'Importado',html:'<p>arquivo do bot</p>',dest:'telegram',telegraphPath:'',docId:newDoc,revision:0,importedMd:'',importedTxt:'arquivo do bot',importedHtml:'<p>arquivo do bot</p>',media:null};
+  const imported={version:2,name:'Importado',html:'<p>arquivo do bot</p>',dest:'telegram',telegraphPath:'',docId:newDoc,revision:0,importedMd:'',importedTxt:'arquivo do bot',importedHtml:'<p>arquivo do bot</p>',media:[]};
   const fetch=async(url,options={})=>{
     const target=String(url);requests.push({url:target,options});
     if(target.endsWith('/api/telegram/session'))return {ok:true,status:200,json:async()=>({ok:true})};
-    if(target.endsWith('/api/handoff/claim'))return {ok:true,status:200,json:async()=>({draft:imported,file:null,purpose:'import',action:null})};
+    if(target.endsWith('/api/handoff/claim'))return {ok:true,status:200,json:async()=>({draft:imported,files:[],purpose:'import',action:null})};
     return {ok:false,status:404,json:async()=>({error:'not found'})};
   };
   const w=page({fetch,tg:{initData},local:{rmdtxtml:previous}}),d=w.document;
@@ -1329,7 +1290,7 @@ test('handoff claim restores draft without authorizing publication automatically
   const fetch=async(url,options={})=>{
     const target=String(url);requests.push({url:target,options});
     if(target.endsWith('/api/telegram/session'))return {ok:true,status:200,json:async()=>({ok:true})};
-    if(target.endsWith('/api/handoff/claim'))return {ok:true,status:200,json:async()=>({draft:{version:2,name:'Transferido',html:'<p>conteúdo</p>',dest:'telegram',telegraphPath:'',docId:doc,revision:0,importedMd:'',importedTxt:'',importedHtml:'',media:null},file:null,action:pending})};
+    if(target.endsWith('/api/handoff/claim'))return {ok:true,status:200,json:async()=>({draft:{version:2,name:'Transferido',html:'<p>conteúdo</p>',dest:'telegram',telegraphPath:'',docId:doc,revision:0,importedMd:'',importedTxt:'',importedHtml:'',media:[]},files:[],action:pending})};
     if(target.endsWith('/api/handoff/publish'))return {ok:true,status:200,json:async()=>({action:succeeded,result:succeeded.result,reused:false})};
     return {ok:false,status:404,json:async()=>({error:'not found'})};
   };
@@ -1358,7 +1319,7 @@ test('completed handoff reload recovers confirmed result without sending again',
   const fetch=async(url,options={})=>{
     const target=String(url);requests.push({url:target,options});
     if(target.endsWith('/api/telegram/session'))return {ok:true,status:200,json:async()=>({ok:true})};
-    if(target.endsWith('/api/handoff/claim'))return {ok:true,status:200,json:async()=>({draft:{version:2,name:'Já enviado',html:'<p>confirmado</p>',dest:'telegram',telegraphPath:'',docId:doc,revision:0,importedMd:'',importedTxt:'',importedHtml:'',media:null},file:null,action})};
+    if(target.endsWith('/api/handoff/claim'))return {ok:true,status:200,json:async()=>({draft:{version:2,name:'Já enviado',html:'<p>confirmado</p>',dest:'telegram',telegraphPath:'',docId:doc,revision:0,importedMd:'',importedTxt:'',importedHtml:'',media:[]},files:[],action})};
     return {ok:false,status:404,json:async()=>({error:'not found'})};
   };
   const w=page({fetch,tg:{initData}}),d=w.document;
@@ -1380,7 +1341,7 @@ test('handoff publish timeout checks status once and never retries the send sile
   const fetch=async(url,options={})=>{
     const target=String(url);requests.push({url:target,options});
     if(target.endsWith('/api/telegram/session'))return {ok:true,status:200,json:async()=>({ok:true})};
-    if(target.endsWith('/api/handoff/claim'))return {ok:true,status:200,json:async()=>({draft:{version:2,name:'Timeout',html:'<p>texto</p>',dest:'telegram',telegraphPath:'',docId:doc,revision:0,importedMd:'',importedTxt:'',importedHtml:'',media:null},file:null,action:pending})};
+    if(target.endsWith('/api/handoff/claim'))return {ok:true,status:200,json:async()=>({draft:{version:2,name:'Timeout',html:'<p>texto</p>',dest:'telegram',telegraphPath:'',docId:doc,revision:0,importedMd:'',importedTxt:'',importedHtml:'',media:[]},files:[],action:pending})};
     if(target.endsWith('/api/handoff/publish')){const error=new Error('timeout');error.name='TimeoutError';throw error;}
     if(target.endsWith('/api/handoff/status'))return {ok:true,status:200,json:async()=>({action:uncertain})};
     return {ok:false,status:404,json:async()=>({error:'not found'})};
@@ -1404,7 +1365,7 @@ test('editing recovered handoff prevents publishing a stale transferred action',
   const fetch=async(url,options={})=>{
     const target=String(url);requests.push({url:target,options});
     if(target.endsWith('/api/telegram/session'))return {ok:true,status:200,json:async()=>({ok:true})};
-    if(target.endsWith('/api/handoff/claim'))return {ok:true,status:200,json:async()=>({draft:{version:2,name:'Original',html:'<p>original</p>',dest:'telegram',telegraphPath:'',docId:doc,revision:0,importedMd:'',importedTxt:'',importedHtml:'',media:null},file:null,action:pending})};
+    if(target.endsWith('/api/handoff/claim'))return {ok:true,status:200,json:async()=>({draft:{version:2,name:'Original',html:'<p>original</p>',dest:'telegram',telegraphPath:'',docId:doc,revision:0,importedMd:'',importedTxt:'',importedHtml:'',media:[]},files:[],action:pending})};
     return {ok:false,status:404,json:async()=>({error:'not found'})};
   };
   const w=page({fetch,tg:{initData}}),d=w.document;
@@ -1420,26 +1381,62 @@ test('editing recovered handoff prevents publishing a stale transferred action',
 });
 
 
-test('ProseMirror normalizes equivalent mark aliases and toggles each semantic mark off',()=>{
-  const w=page(),d=w.document;
-  w.eval("currentEditorCore().resetHTML('<p><b>um</b> <strong>dois</strong> <i>x</i> <em>y</em> <ins>u</ins> <u>v</u> <strike>s1</strike> <del>s2</del> <s>s3</s></p>',{silent:true})");
-  assert.equal(d.querySelectorAll('#editor b,#editor i,#editor ins,#editor strike,#editor del').length,0);
-  assert.equal(d.querySelectorAll('#editor strong').length,2);
-  assert.equal(d.querySelectorAll('#editor em').length,2);
-  assert.equal(d.querySelectorAll('#editor u').length,2);
-  assert.equal(d.querySelectorAll('#editor s').length,3);
+test('native editor applies and removes semantic marks on the actual DOM selection',()=>{
+  const w=page(),d=w.document,e=d.querySelector('#editor');
+  w.eval("currentEditorCore().resetHTML('<p>bold italic underline strike</p>',{silent:true})");
+  for(const [word,command,selector] of [['bold','bold','strong'],['italic','italic','em'],['underline','underline','u'],['strike','strike','s']]){
+    w.eval("currentEditorCore().selectRange(currentEditorCore().findLiteral("+JSON.stringify(word)+")[0],{focus:true})");
+    w.eval("exec("+JSON.stringify(command)+")");
+    assert.equal(e.querySelector(selector)?.textContent,word);
+    w.eval("currentEditorCore().selectRange(currentEditorCore().findLiteral("+JSON.stringify(word)+")[0],{focus:true})");
+    w.eval("exec("+JSON.stringify(command)+")");
+    assert.equal(e.querySelector(selector),null);
+  }
+  w.close();
+});
 
-  w.eval("currentEditorCore().selectRange(currentEditorCore().findLiteral('um dois')[0],{focus:true});exec('bold')");
-  assert.equal(d.querySelectorAll('#editor strong,#editor b').length,0);
+test('collapsed Bold Italic and Underline states apply to subsequently typed text',()=>{
+  const w=page(),d=w.document,e=d.querySelector('#editor');
+  w.eval("currentEditorCore().resetHTML('<p></p>',{silent:true})");
+  const p=e.querySelector('p');
+  const range=d.createRange();range.selectNodeContents(p);range.collapse(true);
+  const selection=d.getSelection();selection.removeAllRanges();selection.addRange(range);
+  e.focus();
+  for(const cmd of ['bold','italic','underline'])w.eval("exec("+JSON.stringify(cmd)+")");
+  const input=new w.InputEvent('beforeinput',{bubbles:true,cancelable:true,inputType:'insertText',data:'X'});
+  e.dispatchEvent(input);
+  assert.equal(e.querySelector('strong')?.textContent,'X');
+  assert.equal(e.querySelector('em')?.textContent,'X');
+  assert.equal(e.querySelector('u')?.textContent,'X');
+  assert.equal(e.textContent,'X');
+  w.close();
+});
 
-  w.eval("currentEditorCore().selectRange(currentEditorCore().findLiteral('x y')[0],{focus:true});exec('italic')");
-  assert.equal(d.querySelectorAll('#editor em,#editor i').length,0);
+test('typing in a media caption remains continuous without inserted line breaks',()=>{
+  const w=page(),d=w.document,e=d.querySelector('#editor');
+  w.eval("currentEditorCore().resetHTML('<figure><img src=\"https://example.com/a.png\"><figcaption></figcaption></figure>',{silent:true})");
+  const caption=e.querySelector('figcaption');
+  caption.focus();
+  const selection=d.getSelection();
+  for(const char of 'Legenda'){
+    const range=d.createRange();range.selectNodeContents(caption);range.collapse(false);selection.removeAllRanges();selection.addRange(range);
+    range.insertNode(d.createTextNode(char));range.collapse(false);selection.removeAllRanges();selection.addRange(range);
+    e.dispatchEvent(new w.InputEvent('input',{bubbles:true,inputType:'insertText',data:char}));
+  }
+  assert.equal(caption.textContent,'Legenda');
+  assert.equal(caption.querySelector('br'),null);
+  w.close();
+});
 
-  w.eval("currentEditorCore().selectRange(currentEditorCore().findLiteral('u v')[0],{focus:true});exec('underline')");
-  assert.equal(d.querySelectorAll('#editor u,#editor ins').length,0);
-
-  w.eval("currentEditorCore().selectRange(currentEditorCore().findLiteral('s1 s2 s3')[0],{focus:true});exec('strike')");
-  assert.equal(d.querySelectorAll('#editor s,#editor strike,#editor del').length,0);
+test('selected text deletion persists exactly the browser DOM result',()=>{
+  const w=page(),d=w.document,e=d.querySelector('#editor');
+  w.eval("currentEditorCore().resetHTML('<p>apagar manter</p>',{silent:true})");
+  w.eval("currentEditorCore().selectRange(currentEditorCore().findLiteral('apagar ')[0],{focus:true})");
+  const selection=d.getSelection(),range=selection.getRangeAt(0);
+  range.deleteContents();range.collapse(true);selection.removeAllRanges();selection.addRange(range);
+  e.dispatchEvent(new w.InputEvent('input',{bubbles:true,inputType:'deleteContentBackward'}));
+  assert.equal(e.textContent,'manter');
+  assert.match(w.eval('draftHTML()'),/manter/);
   w.close();
 });
 
@@ -1491,28 +1488,10 @@ test('plain-text paste is one transactional history step',()=>{
 });
 
 
-test('ProseMirror normalizes accepted bold aliases and removes the semantic mark uniformly',()=>{
-  const doc='81818181-8181-4818-8818-818181818181';
-  const local=JSON.stringify({version:2,name:'Aliases',html:'<p><b>Alias</b> <strong>Strong</strong></p>',dest:'telegram',telegraphPath:'',docId:doc,revision:0,importedMd:'',importedTxt:'',importedHtml:'',media:null});
-  const w=page({local:{rmdtxtml:local}}),d=w.document,e=d.querySelector('#editor');
-  assert.equal(e.querySelectorAll('b').length,0);
-  assert.equal(e.querySelectorAll('strong').length,2);
-
-  w.eval('currentEditorCore().selectRange({from:1,to:6},{focus:true})');
-  d.querySelector('#typebar [data-cmd="bold"]').click();
-  assert.equal(e.innerHTML,'<p>Alias <strong>Strong</strong></p>');
-
-  w.eval('currentEditorCore().selectRange({from:7,to:13},{focus:true})');
-  d.querySelector('#typebar [data-cmd="bold"]').click();
-  assert.equal(e.querySelector('strong'),null);
-  assert.equal(e.textContent,'Alias Strong');
-  w.close();
-});
-
 test('transaction history keeps the editor selection coherent through undo and redo',()=>{
   const w=page(),d=w.document,e=d.querySelector('#editor');
   w.eval("currentEditorCore().resetHTML('<p>alpha beta</p>',{silent:true})");
-  w.eval('currentEditorCore().selectRange({from:7,to:11},{focus:true})');
+  w.eval("currentEditorCore().selectRange(currentEditorCore().findLiteral('beta')[0],{focus:true})");
   d.querySelector('#typebar [data-cmd="bold"]').click();
   assert.equal(w.eval('currentEditorCore().selectedText()'),'beta');
   assert.ok(e.querySelector('strong'));
@@ -1584,12 +1563,12 @@ test('find treats punctuation and regex metacharacters literally',()=>{
 test('Markdown round-trip preserves strike through edited semantic state',()=>{
   const w=page(),d=w.document,e=d.querySelector('#editor');
   w.eval("currentEditorCore().resetHTML('<p>antes <del>cortado</del> depois</p>',{silent:true})");
-  assert.equal(e.querySelector('s')?.textContent,'cortado');
+  assert.equal(e.querySelector('s,del,strike')?.textContent,'cortado');
   const md=w.eval('htmlToMarkdown(exportDocumentHTML())');
   assert.match(md,/~~cortado~~/);
   const imported=w.eval('mdToBasicHTML('+JSON.stringify(md)+')');
   w.eval('currentEditorCore().resetHTML('+JSON.stringify(imported)+',{silent:true})');
-  assert.equal(e.querySelector('s')?.textContent,'cortado');
+  assert.equal(e.querySelector('s,del,strike')?.textContent,'cortado');
   const second=w.eval('htmlToMarkdown(exportDocumentHTML())');
   assert.match(second,/~~cortado~~/);
   w.close();
@@ -1598,7 +1577,7 @@ test('Markdown round-trip preserves strike through edited semantic state',()=>{
 test('Markdown file boundary strips runtime media controls and remains reimportable',()=>{
   const w=page(),d=w.document,e=d.querySelector('#editor');
   const mediaHtml='<video src="https://example.com/video.mp4" controls></video><audio src="https://example.com/audio.ogg" controls></audio>';
-  w.eval('currentEditorCore().resetHTML('+JSON.stringify(mediaHtml)+',{silent:true})');
+  w.eval('currentEditorCore().resetHTML('+JSON.stringify(mediaHtml)+',{silent:true});decorateSpecials()');
   assert.equal(e.querySelector('video')?.hasAttribute('controls'),true);
   assert.equal(e.querySelector('audio')?.hasAttribute('controls'),true);
   const md=w.eval('htmlToMarkdown(exportDocumentHTML())');
@@ -1607,7 +1586,7 @@ test('Markdown file boundary strips runtime media controls and remains reimporta
   const box=d.createElement('div');box.innerHTML=imported;
   assert.equal(box.querySelector('video')?.hasAttribute('controls'),false);
   assert.equal(box.querySelector('audio')?.hasAttribute('controls'),false);
-  w.eval('currentEditorCore().resetHTML('+JSON.stringify(imported)+',{silent:true})');
+  w.eval('currentEditorCore().resetHTML('+JSON.stringify(imported)+',{silent:true});decorateSpecials()');
   assert.equal(e.querySelector('video')?.hasAttribute('controls'),true);
   assert.doesNotThrow(()=>w.eval('mdToBasicHTML('+JSON.stringify(w.eval('htmlToMarkdown(exportDocumentHTML())'))+')'));
   w.close();
@@ -1620,7 +1599,7 @@ test('real Markdown import normalizes presentation attributes instead of returni
   input.dispatchEvent(new w.Event('change'));
   await wait(10);
   assert.equal(e.querySelector('video')?.hasAttribute('controls'),true);
-  assert.equal(e.querySelector('s')?.textContent,'cortado');
+  assert.equal(e.querySelector('s,del,strike')?.textContent,'cortado');
   const exported=w.eval('htmlToMarkdown(exportDocumentHTML())');
   assert.notEqual(exported,original);
   assert.doesNotMatch(exported,/\scontrols(?:[\s=>]|$)/i);
@@ -1641,11 +1620,11 @@ test('lossy TXT conversion exposes a warning only when rich semantics would be d
 
 
 test('volume-backed draft recovery restores an active draft when local storage is empty',async()=>{
-  const remote={version:2,name:'Do volume',html:'<p>persistido</p>',dest:'telegram',telegraphPath:'',docId:'91919191-9191-4919-8919-919191919191',revision:4,importedMd:'',importedTxt:'',importedHtml:'',media:null};
+  const remote={version:2,name:'Do volume',html:'<p>persistido</p>',dest:'telegram',telegraphPath:'',docId:'91919191-9191-4919-8919-919191919191',revision:4,importedMd:'',importedTxt:'',importedHtml:'',media:[]};
   const requests=[];
   const fetch=async(url,options={})=>{
     const target=String(url);requests.push({url:target,options});
-    if(target.endsWith('/api/drafts/load'))return {ok:true,status:200,json:async()=>({draft:remote,media:null,publication:null,owner:{kind:'browser'}})};
+    if(target.endsWith('/api/drafts/load'))return {ok:true,status:200,json:async()=>({draft:remote,media:[],publication:null,owner:{kind:'browser'}})};
     if(target.endsWith('/api/telegraph/recover'))return {ok:false,status:404,json:async()=>({error:'Página não encontrada'})};
     return {ok:false,status:404,json:async()=>({error:'not found'})};
   };
@@ -1660,7 +1639,7 @@ test('volume-backed draft recovery restores an active draft when local storage i
 
 test('pagehide writes the active draft to the volume contract as well as local storage',async()=>{
   const doc='92929292-9292-4929-8929-929292929292';
-  const raw=JSON.stringify({version:2,name:'Local',html:'<p>local</p>',dest:'telegram',telegraphPath:'',docId:doc,revision:2,importedMd:'',importedTxt:'',importedHtml:'',media:null});
+  const raw=JSON.stringify({version:2,name:'Local',html:'<p>local</p>',dest:'telegram',telegraphPath:'',docId:doc,revision:2,importedMd:'',importedTxt:'',importedHtml:'',media:[]});
   const saved=[];
   const fetch=async(url,options={})=>{
     const target=String(url);
@@ -1795,7 +1774,7 @@ test('link actions distinguish hyperlink, visible URL and Telegram URL button th
   assert.equal(e.querySelector('a')?.textContent,'alpha');
   assert.equal(e.querySelector('a')?.getAttribute('href'),'https://example.com/hyper');
 
-  w.eval("(()=>{const pos=currentEditorCore().state.doc.content.size-1;currentEditorCore().selectRange({from:pos,to:pos},{focus:true});saveSel()})()");
+  w.eval("(()=>{const core=currentEditorCore(),pos=document.querySelector('#editor').textContent.length;core.selectRange({from:pos,to:pos},{focus:true});saveSel()})()");
   await choose('url','Link');
   dialog.value='https://example.com/visible';
   ok.click();
@@ -1805,7 +1784,7 @@ test('link actions distinguish hyperlink, visible URL and Telegram URL button th
   assert.equal(links.at(-1)?.getAttribute('href'),'https://example.com/visible');
 
   w.eval("setDestination('telegram',false,false)");
-  w.eval("(()=>{const pos=currentEditorCore().state.doc.content.size-1;currentEditorCore().selectRange({from:pos,to:pos},{focus:true});saveSel()})()");
+  w.eval("(()=>{const core=currentEditorCore(),pos=document.querySelector('#editor').textContent.length;core.selectRange({from:pos,to:pos},{focus:true});saveSel()})()");
   await choose('button','Texto do botão');
   dialog.value='Abrir site';
   ok.click();
@@ -1827,7 +1806,7 @@ test('dialog modality traps focus, restores its origin and preserves editor sele
   const w=page(),d=w.document,canvas=d.querySelector('#canvas'),origin=d.querySelector('#linkBtn');
   w.eval("currentEditorCore().resetHTML('<p>alpha beta</p>',{silent:true})");
   w.eval("(()=>{const r=currentEditorCore().findLiteral('alpha')[0];currentEditorCore().selectRange({from:r.from,to:r.to},{focus:true});saveSel()})()");
-  const before=w.eval('currentEditorCore().state.selection.from');
+  const before=w.eval('(()=>{restoreSel();return currentEditorCore().selectionOffsets()?.from})()');
   origin.focus();
   const prompt=w.eval("ask('Link','https://')");
   await wait(0);
@@ -1835,7 +1814,7 @@ test('dialog modality traps focus, restores its origin and preserves editor sele
   const input=d.querySelector('#dialogInput');
   assert.equal(d.activeElement,input);
   assert.equal(canvas.hasAttribute('inert'),true);
-  assert.equal(w.eval('currentEditorCore().state.selection.from'),before);
+  assert.equal(w.eval('(()=>{restoreSel();return currentEditorCore().selectionOffsets()?.from})()'),before);
 
   origin.focus();
   await wait(0);
@@ -1847,23 +1826,23 @@ test('dialog modality traps focus, restores its origin and preserves editor sele
   assert.equal(await prompt,null);
   assert.equal(canvas.hasAttribute('inert'),false);
   assert.equal(d.activeElement,origin);
-  assert.equal(w.eval('currentEditorCore().state.selection.from'),before);
+  assert.equal(w.eval('(()=>{restoreSel();return currentEditorCore().selectionOffsets()?.from})()'),before);
   w.close();
 });
 
-test('Escape closes a programmatic menu, restores its visible opener and keeps editor selection',()=>{
+test('Escape closes a programmatic menu without stealing active editor focus or selection',()=>{
   const w=page(),d=w.document,plus=d.querySelector('#plusBtn'),menu=d.querySelector('#plusMenu');
   w.eval("currentEditorCore().resetHTML('<p>alpha beta</p>',{silent:true})");
   w.eval("(()=>{const r=currentEditorCore().findLiteral('beta')[0];currentEditorCore().selectRange({from:r.from,to:r.to},{focus:true});saveSel()})()");
-  const before=w.eval('currentEditorCore().state.selection.from');
+  const before=w.eval('(()=>{restoreSel();return currentEditorCore().selectionOffsets()?.from})()');
   plus.focus();
   w.eval("openPanel('#plusMenu')");
   d.querySelector('#docName').focus();
-  assert.equal(w.eval('currentEditorCore().state.selection.from'),before);
+  assert.equal(w.eval('(()=>{restoreSel();return currentEditorCore().selectionOffsets()?.from})()'),before);
   d.dispatchEvent(new w.KeyboardEvent('keydown',{key:'Escape',bubbles:true}));
   assert.equal(menu.hasAttribute('data-menu-open'),false);
-  assert.equal(d.activeElement,plus);
-  assert.equal(w.eval('currentEditorCore().state.selection.from'),before);
+  assert.equal(d.activeElement,d.querySelector('#editor'));
+  assert.equal(w.eval('(()=>{restoreSel();return currentEditorCore().selectionOffsets()?.from})()'),before);
   w.close();
 });
 

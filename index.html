@@ -59,9 +59,8 @@
       --control-size:clamp(36px,10vw,40px);
       --pill-pad:4px;
       --pill-h:calc(var(--control-size) + 8px);
-      --top-side-offset:32px;
       --editor-top-gap:8px;
-      --topbar-h:calc(var(--pill-h) + var(--top-side-offset));
+      --topbar-h:var(--pill-h);
       --bar-h:var(--pill-h);
       --menu-w:210px;
       --menu-row-h:24px;
@@ -191,7 +190,7 @@
     }
     .top-slot{
       display:flex;align-items:center;align-self:start;
-      margin-top:0;transform:translateY(var(--top-side-offset));pointer-events:auto
+      margin-top:0;pointer-events:auto
     }
     .top-left{grid-column:1;justify-self:start}
     .top-right{grid-column:3;justify-self:end}
@@ -265,6 +264,9 @@
       -webkit-user-select:text;user-select:text
     }
     .editor p{margin:.7em 0}
+    .editor strong,.editor b{font-weight:700}
+    .editor em,.editor i{font-style:italic}
+    .editor u,.editor ins{text-decoration:underline;text-underline-offset:.12em}
     .editor blockquote,.editor aside{box-sizing:border-box;min-height:1.55em}
     .editor blockquote{margin:1em 0;padding:.18em 0 .18em 12px;border-left:3px solid var(--accent)}
     .editor blockquote[expandable]{position:relative;padding:.72em 34px .72em 12px;border-radius:0 12px 12px 0;background:color-mix(in srgb,var(--accent) 8%,transparent)}
@@ -496,8 +498,8 @@
   </div>
   <script src="marked.js"></script>
   <script src="turndown.js"></script>
-  <script src="editor-core.js?v=29846a6f4a7d"></script>
-  <script type="module" src="ui.js?v=6e8a48f49ed9"></script>
+  <script src="editor-core.js?v=9b8871eed448"></script>
+  <script type="module" src="ui.js?v=18e17da465f2"></script>
   <script>
     document.addEventListener('DOMContentLoaded',()=>{
       const root=document.documentElement;

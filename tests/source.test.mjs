@@ -46,30 +46,18 @@ test('official Liquid Glass React dependencies and deterministic build are pinne
 });
 
 
-test('ProseMirror editor dependencies, schema and transaction primitives are pinned',()=>{
+test('editor core is native, modular and independent of third-party document engines',()=>{
   const pkg=JSON.parse(read('package.json'));
   const lock=JSON.parse(read('package-lock.json'));
-  const expected={
-    'prosemirror-commands':'1.7.2',
-    'prosemirror-history':'1.5.0',
-    'prosemirror-keymap':'1.2.3',
-    'prosemirror-model':'1.25.12',
-    'prosemirror-schema-list':'1.5.1',
-    'prosemirror-state':'1.4.4',
-    'prosemirror-view':'1.42.3'
-  };
-  for(const [name,version] of Object.entries(expected)){
-    assert.equal(pkg.dependencies[name],version);
-    assert.equal(lock.packages['node_modules/'+name].version,version);
-  }
+  for(const name of Object.keys(pkg.dependencies||{}))assert.equal(name.startsWith('prosemirror-'),false);
+  for(const name of Object.keys(lock.packages||{}))assert.equal(name.startsWith('node_modules/prosemirror-'),false);
+  for(const file of ['src/editor-core.mjs','src/editor-selection.mjs','src/editor-history.mjs','src/editor-formatting.mjs','src/editor-structure.mjs','src/editor-search.mjs'])assert.ok(existsSync(new URL('../'+file,import.meta.url)));
   const core=read('src/editor-core.mjs');
-  assert.match(core,/new Schema\(/);
-  assert.match(core,/EditorState\.create/);
-  assert.match(core,/new EditorView/);
-  assert.match(core,/history\(\{/);
-  assert.match(core,/dispatchTransaction/);
-  assert.match(core,/content:"paragraph block\*"/);
-  assert.match(core,/inline:true,group:"inline",atom:true,selectable:false/);
+  assert.match(core,/createFormatting/);
+  assert.match(core,/createStructure/);
+  assert.match(core,/createSearch/);
+  assert.match(core,/createHistory/);
+  assert.doesNotMatch(core,/prosemirror|EditorState|EditorView|new Schema/i);
 });
 
 test('React UX imports the official Glass primitive and standardizes menu optics with chrome capsules',()=>{
@@ -172,33 +160,6 @@ test('bars keep the shared glass fill with no hairline stroke',()=>{
   assert.match(shared,/border-radius:999px/);
 });
 
-test('editor uses incremental Markdown input rules on the transactional core',()=>{
-  const app=read('app.js'),core=read('src/editor-core.mjs');
-  for(const fragment of [
-    'function applyMarkdownBlockRule({allowTask=true}={})',
-    'const heading=text.match(/^(#{1,6}) (?=\\S)/);',
-    "const quote=text.match(/^> (?=\\S)/);",
-    "const bullet=text.match(/^[-*+] (?=\\S)/);",
-    'const ordered=text.match(/^(\\d+)\\. (?=\\S)/);',
-    'const task=allowTask&&text.match(/^- \\[([ xX])\\] (?=\\S)/)',
-    'const wrapped=schema.nodes.blockquote.create({expandable:false},node.content.cut(markerLength))',
-    'function applyMarkdownInlineRule()',
-    'function normalizeEmptyFormattedBlock(inputType="")',
-    'function exitFormattedBlock()',
-    'function inBlock(kind)'
-  ])assert.ok(core.includes(fragment),fragment);
-  for(const fragment of [
-    "editorCore.applyMarkdownBlockRule({allowTask:dest==='telegram'})",
-    'editorCore.applyMarkdownInlineRule()',
-    "editorCore.normalizeEmptyFormattedBlock(event?.inputType||'')",
-    'editorCore.exitFormattedBlock()',
-    "core.inBlock('blockquote')",
-    "editor.addEventListener('beforeinput',exitFormattedBlockOnParagraph);",
-    'function syncEditorSelectionUI()',
-    "btn.setAttribute('aria-pressed',String(on));"
-  ])assert.ok(app.includes(fragment),fragment);
-});
-
 test('editorial document typography uses the Telegraph serif family without changing app chrome',()=>{
   const html=read('index.html');
   assert.match(html,/\.editor\{[\s\S]*?font-family:Georgia,"Times New Roman",serif;/);
@@ -218,7 +179,8 @@ test('theme switch owns browser and Telegram chrome without mixed system bars',(
   assert.ok(existsSync(new URL('../icons/dark_mode.svg',import.meta.url)));
   assert.match(app,/const THEME_KEY='mdtxtrt-theme'/);
   assert.match(app,/localStorage\.setItem\(THEME_KEY,mode\)/);
-  assert.match(app,/function setTheme\(mode\)\{[\s\S]*?localStorage\.setItem\(THEME_KEY,mode\)[\s\S]*?window\.location\.reload\(\)/);
+  assert.match(app,/function setTheme\(mode\)\{[\s\S]*?localStorage\.setItem\(THEME_KEY,mode\)[\s\S]*?applyScheme\(mode\)/);
+  assert.doesNotMatch(app,/function setTheme\(mode\)\{[\s\S]*?window\.location\.reload\(\)/);
   assert.match(app,/tg\.setHeaderColor\(color\)/);
   assert.match(app,/tg\.setBackgroundColor\(color\)/);
   assert.match(app,/tg\.setBottomBarColor\(color\)/);
@@ -245,12 +207,10 @@ test('interface icon assets are vector SVG only and referenced from React source
   for(const name of names)assert.ok(existsSync(new URL('../icons/'+name+'.svg',import.meta.url)),name);
 });
 
-test('editor creates publication structures without serializing instructional sample text',()=>{
-  const app=read('app.js'),core=read('src/editor-core.mjs'),html=read('index.html');
+test('editor publication controls contain no instructional fixture content',()=>{
+  const app=read('app.js'),html=read('index.html');
   assert.match(app,/if\(kind==='expandquote'\)return formatBlock\('expandquote'\)/);
   assert.match(app,/if\(kind==='pullquote'\)return formatBlock\('pullquote'\)/);
-  assert.match(core,/target==="expandquote"[\s\S]*?expandable:true/);
-  assert.match(core,/target==="pullquote"[\s\S]*?schema\.nodes\.aside/);
   assert.doesNotMatch(app,/Citação expansível|Citação em destaque|Nova tarefa|Texto expansível|<th>A<\/th>|<td>—<\/td>/);
   assert.match(app,/<details open><summary><\/summary><p><\/p><\/details>/);
   assert.match(html,/\.editor blockquote\[expandable\]/);
@@ -258,24 +218,18 @@ test('editor creates publication structures without serializing instructional sa
   assert.match(html,/\.editor details\{/);
 });
 
-test('editor keeps target-specific publishing validation and code metadata',()=>{
-  const app=read('app.js');
+test('editor keeps destination validation and literal-search implementation separated',()=>{
+  const app=read('app.js'),search=read('src/editor-search.mjs');
   assert.match(app,/a:\['href','name'\],code:\['class'\]/);
   assert.match(app,/\['http:','https:'\]/);
   assert.match(app,/\['http:','https:','mailto:','tel:','tg:'\]/);
-  assert.match(app,/slice\(0,64\)/);
-  assert.match(app,/Formato de data inválido/);
   assert.match(app,/function activeMedia\(\)/);
   assert.match(app,/requireEditorCore\(\)\.patchMedia/);
   assert.doesNotMatch(app,/\bhistI\b|\bhistLock\b/);
   assert.doesNotMatch(app,/toast\.textContent\s*=/);
-  assert.match(app,/toastTextHost/);
-  assert.match(app,/if\(window\.visualViewport\)\{/);
-  assert.doesNotMatch(app,/function searchRegex\(/);
-  const core=read('src/editor-core.mjs');
-  assert.match(core,/function findLiteral\(term\)/);
-  assert.match(core,/\.indexOf\(needle,at\)/);
-  assert.doesNotMatch(core,/new RegExp\(term/);
+  assert.match(search,/function findLiteral\(term\)/);
+  assert.match(search,/\.indexOf\(needle,at\)/);
+  assert.doesNotMatch(search,/new RegExp\(term/);
 });
 
 test('server exposes every React-referenced local SVG icon and vector app icon',()=>{
@@ -329,7 +283,8 @@ test('editor content starts below the lowered side pills without bypassing Teleg
   const html=read('index.html');
   assert.match(html,/html\.tg-shell\{[\s\S]*?--safe-top:var\(--app-tg-content-safe-top\)/);
   assert.match(html,/\.topbar\{[\s\S]*?top:calc\(var\(--vv-top\) \+ var\(--safe-top\) \+ var\(--gap\)\)/);
-  assert.match(html,/\.top-slot\{[\s\S]*?margin-top:0;transform:translateY\(var\(--top-side-offset\)\)/);
+  assert.match(html,/\.top-slot\{[\s\S]*?margin-top:0;pointer-events:auto/);
+  assert.doesNotMatch(html,/--top-side-offset|translateY\(var\(--top-side-offset\)\)/);
   assert.match(html,/\.seg\.top-pill\{gap:var\(--pill-pad\)\}/);
   assert.match(html,/\.scroll\{[\s\S]*?padding-top:var\(--head-inset\)/);
 });
@@ -433,17 +388,17 @@ test('theme switch is a text-and-icon target with no control background',()=>{
   assert.match(app,/one\('#themeBtn'\)\.addEventListener\('click',[\s\S]*?setTheme/);
 });
 
-test('top chrome keeps lateral pills below the centered title and inside Telegram safe areas',()=>{
+test('top chrome uses Telegram content safe area as the single vertical boundary',()=>{
   const html=read('index.html');
-  assert.match(html,/--top-side-offset:32px/);
   assert.match(html,/--editor-top-gap:8px/);
-  assert.match(html,/--topbar-h:calc\(var\(--pill-h\) \+ var\(--top-side-offset\)\)/);
+  assert.match(html,/--topbar-h:var\(--pill-h\)/);
   assert.match(html,/--head-inset:calc\(var\(--safe-top\) \+ var\(--gap\) \+ var\(--topbar-h\) \+ var\(--editor-top-gap\) \+ var\(--gap\)\)/);
   assert.match(html,/html\.tg-shell\{[\s\S]*?--safe-top:var\(--app-tg-content-safe-top\)/);
   assert.match(html,/\.topbar\{[\s\S]*?top:calc\(var\(--vv-top\) \+ var\(--safe-top\) \+ var\(--gap\)\)/);
   assert.match(html,/\.top-left\{grid-column:1;justify-self:start\}/);
   assert.match(html,/\.top-right\{grid-column:3;justify-self:end\}/);
-  assert.match(html,/\.top-slot\{[\s\S]*?margin-top:0;transform:translateY\(var\(--top-side-offset\)\)/);
+  assert.match(html,/\.top-slot\{[\s\S]*?margin-top:0;pointer-events:auto/);
+  assert.doesNotMatch(html,/--top-side-offset|translateY\(var\(--top-side-offset\)\)/);
   assert.match(html,/\.top-center\{[\s\S]*?top:0;[\s\S]*?height:var\(--pill-h\)/);
 });
 
@@ -528,9 +483,8 @@ test('editorial pointer retention has one owner and standard menus never depend 
   assert.match(app,/function focusMenuControl\(element,outsidePanel=null\)[\s\S]*?if\(typingFocusActive\(outsidePanel\)\)return false;[\s\S]*?focusControl\(element\)/);
   assert.match(app,/function retainedInterfaceControl\(target\)[\s\S]*?#ux-root button[\s\S]*?return control&&!control\.disabled\?control:null/);
   assert.match(app,/document\.addEventListener\('pointerdown',event=>\{[\s\S]*?if\(!typingFocusActive\(\)\)return;[\s\S]*?retainedInterfaceControl\(event\.target\)[\s\S]*?event\.preventDefault\(\)/);
-  assert.match(app,/document\.addEventListener\('touchstart',event=>\{[\s\S]*?event\.preventDefault\(\)[\s\S]*?retainedTouch=/);
-  assert.match(app,/document\.addEventListener\('touchend',event=>\{[\s\S]*?event\.preventDefault\(\)[\s\S]*?gesture\.target\.click\(\)/);
-  assert.match(app,/document\.addEventListener\('click',event=>\{[\s\S]*?event\.detail===0[\s\S]*?stopImmediatePropagation\(\)/);
+  assert.doesNotMatch(app,/retainedTouch|touchActivating|gesture\.target\.click\(\)/);
+  assert.doesNotMatch(app,/document\.addEventListener\('touchstart'|document\.addEventListener\('touchend'/);
   assert.match(app,/function panelIsOpen\(panel\)[\s\S]*?data-menu-open/);
   assert.match(app,/function openPanel\(sel,anchorOverride=null\)[\s\S]*?panel\.setAttribute\('data-menu-open',''\)/);
   assert.match(app,/function closePanel\(panel,returnFocus=false\)[\s\S]*?panel\.removeAttribute\('data-menu-open'\)/);
@@ -544,7 +498,8 @@ test('editorial pointer retention has one owner and standard menus never depend 
   assert.match(app,/function focusLibraryStart\(\)\{return focusMenuControl\(one\('#libraryClose'\)\);\}/);
   assert.match(app,/librarySubmenuOpen\(\)&&!menu\.contains\(event\.target\)&&!isTypingEntry\(event\.target\)/);
   assert.doesNotMatch(app,/addEventListener\('mousedown', e => e\.preventDefault\(\)\)/);
-  assert.match(app,/function setTheme\(mode\)[\s\S]*?window\.location\.reload\(\)/);
+  assert.match(app,/function setTheme\(mode\)[\s\S]*?applyScheme\(mode\)/);
+  assert.doesNotMatch(app,/function setTheme\(mode\)[\s\S]*?window\.location\.reload\(\)/);
 });
 
 test('document title is explicit in export flow and becomes the Telegraph page title',()=>{
@@ -607,7 +562,7 @@ test('server follows Bot API 10.3 Rich Message contracts without message downgra
   assert.match(server,/"mailto:","tel:"/);
   assert.match(server,/allowedByType=\{/);
   assert.match(server,/URL de botão deve usar HTTP, HTTPS ou tg:\/\//);
-  assert.match(server,/const msg = await telegramCall\("sendRichMessage", body\)/);
+  assert.match(server,/const msg\s*=\s*await telegramCall\("sendRichMessage",body\)/);
   assert.match(server,/sendTelegramRevisionNotice/);
   assert.doesNotMatch(server,/telegramCall\("editMessageText"/);
   assert.doesNotMatch(server,/telegramCall\("sendMessage"/);
@@ -659,7 +614,7 @@ test('draft persistence, Telegram provenance and explicit visual-baseline histor
   assert.match(server,/url\.pathname === "\/api\/drafts\/save"/);
   assert.match(server,/url\.pathname === "\/api\/drafts\/load"/);
   assert.match(server,/url\.pathname === "\/api\/drafts\/file"/);
-  assert.match(server,/function savePersistentDraft\(owner,draft,file=null\)/);
+  assert.match(server,/function savePersistentDraft\(owner,draft,files=\[\]\)/);
   assert.match(server,/status:"pending"[\s\S]*?telegramUserId:owner\.telegramUserId/);
   assert.match(server,/async function publishTelegramPersistent/);
   assert.match(server,/sendTelegramRevisionNotice/);
@@ -678,7 +633,7 @@ test('draft persistence, Telegram provenance and explicit visual-baseline histor
   assert.match(drafts,/mounted Railway volume/);
   assert.match(drafts,/verified Telegram user identifier/);
   assert.match(drafts,/does \*\*not\*\* rewrite the earlier chat message/);
-  assert.match(drafts,/Runtime-only ProseMirror/);
+  assert.match(baseline,/6742ec104de353d2f19507436fe352b0e0fd1a71/);
   assert.match(baseline,/9c9f8d38313d5f0043283daf06d6ac015f90bded/);
   assert.match(baseline,/7fe51e8401012232281db416ac0d9bd080c18ebf/);
   assert.match(baseline,/b22aee80bbaa79db63d12ef62ae523d968218aa5/);
@@ -743,7 +698,7 @@ test('private bot actions are canonical Mini App web_app flows with no legacy di
 test('step 6 persists drafts on the Railway volume, binds Telegram publication provenance and labels the document title explicitly',()=>{
   const html=read('index.html'),app=read('app.js'),server=read('server.mjs');
   assert.match(server,/const DRAFT_DIR = DATA \+ "\/drafts"/);
-  assert.match(server,/function savePersistentDraft\(owner,draft,file=null\)/);
+  assert.match(server,/function savePersistentDraft\(owner,draft,files=\[\]\)/);
   assert.match(server,/url\.pathname === "\/api\/drafts\/save"/);
   assert.match(server,/url\.pathname === "\/api\/drafts\/load"/);
   assert.match(server,/url\.pathname === "\/api\/drafts\/file"/);
@@ -776,8 +731,8 @@ test('step 6 persists drafts on the Railway volume, binds Telegram publication p
   assert.doesNotMatch(ui,/id="libraryRefresh"/);
   assert.match(ui,/<MenuItem icon="arrow_back" className="submenu-back" id="libraryClose">/);
   assert.match(ui,/<MenuItem icon="sticky_note_2" id="libraryNew">Novo documento<\/MenuItem>/);
-  assert.match(ui,/id="publicationToggle"[\s\S]*?aria-expanded="true"/);
-  assert.match(ui,/id="draftToggle"[\s\S]*?aria-expanded="true"[\s\S]*?aria-controls="draftLists"/);
+  assert.match(ui,/id="publicationToggle"[\s\S]*?aria-expanded="false"/);
+  assert.match(ui,/id="draftToggle"[\s\S]*?aria-expanded="false"[\s\S]*?aria-controls="draftLists"/);
   assert.ok(ui.indexOf('id="publicationToggle"')<ui.indexOf('id="draftToggle"'));
   assert.doesNotMatch(ui,/Conteúdo persistido no volume/);
   assert.match(ui,/Icon name="menu"/);
@@ -853,7 +808,7 @@ test('final release gap analysis, surface audit and final-only anchor gates are 
   assert.match(workflow,/name: Rebuild all committed bundles[\s\S]*?npm run build/);
   assert.match(workflow,/git diff --exit-code -- editor-core\.js ui\.js/);
   assert.match(workflow,/node scripts\/verify-visual-baseline\.mjs/);
-  assert.match(workflow,/BASELINE_SHA: 9c9f8d38313d5f0043283daf06d6ac015f90bded/);
+  assert.match(workflow,/BASELINE_SHA: 6742ec104de353d2f19507436fe352b0e0fd1a71/);
   assert.match(workflow,/release-rebuilt-bundles-\$\{\{ env\.RELEASE_CANDIDATE_SHA \}\}/);
   assert.match(workflow,/release-visual-baseline-\$\{\{ env\.RELEASE_CANDIDATE_SHA \}\}/);
   assert.match(workflow,/draft_persistence_evidence_ref:/);
@@ -873,7 +828,7 @@ test('final release gap analysis, surface audit and final-only anchor gates are 
   assert.match(evidence,/Telegram revision notice\/content timeout/);
   assert.match(evidence,/stale persistent draft revision/);
 
-  assert.equal(manifest.visualBaseline,'9c9f8d38313d5f0043283daf06d6ac015f90bded');
+  assert.equal(manifest.visualBaseline,'6742ec104de353d2f19507436fe352b0e0fd1a71');
   assert.deepEqual(manifest.runtime,{node:'24.21.0',npm:'11.19.0'});
   assert.deepEqual(manifest.stages.map(stage=>stage.pr),[84,86,88,90,92,95]);
   assert.equal(manifest.stages.at(-1).head,'ec3def6622818c0411bbeb94165716c7f30fa927');

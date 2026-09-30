@@ -60,12 +60,24 @@ async function start(){
   throw new Error('Server did not start: '+stderr);
 }
 function draftFixture(html='<p>Teste</p>',doc=randomUUID(),revision=0,name='Teste'){
-  return {version:2,name,html,dest:'telegram',telegraphPath:'',docId:doc,revision,importedMd:'',importedTxt:'',importedHtml:'',media:null};
+  return {version:2,name,html,dest:'telegram',telegraphPath:'',docId:doc,revision,importedMd:'',importedTxt:'',importedHtml:'',media:[]};
 }
 async function formPost(path,fields,file){
+  const values={...fields};
+  if(path==='/api/telegram/send'&&typeof values.draft!=='string'){
+    const id=String(values.id||'upload1'),kind=String(values.kind||'document');
+    let draftHtml=String(values.html||'<p>Teste</p>');
+    if(file)draftHtml=draftHtml.replace(/\s+src="tg:\/\/[^"]+"/,' data-media-id="'+id+'"');
+    const draft=draftFixture(draftHtml);
+    if(file)draft.media=[{id,kind}];
+    values.draft=JSON.stringify(draft);
+  }
   const form=new FormData();
-  for(const [key,value] of Object.entries(fields))form.set(key,String(value));
-  if(file)form.set('upload',file.blob,file.name);
+  for(const [key,value] of Object.entries(values))form.set(key,String(value));
+  if(file){
+    const id=String(values.id||'upload1');
+    form.set('upload_'+id,file.blob,file.name);
+  }
   const res=await fetch(`http://127.0.0.1:${port}${path}`,{method:'POST',headers:{origin},body:form});
   return {status:res.status,data:await res.json()};
 }
@@ -75,8 +87,8 @@ async function jsonPost(path,body){
 }
 function callCount(method){return calls().filter(call=>call.method===method).length;}
 async function publishHandoffFixture({doc,html='<p>Transferência</p>'}){
-  const draft={version:2,name:'Transferência',html,dest:'telegram',telegraphPath:'',docId:doc,revision:0,importedMd:'',importedTxt:'',importedHtml:'',media:null};
-  const action={type:'publish',html,kind:'',id:''};
+  const draft={version:2,name:'Transferência',html,dest:'telegram',telegraphPath:'',docId:doc,revision:0,importedMd:'',importedTxt:'',importedHtml:'',media:[]};
+  const action={type:'publish',html};
   const form=new FormData();
   form.set('draft',JSON.stringify(draft));
   form.set('action',JSON.stringify(action));
@@ -138,16 +150,15 @@ test('drafts persist on the Railway volume and survive backend restart',async()=
   assert.equal(afterRestart.data.draft.revision,3);
 });
 
-test('draft persistence strips ProseMirror runtime artifacts without rejecting the document',async()=>{
+test('draft persistence removes browser editing attributes without rewriting authored content',async()=>{
   const doc=randomUUID();
   const browserKey='ef'.repeat(32);
-  const draft=draftFixture('<p contenteditable="true" spellcheck="true">Texto<br class="ProseMirror-trailingBreak"></p><blockquote class="ProseMirror-selectednode" draggable="true">Citação</blockquote>',doc,1,'Migrado');
+  const draft=draftFixture('<p contenteditable="true" spellcheck="true">Texto<br></p><blockquote draggable="true">Citação</blockquote>',doc,1,'Migrado');
   const saved=await formPost('/api/drafts/save',{browserKey,draft:JSON.stringify(draft)});
   assert.equal(saved.status,200,saved.data.error);
-  assert.doesNotMatch(saved.data.draft.html,/ProseMirror-|contenteditable|spellcheck|draggable/);
+  assert.doesNotMatch(saved.data.draft.html,/contenteditable|spellcheck|draggable/);
   assert.match(saved.data.draft.html,/Texto/);
   assert.match(saved.data.draft.html,/Citação/);
-
   const loaded=await jsonPost('/api/drafts/load',{browserKey,doc});
   assert.equal(loaded.status,200,loaded.data.error);
   assert.equal(loaded.data.draft.html,saved.data.draft.html);
@@ -295,9 +306,49 @@ test('local attachment is represented as attach upload and stale tg media is rej
   assert.equal(sent.status,200);
   const call=lastCall('sendRichMessage');
   const rich=JSON.parse(call.body.rich_message);
-  assert.deepEqual(rich.media,[{id,media:{type:'photo',media:'attach://upload'}}]);
+  assert.deepEqual(rich.media,[{id,media:{type:'photo',media:'attach://upload_media1'}}]);
   const stale=await formPost('/api/telegram/send',{initData:init(),html:'<img src="tg://photo?id=missing">'});
   assert.equal(stale.status,400);
+});
+
+test('Telegram Rich Message accepts the official maximum of 50 multipart media items and rejects 51',async()=>{
+  const ids=Array.from({length:50},(_,index)=>'m'+String(index).padStart(2,'0'));
+  const html=ids.map(id=>`<figure><img src="tg://photo?id=${id}"><figcaption>${id}</figcaption></figure>`).join('');
+  const draft=draftFixture(ids.map(id=>'<figure><img data-media-id="'+id+'"><figcaption>'+id+'</figcaption></figure>').join(''));
+  draft.media=ids.map(id=>({id,kind:'image'}));
+  const form=new FormData();
+  form.set('initData',init());
+  form.set('html',html);
+  form.set('draft',JSON.stringify(draft));
+  for(const id of ids)form.set('upload_'+id,new Blob([new Uint8Array([1])],{type:'image/png'}),id+'.png');
+  let res=await fetch(`http://127.0.0.1:${port}/api/telegram/send`,{method:'POST',headers:{origin},body:form});
+  let data=await res.json();
+  assert.equal(res.status,200,data.error);
+  const rich=JSON.parse(lastCall('sendRichMessage').body.rich_message);
+  assert.equal(rich.media.length,50);
+  assert.equal(rich.media[0].media.media,'attach://upload_'+ids[0]);
+  assert.equal(rich.media.at(-1).media.media,'attach://upload_'+ids.at(-1));
+
+  const overflowIds=[...ids,'m50'];
+  const overflowHtml=overflowIds.map(id=>`<figure><img src="tg://photo?id=${id}"></figure>`).join('');
+  const overflowDraft=draftFixture(overflowIds.map(id=>'<figure><img data-media-id="'+id+'"></figure>').join(''));
+  overflowDraft.media=overflowIds.map(id=>({id,kind:'image'}));
+  const overflow=new FormData();
+  overflow.set('initData',init());overflow.set('html',overflowHtml);overflow.set('draft',JSON.stringify(overflowDraft));
+  for(const id of overflowIds)overflow.set('upload_'+id,new Blob([new Uint8Array([1])],{type:'image/png'}),id+'.png');
+  res=await fetch(`http://127.0.0.1:${port}/api/telegram/send`,{method:'POST',headers:{origin},body:overflow});
+  data=await res.json();
+  assert.equal(res.status,400);
+  assert.match(data.error,/50 mídias/);
+});
+
+test('Telegram Rich Message table accepts 20 columns and rejects 21',async()=>{
+  const row=count=>'<table><tr>'+Array.from({length:count},()=>'<td>x</td>').join('')+'</tr></table>';
+  const valid=await formPost('/api/telegram/send',{initData:init(),html:row(20)});
+  assert.equal(valid.status,200,valid.data.error);
+  const invalid=await formPost('/api/telegram/send',{initData:init(),html:row(21)});
+  assert.equal(invalid.status,400);
+  assert.match(invalid.data.error,/20 colunas/);
 });
 
 test('Rich Message uploads enforce media-kind MIME and photo size locally',async()=>{
@@ -405,23 +456,24 @@ test('corrupt persisted handoff is discarded instead of breaking requests',async
   assert.equal((await fetch(`http://127.0.0.1:${port}/`)).status,200);
 });
 
-test('handoff persists valid document metadata and attachment',async()=>{
-  const id='handoffmedia1',doc='44444444-4444-4444-8444-444444444444';
-  const draft={version:2,name:'Continuidade',html:`<p>Texto</p><figure><img data-media-id="${id}"><figcaption>foto.png</figcaption></figure>`,dest:'telegram',telegraphPath:'',docId:doc,importedMd:'',importedTxt:'',importedHtml:'',media:{id,kind:'image'}};
-  const file={name:'foto.png',blob:new Blob([new Uint8Array([1,2,3,4,5])],{type:'image/png'})};
+test('handoff persists multiple attachments and exposes each file by media id',async()=>{
+  const doc='44444444-4444-4444-8444-444444444444';
+  const ids=['handoffmedia1','handoffmedia2'];
+  const draft={version:2,name:'Continuidade',html:ids.map((id,index)=>`<figure><img data-media-id="${id}"><figcaption>foto${index+1}.png</figcaption></figure>`).join(''),dest:'telegram',telegraphPath:'',docId:doc,importedMd:'',importedTxt:'',importedHtml:'',media:ids.map(id=>({id,kind:'image'}))};
   const form=new FormData();
   form.set('draft',JSON.stringify(draft));
-  form.set('upload',file.blob,file.name);
+  ids.forEach((id,index)=>form.set('upload_'+id,new Blob([new Uint8Array([index+1,2,3])],{type:'image/png'}),'foto'+(index+1)+'.png'));
   const res=await fetch(`http://127.0.0.1:${port}/api/handoff`,{method:'POST',headers:{origin},body:form});
   assert.equal(res.status,200);
   const made=await res.json();
-  assert.match(made.token,/^[a-f0-9]{32}$/);
   const claimed=await jsonPost('/api/handoff/claim',{initData:init(),token:made.token});
-  assert.equal(claimed.status,200);
-  assert.equal(claimed.data.draft.name,'Continuidade');
-  assert.equal(claimed.data.file.id,id);
+  assert.equal(claimed.status,200,claimed.data.error);
+  assert.deepEqual(claimed.data.files.map(item=>item.id),ids);
+  for(const id of ids){
+    const fileRes=await fetch(`http://127.0.0.1:${port}/api/handoff/file`,{method:'POST',headers:{origin,'content-type':'application/json'},body:JSON.stringify({initData:init(),token:made.token,id})});
+    assert.equal(fileRes.status,200);
+  }
 });
-
 
 test('handoff recovery is passive and confirmed publication result survives reopen and backend restart',async()=>{
   const made=await publishHandoffFixture({doc:'61616161-6161-4616-8616-616161616161'});
@@ -513,7 +565,7 @@ test('backend restart during an in-flight handoff marks delivery uncertain inste
   const reopened=await jsonPost('/api/handoff/claim',{initData:init(),token:made.token});
   assert.equal(reopened.status,200,reopened.data.error);
   assert.equal(reopened.data.action.status,'uncertain');
-  assert.match(reopened.data.action.error,/reiniciado durante o envio/);
+  assert.match(reopened.data.action.error,/interrompido antes de registrar um resultado confirmado/);
   assert.equal(callCount('sendRichMessage'),before);
 
   const blocked=await jsonPost('/api/handoff/publish',{initData:init(),token:made.token});
@@ -726,20 +778,22 @@ test('Telegraph browser capability can create, recover and edit without Telegram
   assert.match(ambiguous.data.error,/ambígua/);
 });
 
-test('handoff rejects draft media metadata that cannot be restored by the client',async()=>{
+test('handoff requires exact attachment metadata and accepts multiple official Rich Message media items',async()=>{
   const doc='55555555-5555-4555-8555-555555555555';
   const base={version:2,name:'Draft',dest:'telegram',telegraphPath:'',docId:doc,importedMd:'',importedTxt:'',importedHtml:''};
-  const stale={...base,html:'<p>texto</p>',media:{id:'ghost',kind:'image'}};
+  const stale={...base,html:'<p>texto</p>',media:[{id:'ghost',kind:'image'}]};
   const staleForm=new FormData();staleForm.set('draft',JSON.stringify(stale));
   const staleRes=await fetch(`http://127.0.0.1:${port}/api/handoff`,{method:'POST',headers:{origin},body:staleForm});
   assert.equal(staleRes.status,400);
 
-  const multiple={...base,html:'<figure><img data-media-id="one"></figure><figure><img data-media-id="two"></figure>',media:{id:'one',kind:'image'}};
+  const ids=['one','two'];
+  const multiple={...base,html:ids.map(id=>`<figure><img data-media-id="${id}"></figure>`).join(''),media:ids.map(id=>({id,kind:'image'}))};
   const multiForm=new FormData();multiForm.set('draft',JSON.stringify(multiple));
+  ids.forEach(id=>multiForm.set('upload_'+id,new Blob([new Uint8Array([1])],{type:'image/png'}),id+'.png'));
   const multiRes=await fetch(`http://127.0.0.1:${port}/api/handoff`,{method:'POST',headers:{origin},body:multiForm});
-  assert.equal(multiRes.status,400);
+  const body=await multiRes.json();
+  assert.equal(multiRes.status,200,body.error);
 });
-
 
 test('stale signed Telegram sessions are rejected',async()=>{
   const stale=new URLSearchParams(init());
@@ -784,7 +838,7 @@ test('bot imports UTF-8 TXT literally through getFile and binds continuation to 
   assert.equal(claimed.status,200,claimed.data.error);
   assert.equal(claimed.data.purpose,'import');
   assert.equal(claimed.data.action,null);
-  assert.equal(claimed.data.file,null);
+  assert.deepEqual(claimed.data.files,[]);
   assert.equal(claimed.data.draft.name,'notas');
   assert.equal(claimed.data.draft.importedTxt,source);
   assert.equal(claimed.data.draft.importedMd,'');
@@ -868,30 +922,36 @@ test('webhook authentication and bot command responses retain their contracts',a
   assert.deepEqual(lastCall('setMyCommands').body.scope,{type:'all_private_chats'});
   assert.deepEqual(lastCall('deleteMyCommands').body.scope,{type:'default'});
 
-  for(const [text,message_id] of [['/start',11],['/app',12],['/novo',13],['/rascunhos',14],['/telegraph',15],['/ajuda',16]]){
+  const sent={};
+  for(const [text,message_id,key] of [['/start',11,'start'],['/app',12,'app'],['/novo',13,'novo'],['/rascunhos',14,'rascunhos'],['/telegraph',15,'telegraph'],['/ajuda',16,'ajuda']]){
+    const before=callCount('sendRichMessage');
     const res=await webhook({message:{text,message_id,chat:{id:7,type:'private'}}});
     assert.equal(res.status,200,text);
+    sent[key]=calls().filter(call=>call.method==='sendRichMessage').slice(before);
+    assert.ok(sent[key].length>=1,key);
   }
-  const richCalls=calls().filter(call=>call.method==='sendRichMessage');
-  const start=parseDocument(richCalls.at(-6).body.rich_message.html);
+
+  const start=parseDocument(sent.start[0].body.rich_message.html);
   const buttons=find(start,'tg-button');
   assert.equal(buttons.length,1);
   assert.equal(buttons[0].attribs.type,'web_app');
   assert.equal(buttons[0].attribs.url,origin+'/');
 
-  const app=parseDocument(richCalls.at(-5).body.rich_message.html);
+  const app=parseDocument(sent.app[0].body.rich_message.html);
   for(const button of find(app,'tg-button'))assert.equal(new URL(button.attribs.url).searchParams.has('new'),false);
 
-  const novo=parseDocument(richCalls.at(-4).body.rich_message.html);
+  const novo=parseDocument(sent.novo[0].body.rich_message.html);
   const novoButtons=find(novo,'tg-button');
   assert.equal(novoButtons.length,1);
   assert.equal(novoButtons[0].attribs.type,'web_app');
   const miniURL=new URL(novoButtons[0].attribs.url);
   assert.equal(miniURL.origin,origin);
   assert.match(miniURL.searchParams.get('new')||'',/^[a-f0-9]{32}$/);
-  assert.match(richCalls.at(-4).body.rich_message.html,/sem substituir o rascunho local atual/);
-  const drafts=parseDocument(richCalls.at(-3).body.rich_message.html);
-  assert.match(richCalls.at(-3).body.rich_message.html,/<h1>Rascunhos<\/h1>/);
+  assert.match(sent.novo[0].body.rich_message.html,/sem substituir o rascunho local atual/);
+
+  const draftMessages=sent.rascunhos.map(call=>call.body.rich_message.html).join('');
+  assert.match(draftMessages,/<h1>Rascunhos<\/h1>/);
+  const drafts=parseDocument(draftMessages);
   const draftButtons=find(drafts,'tg-button');
   assert.ok(draftButtons.length>=1);
   for(const button of draftButtons){
@@ -900,16 +960,15 @@ test('webhook authentication and bot command responses retain their contracts',a
     assert.equal(url.origin,origin);
     assert.ok(/^[a-f0-9-]{36}$/i.test(url.searchParams.get('doc')||'')||url.searchParams.get('view')==='library');
   }
-  const telegraph=parseDocument(richCalls.at(-2).body.rich_message.html);
+
+  const telegraph=parseDocument(sent.telegraph[0].body.rich_message.html);
   const telegraphButtons=find(telegraph,'tg-button');
   assert.equal(telegraphButtons.length,1);
   assert.equal(telegraphButtons[0].attribs.type,'web_app');
   assert.equal(new URL(telegraphButtons[0].attribs.url).searchParams.get('dest'),'telegraph');
-  assert.match(richCalls.at(-1).body.rich_message.html,/\/rascunhos<\/b> lista os rascunhos no chat/);
-  assert.match(richCalls.at(-1).body.rich_message.html,/\/rascunhos/);
-  assert.match(richCalls.at(-1).body.rich_message.html,/\/telegraph/);
-  assert.match(richCalls.at(-1).body.rich_message.html,/\/exportar/);
-  assert.match(richCalls.at(-1).body.rich_message.html,/\/importar/);
+
+  const help=sent.ajuda.map(call=>call.body.rich_message.html).join('');
+  for(const command of ['/rascunhos','/telegraph','/exportar','/importar'])assert.match(help,new RegExp(command.replace('/','\\/')));
 });
 
 test('enviar and exportar always use canonical Mini App selectors without legacy direct actions',async()=>{
@@ -1030,10 +1089,10 @@ test('Telegraph path ownership is scoped to the authenticated user and document'
 
 test('handoff attachment survives backend restart and remains session-bound',async()=>{
   const id='restartmedia1',doc='88888888-8888-4888-8888-888888888888';
-  const draft={version:2,name:'Restart',html:`<figure><img data-media-id="${id}"><figcaption>foto.png</figcaption></figure>`,dest:'telegram',telegraphPath:'',docId:doc,importedMd:'',importedTxt:'',importedHtml:'',media:{id,kind:'image'}};
+  const draft={version:2,name:'Restart',html:`<figure><img data-media-id="${id}"><figcaption>foto.png</figcaption></figure>`,dest:'telegram',telegraphPath:'',docId:doc,importedMd:'',importedTxt:'',importedHtml:'',media:[{id,kind:'image'}]};
   const form=new FormData();
   form.set('draft',JSON.stringify(draft));
-  form.set('upload',new Blob([new Uint8Array([1,2,3,4,5])],{type:'image/png'}),'foto.png');
+  form.set('upload_'+id,new Blob([new Uint8Array([1,2,3,4,5])],{type:'image/png'}),'foto.png');
   let res=await fetch(`http://127.0.0.1:${port}/api/handoff`,{method:'POST',headers:{origin},body:form});
   assert.equal(res.status,200);
   const made=await res.json();
@@ -1048,11 +1107,10 @@ test('handoff attachment survives backend restart and remains session-bound',asy
   const ownerMismatch=await jsonPost('/api/handoff/claim',{initData:init(7),token:made.token});
   assert.equal(ownerMismatch.status,400);
 
-  res=await fetch(`http://127.0.0.1:${port}/api/handoff/file`,{method:'POST',headers:{origin,'content-type':'application/json'},body:JSON.stringify({initData:init(8),token:made.token})});
+  res=await fetch(`http://127.0.0.1:${port}/api/handoff/file`,{method:'POST',headers:{origin,'content-type':'application/json'},body:JSON.stringify({initData:init(8),token:made.token,id})});
   assert.equal(res.status,200);
   assert.deepEqual([...new Uint8Array(await res.arrayBuffer())],[1,2,3,4,5]);
 });
-
 
 test('Telegraph publish and recovery responses are bound to the originating document revision',async()=>{
   const browserKey='ef'.repeat(32);

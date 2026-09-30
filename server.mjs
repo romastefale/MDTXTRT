@@ -1,5 +1,5 @@
 import { createHash, createHmac, randomUUID, timingSafeEqual } from "node:crypto";
-import { createReadStream, existsSync, statSync, readFileSync, writeFileSync, renameSync, mkdirSync, unlinkSync, readdirSync } from "node:fs";
+import { createReadStream, createWriteStream, existsSync, statSync, readFileSync, writeFileSync, renameSync, mkdirSync, unlinkSync, readdirSync, copyFileSync, rmSync, openAsBlob } from "node:fs";
 import { DomUtils, parseDocument } from "htmlparser2";
 import { marked } from "marked";
 import Busboy from "busboy";
@@ -53,6 +53,7 @@ const TELEGRAPH_FILE = DATA + "/telegraph-token";
 const PAGES_FILE = TELEGRAPH_FILE + "-pages.json";
 const HANDOFF_DIR = DATA + "/handoffs";
 const DRAFT_DIR = DATA + "/drafts";
+const TMP_DIR = DATA + "/tmp";
 const HANDOFF_TTL = 15 * 60 * 1000;
 const BOT_IMPORT_DOWNLOAD_MAX = 20_000_000;
 const BOT_IMPORT_SOURCE_MAX = 240_000;
@@ -65,6 +66,7 @@ let telegraphQueue = Promise.resolve();
 let botLink;
 mkdirSync(HANDOFF_DIR, { recursive: true });
 mkdirSync(DRAFT_DIR, { recursive: true });
+mkdirSync(TMP_DIR, { recursive: true });
 if(existsSync(TELEGRAPH_FILE)){
   telegraphToken=readFileSync(TELEGRAPH_FILE,"utf8").trim();
   if(!telegraphToken)throw new Error("Credencial Telegraph persistida está vazia");
@@ -222,19 +224,75 @@ async function readJson(req, maxBytes = 80_000) {
 async function readMedia(req) {
   if (!/^multipart\/form-data;\s*boundary=/i.test(req.headers["content-type"] || "")) throw new Error("Formato de mídia inválido");
   return new Promise((resolve, reject) => {
-    const fields = {}, files = [];
-    const bus = Busboy({headers:req.headers,limits:{files:1,fileSize:20_000_000,fields:6,fieldSize:400000}});
+    const fields = {}, files = [], pending = [];
+    let failed=false;
+    const fail=error=>{
+      if(failed)return;
+      failed=true;
+      for(const file of files)try{if(file.path&&existsSync(file.path))unlinkSync(file.path);}catch{}
+      reject(error);
+    };
+    const bus = Busboy({headers:req.headers,limits:{files:50,fileSize:50_000_000,fields:8,fieldSize:400000}});
     bus.on("field",(key,value)=>{fields[key]=value;});
     bus.on("file",(key,stream,info)=>{
-      if (key !== "upload") {stream.resume();reject(new Error("Mídia inválida"));return;}
-      const chunks=[];
-      stream.on("data",chunk=>chunks.push(chunk));
-      stream.on("limit",()=>reject(new Error("Mídia grande demais")));
-      stream.on("end",()=>files.push({bytes:Buffer.concat(chunks),mime:info.mimeType,name:info.filename.slice(0,100)}));
+      if (!/^upload_[A-Za-z0-9_-]{1,64}$/.test(key)) {stream.resume();fail(new Error("Campo de mídia inválido"));return;}
+      const path=TMP_DIR+"/"+randomUUID()+".upload";
+      const file={field:key,id:key.slice(7),path,mime:info.mimeType,name:info.filename.slice(0,120),size:0};
+      files.push(file);
+      const task=new Promise((done,stop)=>{
+        const out=createWriteStream(path,{mode:0o600});
+        stream.on("data",chunk=>{file.size+=chunk.length;});
+        stream.on("limit",()=>{out.destroy();stop(new Error("Arquivo acima do limite de 50 MB para upload multipart do Telegram"));});
+        stream.on("error",error=>{out.destroy();stop(error);});
+        out.on("error",stop);
+        out.on("finish",done);
+        stream.pipe(out);
+      });
+      pending.push(task);
     });
-    bus.on("error",reject);
-    bus.on("close",()=>resolve({fields,file:files[0]}));
+    bus.on("filesLimit",()=>fail(new Error("O Telegram aceita no máximo 50 mídias por Rich Message")));
+    bus.on("error",fail);
+    bus.on("close",async()=>{
+      if(failed)return;
+      try{
+        await Promise.all(pending);
+        if(files.some(file=>file.size<1))throw new Error("Arquivo vazio");
+        resolve({fields,files});
+      }catch(error){
+        for(const file of files)try{if(file.path&&existsSync(file.path))unlinkSync(file.path);}catch{}
+        reject(error);
+      }
+    });
     req.pipe(bus);
+  });
+}
+function cleanupIncomingMedia(media){
+  for(const file of media?.files||[])try{if(file.path&&existsSync(file.path))unlinkSync(file.path);}catch(error){console.error("Temporary upload cleanup",error);}
+}
+function validateTelegramUpload(file,kind){
+  if(!file||!/^[A-Za-z0-9_-]{1,64}$/.test(String(file.id||""))||!["image","video","audio","voice","document"].includes(kind))throw new Error("Mídia inválida");
+  const mimeContract={
+    image:/^image\//,
+    video:/^video\//,
+    audio:/^audio\//,
+    voice:/^audio\//,
+    document:/^(?:image|video|audio|application|text)\//
+  }[kind];
+  if(!mimeContract?.test(file.mime||""))throw new Error("Tipo de mídia inválido");
+  const max=kind==="image"?10_000_000:50_000_000;
+  if(!Number.isInteger(file.size)||file.size<1||file.size>max)throw new Error(kind==="image"?"Fotos enviadas por multipart podem ter até 10 MB":"Arquivos enviados por multipart podem ter até 50 MB");
+  return file;
+}
+function bindDraftFiles(files,draft){
+  if(!Array.isArray(files)||!Array.isArray(draft?.media))throw new Error("Mídias inválidas");
+  const metadata=new Map(draft.media.map(item=>[item.id,item]));
+  if(metadata.size!==draft.media.length)throw new Error("Metadados de mídia duplicados");
+  return files.map(file=>{
+    const item=metadata.get(file.id);
+    if(!item)throw new Error("Mídia não referenciada pelo rascunho");
+    const bound={...file,kind:item.kind};
+    validateTelegramUpload(bound,item.kind);
+    return bound;
   });
 }
 
@@ -273,10 +331,6 @@ function normalizedPortableHTML(html,label="Markdown"){
     if(!PORTABLE_TAGS.has(tag))throw new Error("Elemento "+label+" não suportado: "+tag);
     delete node.attribs.contenteditable;
     delete node.attribs.draggable;
-    if(Object.hasOwn(node.attribs,"class")){
-      const kept=String(node.attribs.class||"").split(/\s+/).filter(Boolean).filter(name=>name!=="ProseMirror-selectednode");
-      if(kept.length)node.attribs.class=kept.join(" ");else delete node.attribs.class;
-    }
     for(const [key,value] of Object.entries({...node.attribs})){
       if(key==="controls"&&["video","audio"].includes(tag)){delete node.attribs[key];continue;}
       if(key==="disabled"&&tag==="input"&&node.attribs.type==="checkbox"){delete node.attribs[key];continue;}
@@ -307,7 +361,7 @@ function importedDraft(fileName,text){
     importedMd:file.extension===".md"?text:"",
     importedTxt:file.extension===".txt"?text:"",
     importedHtml:html,
-    media:null
+    media:[]
   };
   draftValid(draft);
   return draft;
@@ -359,36 +413,20 @@ async function importTelegramDocument(document,chatId){
   if(expected!==undefined&&bytes.length!==expected)throw new Error("Download incompleto: o tamanho recebido não corresponde ao documento");
   const text=strictUTF8(bytes);
   const draft=importedDraft(file.fileName,text);
-  const token=saveHandoff(draft,null,null,"import",String(chatId));
+  const token=saveHandoff(draft,[],null,"import",String(chatId));
   return {draft,token};
 }
 
 function normalizeDraftRuntimeHTML(html){
   const doc=parseDocument(String(html||""));
   const walk=node=>{
-    if(node.type!=="tag"){
-      node.children?.slice().forEach(walk);
-      return;
-    }
-    const classes=String(node.attribs?.class||"").split(/\s+/).filter(Boolean);
-    const transientNode=classes.some(name=>["ProseMirror-trailingBreak","ProseMirror-separator","ProseMirror-gapcursor"].includes(name));
-    if(transientNode){
-      DomUtils.removeElement(node);
-      return;
-    }
+    if(node.type!=="tag"){node.children?.slice().forEach(walk);return;}
     for(const key of ["contenteditable","draggable","spellcheck","tabindex","aria-selected"])delete node.attribs[key];
-    for(const key of Object.keys(node.attribs||{}))if(key.startsWith("data-pm-"))delete node.attribs[key];
-    if(classes.length){
-      const kept=classes.filter(name=>!name.startsWith("ProseMirror-"));
-      if(kept.length)node.attribs.class=kept.join(" ");
-      else delete node.attribs.class;
-    }
     node.children?.slice().forEach(walk);
   };
   doc.children.slice().forEach(walk);
   return DomUtils.getInnerHTML(doc,{encodeEntities:"utf8"});
 }
-
 function draftValid(draft) {
   if (!draft || typeof draft !== "object" || Array.isArray(draft)) throw new Error("Rascunho inválido");
   if(draft.version!==2)throw new Error("Versão do rascunho incompatível");
@@ -396,8 +434,7 @@ function draftValid(draft) {
   if (Buffer.byteLength(json, "utf8") > 350_000) throw new Error("Rascunho grande demais");
   if (typeof draft.html !== "string" || Buffer.byteLength(draft.html, "utf8") > 160_000) throw new Error("Conteúdo do rascunho inválido");
   draft.html=normalizeDraftRuntimeHTML(draft.html);
-  if (Buffer.byteLength(draft.html, "utf8") > 160_000) throw new Error("Conteúdo do rascunho inválido");
-  if (typeof draft.name !== "string" || draft.name.length > 120) throw new Error("Nome do rascunho inválido");
+  if (typeof draft.name !== "string" || draft.name.length > 256) throw new Error("Nome do rascunho inválido");
   if (!["telegram", "telegraph"].includes(draft.dest)) throw new Error("Destino do rascunho inválido");
   if (draft.action !== undefined && draft.action !== "publish") throw new Error("Ação do rascunho inválida");
   if (draft.revision !== undefined && (!Number.isSafeInteger(draft.revision) || draft.revision < 0)) throw new Error("Revisão do rascunho inválida");
@@ -405,6 +442,12 @@ function draftValid(draft) {
   if (typeof draft.telegraphPath !== "string" || draft.telegraphPath.length > 256) throw new Error("Página do rascunho inválida");
   if (typeof draft.importedMd !== "string" || typeof draft.importedTxt !== "string" || typeof draft.importedHtml !== "string") throw new Error("Origem importada do rascunho inválida");
   if (Buffer.byteLength(draft.importedMd,"utf8")+Buffer.byteLength(draft.importedTxt,"utf8")+Buffer.byteLength(draft.importedHtml,"utf8") > 240_000) throw new Error("Origem importada do rascunho grande demais");
+  if(!Array.isArray(draft.media)||draft.media.length>50)throw new Error("Metadados de mídia do rascunho inválidos");
+  const mediaIds=new Set();
+  for(const media of draft.media){
+    if(!media||typeof media!=="object"||Array.isArray(media)||!/^[A-Za-z0-9_-]{1,64}$/.test(String(media.id||""))||!["image","video","audio","voice","document"].includes(media.kind)||mediaIds.has(media.id))throw new Error("Metadados de mídia do rascunho inválidos");
+    mediaIds.add(media.id);
+  }
   const tags = new Set("a b strong i em u ins s strike del code mark sub sup tg-spoiler tg-reference tg-emoji tg-time tg-math h1 h2 h3 h4 h5 h6 p pre footer hr ul ol li input blockquote aside cite img video audio tg-document figure figcaption iframe tg-map tg-collage tg-slideshow table caption thead tbody tfoot tr th td details summary tg-math-block tg-button tg-button-row br div".split(" "));
   const attrs = new Set("href name class style src alt tg-spoiler start type reversed value checked disabled controls expandable unix format emoji-id lat long zoom width height bordered striped compact colspan rowspan align valign open url data query text forward-text request-write-access allow-user-chats allow-bot-chats allow-group-chats allow-channel-chats data-media-id data-media-missing".split(" "));
   const doc = parseDocument(draft.html);
@@ -430,22 +473,18 @@ function draftValid(draft) {
     node.children?.forEach(walk);
   };
   doc.children.forEach(walk);
-  if(localMedia.length>1)throw new Error("O rascunho contém mais de um anexo local");
-  if(draft.media!==null&&draft.media!==undefined){
-    if(!draft.media||typeof draft.media!=="object"||Array.isArray(draft.media)||!/^[A-Za-z0-9_-]{1,64}$/.test(String(draft.media.id||""))||!["image","video","audio","voice","document"].includes(draft.media.kind))throw new Error("Metadados de mídia do rascunho inválidos");
-  }
-  if(localMedia.length===1){
-    if(!draft.media||draft.media.id!==localMedia[0])throw new Error("Metadados de mídia do rascunho não correspondem ao anexo");
-  }else if(draft.media!==null&&draft.media!==undefined){
-    throw new Error("Metadados de mídia sem anexo local");
-  }
+  if(localMedia.length>50||new Set(localMedia).size!==localMedia.length)throw new Error("Mídia local inválida");
+  if(localMedia.length!==mediaIds.size||localMedia.some(id=>!mediaIds.has(id)))throw new Error("Metadados de mídia não correspondem ao documento");
   return draft;
 }
 
-
 function persistentDraftPaths(owner,doc){
   const ownerDir=DRAFT_DIR+"/"+ownerFingerprint(owner);
-  return {dir:ownerDir,active:ownerDir+"/active",meta:ownerDir+"/"+doc+".json",file:ownerDir+"/"+doc+".bin"};
+  return {dir:ownerDir,active:ownerDir+"/active",meta:ownerDir+"/"+doc+".json",mediaDir:ownerDir+"/"+doc+".media",single:ownerDir+"/"+doc+".bin"};
+}
+function persistentMediaPath(paths,id){
+  if(!/^[A-Za-z0-9_-]{1,64}$/.test(id))throw new Error("Identificador de mídia inválido");
+  return paths.mediaDir+"/"+id+".bin";
 }
 function atomicWrite(path,data){
   const tmp=path+".tmp-"+SERVER_BOOT_ID;
@@ -472,7 +511,7 @@ function telegramPublicationValid(value){
   if(typeof value.error!=="string")throw new Error("Erro da publicação inválido");
   if(value.snapshot!==undefined&&value.snapshot!==null){
     const snapshot=value.snapshot;
-    if(!snapshot||typeof snapshot!=="object"||Array.isArray(snapshot)||!Number.isSafeInteger(snapshot.revision)||snapshot.revision<0||typeof snapshot.name!=="string"||snapshot.name.length>120||typeof snapshot.html!=="string"||Buffer.byteLength(snapshot.html,"utf8")>160_000)throw new Error("Snapshot da publicação Telegram inválido");
+    if(!snapshot||typeof snapshot!=="object"||Array.isArray(snapshot)||!Number.isSafeInteger(snapshot.revision)||snapshot.revision<0||typeof snapshot.name!=="string"||snapshot.name.length>256||typeof snapshot.html!=="string"||Buffer.byteLength(snapshot.html,"utf8")>160_000)throw new Error("Snapshot da publicação Telegram inválido");
   }
   if(value.history!==undefined){
     if(!Array.isArray(value.history)||value.history.length>100)throw new Error("Histórico Telegram inválido");
@@ -486,6 +525,26 @@ function telegramPublicationValid(value){
     if(pending.phase==="content"&&pending.noticeMessageId<=0)throw new Error("Aviso da atualização Telegram inválido");
   }
 }
+function mediaMetaValid(media){
+  if(!media||typeof media!=="object"||Array.isArray(media)||!/^[A-Za-z0-9_-]{1,64}$/.test(String(media.id||""))||!["image","video","audio","voice","document"].includes(media.kind)||typeof media.name!=="string"||!media.name||typeof media.mime!=="string"||!media.mime||!Number.isInteger(media.size)||media.size<1)throw new Error("Anexo persistido inválido");
+  const max=media.kind==="image"?10_000_000:50_000_000;
+  if(media.size>max)throw new Error("Anexo persistido excede o limite do Telegram");
+}
+function normalizeStoredRecord(record,paths){
+  let changed=false;
+  if(record?.draft&&record.draft.media===null){record.draft.media=[];changed=true;}
+  if(record?.draft?.media&&!Array.isArray(record.draft.media)){record.draft.media=[record.draft.media];changed=true;}
+  if(record?.media===null||record?.media===undefined){record.media=[];changed=true;}
+  if(record?.media&&!Array.isArray(record.media)){
+    record.media=[record.media];changed=true;
+    if(record.media[0]?.id&&existsSync(paths.single)){
+      mkdirSync(paths.mediaDir,{recursive:true});
+      const target=persistentMediaPath(paths,record.media[0].id);
+      if(!existsSync(target))renameSync(paths.single,target);else unlinkSync(paths.single);
+    }
+  }
+  return changed;
+}
 function persistentRecordValid(record,owner,doc){
   if(!record||typeof record!=="object"||Array.isArray(record)||record.schema!==1)throw new Error("Rascunho persistido inválido");
   if(record.ownerFingerprint!==ownerFingerprint(owner))throw new HttpError(403,"Este rascunho pertence a outra identidade");
@@ -497,10 +556,10 @@ function persistentRecordValid(record,owner,doc){
   if(doc&&record.draft.docId!==doc)throw new Error("Documento persistido incompatível");
   if(!record.publication||typeof record.publication!=="object"||Array.isArray(record.publication))throw new Error("Proveniência persistida inválida");
   telegramPublicationValid(record.publication.telegram);
-  if(record.media!==null){
-    const media=record.media;
-    if(!media||typeof media!=="object"||Array.isArray(media)||!/^[A-Za-z0-9_-]{1,64}$/.test(String(media.id||""))||!["image","video","audio","voice","document"].includes(media.kind)||typeof media.name!=="string"||!media.name||typeof media.mime!=="string"||!media.mime||!Number.isInteger(media.size)||media.size<1||media.size>20_000_000)throw new Error("Anexo persistido inválido");
-  }
+  if(!Array.isArray(record.media)||record.media.length>50)throw new Error("Anexos persistidos inválidos");
+  const ids=new Set();
+  for(const media of record.media){mediaMetaValid(media);if(ids.has(media.id))throw new Error("Anexos persistidos inválidos");ids.add(media.id);}
+  if(record.draft.media.length!==ids.size||record.draft.media.some(item=>!ids.has(item.id)))throw new Error("Anexos persistidos não correspondem ao rascunho");
   return record;
 }
 function readPersistentDraft(owner,doc=""){
@@ -517,8 +576,13 @@ function readPersistentDraft(owner,doc=""){
   let record;
   try{record=JSON.parse(readFileSync(paths.meta,"utf8"));}
   catch{throw new Error("Não foi possível recuperar o rascunho persistido");}
+  const changed=normalizeStoredRecord(record,paths);
   persistentRecordValid(record,owner,target);
-  if(record.media!==null&&(!existsSync(paths.file)||statSync(paths.file).size!==record.media.size))throw new Error("Anexo persistido indisponível");
+  for(const media of record.media){
+    const path=persistentMediaPath(paths,media.id);
+    if(!existsSync(path)||statSync(path).size!==media.size)throw new Error("Anexo persistido indisponível");
+  }
+  if(changed)atomicWrite(paths.meta,JSON.stringify(record));
   return record;
 }
 function writePersistentRecord(owner,record){
@@ -566,7 +630,7 @@ function listPersistentDrafts(owner){
       preview:draftPreview(record.draft),
       createdAt:recordCreatedAt(record),
       updatedAt:record.updatedAt,
-      hasMedia:Boolean(record.media)
+      hasMedia:record.media.length>0
     });
   }
   return items.sort((a,b)=>b.updatedAt-a.updatedAt||a.name.localeCompare(b.name));
@@ -625,28 +689,38 @@ function listTelegraphPages(owner,drafts=[]){
   return items.sort((a,b)=>b.updatedAt-a.updatedAt||a.name.localeCompare(b.name));
 }
 
-function savePersistentDraft(owner,draft,file=null){
+function savePersistentDraft(owner,draft,files=[]){
   draftValid(draft);
   if(!/^[a-f0-9-]{36}$/i.test(String(draft.docId||"")))throw new HttpError(400,"Documento inválido");
+  if(!Array.isArray(files)||files.length>50)throw new HttpError(400,"Mídias inválidas");
   const paths=persistentDraftPaths(owner,draft.docId);
-  let existing=readPersistentDraft(owner,draft.docId);
+  const existing=readPersistentDraft(owner,draft.docId);
   if(existing&&draft.revision<existing.draft.revision)throw new HttpError(409,"Uma revisão mais recente deste rascunho já está persistida");
-  let media=null;
-  if(draft.media){
+  const incoming=new Map(files.map(file=>[file.id,file]));
+  if(incoming.size!==files.length)throw new HttpError(400,"Mídias duplicadas");
+  const media=[];
+  if(draft.media.length)mkdirSync(paths.mediaDir,{recursive:true});
+  for(const item of draft.media){
+    const file=incoming.get(item.id);
     if(file){
-      if(file.id!==draft.media.id||file.kind!==draft.media.kind)throw new HttpError(400,"O anexo não corresponde ao rascunho");
-      if(!file.bytes?.length||file.bytes.length>20_000_000)throw new HttpError(400,"Mídia grande demais");
-      if(typeof file.mime!=="string"||!file.mime.trim())throw new HttpError(400,"Tipo de mídia inválido");
-      mkdirSync(paths.dir,{recursive:true});
-      atomicWrite(paths.file,file.bytes);
-      media={id:draft.media.id,kind:draft.media.kind,name:cleanFileName(file.name),mime:file.mime,size:file.bytes.length};
-    }else if(existing?.media?.id===draft.media.id&&existsSync(paths.file)&&statSync(paths.file).size===existing.media.size){
-      media=existing.media;
-    }else{
-      throw new HttpError(409,"O anexo do rascunho precisa ser persistido junto com o documento");
+      file.kind=item.kind;
+      validateTelegramUpload(file,item.kind);
+      const target=persistentMediaPath(paths,item.id);
+      copyFileSync(file.path,target);
+      media.push({id:item.id,kind:item.kind,name:cleanFileName(file.name),mime:file.mime,size:file.size});
+      incoming.delete(item.id);
+      continue;
     }
-  }else{
-    try{if(existsSync(paths.file))unlinkSync(paths.file);}catch(error){console.error("Persistent media cleanup",error);}
+    const prior=existing?.media?.find(value=>value.id===item.id&&value.kind===item.kind);
+    const path=persistentMediaPath(paths,item.id);
+    if(!prior||!existsSync(path)||statSync(path).size!==prior.size)throw new HttpError(409,"Um anexo do rascunho precisa ser persistido junto com o documento");
+    media.push(prior);
+  }
+  if(incoming.size)throw new HttpError(400,"Mídia não referenciada pelo rascunho");
+  if(existsSync(paths.mediaDir)){
+    const keep=new Set(media.map(item=>item.id+".bin"));
+    for(const name of readdirSync(paths.mediaDir))if(!keep.has(name))rmSync(paths.mediaDir+"/"+name,{force:true});
+    if(!keep.size)rmSync(paths.mediaDir,{recursive:true,force:true});
   }
   const now=Date.now();
   const record={
@@ -664,113 +738,84 @@ function savePersistentDraft(owner,draft,file=null){
 }
 
 function handoffFiles(token) {
-  return { meta: HANDOFF_DIR + "/" + token + ".json", file: HANDOFF_DIR + "/" + token + ".bin" };
+  return {meta:HANDOFF_DIR+"/"+token+".json",mediaDir:HANDOFF_DIR+"/"+token+".media"};
 }
-
+function handoffMediaPath(paths,id){
+  if(!/^[A-Za-z0-9_-]{1,64}$/.test(id))throw new Error("Identificador de mídia inválido");
+  return paths.mediaDir+"/"+id+".bin";
+}
 function writeHandoff(token,state){
   const paths=handoffFiles(token);
-  writeFileSync(paths.meta + ".tmp", JSON.stringify(state), { mode: 0o600 });
-  renameSync(paths.meta + ".tmp", paths.meta);
+  writeFileSync(paths.meta+".tmp",JSON.stringify(state),{mode:0o600});
+  renameSync(paths.meta+".tmp",paths.meta);
 }
-
 function dropHandoff(token){
   const paths=handoffFiles(token);
-  for(const path of [paths.meta,paths.file,paths.meta+".tmp"]){
+  for(const path of [paths.meta,paths.meta+".tmp"]){
     try{if(existsSync(path))unlinkSync(path);}catch(error){console.error("Handoff cleanup",path,error);}
   }
+  try{if(existsSync(paths.mediaDir))rmSync(paths.mediaDir,{recursive:true,force:true});}catch(error){console.error("Handoff media cleanup",error);}
 }
-
-function handoffPublishRequestValid(request,draft,file){
+function handoffPublishRequestValid(request,draft,files){
   if(!request||typeof request!=="object"||Array.isArray(request)||request.type!=="publish")throw new Error("Ação da transferência inválida");
   if(typeof request.html!=="string"||!request.html.trim()||Buffer.byteLength(request.html,"utf8")>180_000)throw new Error("Conteúdo da publicação transferida inválido");
-  try{richValid(request.html);}catch(error){throw new Error(error instanceof Error?error.message:"Conteúdo da publicação transferida inválido");}
-  const kind=typeof request.kind==="string"?request.kind:"";
-  const id=typeof request.id==="string"?request.id:"";
-  if(file){
-    if(!draft.media||draft.media.id!==file.id||draft.media.kind!==file.kind)throw new Error("Anexo da transferência não corresponde ao rascunho");
-    if(kind!==file.kind||id!==file.id)throw new Error("Ação da transferência não corresponde ao anexo");
-  }else if(kind||id){
-    throw new Error("Ação da transferência referencia anexo ausente");
-  }
-  return {type:"publish",html:request.html,kind,id};
+  richValid(request.html);
+  if(!Array.isArray(files)||files.length!==draft.media.length)throw new Error("Anexos da transferência não correspondem ao rascunho");
+  const ids=new Set(files.map(file=>file.id));
+  if(ids.size!==files.length||draft.media.some(item=>!ids.has(item.id)))throw new Error("Anexos da transferência não correspondem ao rascunho");
+  return {type:"publish",html:request.html};
 }
-
-function handoffActionValid(action,draft,file){
+function handoffActionValid(action,draft,files){
   if(action===null)return;
   if(!action||typeof action!=="object"||Array.isArray(action)||action.type!=="publish")throw new Error("Estado de publicação da transferência inválido");
-  if(!["pending","sending","succeeded","failed","uncertain"].includes(action.status))throw new Error("Estado de publicação da transferência inválido");
-  if(!Number.isInteger(action.attempts)||action.attempts<0)throw new Error("Estado de publicação da transferência inválido");
-  for(const key of ["startedAt","finishedAt"]){
-    if(!Number.isFinite(action[key])||action[key]<0)throw new Error("Estado de publicação da transferência inválido");
-  }
-  if(typeof action.serverBootId!=="string"||typeof action.error!=="string")throw new Error("Estado de publicação da transferência inválido");
-  if(action.request!==null)handoffPublishRequestValid(action.request,draft,file);
-  if(action.status!=="uncertain"&&action.request===null)throw new Error("Estado de publicação da transferência inválido");
+  if(!["pending","sending","succeeded","failed","uncertain"].includes(action.status))throw new Error("Estado da publicação transferida inválido");
+  if(!Number.isInteger(action.attempts)||action.attempts<0)throw new Error("Estado da publicação transferida inválido");
+  for(const key of ["startedAt","finishedAt"])if(!Number.isFinite(action[key])||action[key]<0)throw new Error("Estado da publicação transferida inválido");
+  if(typeof action.serverBootId!=="string"||typeof action.error!=="string")throw new Error("Estado da publicação transferida inválido");
+  if(action.request!==null)handoffPublishRequestValid(action.request,draft,files);
+  if(action.status!=="uncertain"&&action.request===null)throw new Error("Estado da publicação transferida inválido");
   if(action.status==="succeeded"){
     if(!action.result||action.result.via!=="sendRichMessage"||!Number.isInteger(action.result.messageId)||action.result.messageId<=0)throw new Error("Resultado da publicação transferida inválido");
-  }else if(action.result!==null){
-    throw new Error("Estado de publicação da transferência inválido");
-  }
+  }else if(action.result!==null)throw new Error("Estado da publicação transferida inválido");
 }
-
 function handoffActionView(action,draft){
   if(!action)return null;
   return {
-    type:"publish",
-    status:action.status,
-    attempts:action.attempts,
-    result:action.result,
-    error:action.error,
-    startedAt:action.startedAt,
-    finishedAt:action.finishedAt,
-    doc:draft.docId,
+    type:"publish",status:action.status,attempts:action.attempts,result:action.result,error:action.error,
+    startedAt:action.startedAt,finishedAt:action.finishedAt,doc:draft.docId,
     revision:Number.isSafeInteger(draft.revision)&&draft.revision>=0?draft.revision:0
   };
 }
-
 function readHandoff(token) {
   if (!/^[a-f0-9]{32}$/.test(token)) return null;
-  const paths = handoffFiles(token);
-  if (!existsSync(paths.meta)) return null;
+  const paths=handoffFiles(token);
+  if(!existsSync(paths.meta))return null;
   try{
     const meta=JSON.parse(readFileSync(paths.meta,"utf8"));
-    if(!meta||typeof meta!=="object"||!Number.isFinite(meta.expires)||!meta.draft)throw new Error("Transferência persistida inválida");
+    if(!meta||typeof meta!=="object"||!Number.isFinite(meta.expires)||!meta.draft||!Array.isArray(meta.files))throw new Error("Transferência persistida inválida");
     if(meta.expires<Date.now()){dropHandoff(token);return null;}
     draftValid(meta.draft);
     if(meta.claimedBy!==undefined&&typeof meta.claimedBy!=="string")throw new Error("Transferência persistida inválida");
-    if(meta.file!==null&&meta.file!==undefined){
-      const file=meta.file;
-      if(!file||typeof file!=="object"||!/^[A-Za-z0-9_-]{1,64}$/.test(String(file.id||""))||!["image","video","audio","voice","document"].includes(file.kind)||typeof file.name!=="string"||!file.name||typeof file.mime!=="string"||!file.mime||!Number.isInteger(file.size)||file.size<1||file.size>20_000_000)throw new Error("Transferência persistida inválida");
-      if(!existsSync(paths.file)||statSync(paths.file).size!==file.size)throw new Error("Arquivo da transferência inválido");
+    if(meta.files.length!==meta.draft.media.length||meta.files.length>50)throw new Error("Transferência persistida inválida");
+    const ids=new Set();
+    for(const file of meta.files){
+      mediaMetaValid(file);
+      if(ids.has(file.id))throw new Error("Transferência persistida inválida");
+      ids.add(file.id);
+      const path=handoffMediaPath(paths,file.id);
+      if(!existsSync(path)||statSync(path).size!==file.size)throw new Error("Arquivo da transferência inválido");
     }
-    let changed=false;
-    if(meta.purpose===undefined){meta.purpose="transfer";changed=true;}
+    if(meta.draft.media.some(item=>!ids.has(item.id)))throw new Error("Transferência persistida inválida");
     if(!["transfer","import"].includes(meta.purpose))throw new Error("Finalidade da transferência persistida inválida");
-    if(meta.action===undefined){
-      const legacyPublish=meta.draft.action==="publish";
-      if(Object.hasOwn(meta.draft,"action")){meta.draft={...meta.draft};delete meta.draft.action;changed=true;}
-      meta.action=legacyPublish?{
-        type:"publish",status:"uncertain",attempts:0,request:null,result:null,
-        error:"Esta transferência foi criada antes do controle idempotente. Confira o chat antes de iniciar outra publicação.",
-        startedAt:0,finishedAt:Date.now(),serverBootId:""
-      }:null;
-      changed=true;
-    }
-    handoffActionValid(meta.action,meta.draft,meta.file||null);
-    if(meta.purpose==="import"&&(meta.file||meta.action))throw new Error("Importação persistida contém estado incompatível");
+    handoffActionValid(meta.action??null,meta.draft,meta.files);
+    if(meta.purpose==="import"&&(meta.files.length||meta.action))throw new Error("Importação persistida contém estado incompatível");
     if(meta.action?.status==="sending"&&(meta.action.serverBootId!==SERVER_BOOT_ID||!ACTIVE_HANDOFF_SENDS.has(token))){
       meta.action.status="uncertain";
-      meta.action.error=meta.action.serverBootId!==SERVER_BOOT_ID
-        ?"O backend foi reiniciado durante o envio. O resultado pode ter sido aceito pelo Telegram."
-        :"O envio foi interrompido antes de registrar um resultado confirmado. Confira o chat antes de iniciar outra publicação.";
+      meta.action.error="O envio foi interrompido antes de registrar um resultado confirmado. Confira o chat antes de iniciar outra publicação.";
       meta.action.finishedAt=Date.now();
       meta.action.serverBootId="";
       meta.expires=Date.now()+HANDOFF_TTL;
-      changed=true;
-    }
-    if(changed){
-      try{writeHandoff(token,meta);}
-      catch(error){console.error("Handoff state repair",token,error);}
+      writeHandoff(token,meta);
     }
     return meta;
   }catch(error){
@@ -779,68 +824,42 @@ function readHandoff(token) {
     return null;
   }
 }
-
 function sweepHandoffs(){
   for(const name of readdirSync(HANDOFF_DIR)){
     const match=/^([a-f0-9]{32})\.json$/.exec(name);
     if(!match)continue;
-    try{readHandoff(match[1]);}
-    catch(error){
-      console.error("Discarding invalid handoff",match[1],error);
-      dropHandoff(match[1]);
-    }
+    readHandoff(match[1]);
   }
 }
-
-function saveHandoff(draft, file, actionRequest=null, purpose="transfer", claimedBy="") {
+function saveHandoff(draft,files=[],actionRequest=null,purpose="transfer",claimedBy=""){
   sweepHandoffs();
   if(!["transfer","import"].includes(purpose))throw new Error("Finalidade da transferência inválida");
   if(typeof claimedBy!=="string")throw new Error("Vínculo da transferência inválido");
-  if(purpose==="import"&&(file||actionRequest||draft?.action==="publish"))throw new Error("Importação não pode conter publicação ou anexo local");
+  if(!Array.isArray(files)||files.length>50)throw new Error("Anexos da transferência inválidos");
+  if(purpose==="import"&&(files.length||actionRequest||draft?.action==="publish"))throw new Error("Importação não pode conter publicação ou anexo local");
   draftValid(draft);
-  const local = draft.html.match(/data-media-id="([A-Za-z0-9_-]{1,64})"/);
-  if (local && !file) throw new Error("O anexo local precisa acompanhar o rascunho");
-  if(file){
-    if(!local||!draft.media||draft.media.id!==local[1]||!["image","video","audio","voice","document"].includes(draft.media.kind))throw new Error("Anexo do rascunho inválido");
-    if(!file.bytes?.length||file.bytes.length>20_000_000)throw new Error("Mídia grande demais");
-    if(typeof file.mime!=="string"||!file.mime.trim())throw new Error("Tipo de mídia inválido");
-    cleanFileName(file.name);
+  const byId=new Map(files.map(file=>[file.id,file]));
+  if(byId.size!==files.length||files.length!==draft.media.length||draft.media.some(item=>!byId.has(item.id)))throw new Error("Anexos do rascunho inválidos");
+  const storedFiles=[];
+  for(const item of draft.media){
+    const file=byId.get(item.id);file.kind=item.kind;validateTelegramUpload(file,item.kind);
+    storedFiles.push({id:item.id,kind:item.kind,name:cleanFileName(file.name),mime:file.mime,size:file.size});
   }
-  const storedDraft={...draft};
-  const legacyPublish=storedDraft.action==="publish";
-  delete storedDraft.action;
-  draftValid(storedDraft);
-  let action=null;
-  if(actionRequest){
-    const request=handoffPublishRequestValid(actionRequest,storedDraft,file?{id:storedDraft.media.id,kind:storedDraft.media.kind}:null);
-    action={type:"publish",status:"pending",attempts:0,request,result:null,error:"",startedAt:0,finishedAt:0,serverBootId:""};
-  }else if(legacyPublish){
-    action={
-      type:"publish",status:"uncertain",attempts:0,request:null,result:null,
-      error:"Esta transferência não contém uma ação idempotente. Confira o chat antes de iniciar outra publicação.",
-      startedAt:0,finishedAt:Date.now(),serverBootId:""
-    };
-  }
-  const token = randomUUID().replace(/-/g, "");
-  const paths = handoffFiles(token);
-  const meta = {
-    expires: Date.now() + HANDOFF_TTL,
-    draft:storedDraft,
-    file:file?{id:storedDraft.media.id,kind:storedDraft.media.kind,name:cleanFileName(file.name),mime:file.mime,size:file.bytes.length}:null,
-    claimedBy,
-    purpose,
-    action
-  };
+  const storedDraft={...draft};delete storedDraft.action;draftValid(storedDraft);
+  const action=actionRequest?{
+    type:"publish",status:"pending",attempts:0,
+    request:handoffPublishRequestValid(actionRequest,storedDraft,storedFiles),
+    result:null,error:"",startedAt:0,finishedAt:0,serverBootId:""
+  }:null;
+  const token=randomUUID().replace(/-/g,""),paths=handoffFiles(token);
+  const meta={expires:Date.now()+HANDOFF_TTL,draft:storedDraft,files:storedFiles,claimedBy,purpose,action};
   try{
-    if (file) writeFileSync(paths.file, file.bytes, { mode: 0o600 });
+    if(storedFiles.length)mkdirSync(paths.mediaDir,{recursive:true});
+    for(const file of files)copyFileSync(file.path,handoffMediaPath(paths,file.id));
     writeHandoff(token,meta);
     return token;
-  }catch(error){
-    dropHandoff(token);
-    throw error;
-  }
+  }catch(error){dropHandoff(token);throw error;}
 }
-
 async function publishHandoff(token,state,initData){
   const action=state.action;
   if(!action||action.type!=="publish")throw new HttpError(400,"Esta transferência não possui publicação pendente");
@@ -848,49 +867,25 @@ async function publishHandoff(token,state,initData){
   if(action.status==="sending")return {code:202,reused:true,action:handoffActionView(action,state.draft)};
   if(action.status==="uncertain")return {code:409,reused:true,action:handoffActionView(action,state.draft)};
   if(!action.request)throw new HttpError(409,"A publicação transferida não pode ser repetida com segurança");
-
-  action.status="sending";
-  action.attempts++;
-  action.result=null;
-  action.error="";
-  action.startedAt=Date.now();
-  action.finishedAt=0;
-  action.serverBootId=SERVER_BOOT_ID;
-  state.expires=Date.now()+HANDOFF_TTL;
-  ACTIVE_HANDOFF_SENDS.add(token);
+  action.status="sending";action.attempts++;action.result=null;action.error="";action.startedAt=Date.now();action.finishedAt=0;action.serverBootId=SERVER_BOOT_ID;
+  state.expires=Date.now()+HANDOFF_TTL;ACTIVE_HANDOFF_SENDS.add(token);
   try{
     writeHandoff(token,state);
-
-    let file=null;
-    if(state.file){
-      const path=handoffFiles(token).file;
-      if(!existsSync(path))throw new HttpError(409,"Anexo da transferência indisponível");
-      file={...state.file,bytes:readFileSync(path)};
-    }
+    const paths=handoffFiles(token);
+    const files=state.files.map(file=>({...file,path:handoffMediaPath(paths,file.id)}));
     try{
-      const result=await publishTelegramPersistent(initData,state.draft,action.request.html,file);
-      action.status="succeeded";
-      action.result=result;
-      action.error="";
-      action.finishedAt=Date.now();
-      action.serverBootId="";
-      state.expires=Date.now()+HANDOFF_TTL;
-      writeHandoff(token,state);
+      const result=await publishTelegramPersistent(initData,state.draft,action.request.html,files);
+      action.status="succeeded";action.result=result;action.error="";action.finishedAt=Date.now();action.serverBootId="";
+      state.expires=Date.now()+HANDOFF_TTL;writeHandoff(token,state);
       return {code:200,reused:false,action:handoffActionView(action,state.draft)};
     }catch(error){
-      const knownFailure=error instanceof HttpError || (error instanceof DeliveryError&&error.outcome==="failed");
-      action.status=knownFailure?"failed":"uncertain";
-      action.result=null;
+      const knownFailure=error instanceof HttpError||(error instanceof DeliveryError&&error.outcome==="failed");
+      action.status=knownFailure?"failed":"uncertain";action.result=null;
       action.error=error instanceof Error?error.message:"Não foi possível confirmar a publicação";
-      action.finishedAt=Date.now();
-      action.serverBootId="";
-      state.expires=Date.now()+HANDOFF_TTL;
-      writeHandoff(token,state);
+      action.finishedAt=Date.now();action.serverBootId="";state.expires=Date.now()+HANDOFF_TTL;writeHandoff(token,state);
       return {code:knownFailure?(error instanceof HttpError?error.status:502):409,reused:false,action:handoffActionView(action,state.draft)};
     }
-  }finally{
-    ACTIVE_HANDOFF_SENDS.delete(token);
-  }
+  }finally{ACTIVE_HANDOFF_SENDS.delete(token);}
 }
 
 function richEmojiImage(value){
@@ -899,85 +894,78 @@ function richEmojiImage(value){
   return url.protocol==="tg:"&&url.hostname==="emoji"&&/^\d+$/.test(url.searchParams.get("id")||"")&&[...url.searchParams.keys()].every(key=>key==="id");
 }
 
-async function sendRichToChat(chatId,html,file=null,replyTo=0){
+async function sendRichToChat(chatId,html,files=[],replyTo=0){
   let body;
   try{
     richValid(html);
     chatId=String(chatId||"");
     if(!/^\d+$/.test(chatId))throw new Error("Chat Telegram inválido");
+    if(!Array.isArray(files)||files.length>50)throw new Error("Mídias inválidas");
+    const fileMap=new Map();
+    for(const file of files){
+      if(fileMap.has(file.id))throw new Error("Mídias duplicadas");
+      validateTelegramUpload(file,file.kind);
+      fileMap.set(file.id,file);
+    }
     const replying=Number.isInteger(replyTo)&&replyTo>0;
-    const doc = parseDocument(String(html));
-    const media = [];
-    let attached = false;
-    const kinds = { img:"photo",video:"video",audio:"audio","tg-document":"document" };
-    const visit = node => {
-      if (node.type === "tag" && kinds[node.name]) {
-        const kind = kinds[node.name], src = node.attribs.src;
-        if(node.name==="img"&&richEmojiImage(src)){
-          node.children?.forEach(visit);
-          return;
-        }
-        let id, source;
-        if (/^https?:\/\//i.test(src)) {
-          id = randomUUID().replace(/-/g, "");
-          source = src;
-        } else if (src.startsWith("tg://")) {
-          const url = new URL(src);
-          id = url.searchParams.get("id") || "";
-          const fileKind=kind==="audio"&&file?.kind==="voice"?"voice":({photo:"image",video:"video",audio:"audio",document:"document"})[kind];
-          if(file&&id===file.id&&url.hostname===kind&&file.kind===fileKind){
-            source="attach://upload";
-            attached=true;
-          }else{
-            throw new Error("Anexe a mídia novamente antes de publicar");
-          }
-        } else {
-          throw new Error("Endereço de mídia inválido");
-        }
-        if (!/^[A-Za-z0-9_-]{1,64}$/.test(id)) throw new Error("Identificador de mídia inválido");
-        node.attribs.src = `tg://${kind}?id=${id}`;
-        const mediaType=kind==="audio"&&file?.kind==="voice"&&source==="attach://upload"?"voice_note":kind;
+    const doc=parseDocument(String(html));
+    const media=[],attached=new Set();
+    const kinds={img:"photo",video:"video",audio:"audio","tg-document":"document"};
+    const visit=node=>{
+      if(node.type==="tag"&&kinds[node.name]){
+        const kind=kinds[node.name],src=node.attribs.src||"";
+        if(node.name==="img"&&richEmojiImage(src)){node.children?.forEach(visit);return;}
+        let id,source,mediaType=kind;
+        if(/^https?:\/\//i.test(src)){
+          id=randomUUID().replace(/-/g,"");
+          source=src;
+        }else if(src.startsWith("tg://")){
+          const url=new URL(src);
+          id=url.searchParams.get("id")||"";
+          if(url.hostname!==kind)throw new Error("Tipo de mídia incompatível");
+          const file=fileMap.get(id);
+          if(!file)throw new Error("Anexe a mídia novamente antes de publicar");
+          const expected=kind==="audio"?(file.kind==="voice"?"voice":"audio"):({photo:"image",video:"video",document:"document"})[kind];
+          if(file.kind!==expected)throw new Error("Tipo de mídia incompatível");
+          source="attach://upload_"+id;
+          if(file.kind==="voice")mediaType="voice_note";
+          attached.add(id);
+        }else throw new Error("Endereço de mídia inválido");
+        if(!/^[A-Za-z0-9_-]{1,64}$/.test(id))throw new Error("Identificador de mídia inválido");
+        node.attribs.src="tg://"+kind+"?id="+id;
         media.push({id,media:{type:mediaType,media:source}});
       }
       node.children?.forEach(visit);
     };
     doc.children.forEach(visit);
-    if (file && !attached) throw new Error("A mídia anexada não está no documento");
-    const rich = { html: DomUtils.getInnerHTML(doc,{encodeEntities:"utf8"}) };
-    if (media.length) rich.media = media;
-    body = { chat_id: chatId, ...(replying?{reply_parameters:{message_id:replyTo}}:{}), rich_message: rich };
-    if (file) {
-      const kind={image:"photo",video:"video",audio:"audio",voice:"voice_note",document:"document"}[file.kind];
-      const mimeContract={
-        image:/^image\//,
-        video:/^video\//,
-        audio:/^audio\//,
-        voice:/^audio\//,
-        document:/^(?:image|video|audio|application|text)\//
-      }[file.kind];
-      if (!kind || !mimeContract?.test(file.mime) || !/^[A-Za-z0-9_-]{1,64}$/.test(file.id)) throw new Error("Mídia inválida");
-      if(file.kind==="image"&&file.bytes.length>10_000_000)throw new Error("Fotos devem ter no máximo 10 MB");
-      const form = new FormData();
-      form.set("chat_id", chatId);
+    if(attached.size!==fileMap.size||[...fileMap.keys()].some(id=>!attached.has(id)))throw new Error("Há mídia anexada que não está no documento");
+    const rich={html:DomUtils.getInnerHTML(doc,{encodeEntities:"utf8"})};
+    if(media.length)rich.media=media;
+    if(files.length){
+      const form=new FormData();
+      form.set("chat_id",chatId);
       if(replying)form.set("reply_parameters",JSON.stringify({message_id:replyTo}));
-      form.set("rich_message", JSON.stringify(body.rich_message));
-      form.set("upload", new Blob([file.bytes], {type:file.mime}), file.name);
-      body = form;
-    }
+      form.set("rich_message",JSON.stringify(rich));
+      for(const file of files){
+        const blob=await openAsBlob(file.path,{type:file.mime});
+        form.set("upload_"+file.id,blob,file.name);
+      }
+      body=form;
+    }else body={chat_id:chatId,...(replying?{reply_parameters:{message_id:replyTo}}:{}),rich_message:rich};
   }catch(error){
     throw asHttpError(error,400,"Dados inválidos para publicação");
   }
-  const msg = await telegramCall("sendRichMessage", body);
+  const msg=await telegramCall("sendRichMessage",body);
   const returnedId=Number(msg?.message_id||0);
   if(!Number.isInteger(returnedId)||returnedId<=0)throw new DeliveryError("O Telegram não confirmou o identificador da mensagem","uncertain");
-  return { via:"sendRichMessage", messageId:returnedId, ...(replyTo>0?{replyTo}:{}) };
+  return {via:"sendRichMessage",messageId:returnedId,...(replyTo>0?{replyTo}:{})};
 }
 
-async function sendRich(initData,html,file=null,replyTo=0){
+async function sendRich(initData,html,files=[],replyTo=0){
   let chatId;
   try{({chatId}=userFromInitData(String(initData||"")));}
   catch(error){throw asHttpError(error,400,"Dados inválidos para publicação");}
-  return sendRichToChat(chatId,html,file,replyTo);
+  return sendRichToChat(chatId,html,files,replyTo);
 }
 
 async function sendTelegramRevisionNotice(owner,draft,previousMessageId){
@@ -990,9 +978,9 @@ async function sendTelegramRevisionNotice(owner,draft,previousMessageId){
   return messageId;
 }
 
-async function publishTelegramPersistentForOwner(owner,draft,html,file=null){
+async function publishTelegramPersistentForOwner(owner,draft,html,files=[]){
   if(!owner||owner.kind!=="telegram"||!/^\d+$/.test(String(owner.telegramUserId||""))||!/^\d+$/.test(String(owner.chatId||"")))throw new HttpError(400,"Publicação Telegram exige identidade Telegram");
-  let record=savePersistentDraft(owner,draft,file);
+  let record=savePersistentDraft(owner,draft,files);
   let prior=record.publication.telegram;
   if(prior?.status==="pending"||prior?.status==="uncertain"){
     throw new HttpError(409,prior.error||"O resultado da publicação anterior é incerto; confira o chat antes de publicar novamente");
@@ -1041,7 +1029,7 @@ async function publishTelegramPersistentForOwner(owner,draft,html,file=null){
 
     let result;
     try{
-      result=await sendRichToChat(owner.chatId,html,file,pending.noticeMessageId);
+      result=await sendRichToChat(owner.chatId,html,files,pending.noticeMessageId);
     }catch(error){
       record=readPersistentDraft(owner,draft.docId)||record;
       prior=record.publication.telegram||prior;
@@ -1098,7 +1086,7 @@ async function publishTelegramPersistentForOwner(owner,draft,html,file=null){
   writePersistentRecord(owner,record);
   let result;
   try{
-    result=await sendRichToChat(owner.chatId,html,file);
+    result=await sendRichToChat(owner.chatId,html,files);
   }catch(error){
     record=readPersistentDraft(owner,draft.docId)||record;
     if(error instanceof DeliveryError&&error.outcome==="failed"||error instanceof HttpError){
@@ -1143,8 +1131,8 @@ async function publishTelegramPersistentForOwner(owner,draft,html,file=null){
   return result;
 }
 
-async function publishTelegramPersistent(initData,draft,html,file=null){
-  return publishTelegramPersistentForOwner(draftOwner({initData}),draft,html,file);
+async function publishTelegramPersistent(initData,draft,html,files=[]){
+  return publishTelegramPersistentForOwner(draftOwner({initData}),draft,html,files);
 }
 
 function webhookSecret(){
@@ -1373,27 +1361,23 @@ function richValid(html){
 }
 
 function telegraphValid(content) {
-  const tags = new Set("a aside b blockquote br code em figcaption figure h3 h4 hr i iframe img li ol p pre s strong u ul video".split(" "));
-  let count = 0;
-  const walk = (node, depth = 0) => {
-    if (++count > 10000 || depth > 40) throw new Error("Conteúdo do Telegraph grande demais");
-    if (typeof node === "string") return;
-    if (!node || typeof node !== "object" || Array.isArray(node) || !tags.has(node.tag)) throw new Error("Elemento do Telegraph inválido");
-    if (node.attrs) for (const [key, value] of Object.entries(node.attrs)) {
-      if (!(key === "href" && node.tag === "a" || key === "src" && ["img", "video", "iframe"].includes(node.tag)) || typeof value !== "string") throw new Error("Atributo do Telegraph inválido");
-      let url;
-      try { url = new URL(value); } catch { throw new Error("Link do Telegraph inválido"); }
-      if (!["http:", "https:"].includes(url.protocol)) throw new Error("Link do Telegraph inválido");
+  const tags=new Set("a aside b blockquote br code em figcaption figure h3 h4 hr i iframe img li ol p pre s strong u ul video".split(" "));
+  const walk=node=>{
+    if(typeof node==="string")return;
+    if(!node||typeof node!=="object"||Array.isArray(node)||!tags.has(node.tag))throw new Error("Elemento do Telegraph inválido");
+    if(node.attrs)for(const [key,value] of Object.entries(node.attrs)){
+      if(!(key==="href"&&node.tag==="a"||key==="src"&&["img","video","iframe"].includes(node.tag))||typeof value!=="string")throw new Error("Atributo do Telegraph inválido");
+      let url;try{url=new URL(value);}catch{throw new Error("Link do Telegraph inválido");}
+      if(!["http:","https:"].includes(url.protocol))throw new Error("Link do Telegraph inválido");
     }
-    if (node.children !== undefined) {
-      if (!Array.isArray(node.children)) throw new Error("Conteúdo do Telegraph inválido");
-      node.children.forEach(child => walk(child, depth + 1));
+    if(node.children!==undefined){
+      if(!Array.isArray(node.children))throw new Error("Conteúdo do Telegraph inválido");
+      node.children.forEach(walk);
     }
   };
-  if (!Array.isArray(content) || !content.length || Buffer.byteLength(JSON.stringify(content)) > 65536) throw new Error("Conteúdo do Telegraph inválido");
-  content.forEach(node => walk(node));
+  if(!Array.isArray(content)||!content.length||Buffer.byteLength(JSON.stringify(content))>65536)throw new Error("Conteúdo do Telegraph inválido");
+  content.forEach(walk);
 }
-
 function telegraphContentHTML(content){
   telegraphValid(content);
   const voidTags=new Set(["br","hr","img"]);
@@ -1565,7 +1549,7 @@ async function selectedExportDocument(owner,kind,doc){
     if(!mapped)throw new Error("Publicação Telegraph não encontrada");
     const page=await verifyTelegraphPage(mapped);
     if(!Array.isArray(page.content))throw new Error("O Telegraph não retornou o conteúdo da página");
-    return {name:String(page.title||"Página Telegraph").slice(0,120),html:telegraphContentHTML(page.content)};
+    return {name:String(page.title||"Página Telegraph").slice(0,256),html:telegraphContentHTML(page.content)};
   }
   const record=readPersistentDraft(owner,doc);
   if(!record)throw new Error("Rascunho não encontrado");
@@ -1880,24 +1864,21 @@ const server = createServer(async (req, res) => {
         res.end(JSON.stringify({ error: "Acesso não autorizado" }));
         return;
       }
+      let media=null;
       try{
-        const media=await readMedia(req);
+        media=await readMedia(req);
         let draft;
         try{draft=JSON.parse(media.fields.draft||"");}catch{throw new HttpError(400,"Rascunho inválido");}
         const owner=draftOwner(media.fields);
-        let file=null;
-        if(media.file){
-          if(!draft?.media)throw new HttpError(400,"Anexo sem metadados de rascunho");
-          file={...media.file,id:draft.media.id,kind:draft.media.kind};
-        }
-        const record=savePersistentDraft(owner,draft,file);
+        const files=bindDraftFiles(media.files,draft);
+        const record=savePersistentDraft(owner,draft,files);
         res.writeHead(200,{"content-type":"application/json; charset=utf-8","cache-control":"no-store"});
         res.end(JSON.stringify(persistentDraftView(record)));
       }catch(err){
         const code=err instanceof HttpError?err.status:507;
         res.writeHead(code,{"content-type":"application/json; charset=utf-8","cache-control":"no-store"});
         res.end(JSON.stringify({error:err instanceof Error?err.message:"Não foi possível persistir o rascunho"}));
-      }
+      }finally{cleanupIncomingMedia(media);}
       return;
     }
 
@@ -1940,11 +1921,11 @@ const server = createServer(async (req, res) => {
         const doc=String(body?.doc||""),id=String(body?.id||"");
         if(!/^[a-f0-9-]{36}$/i.test(doc)||!/^[A-Za-z0-9_-]{1,64}$/.test(id))throw new HttpError(400,"Anexo persistido inválido");
         const record=readPersistentDraft(owner,doc);
-        if(!record?.media||record.media.id!==id)throw new HttpError(404,"Anexo persistido não encontrado");
-        const path=persistentDraftPaths(owner,doc).file;
-        const bytes=readFileSync(path);
-        res.writeHead(200,{"content-type":record.media.mime,"content-length":bytes.length,"cache-control":"no-store","x-mdtxtrt-file-name":encodeURIComponent(record.media.name),"x-mdtxtrt-file-kind":record.media.kind});
-        res.end(bytes);
+        const meta=record?.media?.find(item=>item.id===id);
+        if(!meta)throw new HttpError(404,"Anexo persistido não encontrado");
+        const path=persistentMediaPath(persistentDraftPaths(owner,doc),id);
+        res.writeHead(200,{"content-type":meta.mime,"content-length":meta.size,"cache-control":"no-store","x-mdtxtrt-file-name":encodeURIComponent(meta.name),"x-mdtxtrt-file-kind":meta.kind});
+        createReadStream(path).pipe(res);
       }catch(err){
         const code=err instanceof HttpError?err.status:500;
         res.writeHead(code,{"content-type":"application/json; charset=utf-8","cache-control":"no-store"});
@@ -1959,20 +1940,22 @@ const server = createServer(async (req, res) => {
         res.end(JSON.stringify({ error: "Acesso não autorizado" }));
         return;
       }
+      let media=null;
       try {
-        const media = await readMedia(req);
+        media=await readMedia(req);
         let draft,action=null;
-        try { draft = JSON.parse(media.fields.draft || ""); } catch { throw new Error("Rascunho inválido"); }
+        try{draft=JSON.parse(media.fields.draft||"");}catch{throw new Error("Rascunho inválido");}
         if(media.fields.action){
           try{action=JSON.parse(media.fields.action);}catch{throw new Error("Ação da transferência inválida");}
         }
-        const token = saveHandoff(draft, media.file || null, action);
-        res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
-        res.end(JSON.stringify({ token, open: WEBHOOK_BASE + "/telegram/open?handoff=" + token }));
-      } catch (err) {
-        res.writeHead(400, { "content-type": "application/json; charset=utf-8" });
-        res.end(JSON.stringify({ error: err.message || "Não foi possível transferir o rascunho" }));
-      }
+        const files=bindDraftFiles(media.files,draft);
+        const token=saveHandoff(draft,files,action);
+        res.writeHead(200,{"content-type":"application/json; charset=utf-8","cache-control":"no-store"});
+        res.end(JSON.stringify({token,open:WEBHOOK_BASE+"/telegram/open?handoff="+token}));
+      }catch(err){
+        res.writeHead(400,{"content-type":"application/json; charset=utf-8"});
+        res.end(JSON.stringify({error:err instanceof Error?err.message:"Não foi possível transferir o rascunho"}));
+      }finally{cleanupIncomingMedia(media);}
       return;
     }
 
@@ -1992,7 +1975,7 @@ const server = createServer(async (req, res) => {
         state.claimedBy = chatId;
         writeHandoff(token,state);
         res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
-        res.end(JSON.stringify({ draft: state.draft, file: state.file, purpose: state.purpose, action: handoffActionView(state.action,state.draft) }));
+        res.end(JSON.stringify({draft:state.draft,files:state.files,purpose:state.purpose,action:handoffActionView(state.action,state.draft)}));
       } catch (err) {
         res.writeHead(400, { "content-type": "application/json; charset=utf-8" });
         res.end(JSON.stringify({ error: err.message || "Não foi possível recuperar o rascunho" }));
@@ -2056,16 +2039,17 @@ const server = createServer(async (req, res) => {
       }
       try {
         const body = await readJson(req, 20000);
-        const token = String(body?.token || "");
-        const state = readHandoff(token);
-        if (!state?.file) throw new Error("Anexo da transferência indisponível");
-        const { chatId } = userFromInitData(String(body?.initData || ""));
-        if (!state.claimedBy || state.claimedBy !== chatId) throw new Error("Transferência não pertence a esta sessão");
-        const path = handoffFiles(token).file;
-        if (!existsSync(path)) throw new Error("Anexo da transferência indisponível");
-        const bytes = readFileSync(path);
-        res.writeHead(200,{"content-type":state.file.mime,"content-length":bytes.length,"cache-control":"no-store"});
-        res.end(bytes);
+        const token=String(body?.token||""),id=String(body?.id||"");
+        if(!/^[A-Za-z0-9_-]{1,64}$/.test(id))throw new Error("Anexo da transferência inválido");
+        const state=readHandoff(token);
+        const meta=state?.files?.find(item=>item.id===id);
+        if(!meta)throw new Error("Anexo da transferência indisponível");
+        const {chatId}=userFromInitData(String(body?.initData||""));
+        if(!state.claimedBy||state.claimedBy!==chatId)throw new Error("Transferência não pertence a esta sessão");
+        const path=handoffMediaPath(handoffFiles(token),id);
+        if(!existsSync(path))throw new Error("Anexo da transferência indisponível");
+        res.writeHead(200,{"content-type":meta.mime,"content-length":meta.size,"cache-control":"no-store"});
+        createReadStream(path).pipe(res);
       } catch (err) {
         res.writeHead(400, { "content-type": "application/json; charset=utf-8" });
         res.end(JSON.stringify({ error: err.message || "Não foi possível recuperar o anexo" }));
@@ -2175,34 +2159,26 @@ const server = createServer(async (req, res) => {
         res.end(JSON.stringify({ error: "Acesso não autorizado" }));
         return;
       }
-      try {
-        let media;
-        try{media=await readMedia(req);}catch(error){throw asHttpError(error,400,"Mídia inválida");}
+      let media=null;
+      try{
+        media=await readMedia(req);
         const body=media.fields;
-        if (typeof body.initData !== "string" || typeof body.html !== "string") throw new HttpError(400,"Os dados do envio estão incompletos");
-        let result;
-        if(typeof body.draft==="string"&&body.draft.trim()){
-          let draft;
-          try{draft=JSON.parse(body.draft);}catch{throw new HttpError(400,"Rascunho de publicação inválido");}
-          let file=null;
-          if(media.file){
-            if(!draft?.media)throw new HttpError(400,"Anexo sem metadados de rascunho");
-            file={...media.file,kind:draft.media.kind,id:draft.media.id};
-          }
-          result=await publishTelegramPersistent(body.initData,draft,body.html,file);
-        }else{
-          result=await sendRich(body.initData,body.html,media.file?{...media.file,kind:body.kind,id:body.id}:null);
-        }
-        res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+        if(typeof body.initData!=="string"||typeof body.html!=="string"||typeof body.draft!=="string"||!body.draft.trim())throw new HttpError(400,"Os dados do envio estão incompletos");
+        let draft;
+        try{draft=JSON.parse(body.draft);}catch{throw new HttpError(400,"Rascunho de publicação inválido");}
+        const files=bindDraftFiles(media.files,draft);
+        const result=await publishTelegramPersistent(body.initData,draft,body.html,files);
+        res.writeHead(200,{"content-type":"application/json; charset=utf-8"});
         res.end(JSON.stringify(result));
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : "Não foi possível publicar no Telegram";
-        const code = err instanceof HttpError ? err.status : err instanceof DeliveryError && err.outcome === "uncertain" ? 409 : 502;
-        res.writeHead(code, { "content-type": "application/json; charset=utf-8" });
-        res.end(JSON.stringify({ error: msg, ...(err instanceof DeliveryError ? {outcome:err.outcome} : {}) }));
-      }
+      }catch(err){
+        const msg=err instanceof Error?err.message:"Não foi possível publicar no Telegram";
+        const code=err instanceof HttpError?err.status:err instanceof DeliveryError?(err.outcome==="uncertain"?409:502):400;
+        res.writeHead(code,{"content-type":"application/json; charset=utf-8"});
+        res.end(JSON.stringify({error:msg,...(err instanceof DeliveryError?{outcome:err.outcome}:{})}));
+      }finally{cleanupIncomingMedia(media);}
       return;
     }
+
     if (url.pathname === "/api/telegram/session" && req.method === "POST") {
       if (!setCors(req, res)) {
         res.writeHead(403, { "content-type": "application/json; charset=utf-8" });

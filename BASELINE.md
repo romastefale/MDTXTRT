@@ -4,11 +4,11 @@
 
 A baseline de trabalho vigente do MDTXTRT é:
 
-`9c9f8d38313d5f0043283daf06d6ac015f90bded`
+`6742ec104de353d2f19507436fe352b0e0fd1a71`
 
 - Data de adoção: 2026-09-30.
-- Origem: estado de produção após o PR #123, com os fluxos privados do bot consolidados exclusivamente no Mini App e sem os caminhos legados substituídos.
-- Natureza: snapshot operacional do estado conhecido e aceito neste momento.
+- Origem: estado funcional candidato do PR #125, depois da substituição do editor legado pelo núcleo nativo, alinhamento dos limites de mídia/Rich Message com as APIs oficiais, correções de seleção, formatação, histórico, tabelas, safe areas e fluxos Telegram/Telegraph.
+- Natureza: snapshot operacional do novo estado deliberadamente evoluído e aceito como referência visual/funcional para esta linha de desenvolvimento.
 - Esta baseline **não é o produto final**, **não é uma especificação imutável** e **não deve ser preservada contra solicitações de correção ou implementação**.
 
 ## Regra de evolução
@@ -48,17 +48,18 @@ Para inspecionar exatamente o estado desta baseline:
 
 ```bash
 git fetch origin
-git checkout 9c9f8d38313d5f0043283daf06d6ac015f90bded
+git checkout 6742ec104de353d2f19507436fe352b0e0fd1a71
 ```
 
 Para comparar um estado posterior:
 
 ```bash
-git diff 9c9f8d38313d5f0043283daf06d6ac015f90bded..HEAD
+git diff 6742ec104de353d2f19507436fe352b0e0fd1a71..HEAD
 ```
 
 ## Histórico
 
+- `9c9f8d38313d5f0043283daf06d6ac015f90bded` — baseline anterior após o PR #123; substituída pelo estado funcional candidato do PR #125, que removeu o motor de edição legado e consolidou os contratos nativos/oficiais sem preservar as limitações anteriores.
 - `7fe51e8401012232281db416ac0d9bd080c18ebf` — baseline anterior após o PR #120; substituída após a evolução dos comandos privados do bot nos PRs #122 e #123, incluindo remoção dos caminhos legados e consolidação dos botões `web_app`.
 - `b22aee80bbaa79db63d12ef62ae523d968218aa5` — baseline anterior após o PR #118; substituída após tornar Rascunhos recolhível com a mesma normativa de Publicações no PR #120.
 - `db6ae2240cbe2792bd7edb1a9c26399f068ea807` — baseline anterior após o PR #116; substituída após a correção do toque móvel real no PR #118.

@@ -25,7 +25,7 @@ let dest = 'telegram';
 let session='browser',busy=false;
 const plusSubmenus=['#plus-file-menu','#plus-format-menu','#plus-structure-menu','#plus-media-menu','#plus-interaction-menu'];
 const sheets=['#plusMenu',...plusSubmenus,'#linkMenu','#headingMenu','#quoteMenu','#listMenu','#exportMenu','#libraryMenu','#findMenu'];
-let savedRange = null, editorCore = null, composing = false, saveTimer = null, remoteSaveTimer = null, remoteSaveQueue = Promise.resolve(), remoteMediaSyncedId = '', remoteSaveNoticeShown = false, telegraphPath = '', docId = crypto.randomUUID(), docRevision = 0, importedMd = '', importedTxt = '', importedHtml = '', mediaFile = null, mediaChoice = null, draftWriteBlocked = false, draftBlockNoticeShown = false, activeHandoff = '', handoffAction = null, exportOverride = null;
+let savedRange = null, editorCore = null, composing = false, saveTimer = null, remoteSaveTimer = null, remoteSaveQueue = Promise.resolve(), remoteMediaSyncedIds = new Set(), remoteSaveNoticeShown = false, telegraphPath = '', docId = crypto.randomUUID(), docRevision = 0, importedMd = '', importedTxt = '', importedHtml = '', mediaFiles = new Map(), mediaChoice = null, draftWriteBlocked = false, draftBlockNoticeShown = false, activeHandoff = '', handoffAction = null, exportOverride = null;
 function applyAssets(){
   all('[data-icon]').forEach(el => {
     const name = el.getAttribute('data-icon');
@@ -89,7 +89,7 @@ function setTheme(mode){
   if(mode!=='light'&&mode!=='dark')throw new Error('Tema inválido');
   themePreference=mode;
   try{localStorage.setItem(THEME_KEY,mode);}catch{}
-  window.location.reload();
+  applyScheme(mode);
 }
 function normalizedRevision(value){return Number.isSafeInteger(value)&&value>=0?value:0;}
 function bumpDocumentRevision(){
@@ -158,14 +158,9 @@ async function mediaDelete(id){
   db.close();
 }
 function sanitizeDraftRuntimeDOM(box){
-  box.querySelectorAll('.ProseMirror-trailingBreak,.ProseMirror-separator,.ProseMirror-gapcursor').forEach(node=>node.remove());
   for(const el of [...box.querySelectorAll('*')]){
     for(const name of ['contenteditable','draggable','spellcheck','tabindex','aria-selected'])el.removeAttribute(name);
-    for(const attr of [...el.attributes])if(attr.name.startsWith('data-pm-'))el.removeAttribute(attr.name);
-    if(el.hasAttribute('class')){
-      const kept=(el.getAttribute('class')||'').split(/\s+/).filter(Boolean).filter(name=>!name.startsWith('ProseMirror-'));
-      if(kept.length)el.setAttribute('class',kept.join(' '));else el.removeAttribute('class');
-    }
+    if(['video','audio'].includes(el.localName))el.removeAttribute('controls');
   }
   return box;
 }
@@ -177,12 +172,17 @@ function draftHTML(){
   return box.innerHTML;
 }
 function activeMedia(){
-  const node=editor.querySelector('[data-media-id]');
-  return node&&mediaFile&&node.getAttribute('data-media-id')===mediaFile.id?mediaFile:null;
+  const result=[];
+  for(const node of editor.querySelectorAll('[data-media-id]')){
+    const id=node.getAttribute('data-media-id')||'';
+    const media=mediaFiles.get(id);
+    if(media)result.push(media);
+  }
+  return result;
 }
 function draftState(action=''){
   const active=activeMedia();
-  const state={version:STATE_VERSION,name:docName.value,html:draftHTML(),dest,telegraphPath,docId,revision:docRevision,importedMd,importedTxt,importedHtml,media:active?{id:active.id,kind:active.kind}:null};
+  const state={version:STATE_VERSION,name:docName.value,html:draftHTML(),dest,telegraphPath,docId,revision:docRevision,importedMd,importedTxt,importedHtml,media:active.map(item=>({id:item.id,kind:item.kind}))};
   if(action)state.action=action;
   return state;
 }
@@ -193,7 +193,8 @@ function cleanDraftHTML(html){
   const allowed=new Set('a b strong i em u ins s strike del code mark sub sup tg-spoiler tg-reference tg-emoji tg-time tg-math h1 h2 h3 h4 h5 h6 p pre footer hr ul ol li input blockquote aside cite img video audio tg-document figure figcaption iframe tg-map tg-collage tg-slideshow table caption thead tbody tfoot tr th td details summary tg-math-block tg-button tg-button-row br div'.split(' '));
   const attrs=new Set('href name class style src alt tg-spoiler start type reversed value checked disabled controls expandable unix format emoji-id lat long zoom width height bordered striped compact colspan rowspan align valign open url data query text forward-text request-write-access allow-user-chats allow-bot-chats allow-group-chats allow-channel-chats data-media-id data-media-missing'.split(' '));
   const localMedia=[...box.querySelectorAll('[data-media-id]')];
-  if(localMedia.length>1)throw new Error('O rascunho contém mais de um anexo local');
+  if(localMedia.length>50)throw new Error('O Telegram aceita no máximo 50 mídias por Rich Message');
+  if(new Set(localMedia.map(node=>node.getAttribute('data-media-id'))).size!==localMedia.length)throw new Error('O rascunho contém identificadores de mídia duplicados');
   for(const el of [...box.querySelectorAll('*')]){
     if(!allowed.has(el.localName))throw new Error('O rascunho contém um elemento não suportado');
     for(const a of [...el.attributes]){
@@ -211,41 +212,52 @@ function cleanDraftHTML(html){
   return box.innerHTML;
 }
 function mediaNode(id){return [...editor.querySelectorAll('[data-media-id]')].find(node=>node.getAttribute('data-media-id')===id)||null;}
+function clearRuntimeMedia(){
+  for(const media of mediaFiles.values())if(media.url)URL.revokeObjectURL(media.url);
+  mediaFiles.clear();
+  remoteMediaSyncedIds.clear();
+}
 function restoreActiveMediaVisual(){
-  if(!mediaFile?.id||!mediaFile.url)return false;
-  return requireEditorCore().patchMedia(mediaFile.id,{src:mediaFile.url,'data-media-missing':''});
+  let restored=false;
+  for(const media of activeMedia()){
+    if(!media.url)continue;
+    restored=requireEditorCore().patchMedia(media.id,{src:media.url,'data-media-missing':''})||restored;
+  }
+  return restored;
 }
 async function restoreMedia(){
-  const node=editor.querySelector('[data-media-id]');
-  if(!node)return;
-  const id=node.getAttribute('data-media-id');
-  try{
-    const saved=await mediaLoad(id);
-    if(!saved||saved.id!==id||!['image','video','audio','voice','document'].includes(saved.kind)||typeof saved.name!=='string'||!saved.name||typeof saved.type!=='string'||!saved.type||!(saved.file instanceof Blob))throw new Error('Anexo persistido incompatível');
-    if(mediaFile?.url)URL.revokeObjectURL(mediaFile.url);
-    const file=saved.file instanceof File?saved.file:new File([saved.file],saved.name,{type:saved.type,lastModified:Number.isFinite(saved.lastModified)?saved.lastModified:0});
-    const url=URL.createObjectURL(file);
-    mediaFile={file,id,kind:saved.kind,url};
-    restoreActiveMediaVisual();
-    decorateSpecials();
-  }catch(err){
-    try{await mediaDelete(id);}catch(cleanupError){console.error('Media cleanup',cleanupError);}
-    requireEditorCore().patchMedia(id,{src:'','data-media-missing':'true'});
-    showToast(err.message||'Não foi possível recuperar o anexo');
+  const nodes=[...editor.querySelectorAll('[data-media-id]')];
+  for(const node of nodes){
+    const id=node.getAttribute('data-media-id')||'';
+    try{
+      const saved=await mediaLoad(id);
+      if(!saved||saved.id!==id||!['image','video','audio','voice','document'].includes(saved.kind)||typeof saved.name!=='string'||!saved.name||typeof saved.type!=='string'||!saved.type||!(saved.file instanceof Blob))throw new Error('Anexo persistido incompatível');
+      const prior=mediaFiles.get(id);if(prior?.url)URL.revokeObjectURL(prior.url);
+      const file=saved.file instanceof File?saved.file:new File([saved.file],saved.name,{type:saved.type,lastModified:Number.isFinite(saved.lastModified)?saved.lastModified:0});
+      mediaFiles.set(id,{file,id,kind:saved.kind,url:URL.createObjectURL(file)});
+    }catch(err){
+      try{await mediaDelete(id);}catch(cleanupError){console.error('Media cleanup',cleanupError);}
+      requireEditorCore().patchMedia(id,{src:'','data-media-missing':'true'});
+      showToast(err.message||'Não foi possível recuperar o anexo');
+    }
   }
+  restoreActiveMediaVisual();decorateSpecials();
 }
 async function installMedia(file,id,kind){
-  if(mediaFile?.url)URL.revokeObjectURL(mediaFile.url);
-  const url=URL.createObjectURL(file);
-  mediaFile={file,id,kind,url};
+  const prior=mediaFiles.get(id);if(prior?.url)URL.revokeObjectURL(prior.url);
+  mediaFiles.set(id,{file,id,kind,url:URL.createObjectURL(file)});
   await mediaStore({id,file,kind,name:file.name,type:file.type,lastModified:file.lastModified});
   const node=mediaNode(id);
   if(!node)throw new Error('Anexo não encontrado no documento');
   restoreActiveMediaVisual();
   decorateSpecials();
 }
+function telegramUploadLimit(kind){
+  return kind==='image'?10_000_000:50_000_000;
+}
 function decorateSpecials(){
   requireEditorCore();
+  for(const media of editor.querySelectorAll('video,audio'))media.controls=true;
 }
 function handoffToken(){
   try{
@@ -275,33 +287,32 @@ function handoffActionNotice(action,recovered=false){
 }
 async function claimHandoff(){
   const token=handoffToken();
-  const priorMediaId=mediaFile?.id||'';
   if(!token)throw new Error('Transferência inválida');
   const initData=getTg().initData;
   const res=await fetch(API+'/api/handoff/claim',{method:'POST',signal:AbortSignal.timeout(20000),headers:{'content-type':'application/json'},body:JSON.stringify({initData,token})});
   const data=await readResponse(res);
   if(!res.ok)throw new Error(data.error||'Não foi possível recuperar o rascunho');
   const d=data.draft;
-  if(!d||d.version!==STATE_VERSION||typeof d.html!=='string'||typeof d.name!=='string'||!['telegram','telegraph'].includes(d.dest)||typeof d.telegraphPath!=='string'||!/^[a-f0-9-]{36}$/i.test(d.docId)||(d.revision!==undefined&&(!Number.isSafeInteger(d.revision)||d.revision<0))||typeof d.importedMd!=='string'||typeof d.importedTxt!=='string'||typeof d.importedHtml!=='string')throw new Error('Rascunho transferido incompatível');
+  if(!d||d.version!==STATE_VERSION||typeof d.html!=='string'||typeof d.name!=='string'||!['telegram','telegraph'].includes(d.dest)||typeof d.telegraphPath!=='string'||!/^[a-f0-9-]{36}$/i.test(d.docId)||(d.revision!==undefined&&(!Number.isSafeInteger(d.revision)||d.revision<0))||typeof d.importedMd!=='string'||typeof d.importedTxt!=='string'||typeof d.importedHtml!=='string'||!Array.isArray(d.media))throw new Error('Rascunho transferido incompatível');
   const purpose=data.purpose===undefined?'transfer':data.purpose;
   if(!['transfer','import'].includes(purpose))throw new Error('Finalidade da transferência incompatível');
   if(purpose==='import')archiveStoredDraftForNew(token);
+  const priorIds=[...mediaFiles.keys()];
+  clearRuntimeMedia();
   const handoffHTML=cleanDraftHTML(d.html);requireEditorCore().resetHTML(handoffHTML,{silent:true});docName.value=d.name;
   dest=d.dest;telegraphPath=d.telegraphPath;docId=d.docId;docRevision=normalizedRevision(d.revision);
   importedMd=d.importedMd;importedTxt=d.importedTxt;importedHtml=d.importedHtml;
-  if(data.file){
-    const fileRes=await fetch(API+'/api/handoff/file',{method:'POST',signal:AbortSignal.timeout(60000),headers:{'content-type':'application/json'},body:JSON.stringify({initData,token})});
-    if(!fileRes.ok)throw new Error('Não foi possível recuperar o anexo transferido');
-    if(typeof data.file.name!=='string'||!data.file.name||typeof data.file.mime!=='string'||!data.file.mime||!['image','video','audio','voice','document'].includes(data.file.kind)||!/^[A-Za-z0-9_-]{1,64}$/.test(data.file.id))throw new Error('Metadados do anexo transferido inválidos');
+  const files=Array.isArray(data.files)?data.files:[];
+  if(files.length!==d.media.length)throw new Error('Anexos da transferência incompatíveis');
+  for(const meta of files){
+    if(typeof meta.name!=='string'||!meta.name||typeof meta.mime!=='string'||!meta.mime||!['image','video','audio','voice','document'].includes(meta.kind)||!/^[A-Za-z0-9_-]{1,64}$/.test(meta.id))throw new Error('Metadados do anexo transferido inválidos');
+    const fileRes=await fetch(API+'/api/handoff/file',{method:'POST',signal:AbortSignal.timeout(60000),headers:{'content-type':'application/json'},body:JSON.stringify({initData,token,id:meta.id})});
+    if(!fileRes.ok)throw new Error('Não foi possível recuperar um anexo transferido');
     const blob=await fileRes.blob();
-    const file=new File([blob],data.file.name,{type:data.file.mime,lastModified:Date.now()});
-    await installMedia(file,data.file.id,data.file.kind);
-    if(priorMediaId&&priorMediaId!==data.file.id)try{await mediaDelete(priorMediaId);}catch(error){console.error('Media cleanup',error);}
-  }else{
-    if(mediaFile?.url)URL.revokeObjectURL(mediaFile.url);
-    mediaFile=null;
-    if(priorMediaId)try{await mediaDelete(priorMediaId);}catch(error){console.error('Media cleanup',error);}
+    const file=new File([blob],meta.name,{type:meta.mime,lastModified:Date.now()});
+    await installMedia(file,meta.id,meta.kind);
   }
+  for(const id of priorIds)if(!mediaFiles.has(id))try{await mediaDelete(id);}catch(error){console.error('Media cleanup',error);}
   activeHandoff=token;
   handoffAction=normalizedHandoffAction(data.action);
   decorateSpecials();setDestination(dest,false,false);saveLocal();
@@ -377,14 +388,14 @@ async function openMiniApp(){
   if(busy)return;busy=true;
   try{
     saveLocal();
-    const local=editor.querySelector('[data-media-id]');
     const active=activeMedia();
-    if(local&&!active)throw new Error('O anexo local não pôde ser recuperado');
+    const localIds=[...editor.querySelectorAll('[data-media-id]')].map(node=>node.getAttribute('data-media-id'));
+    if(localIds.some(id=>!mediaFiles.has(id)))throw new Error('Há mídia local que precisa ser anexada novamente');
     const rich=buildRich();
     const form=new FormData();
     form.set('draft',JSON.stringify(draftState()));
-    form.set('action',JSON.stringify({type:'publish',html:rich.rich_message.html,kind:active?.kind||'',id:active?.id||''}));
-    if(active)form.set('upload',active.file,active.file.name);
+    form.set('action',JSON.stringify({type:'publish',html:rich.rich_message.html}));
+    for(const media of active)form.set('upload_'+media.id,media.file,media.file.name);
     const res=await fetch(API+'/api/handoff',{method:'POST',signal:AbortSignal.timeout(60000),body:form});
     const data=await readResponse(res);
     if(!res.ok)throw new Error(data.error||'Não foi possível abrir o Mini App');
@@ -396,7 +407,6 @@ async function openMiniApp(){
   }catch(err){showToast(err.name==='TimeoutError'?'Tempo de transferência esgotado':err.message||'Não foi possível abrir o Mini App');}
   finally{busy=false;}
 }
-
 async function verifyTelegram(){
   const initData=getTg()?.initData;
   if(!initData){
@@ -818,8 +828,17 @@ function requireEditorCore(){
   return editorCore;
 }
 function currentEditorCore(){return requireEditorCore();}
-function saveSel(){savedRange=requireEditorCore().saveSelection();}
-function restoreSel(){requireEditorCore().restoreSelection();}
+function saveSel(){
+  const core=requireEditorCore(),next=core.saveSelection();
+  if(next)savedRange=next;
+  core.rememberSelection?.();
+  return savedRange;
+}
+function restoreSel(){
+  const core=requireEditorCore(),current=core.saveSelection();
+  if(current){savedRange=current;core.rememberSelection?.();return true;}
+  return savedRange?core.restoreSelection(savedRange):false;
+}
 function pushHist(){requireEditorCore().syncFromDOM({addToHistory:true});}
 function histUndo(){if(requireEditorCore().undo()){restoreActiveMediaVisual();syncEditorSelectionUI();}}
 function histRedo(){if(requireEditorCore().redo()){restoreActiveMediaVisual();syncEditorSelectionUI();}}
@@ -838,6 +857,7 @@ function expandWord(){
 }
 function exec(cmd,value=null){
   if(!editorCore)throw new Error('Núcleo de edição indisponível');
+  restoreSel();
   if(cmd==='insertUnorderedList')return toggleList();
   editorCore.exec(cmd,value);
   syncEditorSelectionUI();
@@ -861,16 +881,19 @@ function normalizeBlocks(){
 }
 function toggleList(type='ul'){
   if(!editorCore)throw new Error('Núcleo de edição indisponível');
+  restoreSel();
   if(!editorCore.toggleList(type))throw new Error('Selecione parágrafos para criar a lista');
   syncEditorSelectionUI();closePanels();
 }
 function formatBlock(tag){
   if(!editorCore)throw new Error('Núcleo de edição indisponível');
+  restoreSel();
   if(!editorCore.formatBlock(tag))throw new Error('Não foi possível alterar o bloco');
   syncEditorSelectionUI();closePanels();
 }
 function insertHTML(html,asBlock=false){
   if(!editorCore)throw new Error('Núcleo de edição indisponível');
+  restoreSel();
   if(!editorCore.insertHTML(html,asBlock))throw new Error('Não foi possível inserir o conteúdo');
   closePanels();syncEditorSelectionUI();
 }
@@ -959,9 +982,19 @@ async function insertFeature(kind){
   if(kind==='ordered')return toggleList('ol');
   if(kind==='divider')return insertHTML('<hr/>',true);
   if(kind==='table'){
+    const columnsAnswer=await ask('Colunas (1–20)','1');
+    if(columnsAnswer===null)return;
+    const columns=Number(columnsAnswer.trim());
+    if(!Number.isSafeInteger(columns)||columns<1||columns>20)return showToast('O Telegram aceita de 1 a 20 colunas por tabela');
+    const rowsAnswer=await ask('Linhas','1');
+    if(rowsAnswer===null)return;
+    const rows=Number(rowsAnswer.trim());
+    if(!Number.isSafeInteger(rows)||rows<1)return showToast('Informe ao menos uma linha');
     const caption=await ask('Legenda da tabela','');
     if(caption===null)return;
-    return insertHTML('<table bordered striped compact>'+(caption?'<caption>'+escapeHTML(caption)+'</caption>':'')+'<tr><th></th><th></th></tr><tr><td></td><td></td></tr></table>',true);
+    const head='<tr>'+Array.from({length:columns},()=>'<th></th>').join('')+'</tr>';
+    const body=Array.from({length:Math.max(0,rows-1)},()=>'<tr>'+Array.from({length:columns},()=>'<td></td>').join('')+'</tr>').join('');
+    return insertHTML('<table bordered striped compact>'+(caption?'<caption>'+escapeHTML(caption)+'</caption>':'')+head+body+'</table>',true);
   }
   if(kind==='expandquote')return formatBlock('expandquote');
   if(kind==='pullquote')return formatBlock('pullquote');
@@ -1157,17 +1190,16 @@ async function persistRemoteDraft(pagehide=false){
   appendRemoteIdentity(form);
   form.set('draft',JSON.stringify(snapshot));
   const active=activeMedia();
-  const includeMedia=Boolean(active&&remoteMediaSyncedId!==active.id);
-  if(includeMedia)form.set('upload',active.file,active.file.name);
+  const pending=active.filter(media=>!remoteMediaSyncedIds.has(media.id));
+  for(const media of pending)form.set('upload_'+media.id,media.file,media.file.name);
   const options={method:'POST',body:form};
-  if(!pagehide)options.signal=AbortSignal.timeout(15000);
-  else if(!includeMedia&&JSON.stringify(snapshot).length<60000)options.keepalive=true;
+  if(!pagehide)options.signal=AbortSignal.timeout(60000);
+  else if(!pending.length&&JSON.stringify(snapshot).length<60000)options.keepalive=true;
   const res=await fetch(API+'/api/drafts/save',options);
   const data=await readResponse(res);
   if(!res.ok)throw new Error(data.error||'Não foi possível persistir o rascunho no volume');
   if(data?.draft?.docId!==snapshot.docId||data?.draft?.revision!==snapshot.revision)throw new Error('Confirmação de persistência inválida');
-  if(includeMedia)remoteMediaSyncedId=active.id;
-  if(!active)remoteMediaSyncedId='';
+  remoteMediaSyncedIds=new Set(active.map(media=>media.id));
   remoteSaveNoticeShown=false;
   return true;
 }
@@ -1180,10 +1212,9 @@ function scheduleRemoteDraftSave(delay=650){
 async function applyPersistentDraftData(data,identity){
   exportOverride=null;
   const d=data.draft;
-  if(!d||d.version!==STATE_VERSION||typeof d.html!=='string'||typeof d.name!=='string'||d.name.length>120||!['telegram','telegraph'].includes(d.dest)||typeof d.telegraphPath!=='string'||!/^[a-f0-9-]{36}$/i.test(d.docId)||(d.revision!==undefined&&(!Number.isSafeInteger(d.revision)||d.revision<0))||typeof d.importedMd!=='string'||typeof d.importedTxt!=='string'||typeof d.importedHtml!=='string')throw new Error('Rascunho persistido incompatível');
+  if(!d||d.version!==STATE_VERSION||typeof d.html!=='string'||typeof d.name!=='string'||d.name.length>256||!['telegram','telegraph'].includes(d.dest)||typeof d.telegraphPath!=='string'||!/^[a-f0-9-]{36}$/i.test(d.docId)||(d.revision!==undefined&&(!Number.isSafeInteger(d.revision)||d.revision<0))||typeof d.importedMd!=='string'||typeof d.importedTxt!=='string'||typeof d.importedHtml!=='string'||!Array.isArray(d.media))throw new Error('Rascunho persistido incompatível');
   const html=cleanDraftHTML(d.html);
-  if(mediaFile?.url)URL.revokeObjectURL(mediaFile.url);
-  mediaFile=null;
+  clearRuntimeMedia();
   requireEditorCore().resetHTML(html,{silent:true});
   docName.value=d.name;
   telegraphPath=d.telegraphPath;
@@ -1195,13 +1226,16 @@ async function applyPersistentDraftData(data,identity){
   dest=d.dest;
   activeHandoff='';handoffAction=null;
   draftWriteBlocked=false;
-  if(data.media){
-    if(!data.media||data.media.id!==d.media?.id||data.media.kind!==d.media?.kind||typeof data.media.name!=='string'||typeof data.media.mime!=='string')throw new Error('Anexo persistido incompatível');
+  const media=Array.isArray(data.media)?data.media:[];
+  if(media.length!==d.media.length)throw new Error('Anexos persistidos incompatíveis');
+  for(const meta of media){
+    const expected=d.media.find(item=>item.id===meta.id&&item.kind===meta.kind);
+    if(!expected||typeof meta.name!=='string'||typeof meta.mime!=='string')throw new Error('Anexo persistido incompatível');
     const fileRes=await fetch(API+'/api/drafts/file',{
       method:'POST',
-      signal:AbortSignal.timeout(15000),
+      signal:AbortSignal.timeout(60000),
       headers:{'content-type':'application/json'},
-      body:JSON.stringify({...identity,doc:d.docId,id:data.media.id})
+      body:JSON.stringify({...identity,doc:d.docId,id:meta.id})
     });
     if(!fileRes.ok){
       let msg='Não foi possível recuperar o anexo persistido';
@@ -1209,12 +1243,9 @@ async function applyPersistentDraftData(data,identity){
       throw new Error(msg);
     }
     const blob=await fileRes.blob();
-    const file=new File([blob],data.media.name,{type:data.media.mime,lastModified:0});
-    await mediaStore({id:data.media.id,file,kind:data.media.kind,name:file.name,type:file.type,lastModified:file.lastModified});
-    await installMedia(file,data.media.id,data.media.kind);
-    remoteMediaSyncedId=data.media.id;
-  }else{
-    remoteMediaSyncedId='';
+    const file=new File([blob],meta.name,{type:meta.mime,lastModified:0});
+    await installMedia(file,meta.id,meta.kind);
+    remoteMediaSyncedIds.add(meta.id);
   }
   setDestination(dest,false,false);
   syncEditorSelectionUI();
@@ -1370,11 +1401,10 @@ async function openTelegraphDocument(doc){
     if(!res.ok)throw new Error(data.error||'Não foi possível carregar a página do Telegraph');
     if(data.doc!==doc||typeof data.path!=='string'||!data.path||typeof data.title!=='string'||typeof data.html!=='string')throw new Error('Resposta do Telegraph inválida');
     const html=cleanDraftHTML(data.html);
-    if(mediaFile?.url)URL.revokeObjectURL(mediaFile.url);
-    mediaFile=null;remoteMediaSyncedId='';
+    clearRuntimeMedia();
     if(!editorCore)throw new Error('Núcleo de edição indisponível');
     editorCore.resetHTML(html,{silent:true});
-    docName.value=data.title.slice(0,120);
+    docName.value=data.title.slice(0,256);
     docId=doc;
     docRevision=normalizedRevision(data.revision);
     telegraphPath=data.path;
@@ -1453,8 +1483,8 @@ function setDraftsExpanded(expanded){
   setLibrarySectionExpanded('#draftToggle','#draftLists',expanded);
 }
 function openLibrary(preferred=''){
-  setPublicationsExpanded(true);
-  setDraftsExpanded(true);
+  setPublicationsExpanded(false);
+  setDraftsExpanded(false);
   openPanel('#libraryMenu',one('#exportBtn'));
   const list=one('#libraryMenu .menu-list');
   if(list)list.scrollTop=0;
@@ -1466,8 +1496,8 @@ function closeLibrary(){
   const menu=one('#libraryMenu');
   if(!panelIsOpen(menu))return;
   closePanel(menu,false);
-  setPublicationsExpanded(true);
-  setDraftsExpanded(true);
+  setPublicationsExpanded(false);
+  setDraftsExpanded(false);
   openPanel('#exportMenu',one('#exportBtn'));
   syncBackButton();
   queueMicrotask(()=>focusMenuControl(one('#libraryBtn')));
@@ -1521,8 +1551,8 @@ function archiveStoredDraftForNew(token){
 }
 function resetToNewDocument(){
   exportOverride=null;
-  if(mediaFile?.url)URL.revokeObjectURL(mediaFile.url);
-  mediaFile=null;mediaChoice=null;savedRange=null;activeHandoff='';handoffAction=null;
+  clearRuntimeMedia();
+  mediaChoice=null;savedRange=null;activeHandoff='';handoffAction=null;
   requireEditorCore().resetHTML('',{silent:true});docName.value='Ideia';dest='telegram';telegraphPath='';
   docId=crypto.randomUUID();docRevision=0;importedMd='';importedTxt='';importedHtml='';
   draftWriteBlocked=false;draftBlockNoticeShown=false;
@@ -1541,7 +1571,7 @@ function loadLocal(){
   let d;
   try{d=JSON.parse(raw);}
   catch{draftWriteBlocked=true;throw new Error('Rascunho local inválido preservado para recuperação');}
-  if(!d||d.version!==STATE_VERSION||typeof d.html!=='string'||typeof d.name!=='string'||d.name.length>120||!['telegram','telegraph'].includes(d.dest)||typeof d.telegraphPath!=='string'||!/^[a-f0-9-]{36}$/i.test(d.docId)||(d.revision!==undefined&&(!Number.isSafeInteger(d.revision)||d.revision<0))||typeof d.importedMd!=='string'||typeof d.importedTxt!=='string'||typeof d.importedHtml!=='string'){
+  if(!d||d.version!==STATE_VERSION||typeof d.html!=='string'||typeof d.name!=='string'||d.name.length>256||!['telegram','telegraph'].includes(d.dest)||typeof d.telegraphPath!=='string'||!/^[a-f0-9-]{36}$/i.test(d.docId)||(d.revision!==undefined&&(!Number.isSafeInteger(d.revision)||d.revision<0))||typeof d.importedMd!=='string'||typeof d.importedTxt!=='string'||typeof d.importedHtml!=='string'){
     draftWriteBlocked=true;
     throw new Error('Rascunho local incompatível preservado para recuperação');
   }
@@ -1588,10 +1618,6 @@ function normalizePortableHTML(root,label='conteúdo'){
     if(!PORTABLE_TAGS.has(tag))throw new Error('Elemento '+label+' não suportado: '+tag);
     el.removeAttribute('contenteditable');
     el.removeAttribute('draggable');
-    if(el.hasAttribute('class')){
-      const kept=(el.getAttribute('class')||'').split(/\s+/).filter(Boolean).filter(name=>name!=='ProseMirror-selectednode');
-      if(kept.length)el.setAttribute('class',kept.join(' '));else el.removeAttribute('class');
-    }
     for(const a of [...el.attributes]){
       if(a.name==='controls'&&['video','audio'].includes(tag)){el.removeAttribute(a.name);continue;}
       if(a.name==='disabled'&&tag==='input'&&el.getAttribute('type')==='checkbox'){el.removeAttribute(a.name);continue;}
@@ -1699,13 +1725,6 @@ function buildTelegraph(){
   const identity=session==='ready'?{initData:getTg().initData}:{browserKey:browserOwnerKey()};
   return {title, content: telegraphNodes(editor), path: telegraphPath, doc: docId, revision: docRevision, ...identity};
 }
-function exitFormattedBlockOnParagraph(event){
-  if(composing||event.inputType!=='insertParagraph'||!editorCore)return;
-  if(editorCore.exitFormattedBlock()){
-    event.preventDefault();
-    syncEditorSelectionUI();
-  }
-}
 function commitEditorInput(event){
   if(!editorCore)return;
   editorCore.syncFromDOM({addToHistory:true});
@@ -1714,7 +1733,11 @@ function commitEditorInput(event){
   const normalized=!blockTransformed&&!inlineTransformed&&editorCore.normalizeEmptyFormattedBlock(event?.inputType||'');
   if(blockTransformed||inlineTransformed||normalized)syncEditorSelectionUI();
 }
-editor.addEventListener('beforeinput',exitFormattedBlockOnParagraph);
+editor.addEventListener('beforeinput',event=>{
+  if(!editorCore||composing)return;
+  editorCore.handleBeforeInput(event);
+});
+editor.addEventListener('keydown',event=>{if(editorCore)editorCore.handleKeydown(event);});
 editor.addEventListener('input', event=>{ if(!composing)commitEditorInput(event); });
 editor.addEventListener('change',e=>{if(e.target.matches('input[type=checkbox]')){e.target.toggleAttribute('checked',e.target.checked);requireEditorCore().syncFromDOM({addToHistory:true});syncEditorSelectionUI();}});
 editor.addEventListener('compositionstart', ()=> composing = true);
@@ -1757,48 +1780,6 @@ document.addEventListener('pointerdown',event=>{
   if(retainedInterfaceControl(event.target))event.preventDefault();
 },true);
 
-let retainedTouch=null,retainedTouchClick=null,touchActivating=false;
-document.addEventListener('touchstart',event=>{
-  if(!typingFocusActive()||event.touches?.length!==1)return;
-  const control=retainedInterfaceControl(event.target);
-  const dismiss=event.target===menuDismissLayer?menuDismissLayer:null;
-  const target=control||dismiss;
-  if(!target)return;
-  const touch=event.touches[0];
-  event.preventDefault();
-  retainedTouch={
-    target,
-    id:touch.identifier,
-    x:touch.clientX,
-    y:touch.clientY,
-    moved:false
-  };
-},{capture:true,passive:false});
-document.addEventListener('touchmove',event=>{
-  if(!retainedTouch)return;
-  const touch=[...(event.touches||[])].find(item=>item.identifier===retainedTouch.id);
-  if(!touch)return;
-  if(Math.hypot(touch.clientX-retainedTouch.x,touch.clientY-retainedTouch.y)>10)retainedTouch.moved=true;
-},{capture:true,passive:false});
-document.addEventListener('touchcancel',()=>{retainedTouch=null;},true);
-document.addEventListener('touchend',event=>{
-  if(!retainedTouch)return;
-  const gesture=retainedTouch;
-  retainedTouch=null;
-  event.preventDefault();
-  if(gesture.moved)return;
-  retainedTouchClick={target:gesture.target,until:performance.now()+800};
-  touchActivating=true;
-  try{gesture.target.click();}finally{touchActivating=false;}
-},{capture:true,passive:false});
-document.addEventListener('click',event=>{
-  if(touchActivating||!retainedTouchClick||event.detail===0)return;
-  const same=event.target===retainedTouchClick.target||retainedTouchClick.target.contains?.(event.target);
-  if(!same||performance.now()>retainedTouchClick.until)return;
-  event.preventDefault();
-  event.stopImmediatePropagation();
-  retainedTouchClick=null;
-},true);
 
 menuDismissLayer?.addEventListener('pointerdown',event=>{
   event.preventDefault();
@@ -1812,6 +1793,21 @@ menuDismissLayer?.addEventListener('click',event=>{
 all('#typebar [data-cmd], [data-plus-submenu] [data-cmd], #listMenu [data-cmd]').forEach(btn => btn.addEventListener('click', ()=>{try{exec(btn.dataset.cmd);closePanels();}catch(err){showToast(err.message);}}));
 all('#typebar [data-block], #headingMenu [data-block], #quoteMenu [data-block]').forEach(btn => btn.addEventListener('click', ()=>{try{formatBlock(btn.dataset.block);}catch(err){showToast(err.message);}}));
 document.querySelectorAll('[data-plus-submenu] [data-insert], #quoteMenu [data-insert], #listMenu [data-insert]').forEach(btn => btn.addEventListener('click', ()=>{void insertFeature(btn.dataset.insert).catch(err=>showToast(err.message));}));
+const tableActions=Object.freeze({
+  'add-row':()=>requireEditorCore().addTableRow(),
+  'remove-row':()=>requireEditorCore().removeTableRow(),
+  'add-column':()=>requireEditorCore().addTableColumn(),
+  'remove-column':()=>requireEditorCore().removeTableColumn(),
+  'delete-table':()=>requireEditorCore().deleteTable()
+});
+document.querySelectorAll('[data-table-action]').forEach(btn=>btn.addEventListener('click',()=>{
+  try{
+    restoreSel();
+    const action=tableActions[btn.dataset.tableAction];
+    if(typeof action!=='function'||!action())throw new Error('Posicione o cursor dentro da tabela');
+    closePanels();syncEditorSelectionUI();
+  }catch(err){showToast(err.message||'Não foi possível alterar a tabela');}
+}));
 all('#plusMenu [data-plus-category]').forEach(btn=>btn.addEventListener('click',()=>openPlusSubmenu(btn.dataset.plusCategory)));
 all('[data-plus-submenu] [data-plus-back]').forEach(btn=>btn.addEventListener('click',()=>openPlusRoot()));
 const linkActions=Object.freeze({
@@ -1861,23 +1857,31 @@ one('#exportMdBtn').addEventListener('click', ()=>exportFile('md'));
 one('#mediaBtn').addEventListener('click',()=>{mediaChoice=null;one('#mediaInput').accept='image/*,video/*,audio/*,.pdf,.zip';one('#mediaInput').click();closePanels();});
 one('#voiceBtn').addEventListener('click',()=>{mediaChoice='voice';one('#mediaInput').accept='audio/*,.ogg,.oga,.opus';one('#mediaInput').click();closePanels();});
 one('#mediaInput').addEventListener('change',async()=>{
-  const file=one('#mediaInput').files?.[0];if(!file){mediaChoice=null;return;}
-  one('#mediaInput').value='';
-  if(file.size>20_000_000){mediaChoice=null;showToast('Arquivo acima de 20 MB');return;}
-  if(editor.querySelector('[data-media-id]')){mediaChoice=null;showToast('Há um anexo no documento. Remova-o antes de anexar outro.');return;}
-  let kind=mediaChoice;
+  const input=one('#mediaInput'),files=[...(input.files||[])];
+  input.value='';
+  const requestedKind=mediaChoice;
   mediaChoice=null;
-  if(kind==='voice'&&!file.type.startsWith('audio/')){showToast('Escolha um arquivo de áudio para a mensagem de voz');return;}
-  if(!kind)kind=file.type.startsWith('image/')?'image':file.type.startsWith('video/')?'video':file.type.startsWith('audio/')?'audio':'document';
-  const id=crypto.randomUUID().replace(/-/g,'');
-  const tag={image:'img',video:'video',audio:'audio',voice:'audio',document:'tg-document'}[kind];
-  try{
-    insertHTML('<figure><'+tag+' data-media-id="'+id+'"></'+tag+'><figcaption>'+escapeHTML(file.name)+'</figcaption></figure>',true);
-    await installMedia(file,id,kind);saveLocal();
-  }catch(err){
-    mediaNode(id)?.closest('figure')?.remove();
-    showToast(err.message||'Não foi possível salvar o anexo');
+  if(!files.length)return;
+  const currentMedia=[...editor.querySelectorAll('img,video,audio,tg-document')].filter(node=>!(node.localName==='img'&&/^tg:\/\/emoji\?id=\d+$/.test(node.getAttribute('src')||''))).length;
+  if(currentMedia+files.length>50){showToast('O Telegram aceita no máximo 50 mídias por Rich Message');return;}
+  for(const file of files){
+    let kind=requestedKind;
+    if(kind==='voice'&&!file.type.startsWith('audio/')){showToast('Escolha arquivos de áudio para mensagens de voz');continue;}
+    if(!kind)kind=file.type.startsWith('image/')?'image':file.type.startsWith('video/')?'video':file.type.startsWith('audio/')?'audio':'document';
+    const limit=telegramUploadLimit(kind);
+    if(file.size>limit){showToast(kind==='image'?'Fotos enviadas por multipart podem ter até 10 MB':'Arquivos enviados por multipart podem ter até 50 MB');continue;}
+    const id=crypto.randomUUID().replace(/-/g,'');
+    const tag={image:'img',video:'video',audio:'audio',voice:'audio',document:'tg-document'}[kind];
+    try{
+      insertHTML('<figure><'+tag+' data-media-id="'+id+'"></'+tag+'><figcaption>'+escapeHTML(file.name)+'</figcaption></figure>',true);
+      await installMedia(file,id,kind);
+    }catch(err){
+      mediaNode(id)?.closest('figure')?.remove();
+      try{await mediaDelete(id);}catch{}
+      showToast(err.message||'Não foi possível salvar um anexo');
+    }
   }
+  saveLocal();
 });
 one('#libraryBtn')?.addEventListener('click',()=>openLibrary());
 one('#libraryClose')?.addEventListener('click',closeLibrary);
@@ -2002,19 +2006,20 @@ async function publishTelegram(){
   }
   const initData=getTg().initData;
   try{
-    const p = buildRich();
+    const p=buildRich();
     const data=activeMedia();
-    if(editor.querySelector('[data-media-id]')&&!data)throw new Error('Anexe a mídia novamente antes de publicar');
+    const localIds=[...editor.querySelectorAll('[data-media-id]')].map(node=>node.getAttribute('data-media-id'));
+    if(localIds.some(id=>!mediaFiles.has(id)))throw new Error('Há mídia local que precisa ser anexada novamente');
     const form=new FormData();
     form.set('initData',initData);
     form.set('html',p.rich_message.html);
     form.set('draft',JSON.stringify(draftState()));
-    if(data){form.set('kind',data.kind);form.set('id',data.id);form.set('upload',data.file,data.file.name);}
-    const res=await fetch(API+'/api/telegram/send',{method:'POST',signal:AbortSignal.timeout(60000),body:form});
+    for(const media of data)form.set('upload_'+media.id,media.file,media.file.name);
+    const res=await fetch(API+'/api/telegram/send',{method:'POST',signal:AbortSignal.timeout(120000),body:form});
     const json=await readResponse(res);
     if(!res.ok)throw new Error(json.error||'Não foi possível enviar a mensagem');
     if(json.via!=='sendRichMessage'||!Number.isInteger(json.messageId)||json.messageId<=0)throw new Error('Resposta do Telegram inválida');
-    if(data)remoteMediaSyncedId=data.id;
+    remoteMediaSyncedIds=new Set(data.map(media=>media.id));
     showToast(Number.isInteger(json.previousMessageId)&&json.previousMessageId>0?'Nova versão enviada; a anterior foi preservada no chat':'Mensagem enviada no chat do bot');
   }catch(err){
     showToast(err.name==='TimeoutError'?'Tempo de envio esgotado. Confira o chat antes de tentar novamente.':err instanceof TypeError?'Não foi possível conectar ao Telegram':err.message || 'Não foi possível enviar a mensagem');
@@ -2051,11 +2056,10 @@ fileInput.addEventListener('change', async ()=>{
     const text = await file.text();
     const normalized=text.replace(/^\uFEFF/,'');
     const html = /\.md$/i.test(file.name) ? mdToBasicHTML(normalized) : '<p>'+escapeHTML(normalized).replace(/\n/g,'<br>')+'</p>';
-    const nextName=file.name.replace(/\.(md|txt)$/i,'').slice(0,120);
-    const priorMediaId=mediaFile?.id||editor.querySelector('[data-media-id]')?.getAttribute('data-media-id')||'';
-    if(priorMediaId)await mediaDelete(priorMediaId);
-    if(mediaFile?.url)URL.revokeObjectURL(mediaFile.url);
-    mediaFile=null;
+    const nextName=file.name.replace(/\.(md|txt)$/i,'').slice(0,256);
+    const priorMediaIds=[...mediaFiles.keys()];
+    for(const id of priorMediaIds)await mediaDelete(id);
+    clearRuntimeMedia();
     docName.value=nextName;
     if(!editorCore)throw new Error('Núcleo de edição indisponível');
     editorCore.resetHTML(html,{silent:true});

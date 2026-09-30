@@ -136,7 +136,6 @@ function QuoteMenu() {
 function ExportMenu() {
   return (
     <GlassContextMenu id="exportMenu" className="wide-menu export-menu" anchorId="exportBtn" placement="auto">
-      <p className="hint">Publique, exporte ou acesse seus rascunhos e publicações.</p>
       <div className="menu-list">
         <MenuItem icon="file" id="libraryBtn">Rascunhos e publicações</MenuItem>
         <div className="menu-divider" role="separator" />
@@ -181,6 +180,11 @@ const plusSections = [
       ["calculate", "Fórmula em bloco", { "data-insert": "mathblock", "data-telegram-only": "" }],
       ["horizontal_rule", "Divisor", { "data-insert": "divider" }],
       ["table", "Tabela", { "data-insert": "table", "data-telegram-only": "" }],
+      ["plus", "Adicionar linha", { "data-table-action": "add-row", "data-telegram-only": "" }],
+      ["horizontal_rule", "Remover linha", { "data-table-action": "remove-row", "data-telegram-only": "" }],
+      ["plus", "Adicionar coluna", { "data-table-action": "add-column", "data-telegram-only": "" }],
+      ["horizontal_rule", "Remover coluna", { "data-table-action": "remove-column", "data-telegram-only": "" }],
+      ["table", "Apagar tabela", { "data-table-action": "delete-table", "data-telegram-only": "" }],
       ["details", "Conteúdo expansível", { "data-insert": "details", "data-telegram-only": "" }],
     ],
   },
@@ -253,7 +257,7 @@ function PlusMenu() {
     <>
       <GlassContextMenu id="plusMenu" className="wide-menu" anchorId="plusBtn" placement="top">
         <div className="tools document-tools">
-          <input id="docName" defaultValue="Ideia" aria-label="Nome do documento" maxLength={120} />
+          <input id="docName" defaultValue="Ideia" aria-label="Nome do documento" maxLength={256} />
         </div>
         <div className="menu-list">
           {plusSections.map(section => <PlusCategory key={section.id} section={section} />)}
@@ -322,14 +326,14 @@ function LibrarySubmenu() {
           icon="file"
           id="publicationToggle"
           className="library-section-toggle"
-          aria-expanded="true"
+          aria-expanded="false"
           aria-controls="publicationLists"
         >
           <span id="publicationLibraryTitle" className="menu-label">Publicações</span>
           <span id="publicationCount" className="library-section-count">0</span>
           <span className="menu-chevron"><Icon name="chevron_right" /></span>
         </MenuItem>
-        <div id="publicationLists" className="library-publication-groups">
+        <div id="publicationLists" className="library-publication-groups" hidden>
           <section className="library-platform-group" id="telegramLibrarySection" aria-labelledby="telegramLibraryTitle">
             <h3 id="telegramLibraryTitle">Telegram</h3>
             <div id="telegramList" className="library-list" />
@@ -344,14 +348,14 @@ function LibrarySubmenu() {
           icon="sticky_note_2"
           id="draftToggle"
           className="library-section-toggle"
-          aria-expanded="true"
+          aria-expanded="false"
           aria-controls="draftLists"
         >
           <span id="draftLibraryTitle" className="menu-label">Rascunhos</span>
           <span id="draftCount" className="library-section-count">0</span>
           <span className="menu-chevron"><Icon name="chevron_right" /></span>
         </MenuItem>
-        <div id="draftLists" className="library-draft-groups">
+        <div id="draftLists" className="library-draft-groups" hidden>
           <div id="draftList" className="library-list" aria-labelledby="draftLibraryTitle" />
         </div>
       </div>
@@ -406,7 +410,7 @@ function Chrome() {
       <LibrarySubmenu />
       <PlusMenu />
       <input id="fileInput" type="file" accept=".txt,.md,text/plain,text/markdown" hidden />
-      <input id="mediaInput" type="file" accept="image/*,video/*,audio/*,.pdf,.zip" hidden />
+      <input id="mediaInput" type="file" accept="image/*,video/*,audio/*,.pdf,.zip" multiple hidden />
       <Toast />
       <DialogMenu />
       <FindMenu />
