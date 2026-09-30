@@ -1,6 +1,15 @@
 {
-  "schema": 1,
+  "schema": 2,
   "visualBaseline": "977d61554f75c943b626f89fe871bb3becae75f1",
+  "baselinePolicy": {
+    "role": "evolutionary-reference",
+    "immutable": false,
+    "preservationRequired": false,
+    "divergenceMeaning": "review-required-not-automatic-failure",
+    "advanceWhen": "deliberate-change-accepted",
+    "authority": "current-requirements-and-intentional-contracts",
+    "historicalBehaviorIsNormative": false
+  },
   "runtime": {
     "node": "24.21.0",
     "npm": "11.19.0"
