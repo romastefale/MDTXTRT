@@ -36,19 +36,18 @@
          tintas sempre translúcidas (tint-control nas barras, tint-frost nos painéis,
          tint-soft nos botões em destaque), frost do material (6px, saturate 1.15)
          nas barras e de painel (22px, 1.4) em menus e diálogos, brightness 0, brilho
-         especular de topo (.55 × specular) e um único aro hairline uniforme. */
+         sem brilho especular de topo (como no site HTML) e um único aro hairline uniforme. */
       --glass:rgba(44,40,80,.55);
       --glass-panel:rgba(28,24,60,.5);
       --glass-strong:rgba(255,255,255,.12);
       --glass-press:rgba(255,255,255,.14);
       --rim:rgba(255,255,255,.14);
       --rim-w:1px;
-      --specular:rgba(255,255,255,.55);
       --float:0 10px 28px rgba(30,20,90,.16),0 2px 6px rgba(30,20,90,.08);
       --blur:blur(6px) saturate(1.15);
       --blur-panel:blur(22px) saturate(1.4);
       --glass-ease:cubic-bezier(.34,1.36,.42,1);
-      --glass-edge:0 0 0 var(--rim-w) var(--rim),inset 0 var(--rim-w) 0 var(--specular);
+      --glass-edge:0 0 0 var(--rim-w) var(--rim);
       --pill-gap:6px;
       /* Acento do editor: cor de link do Telegram no tema escuro, legível no fundo roxo. */
       --accent:#6ab3f3;
@@ -184,7 +183,7 @@
     .heading-list .h-opt.footer{font-size:12px;color:var(--muted)}
     .heading-list button.is-current{font-weight:650}
     /* Aro hairline por fora da borda (lê contra a página nos dois temas), brilho
-       especular fino no topo e a sombra flutuante suave do site. */
+       sem brilho de topo, e a sombra flutuante suave do site. */
     .seg,.bar,.toast-material{
       background:var(--glass);-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);
       box-shadow:var(--glass-edge),var(--float)
@@ -353,7 +352,7 @@
        recebe ponteiro nem foco. Sem WebGL 2 o elemento some e fica o vidro em CSS. */
     .lens{position:absolute;inset:0;z-index:0;border-radius:inherit;overflow:hidden;pointer-events:none;color:transparent;font-size:0}
     .lens canvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
-    .lens::after{content:"";position:absolute;inset:0;border-radius:inherit;background:var(--glass-strong);box-shadow:inset 0 var(--rim-w) 0 var(--specular)}
+    .lens::after{content:"";position:absolute;inset:0;border-radius:inherit;background:var(--glass-strong)}
     .lens:not([data-live]):not([data-frozen]){display:none}
     .action-dot > .ui-icon{position:relative;z-index:1}
     .bar > button > .lens{position:absolute;z-index:0}
