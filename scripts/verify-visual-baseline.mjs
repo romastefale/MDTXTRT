@@ -7,7 +7,7 @@ import { createHash } from 'node:crypto';
 
 const releaseManifest=JSON.parse(readFileSync(new URL('../RELEASE_MANIFEST.json',import.meta.url),'utf8'));
 const baselineSha=process.env.BASELINE_SHA||releaseManifest.visualBaseline;
-if(!/^[a-f0-9]{40}$/.test(baselineSha))throw new Error('BASELINE_SHA inválido');
+if(!/^[a-f0-9]{40}$/.test(baselineSha))throw new Error('BASELINE_SHA (comparison snapshot) inválido');
 
 const repo=process.cwd();
 const tempRoot=mkdtempSync(join(tmpdir(),'mdtxtrt-visual-'));
@@ -119,9 +119,9 @@ try{
   if(divergent.length){
     const themes=divergent.map(item=>item.theme).join(', ');
     if(preservationRequired){
-      throw new Error('Preservação visual foi explicitamente exigida e o shell divergiu da baseline em: '+themes);
+      throw new Error('Preservação visual foi explicitamente exigida e o shell divergiu do snapshot de comparação em: '+themes);
     }
-    console.warn('BASELINE EVOLUTION REVIEW: o candidato divergiu da referência visual em: '+themes+'. Isto não é falha automática. Revise se a divergência é evolução deliberada ou regressão; se aceita, avance RELEASE_MANIFEST.json.visualBaseline.');
+    console.warn('VISUAL EVOLUTION REVIEW: o candidato divergiu do snapshot de comparação em: '+themes+'. Isto não é falha automática. Revise se a divergência é evolução deliberada ou regressão; se aceita, avance RELEASE_MANIFEST.json.visualBaseline.');
   } else {
     console.log('O candidato permanece visualmente idêntico à referência atual.');
   }
