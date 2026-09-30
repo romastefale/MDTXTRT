@@ -21,7 +21,7 @@ for(const identical of [true,false]){
   if(decision.authority!=='current-requirements-and-intentional-contracts')throw new Error('Autoridade de decisão incorreta.');
 }
 
-const allowedExtensions=new Set(['.js','.mjs','.jsx','.json','.md','.yml','.yaml','.html','.webmanifest']);
+const binaryExtensions=new Set(['.jpg','.jpeg','.png','.gif','.webp','.ico','.zip','.pdf','.woff','.woff2','.ttf']);
 const skip=new Set(['node_modules','.git','.historical-visual-comparison']);
 const files=[];
 const walk=dir=>{
@@ -29,7 +29,7 @@ const walk=dir=>{
     if(skip.has(entry.name))continue;
     const path=join(dir,entry.name);
     if(entry.isDirectory())walk(path);
-    else if(allowedExtensions.has(extname(entry.name)))files.push(path);
+    else if(entry.isFile()&&!binaryExtensions.has(extname(entry.name).toLowerCase()))files.push(path);
   }
 };
 walk(root);
