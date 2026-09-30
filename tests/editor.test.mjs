@@ -497,7 +497,7 @@ test('mobile editor controls preserve active focus without reopening a dismissed
   w.close();
 });
 
-test('menus preserve the active keyboard without invoking native popover focus and dismiss deterministically',async()=>{
+test('real mobile touch keeps the keyboard focus while opening closing and navigating menus',async()=>{
   const fetch=async(url)=>{
     const target=String(url);
     if(target.endsWith('/api/library/list'))return {ok:true,status:200,json:async()=>({drafts:[],telegram:[],telegraph:[]})};
@@ -508,61 +508,70 @@ test('menus preserve the active keyboard without invoking native popover focus a
   await wait(40);
   editor.focus();
 
-  const press=element=>{
-    const down=new w.Event('pointerdown',{bubbles:true,cancelable:true});
-    element.dispatchEvent(down);
-    assert.equal(down.defaultPrevented,true);
-    element.click();
+  let touchId=1;
+  const touchPress=(element,{compatClick=false}={})=>{
+    const point={identifier:touchId++,clientX:24,clientY:24};
+    const startEvent=new w.Event('touchstart',{bubbles:true,cancelable:true});
+    Object.defineProperty(startEvent,'touches',{value:[point]});
+    element.dispatchEvent(startEvent);
+    if(!startEvent.defaultPrevented&&typeof element.focus==='function')element.focus();
+    assert.equal(startEvent.defaultPrevented,true);
+
+    const endEvent=new w.Event('touchend',{bubbles:true,cancelable:true});
+    Object.defineProperty(endEvent,'touches',{value:[]});
+    Object.defineProperty(endEvent,'changedTouches',{value:[point]});
+    element.dispatchEvent(endEvent);
+    assert.equal(endEvent.defaultPrevented,true);
     assert.equal(d.activeElement,editor);
+
+    if(compatClick){
+      const click=new w.MouseEvent('click',{bubbles:true,cancelable:true,detail:1});
+      element.dispatchEvent(click);
+      assert.equal(click.defaultPrevented,true);
+      assert.equal(d.activeElement,editor);
+    }
   };
 
-  press(d.querySelector('#exportBtn'));
+  touchPress(d.querySelector('#exportBtn'),{compatClick:true});
   assert.equal(d.querySelector('#exportMenu').hasAttribute('data-menu-open'),true);
   assert.equal(d.querySelector('#menuDismissLayer').hidden,false);
 
-  press(d.querySelector('#libraryBtn'));
+  touchPress(d.querySelector('#libraryBtn'),{compatClick:true});
   await wait(5);
   assert.equal(d.querySelector('#libraryMenu').hasAttribute('data-menu-open'),true);
   assert.equal(d.querySelector('#exportMenu').hasAttribute('data-menu-open'),false);
-  assert.equal(d.activeElement,editor);
 
   const dismiss=d.querySelector('#menuDismissLayer');
-  const dismissDown=new w.Event('pointerdown',{bubbles:true,cancelable:true});
-  dismiss.dispatchEvent(dismissDown);
-  assert.equal(dismissDown.defaultPrevented,true);
-  dismiss.click();
+  touchPress(dismiss,{compatClick:true});
   assert.equal(d.querySelector('#libraryMenu').hasAttribute('data-menu-open'),false);
   assert.equal(dismiss.hidden,true);
   assert.equal(d.activeElement,editor);
 
-  press(d.querySelector('#exportBtn'));
-  press(d.querySelector('#libraryBtn'));
-  press(d.querySelector('#libraryClose'));
+  touchPress(d.querySelector('#exportBtn'));
+  touchPress(d.querySelector('#libraryBtn'));
+  touchPress(d.querySelector('#libraryClose'));
   await wait(0);
   assert.equal(d.querySelector('#libraryMenu').hasAttribute('data-menu-open'),false);
   assert.equal(d.querySelector('#exportMenu').hasAttribute('data-menu-open'),true);
   assert.equal(d.activeElement,editor);
 
-  dismiss.dispatchEvent(new w.Event('pointerdown',{bubbles:true,cancelable:true}));
-  dismiss.click();
+  touchPress(dismiss);
   assert.equal(d.querySelector('#exportMenu').hasAttribute('data-menu-open'),false);
-  assert.equal(d.activeElement,editor);
 
-  press(d.querySelector('#plusBtn'));
+  touchPress(d.querySelector('#plusBtn'));
   assert.equal(d.querySelector('#plusMenu').hasAttribute('data-menu-open'),true);
   const category=d.querySelector('#plusMenu [data-plus-category="format"]');
-  press(category);
+  touchPress(category);
   assert.equal(d.querySelector('#plus-format-menu').hasAttribute('data-menu-open'),true);
   assert.equal(d.querySelector('#plusMenu').hasAttribute('data-menu-open'),false);
 
   const back=d.querySelector('#plus-format-menu [data-plus-back]');
-  press(back);
+  touchPress(back);
   assert.equal(d.querySelector('#plus-format-menu').hasAttribute('data-menu-open'),false);
   assert.equal(d.querySelector('#plusMenu').hasAttribute('data-menu-open'),true);
 
-  dismiss.dispatchEvent(new w.Event('pointerdown',{bubbles:true,cancelable:true}));
-  dismiss.click();
-  press(d.querySelector('#linkBtn'));
+  touchPress(dismiss);
+  touchPress(d.querySelector('#linkBtn'));
   assert.equal(d.querySelector('#linkMenu').hasAttribute('data-menu-open'),true);
   assert.equal(d.activeElement,editor);
   w.close();

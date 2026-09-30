@@ -526,7 +526,11 @@ test('editorial pointer retention has one owner and standard menus never depend 
   assert.match(app,/function isTypingEntry\(element\)[\s\S]*?\[contenteditable="true"\]/);
   assert.match(app,/function typingFocusActive\(outsidePanel=null\)[\s\S]*?isTypingEntry\(active\)&&\(!outsidePanel\|\|!outsidePanel\.contains\(active\)\)/);
   assert.match(app,/function focusMenuControl\(element,outsidePanel=null\)[\s\S]*?if\(typingFocusActive\(outsidePanel\)\)return false;[\s\S]*?focusControl\(element\)/);
-  assert.match(app,/document\.addEventListener\('pointerdown',event=>\{[\s\S]*?if\(!typingFocusActive\(\)\)return;[\s\S]*?if\(control&&!control\.disabled\)event\.preventDefault\(\);[\s\S]*?\},true\)/);
+  assert.match(app,/function retainedInterfaceControl\(target\)[\s\S]*?#ux-root button[\s\S]*?return control&&!control\.disabled\?control:null/);
+  assert.match(app,/document\.addEventListener\('pointerdown',event=>\{[\s\S]*?if\(!typingFocusActive\(\)\)return;[\s\S]*?retainedInterfaceControl\(event\.target\)[\s\S]*?event\.preventDefault\(\)/);
+  assert.match(app,/document\.addEventListener\('touchstart',event=>\{[\s\S]*?event\.preventDefault\(\)[\s\S]*?retainedTouch=/);
+  assert.match(app,/document\.addEventListener\('touchend',event=>\{[\s\S]*?event\.preventDefault\(\)[\s\S]*?gesture\.target\.click\(\)/);
+  assert.match(app,/document\.addEventListener\('click',event=>\{[\s\S]*?event\.detail===0[\s\S]*?stopImmediatePropagation\(\)/);
   assert.match(app,/function panelIsOpen\(panel\)[\s\S]*?data-menu-open/);
   assert.match(app,/function openPanel\(sel,anchorOverride=null\)[\s\S]*?panel\.setAttribute\('data-menu-open',''\)/);
   assert.match(app,/function closePanel\(panel,returnFocus=false\)[\s\S]*?panel\.removeAttribute\('data-menu-open'\)/);
@@ -752,7 +756,6 @@ test('step 6 persists drafts on the Railway volume, binds Telegram publication p
   assert.doesNotMatch(app,/Math\.min\(520,bounds\.height\*\.78,fullHeight\)/);
   assert.match(app,/one\('#exportBtn'\)\.addEventListener[\s\S]*?togglePanel\('#exportMenu'/);
   assert.match(app,/one\('#publicationToggle'\)\?\.addEventListener/);
-  assert.doesNotMatch(app,/event\.stopImmediatePropagation\(\)/);
 });
 
 test('step 5 overlays use the visual viewport without changing the baseline material contract',()=>{

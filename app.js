@@ -1686,11 +1686,58 @@ function syncEditorSelectionUI(){
   });
 }
 document.addEventListener('selectionchange',syncEditorSelectionUI);
+function retainedInterfaceControl(target){
+  const control=target?.closest?.('#ux-root button,#ux-root [role="button"],#ux-root a[href]');
+  return control&&!control.disabled?control:null;
+}
 document.addEventListener('pointerdown',event=>{
   if(!typingFocusActive())return;
-  const control=event.target?.closest?.('#ux-root button,#ux-root [role="button"],#ux-root a[href]');
-  if(control&&!control.disabled)event.preventDefault();
+  if(retainedInterfaceControl(event.target))event.preventDefault();
 },true);
+
+let retainedTouch=null,retainedTouchClick=null,touchActivating=false;
+document.addEventListener('touchstart',event=>{
+  if(!typingFocusActive()||event.touches?.length!==1)return;
+  const control=retainedInterfaceControl(event.target);
+  const dismiss=event.target===menuDismissLayer?menuDismissLayer:null;
+  const target=control||dismiss;
+  if(!target)return;
+  const touch=event.touches[0];
+  event.preventDefault();
+  retainedTouch={
+    target,
+    id:touch.identifier,
+    x:touch.clientX,
+    y:touch.clientY,
+    moved:false
+  };
+},{capture:true,passive:false});
+document.addEventListener('touchmove',event=>{
+  if(!retainedTouch)return;
+  const touch=[...(event.touches||[])].find(item=>item.identifier===retainedTouch.id);
+  if(!touch)return;
+  if(Math.hypot(touch.clientX-retainedTouch.x,touch.clientY-retainedTouch.y)>10)retainedTouch.moved=true;
+},{capture:true,passive:false});
+document.addEventListener('touchcancel',()=>{retainedTouch=null;},true);
+document.addEventListener('touchend',event=>{
+  if(!retainedTouch)return;
+  const gesture=retainedTouch;
+  retainedTouch=null;
+  event.preventDefault();
+  if(gesture.moved)return;
+  retainedTouchClick={target:gesture.target,until:performance.now()+800};
+  touchActivating=true;
+  try{gesture.target.click();}finally{touchActivating=false;}
+},{capture:true,passive:false});
+document.addEventListener('click',event=>{
+  if(touchActivating||!retainedTouchClick||event.detail===0)return;
+  const same=event.target===retainedTouchClick.target||retainedTouchClick.target.contains?.(event.target);
+  if(!same||performance.now()>retainedTouchClick.until)return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  retainedTouchClick=null;
+},true);
+
 menuDismissLayer?.addEventListener('pointerdown',event=>{
   event.preventDefault();
   event.stopPropagation();
