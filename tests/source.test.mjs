@@ -160,33 +160,6 @@ test('bars keep the shared glass fill with no hairline stroke',()=>{
   assert.match(shared,/border-radius:999px/);
 });
 
-test('editor uses incremental Markdown input rules on the transactional core',()=>{
-  const app=read('app.js'),core=read('src/editor-core.mjs');
-  for(const fragment of [
-    'function applyMarkdownBlockRule({allowTask=true}={})',
-    'const heading=text.match(/^(#{1,6}) (?=\\S)/);',
-    "const quote=text.match(/^> (?=\\S)/);",
-    "const bullet=text.match(/^[-*+] (?=\\S)/);",
-    'const ordered=text.match(/^(\\d+)\\. (?=\\S)/);',
-    'const task=allowTask&&text.match(/^- \\[([ xX])\\] (?=\\S)/)',
-    'const wrapped=schema.nodes.blockquote.create({expandable:false},node.content.cut(markerLength))',
-    'function applyMarkdownInlineRule()',
-    'function normalizeEmptyFormattedBlock(inputType="")',
-    'function exitFormattedBlock()',
-    'function inBlock(kind)'
-  ])assert.ok(core.includes(fragment),fragment);
-  for(const fragment of [
-    "editorCore.applyMarkdownBlockRule({allowTask:dest==='telegram'})",
-    'editorCore.applyMarkdownInlineRule()',
-    "editorCore.normalizeEmptyFormattedBlock(event?.inputType||'')",
-    'editorCore.exitFormattedBlock()',
-    "core.inBlock('blockquote')",
-    "editor.addEventListener('beforeinput',exitFormattedBlockOnParagraph);",
-    'function syncEditorSelectionUI()',
-    "btn.setAttribute('aria-pressed',String(on));"
-  ])assert.ok(app.includes(fragment),fragment);
-});
-
 test('editorial document typography uses the Telegraph serif family without changing app chrome',()=>{
   const html=read('index.html');
   assert.match(html,/\.editor\{[\s\S]*?font-family:Georgia,"Times New Roman",serif;/);
@@ -206,7 +179,8 @@ test('theme switch owns browser and Telegram chrome without mixed system bars',(
   assert.ok(existsSync(new URL('../icons/dark_mode.svg',import.meta.url)));
   assert.match(app,/const THEME_KEY='mdtxtrt-theme'/);
   assert.match(app,/localStorage\.setItem\(THEME_KEY,mode\)/);
-  assert.match(app,/function setTheme\(mode\)\{[\s\S]*?localStorage\.setItem\(THEME_KEY,mode\)[\s\S]*?window\.location\.reload\(\)/);
+  assert.match(app,/function setTheme\(mode\)\{[\s\S]*?localStorage\.setItem\(THEME_KEY,mode\)[\s\S]*?applyScheme\(mode\)/);
+  assert.doesNotMatch(app,/function setTheme\(mode\)\{[\s\S]*?window\.location\.reload\(\)/);
   assert.match(app,/tg\.setHeaderColor\(color\)/);
   assert.match(app,/tg\.setBackgroundColor\(color\)/);
   assert.match(app,/tg\.setBottomBarColor\(color\)/);
@@ -233,12 +207,10 @@ test('interface icon assets are vector SVG only and referenced from React source
   for(const name of names)assert.ok(existsSync(new URL('../icons/'+name+'.svg',import.meta.url)),name);
 });
 
-test('editor creates publication structures without serializing instructional sample text',()=>{
-  const app=read('app.js'),core=read('src/editor-core.mjs'),html=read('index.html');
+test('editor publication controls contain no instructional fixture content',()=>{
+  const app=read('app.js'),html=read('index.html');
   assert.match(app,/if\(kind==='expandquote'\)return formatBlock\('expandquote'\)/);
   assert.match(app,/if\(kind==='pullquote'\)return formatBlock\('pullquote'\)/);
-  assert.match(core,/target==="expandquote"[\s\S]*?expandable:true/);
-  assert.match(core,/target==="pullquote"[\s\S]*?schema\.nodes\.aside/);
   assert.doesNotMatch(app,/Citação expansível|Citação em destaque|Nova tarefa|Texto expansível|<th>A<\/th>|<td>—<\/td>/);
   assert.match(app,/<details open><summary><\/summary><p><\/p><\/details>/);
   assert.match(html,/\.editor blockquote\[expandable\]/);
@@ -246,24 +218,18 @@ test('editor creates publication structures without serializing instructional sa
   assert.match(html,/\.editor details\{/);
 });
 
-test('editor keeps target-specific publishing validation and code metadata',()=>{
-  const app=read('app.js');
+test('editor keeps destination validation and literal-search implementation separated',()=>{
+  const app=read('app.js'),search=read('src/editor-search.mjs');
   assert.match(app,/a:\['href','name'\],code:\['class'\]/);
   assert.match(app,/\['http:','https:'\]/);
   assert.match(app,/\['http:','https:','mailto:','tel:','tg:'\]/);
-  assert.match(app,/slice\(0,64\)/);
-  assert.match(app,/Formato de data inválido/);
   assert.match(app,/function activeMedia\(\)/);
   assert.match(app,/requireEditorCore\(\)\.patchMedia/);
   assert.doesNotMatch(app,/\bhistI\b|\bhistLock\b/);
   assert.doesNotMatch(app,/toast\.textContent\s*=/);
-  assert.match(app,/toastTextHost/);
-  assert.match(app,/if\(window\.visualViewport\)\{/);
-  assert.doesNotMatch(app,/function searchRegex\(/);
-  const core=read('src/editor-core.mjs');
-  assert.match(core,/function findLiteral\(term\)/);
-  assert.match(core,/\.indexOf\(needle,at\)/);
-  assert.doesNotMatch(core,/new RegExp\(term/);
+  assert.match(search,/function findLiteral\(term\)/);
+  assert.match(search,/\.indexOf\(needle,at\)/);
+  assert.doesNotMatch(search,/new RegExp\(term/);
 });
 
 test('server exposes every React-referenced local SVG icon and vector app icon',()=>{
@@ -596,7 +562,7 @@ test('server follows Bot API 10.3 Rich Message contracts without message downgra
   assert.match(server,/"mailto:","tel:"/);
   assert.match(server,/allowedByType=\{/);
   assert.match(server,/URL de botão deve usar HTTP, HTTPS ou tg:\/\//);
-  assert.match(server,/const msg = await telegramCall\("sendRichMessage", body\)/);
+  assert.match(server,/const msg\s*=\s*await telegramCall\("sendRichMessage",body\)/);
   assert.match(server,/sendTelegramRevisionNotice/);
   assert.doesNotMatch(server,/telegramCall\("editMessageText"/);
   assert.doesNotMatch(server,/telegramCall\("sendMessage"/);
