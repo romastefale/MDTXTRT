@@ -68,3 +68,36 @@ export function assertReleaseEvidencePolicy(manifest) {
   if (errors.length) throw new Error(errors.join('\n'));
   return actual;
 }
+
+
+export const LEGACY_FREEZE_MARKERS = Object.freeze([
+  ['verify','baseline','policy'].join('-'),
+  ['verify','visual','baseline'].join('-'),
+  ['BASELINE','PRESERVATION','REQUIRED'].join('_'),
+  ['BASELINE','SHA'].join('_'),
+  ['VISUAL','COMPARISON','SHA'].join('_'),
+  ['anchor','Policy'].join(''),
+  ['baseline','Policy'].join(''),
+  ['visual','Baseline'].join(''),
+  ['stage','ancestry'].join('-'),
+  ['stage ancestry','manifest'].join('/'),
+  ['final immutable Release','Anchor'].join(' '),
+  ['immutable Release','Anchor'].join(' '),
+  ['Normative visual','baseline'].join(' '),
+  ['approved visual','baseline'].join(' '),
+  ['current visual','baseline'].join(' '),
+  ['Baseline','vigente'].join(' '),
+  ['RELEASE','ANCHOR.md'].join('_'),
+  ['historical-release-evidence','sha'].join('-'),
+  ['releaseEvidencePolicy','.authority'].join(''),
+  ['manifest','.stages'].join(''),
+  ['visual-shell','comparison'].join('-'),
+  ['release-visual','baseline'].join('-'),
+  ['comparison','Snapshot'].join('')
+]);
+
+export const LEGACY_FREEZE_EXECUTABLE_PATTERN = new RegExp(
+  ['merge','base'].join('-') + '[^\\n]*' + ['--is','ancestor'].join('-') +
+  '|' +
+  ['--is','ancestor'].join('-') + '[^\\n]*' + ['merge','base'].join('-')
+);
