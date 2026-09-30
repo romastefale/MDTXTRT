@@ -60,12 +60,24 @@ async function start(){
   throw new Error('Server did not start: '+stderr);
 }
 function draftFixture(html='<p>Teste</p>',doc=randomUUID(),revision=0,name='Teste'){
-  return {version:2,name,html,dest:'telegram',telegraphPath:'',docId:doc,revision,importedMd:'',importedTxt:'',importedHtml:'',media:null};
+  return {version:2,name,html,dest:'telegram',telegraphPath:'',docId:doc,revision,importedMd:'',importedTxt:'',importedHtml:'',media:[]};
 }
 async function formPost(path,fields,file){
+  const values={...fields};
+  if(path==='/api/telegram/send'&&typeof values.draft!=='string'){
+    const draft=draftFixture(String(values.html||'<p>Teste</p>'));
+    if(file){
+      const id=String(values.id||'upload1'),kind=String(values.kind||'document');
+      draft.media=[{id,kind}];
+    }
+    values.draft=JSON.stringify(draft);
+  }
   const form=new FormData();
-  for(const [key,value] of Object.entries(fields))form.set(key,String(value));
-  if(file)form.set('upload',file.blob,file.name);
+  for(const [key,value] of Object.entries(values))form.set(key,String(value));
+  if(file){
+    const id=String(values.id||'upload1');
+    form.set('upload_'+id,file.blob,file.name);
+  }
   const res=await fetch(`http://127.0.0.1:${port}${path}`,{method:'POST',headers:{origin},body:form});
   return {status:res.status,data:await res.json()};
 }
@@ -75,8 +87,8 @@ async function jsonPost(path,body){
 }
 function callCount(method){return calls().filter(call=>call.method===method).length;}
 async function publishHandoffFixture({doc,html='<p>Transferência</p>'}){
-  const draft={version:2,name:'Transferência',html,dest:'telegram',telegraphPath:'',docId:doc,revision:0,importedMd:'',importedTxt:'',importedHtml:'',media:null};
-  const action={type:'publish',html,kind:'',id:''};
+  const draft={version:2,name:'Transferência',html,dest:'telegram',telegraphPath:'',docId:doc,revision:0,importedMd:'',importedTxt:'',importedHtml:'',media:[]};
+  const action={type:'publish',html};
   const form=new FormData();
   form.set('draft',JSON.stringify(draft));
   form.set('action',JSON.stringify(action));
@@ -138,16 +150,15 @@ test('drafts persist on the Railway volume and survive backend restart',async()=
   assert.equal(afterRestart.data.draft.revision,3);
 });
 
-test('draft persistence strips ProseMirror runtime artifacts without rejecting the document',async()=>{
+test('draft persistence removes browser editing attributes without rewriting authored content',async()=>{
   const doc=randomUUID();
   const browserKey='ef'.repeat(32);
-  const draft=draftFixture('<p contenteditable="true" spellcheck="true">Texto<br class="ProseMirror-trailingBreak"></p><blockquote class="ProseMirror-selectednode" draggable="true">Citação</blockquote>',doc,1,'Migrado');
+  const draft=draftFixture('<p contenteditable="true" spellcheck="true">Texto<br></p><blockquote draggable="true">Citação</blockquote>',doc,1,'Migrado');
   const saved=await formPost('/api/drafts/save',{browserKey,draft:JSON.stringify(draft)});
   assert.equal(saved.status,200,saved.data.error);
-  assert.doesNotMatch(saved.data.draft.html,/ProseMirror-|contenteditable|spellcheck|draggable/);
+  assert.doesNotMatch(saved.data.draft.html,/contenteditable|spellcheck|draggable/);
   assert.match(saved.data.draft.html,/Texto/);
   assert.match(saved.data.draft.html,/Citação/);
-
   const loaded=await jsonPost('/api/drafts/load',{browserKey,doc});
   assert.equal(loaded.status,200,loaded.data.error);
   assert.equal(loaded.data.draft.html,saved.data.draft.html);
@@ -295,7 +306,7 @@ test('local attachment is represented as attach upload and stale tg media is rej
   assert.equal(sent.status,200);
   const call=lastCall('sendRichMessage');
   const rich=JSON.parse(call.body.rich_message);
-  assert.deepEqual(rich.media,[{id,media:{type:'photo',media:'attach://upload'}}]);
+  assert.deepEqual(rich.media,[{id,media:{type:'photo',media:'attach://upload_media1'}}]);
   const stale=await formPost('/api/telegram/send',{initData:init(),html:'<img src="tg://photo?id=missing">'});
   assert.equal(stale.status,400);
 });
