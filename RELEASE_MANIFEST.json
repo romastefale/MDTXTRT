@@ -38,7 +38,13 @@
     "evolutionMayReplaceCurrentImplementation": true,
     "acceptedEvolutionBecomesNextBase": true,
     "releaseEvidenceRole": "traceability-only",
-    "visualComparisonRole": "optional-diagnostic-only"
+    "visualComparisonRole": "optional-diagnostic-only",
+    "temporalScope": "permanent",
+    "everyProductStateRemainsMutable": true,
+    "anyAcceptedStateMayBeSuperseded": true,
+    "futureCertificationMayFreezeProduct": false,
+    "changePermissionDependsOnHistoricalState": false,
+    "evolutionPromotionMayBeBlockedByHistoricalState": false
   },
   "historicalEvidence": {
     "implementationStages": [
