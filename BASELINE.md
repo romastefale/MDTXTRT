@@ -16,21 +16,11 @@ Em outras palavras:
 
 > **Baseline = ponto de partida para evolução, não ponto de chegada nem fronteira de mudança.**
 
-O SHA associado à baseline é somente uma fotografia rastreável desse ponto de partida. O SHA não possui autoridade normativa sobre requisitos futuros e não deve ser interpretado como “golden state”, implementação canônica permanente ou comportamento a ser reproduzido indefinidamente.
+## Comparação histórica opcional
 
-## Snapshot atualmente associado
+Nenhum SHA histórico é associado permanentemente à baseline de trabalho. Quando uma investigação exigir comparação com um estado anterior, forneça explicitamente o SHA desejado ao diagnóstico. Essa escolha vale apenas para aquela investigação e não atualiza, redefine ou limita a base corrente.
 
-O snapshot atualmente registrado como referência de comparação é:
-
-`977d61554f75c943b626f89fe871bb3becae75f1`
-
-- Data de adoção: 2026-09-30.
-- Registro canônico: `RELEASE_MANIFEST.json.visualComparisonSnapshot`.
-- Papel: permitir comparação e rastreabilidade do estado a partir do qual o produto continua evoluindo.
-- Mutabilidade: **substituível**. Quando o estado intencional do produto evoluir e for aceito, uma referência posterior deve suceder esta.
-- Autoridade normativa: **nenhuma por mera existência no snapshot**.
-
-O snapshot não deve ser usado para exigir paridade com comportamento antigo. Uma diferença em relação a ele pode ser uma regressão ou pode ser precisamente a evolução requerida; essa distinção deve ser decidida pelos requisitos e contratos intencionais atuais, não pela igualdade com o snapshot.
+A baseline operacional é sempre o estado corrente a partir do qual a próxima mudança será implementada.
 
 ## Regra central de evolução
 
