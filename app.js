@@ -67,7 +67,7 @@ function syncBrowserChrome(mode,color){
 }
 function applyScheme(mode=resolvedTheme()){
   const next=mode==='light'?'light':'dark',light=next==='light';
-  const root=document.documentElement,color=light?'#8b82e6':'#1b1646';
+  const root=document.documentElement,color=light?'#8b82e6':'#151137';
   root.classList.remove(light?'dark':'light');
   root.classList.add(next);
   root.dataset.theme=next;
@@ -1637,10 +1637,11 @@ function commitEditorInput(event){
   const inlineTransformed=!blockTransformed&&editorCore.applyMarkdownInlineRule();
   const normalized=!blockTransformed&&!inlineTransformed&&editorCore.normalizeEmptyFormattedBlock(event?.inputType||'');
   if(blockTransformed||inlineTransformed||normalized)syncEditorSelectionUI();
+  scheduleCaretVisible();
 }
 editor.addEventListener('beforeinput',event=>{
   if(!editorCore||composing)return;
-  editorCore.handleBeforeInput(event);
+  if(editorCore.handleBeforeInput(event))scheduleCaretVisible();
 });
 editor.addEventListener('keydown',event=>{if(editorCore)editorCore.handleKeydown(event);});
 editor.addEventListener('input', event=>{ if(!composing)commitEditorInput(event); });
@@ -1682,18 +1683,29 @@ function retainedInterfaceControl(target){
   const control=target.closest('#ux-root button,#ux-root [role="button"],#ux-root a[href],#ux-root .glass-menu,#ux-root .topbar,#ux-root .bar-wrap,#ux-root .toast');
   return control&&!control.disabled?control:null;
 }
+// No toque, só o mousedown de compatibilidade é cancelado. Cancelar o pointerdown
+// de um toque faz o WebKit (iOS e Telegram) suprimir esse mousedown, que é o
+// evento cujo cancelamento impede o blur, e o WebKit ainda suprime o click. O
+// resultado era o teclado fechando e o menu sem abrir. Com mouse e caneta, o
+// pointerdown continua cancelado.
+function touchPress(event){
+  return event.type==='pointerdown'&&event.pointerType==='touch';
+}
 function retainTypingFocus(event){
-  if(!typingFocusActive())return;
+  if(touchPress(event)||!typingFocusActive())return;
   if(retainedInterfaceControl(event.target))event.preventDefault();
 }
 document.addEventListener('pointerdown',retainTypingFocus,true);
 document.addEventListener('mousedown',retainTypingFocus,true);
 
 
-menuDismissLayer?.addEventListener('pointerdown',event=>{
+function holdDismissPress(event){
+  if(touchPress(event))return;
   event.preventDefault();
   event.stopPropagation();
-});
+}
+menuDismissLayer?.addEventListener('pointerdown',holdDismissPress);
+menuDismissLayer?.addEventListener('mousedown',holdDismissPress);
 menuDismissLayer?.addEventListener('click',event=>{
   event.preventDefault();
   event.stopPropagation();
@@ -1995,10 +2007,16 @@ function syncBrowserViewport(){
     for(const sel of sheets){const panel=one(sel);if(panelIsOpen(panel))placePanel(panel);}
     const dialog=one('#dialogMenu');
     if(dialog?.matches(':popover-open'))placePanel(dialog);
+    if(typingFocusActive())keepCaretVisible();
     return;
   }
-  const bottom=Math.max(0,root.clientHeight-bounds.top-bounds.height);
+  // Frações de pixel do iOS sem teclado não contam como teclado (deixariam um vão).
+  const raw=Math.max(0,root.clientHeight-bounds.top-bounds.height),bottom=raw>=1?raw:0;
+  const hadKeyboard=inset>0;
   inset=keyboardTarget()||inset>0?bottom:0;
+  // O iOS às vezes deixa a página rolada depois que o teclado fecha; a barra
+  // ficaria acima da borda. A página não rola (overflow:clip), então volta ao topo.
+  if(hadKeyboard&&!inset&&(window.scrollY||window.scrollX))window.scrollTo(0,0);
   root.toggleAttribute('data-keyboard',inset>0);
   root.style.setProperty('--vv-top',bounds.top+'px');
   root.style.setProperty('--vv-bottom',inset+'px');
@@ -2006,6 +2024,39 @@ function syncBrowserViewport(){
   for(const sel of sheets){const panel=one(sel);if(panelIsOpen(panel))placePanel(panel);}
   const dialog=one('#dialogMenu');
   if(dialog?.matches(':popover-open'))placePanel(dialog);
+  if(inset>0)keepCaretVisible();
+}
+// O cursor do editor fica visível entre a barra superior e a barra inferior (que
+// acompanha o teclado): ao digitar e quando o teclado abre ou muda de altura.
+function caretRect(range){
+  const rects=range.getClientRects();
+  const last=rects.length?rects[rects.length-1]:null;
+  if(last&&(last.height||last.width))return last;
+  let node=range.endContainer;
+  if(node.nodeType!==1)node=node.parentElement;
+  else if(node===editor)node=editor.childNodes[Math.min(range.endOffset,editor.childNodes.length-1)]||editor;
+  if(node?.nodeType!==1)node=node?.parentElement||editor;
+  return node.getBoundingClientRect();
+}
+function keepCaretVisible(){
+  if(document.activeElement!==editor)return;
+  const scroller=editor.closest('.scroll'),selection=document.getSelection();
+  if(!scroller||!selection?.rangeCount)return;
+  const range=selection.getRangeAt(0);
+  if(!editor.contains(range.endContainer))return;
+  const rect=caretRect(range);
+  if(!rect||!Number.isFinite(rect.top))return;
+  const view=visualViewportBounds(),gap=8;
+  const bar=one('.bar-wrap')?.getBoundingClientRect(),top=one('.topbar')?.getBoundingClientRect();
+  const lower=Math.min(view.bottom,bar&&bar.height?bar.top:view.bottom)-gap;
+  const upper=Math.max(view.top,top&&top.height?top.bottom:view.top)+gap;
+  if(rect.bottom>lower)scroller.scrollTop+=rect.bottom-lower;
+  else if(rect.top<upper)scroller.scrollTop-=upper-rect.top;
+}
+let caretFrame=0;
+function scheduleCaretVisible(){
+  cancelAnimationFrame(caretFrame);
+  caretFrame=requestAnimationFrame(keepCaretVisible);
 }
 function scheduleBrowserViewport(){
   cancelAnimationFrame(viewportFrame);

@@ -28,6 +28,32 @@ function setTextCaret(block,offset){
   return true;
 }
 
+// Chrome e WebKit deixam a primeira linha de um editor vazio como texto solto na
+// raiz. Para os atalhos de Markdown valerem nela, a linha vira um <p>.
+const INLINE_LINE=/^(a|b|strong|i|em|u|s|del|code|span|mark|sub|sup|tg-spoiler|tg-emoji|tg-time|tg-math)$/;
+function wrapRootLine(root,range){
+  const node=range.startContainer;
+  if(node.nodeType!==3||node.parentNode!==root)return null;
+  const offset=range.startOffset,inline=item=>item.nodeType===3||item.nodeType===1&&INLINE_LINE.test(item.localName);
+  let first=node,last=node;
+  while(first.previousSibling&&inline(first.previousSibling))first=first.previousSibling;
+  while(last.nextSibling&&inline(last.nextSibling))last=last.nextSibling;
+  const p=root.ownerDocument.createElement("p");
+  root.insertBefore(p,first);
+  for(let item=first;item;){
+    const next=item===last?null:item.nextSibling;
+    p.append(item);item=next;
+  }
+  setCaret(node,offset);
+  return p;
+}
+
+// Um bloco sem texto nem mídia precisa de <br> para ter altura e receber o cursor.
+function ensureCaretLine(block){
+  if(block.textContent.replace(/\u200b/g,"")||block.querySelector("br,img,video,audio,iframe,input,tg-emoji"))return;
+  block.replaceChildren(block.ownerDocument.createElement("br"));
+}
+
 function replaceBlockText(block,text){
   block.replaceChildren(block.ownerDocument.createTextNode(text));
 }
@@ -88,37 +114,76 @@ export function createEditorCore({element,onChange=()=>{},onSelectionChange=()=>
     return true;
   }
 
+  // Atalhos de Markdown no início da linha: "# " a "###### ", "> ", "- ", "* ",
+  // "+ ", "1. " e "- [ ] ". Convertem assim que o espaço é digitado depois do
+  // marcador, ou quando o marcador é digitado antes de um texto que já existe.
+  // "\\# " mantém o marcador como texto.
+  function markerMatch(text,before,source){
+    return text.match(new RegExp("^"+source+"(?=\\S)"))||before.match(new RegExp("^"+source+"$"));
+  }
+
+  function applyTaskItemRule(block,range){
+    if(block?.localName!=="li"||block.parentNode?.localName!=="ul"||block.querySelector("input"))return false;
+    const text=block.textContent.replace(/\u00a0/g," "),caret=textCaretOffset(block,range);
+    const task=markerMatch(text,text.slice(0,caret),"\\[([ xX])\\] ");
+    if(!task)return false;
+    const doc=element.ownerDocument,checkbox=doc.createElement("input");
+    checkbox.type="checkbox";checkbox.checked=task[1].toLowerCase()==="x";
+    const rest=doc.createTextNode(text.slice(task[0].length));
+    block.replaceChildren(checkbox,rest);
+    setCaret(rest,Math.max(0,caret-task[0].length));
+    changed();notifySelection();return true;
+  }
+
   function applyMarkdownBlockRule({allowTask=true}={}){
     const range=rangeInside(element);
-    const block=currentTextBlock(element);
-    if(!range||!range.collapsed||!block||!["p","div"].includes(block.localName))return false;
+    if(!range||!range.collapsed)return false;
+    let block=currentTextBlock(element);
+    if(!block){
+      const item=elementAtRangeStart(element)?.closest?.("li");
+      if(allowTask&&item&&element.contains(item))return applyTaskItemRule(item,range);
+    }
+    if(!block&&wrapRootLine(element,range))block=currentTextBlock(element);
+    const current=rangeInside(element);
+    // Também numa linha de título continuada pelo Enter: "## " ali troca o nível.
+    if(!current||!block||!/^(p|div|h[1-6])$/.test(block.localName))return false;
     const text=block.textContent.replace(/\u00a0/g," ");
-    const caret=textCaretOffset(block,range);
+    const caret=textCaretOffset(block,current),before=text.slice(0,caret);
     const escaped=text.match(/^\\(#{1,6}|>|[-*+]|\d+\.) (?=\S)/);
     if(escaped){
       replaceBlockText(block,text.slice(1));setTextCaret(block,Math.max(0,caret-1));changed();notifySelection();return true;
     }
-    const heading=text.match(/^(#{1,6}) (?=\S)/);
-    const quote=text.match(/^> (?=\S)/);
-    const task=allowTask&&text.match(/^- \[([ xX])\] (?=\S)/);
-    const bullet=text.match(/^[-*+] (?=\S)/);
-    const ordered=text.match(/^(\d+)\. (?=\S)/);
+    const heading=markerMatch(text,before,"(#{1,6}) ");
+    const quote=markerMatch(text,before,"> ");
+    const task=allowTask&&markerMatch(text,before,"- \\[([ xX])\\] ");
+    const bullet=markerMatch(text,before,"[-*+] ");
+    const ordered=markerMatch(text,before,"(\\d+)\\. ");
     if(!heading&&!quote&&!task&&!bullet&&!ordered)return false;
+    const doc=element.ownerDocument;
+    const place=(node,target,prefix)=>{
+      ensureCaretLine(target);
+      block.replaceWith(node);
+      if(target.textContent)setTextCaret(target,Math.max(0,caret-prefix));
+      else setCaret(target,target.querySelector("input")?1:0);
+      changed();notifySelection();return true;
+    };
     if(heading){
-      const tag="h"+heading[1].length,node=element.ownerDocument.createElement(tag),prefix=heading[0].length;
-      node.textContent=text.slice(prefix);block.replaceWith(node);setTextCaret(node,Math.max(0,caret-prefix));changed();notifySelection();return true;
+      const node=doc.createElement("h"+heading[1].length),prefix=heading[0].length;
+      node.textContent=text.slice(prefix);return place(node,node,prefix);
     }
     if(quote){
-      const node=element.ownerDocument.createElement("blockquote"),prefix=quote[0].length;
-      node.textContent=text.slice(prefix);block.replaceWith(node);setTextCaret(node,Math.max(0,caret-prefix));changed();notifySelection();return true;
+      const node=doc.createElement("blockquote"),prefix=quote[0].length;
+      node.textContent=text.slice(prefix);return place(node,node,prefix);
     }
-    const match=task||ordered||bullet,prefix=match[0].length,list=element.ownerDocument.createElement(ordered?"ol":"ul"),item=element.ownerDocument.createElement("li");
+    const match=task||ordered||bullet,prefix=match[0].length,list=doc.createElement(ordered?"ol":"ul"),item=doc.createElement("li");
     if(task){
-      const checkbox=element.ownerDocument.createElement("input");checkbox.type="checkbox";checkbox.checked=task[1].toLowerCase()==="x";
-      item.append(checkbox,element.ownerDocument.createTextNode(text.slice(prefix)));
+      const checkbox=doc.createElement("input");checkbox.type="checkbox";checkbox.checked=task[1].toLowerCase()==="x";
+      item.append(checkbox);
+      if(text.slice(prefix))item.append(doc.createTextNode(text.slice(prefix)));
     }else item.textContent=text.slice(prefix);
     if(ordered)list.start=Number(ordered[1]);
-    list.append(item);block.replaceWith(list);setTextCaret(item,Math.max(0,caret-prefix));changed();notifySelection();return true;
+    list.append(item);
+    return place(list,item,prefix);
   }
 
   function applyMarkdownInlineRule(){

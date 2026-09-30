@@ -346,3 +346,117 @@ test.describe(OFFLINE,()=>{
     expect(new Set(saves)).toEqual(new Set([docId]));
   });
 });
+
+// Toque real (iPhone/Telegram): o teclado continua aberto e cada toque ainda ativa o controle.
+test.describe('toque com o teclado aberto',()=>{
+  test.use({hasTouch:true});
+  test('+, submenu, item, ☰ e fechar por fora mantêm #editor ativo',async ({page})=>{
+    const active=()=>page.evaluate(()=>document.activeElement?.id);
+    await page.locator('#editor').tap();
+    await page.keyboard.type('Foco no toque');
+    expect(await active()).toBe('editor');
+    await page.locator('#plusBtn').tap();
+    await expect(page.locator('#plusMenu')).toHaveAttribute('data-menu-open','');
+    expect(await active(),'depois do +').toBe('editor');
+    await page.locator('#plusMenu [data-plus-category="format"]').tap();
+    await expect(page.locator('#plus-format-menu')).toHaveAttribute('data-menu-open','');
+    expect(await active(),'depois do submenu').toBe('editor');
+    await page.locator('#plus-format-menu [data-cmd="code"]').tap();
+    await expect(page.locator('#plus-format-menu')).not.toHaveAttribute('data-menu-open','');
+    expect(await active(),'depois do item').toBe('editor');
+    await page.locator('#headingBtn').tap();
+    await page.locator('#headingMenu [data-block="h2"]').tap();
+    await expect(page.locator('#editor h2')).toHaveCount(1);
+    expect(await active(),'depois do título').toBe('editor');
+    await page.locator('#exportBtn').tap();
+    await expect(page.locator('#exportMenu')).toHaveAttribute('data-menu-open','');
+    expect(await active(),'depois do ☰').toBe('editor');
+    const layer=await page.locator('#menuDismissLayer').boundingBox();
+    await page.touchscreen.tap(24,layer.y+layer.height*.5);
+    await expect(page.locator('#menuDismissLayer')).toBeHidden();
+    expect(await active(),'depois de fechar por fora').toBe('editor');
+    await page.keyboard.type('!');
+    await expect(page.locator('#editor')).toContainText('!');
+  });
+});
+
+// Atalhos de Markdown digitados de verdade no início da linha (decisão do dono).
+test('atalhos de Markdown no início da linha viram título, citação e listas',async ({page})=>{
+  const editor=page.locator('#editor');
+  await editor.click();
+  const line=async(text,enters=1)=>{await page.keyboard.type(text);for(let i=0;i<enters;i++)await page.keyboard.press('Enter');};
+  await line('# Título',2);
+  await line('## Seção',2);
+  await line('> Citação',2);
+  await line('- item');
+  await line('[ ] tarefa',2);
+  await line('1. um');
+  await line('dois',2);
+  await page.keyboard.type('texto comum');
+  await expect(editor.locator('h1')).toHaveText('Título');
+  await expect(editor.locator('h2')).toHaveText('Seção');
+  await expect(editor.locator('blockquote')).toHaveText('Citação');
+  await expect(editor.locator('ul > li').first()).toHaveText('item');
+  await expect(editor.locator('ul > li input[type="checkbox"]')).toHaveCount(1);
+  await expect(editor.locator('ol > li')).toHaveText(['um','dois']);
+  await expect(editor).toContainText('texto comum');
+  await expect(editor.locator('h1')).not.toContainText('#');
+});
+
+// Teclado virtual simulado: visualViewport encolhe como no iPhone quando o teclado abre.
+async function fakeKeyboard(page){
+  await page.addInitScript(()=>{
+    const vv=new EventTarget();let keyboard=0;
+    for(const [key,get] of Object.entries({
+      offsetLeft:()=>0,offsetTop:()=>0,pageLeft:()=>0,pageTop:()=>0,scale:()=>1,
+      width:()=>document.documentElement.clientWidth,
+      height:()=>document.documentElement.clientHeight-keyboard
+    }))Object.defineProperty(vv,key,{get});
+    Object.defineProperty(window,'visualViewport',{configurable:true,get:()=>vv});
+    window.__keyboard=height=>{keyboard=height;vv.dispatchEvent(new Event('resize'));};
+  });
+  await page.reload();
+  await expect(page.locator('#undoBtn')).toBeVisible();
+}
+const settle=page=>page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+
+test('barra inferior acompanha o teclado, não some atrás dele e volta sem vão',async ({page})=>{
+  await page.setViewportSize({width:390,height:844});
+  await fakeKeyboard(page);
+  const barBottom=()=>page.evaluate(()=>document.querySelector('.bar-wrap').getBoundingClientRect().bottom);
+  const initial=await barBottom();
+  await page.locator('#editor').click();
+  await page.evaluate(()=>window.__keyboard(340));await settle(page);
+  const up=await barBottom();
+  expect(up,'acima do teclado').toBeLessThanOrEqual(844-340+0.5);
+  expect(up,'encostada no teclado, sem pular').toBeGreaterThan(844-340-60);
+  // Menu aberto com o teclado em cima cabe acima da barra.
+  await page.locator('#headingBtn').click();
+  const menu=await page.locator('#headingMenu').boundingBox();
+  const bar=await page.locator('.bar-wrap').boundingBox();
+  expect(menu.y).toBeGreaterThanOrEqual(0);
+  expect(menu.y+menu.height,'menu acima da barra').toBeLessThanOrEqual(bar.y+0.5);
+  expect(await page.evaluate(()=>document.activeElement?.id)).toBe('editor');
+  await closeMenus(page);
+  // Teclado fecha: a barra volta exatamente para onde estava.
+  await page.locator('#editor').evaluate(el=>el.blur());
+  await page.evaluate(()=>window.__keyboard(0));await settle(page);
+  expect(Math.abs(await barBottom()-initial),'sem vão depois do teclado').toBeLessThan(0.5);
+});
+
+test('o cursor continua visível acima da barra enquanto se digita com o teclado aberto',async ({page})=>{
+  await page.setViewportSize({width:390,height:844});
+  await fakeKeyboard(page);
+  await page.locator('#editor').click();
+  await page.evaluate(()=>window.__keyboard(340));await settle(page);
+  for(let i=0;i<24;i++){await page.keyboard.type('linha '+i);await page.keyboard.press('Enter');}
+  await page.keyboard.type('fim');
+  await settle(page);
+  const {caret,bar}=await page.evaluate(()=>{
+    const range=getSelection().getRangeAt(0),rects=range.getClientRects();
+    const caret=(rects.length?rects[rects.length-1]:range.startContainer.parentElement.getBoundingClientRect()).toJSON();
+    return {caret,bar:document.querySelector('.bar-wrap').getBoundingClientRect().toJSON()};
+  });
+  expect(caret.bottom,'cursor acima da barra').toBeLessThanOrEqual(bar.top+0.5);
+  expect(caret.top,'cursor abaixo da barra superior').toBeGreaterThan(0);
+});
