@@ -525,7 +525,6 @@ function closeTopLayer(){
 function clamp(value,min,max){return Math.max(min,Math.min(max,value));}
 const panelAnchors=new WeakMap(),panelOpeners=new WeakMap();
 let dialogReturnFocus=null,dialogInerted=[];
-let libraryInerted=[];
 function visualViewportBounds(){
   const root=document.documentElement,viewport=window.visualViewport;
   if(session==='ready'){
@@ -669,20 +668,6 @@ function setDialogModality(active){
       if(!wasInert)element.removeAttribute('inert');
     }
     dialogInerted=[];
-  }
-}
-function setLibraryModality(active){
-  const menu=one('#exportMenu');
-  if(!menu)return;
-  if(active){
-    if(libraryInerted.length)return;
-    libraryInerted=dialogOutsideBranches(menu).map(element=>[element,element.hasAttribute('inert')]);
-    for(const [element] of libraryInerted)element.setAttribute('inert','');
-  }else{
-    for(const [element,wasInert] of libraryInerted){
-      if(!wasInert)element.removeAttribute('inert');
-    }
-    libraryInerted=[];
   }
 }
 function libraryFocusables(){
@@ -1390,7 +1375,6 @@ function setLibraryView(open){
   menu.classList.toggle('library-open',Boolean(open));
 }
 function resetLibrarySubmenu(){
-  setLibraryModality(false);
   setLibraryView(false);
   setPublicationsExpanded(true);
 }
@@ -1402,7 +1386,6 @@ function openLibrary(preferred=''){
   }
   setLibraryView(true);
   setPublicationsExpanded(true);
-  setLibraryModality(true);
   const scroll=one('.library-submenu-scroll');
   if(scroll)scroll.scrollTop=0;
   placePanel(menu);
@@ -1413,7 +1396,6 @@ function openLibrary(preferred=''){
 function closeLibrary(){
   if(!librarySubmenuOpen())return;
   const menu=one('#exportMenu');
-  setLibraryModality(false);
   setLibraryView(false);
   setPublicationsExpanded(true);
   placePanel(menu);
@@ -1422,7 +1404,6 @@ function closeLibrary(){
 }
 function dismissLibraryMenu(){
   const menu=one('#exportMenu');
-  setLibraryModality(false);
   setLibraryView(false);
   if(menu?.matches(':popover-open'))menu.hidePopover();
   syncBackButton();
@@ -1772,8 +1753,10 @@ one('#exportMenu')?.addEventListener('keydown',event=>{
 });
 document.addEventListener('pointerdown',event=>{
   if(!librarySubmenuOpen())return;
-  const menu=one('#exportMenu');
-  if(menu.contains(event.target))return;
+  const menu=one('#exportMenu'),rect=menu.getBoundingClientRect();
+  const x=Number(event.clientX),y=Number(event.clientY);
+  const insideGeometry=Number.isFinite(x)&&Number.isFinite(y)&&x>=rect.left&&x<=rect.right&&y>=rect.top&&y<=rect.bottom;
+  if(menu.contains(event.target)&&insideGeometry)return;
   event.preventDefault();
   event.stopImmediatePropagation();
   resetLibrarySubmenu();
