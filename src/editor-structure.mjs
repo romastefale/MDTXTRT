@@ -54,6 +54,7 @@ export function createStructure(root,{changed=()=>{},selectionChanged=()=>{}}={}
 
   function formatBlock(kind){
     let block=currentBlock(root);
+    if(!block&&root.children.length===1&&root.firstElementChild?.localName==="p"&&!root.firstElementChild.textContent.trim())block=root.firstElementChild;
     const current=block?currentBlockKind():"p";
     const target=current===kind?"p":kind;
     let tag=target,attrs={};
