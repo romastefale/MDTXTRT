@@ -1,12 +1,24 @@
 # MDTXTRT
 
-## Baseline de trabalho
+## Baseline de trabalho — ponto de partida evolutivo
 
 A baseline de trabalho vigente é o SHA definido em `RELEASE_MANIFEST.json.visualBaseline` e documentado em `BASELINE.md`.
 
-Ela é um snapshot de referência, não um produto final, não uma especificação imutável e não deve ser preservada quando uma solicitação exigir correção ou evolução. Bugs presentes nela continuam sendo bugs. Requisitos novos ou corrigidos devem evoluir o código e, quando apropriado, substituir a própria baseline.
+**A baseline não é uma base imutável, um estado a ser congelado nem um alvo de reprodução permanente.** Ela é o ponto de partida conhecido do produto para que a próxima evolução possa ser implementada, comparada e validada com rastreabilidade.
 
-Para agentes/assistentes: não use a baseline, testes antigos ou um PASS automatizado para negar um problema observado pelo usuário. Não afirme validações, deploys ou comportamento real sem evidência correspondente. Consulte [AGENTS.md](AGENTS.md) e [BASELINE.md](BASELINE.md).
+Consequentemente:
+
+- o que estiver correto na baseline pode ser preservado como contrato intencional;
+- o que estiver incorreto, incompleto, limitado ou superado deve ser alterado;
+- requisitos atuais prevalecem sobre comportamentos incidentais do snapshot;
+- testes e documentação devem acompanhar a evolução do comportamento pretendido;
+- quando o produto evolui deliberadamente e o novo estado é aceito, a referência de baseline deve evoluir também.
+
+Baseline, portanto, significa **“estado conhecido a partir do qual evoluímos”**, e não **“estado que futuras mudanças devem reproduzir”**.
+
+Bugs presentes nela continuam sendo bugs. Uma característica não se torna requisito apenas por existir no SHA de referência. Compatibilidade com comportamento anterior só deve ser mantida quando ela própria for um requisito ou contrato intencional.
+
+Para agentes/assistentes: não use a baseline, `main`, testes antigos ou um PASS automatizado para negar um problema observado pelo usuário ou bloquear uma evolução solicitada. Consulte [AGENTS.md](AGENTS.md) e [BASELINE.md](BASELINE.md).
 
 ## Contratos de implementação
 
