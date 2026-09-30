@@ -517,9 +517,8 @@ test('editorial pointer retention has one owner and standard menus never depend 
   assert.match(app,/function focusMenuControl\(element,outsidePanel=null\)[\s\S]*?if\(typingFocusActive\(outsidePanel\)\)return false;[\s\S]*?focusControl\(element\)/);
   assert.match(app,/function retainedInterfaceControl\(target\)[\s\S]*?#ux-root button[\s\S]*?return control&&!control\.disabled\?control:null/);
   assert.match(app,/document\.addEventListener\('pointerdown',event=>\{[\s\S]*?if\(!typingFocusActive\(\)\)return;[\s\S]*?retainedInterfaceControl\(event\.target\)[\s\S]*?event\.preventDefault\(\)/);
-  assert.match(app,/document\.addEventListener\('touchstart',event=>\{[\s\S]*?event\.preventDefault\(\)[\s\S]*?retainedTouch=/);
-  assert.match(app,/document\.addEventListener\('touchend',event=>\{[\s\S]*?event\.preventDefault\(\)[\s\S]*?gesture\.target\.click\(\)/);
-  assert.match(app,/document\.addEventListener\('click',event=>\{[\s\S]*?event\.detail===0[\s\S]*?stopImmediatePropagation\(\)/);
+  assert.doesNotMatch(app,/retainedTouch|touchActivating|gesture\.target\.click\(\)/);
+  assert.doesNotMatch(app,/document\.addEventListener\('touchstart'|document\.addEventListener\('touchend'/);
   assert.match(app,/function panelIsOpen\(panel\)[\s\S]*?data-menu-open/);
   assert.match(app,/function openPanel\(sel,anchorOverride=null\)[\s\S]*?panel\.setAttribute\('data-menu-open',''\)/);
   assert.match(app,/function closePanel\(panel,returnFocus=false\)[\s\S]*?panel\.removeAttribute\('data-menu-open'\)/);
@@ -533,7 +532,8 @@ test('editorial pointer retention has one owner and standard menus never depend 
   assert.match(app,/function focusLibraryStart\(\)\{return focusMenuControl\(one\('#libraryClose'\)\);\}/);
   assert.match(app,/librarySubmenuOpen\(\)&&!menu\.contains\(event\.target\)&&!isTypingEntry\(event\.target\)/);
   assert.doesNotMatch(app,/addEventListener\('mousedown', e => e\.preventDefault\(\)\)/);
-  assert.match(app,/function setTheme\(mode\)[\s\S]*?window\.location\.reload\(\)/);
+  assert.match(app,/function setTheme\(mode\)[\s\S]*?applyScheme\(mode\)/);
+  assert.doesNotMatch(app,/function setTheme\(mode\)[\s\S]*?window\.location\.reload\(\)/);
 });
 
 test('document title is explicit in export flow and becomes the Telegraph page title',()=>{
