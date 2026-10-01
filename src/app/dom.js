@@ -8,8 +8,6 @@ export const linkBtn = one('#linkBtn');
 export const toast = one('#toast');
 export const toastTextHost = one('#toastTextHost');
 if(!toast||!toastTextHost)throw new Error('Interface React incompleta: toast');
-export const toastText = document.createTextNode('');
-toastTextHost.append(toastText);
 export const fileInput = one('#fileInput');
 export const menuDismissLayer = one('#menuDismissLayer');
 // Estado dos menus, do diálogo e da biblioteca: src/ui-store.mjs, renderizado
