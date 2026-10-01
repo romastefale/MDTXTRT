@@ -52,5 +52,5 @@ export function createHistory(root,{depth=120,onRestore=()=>{}}={}){
   }
 
   reset();
-  return {commit,rememberSelection,reset,undo,redo,get restoring(){return restoring;}};
+  return {commit,rememberSelection,reset,undo,redo,canUndo:()=>index>0,canRedo:()=>index>=0&&index<stack.length-1,get restoring(){return restoring;}};
 }

@@ -8,7 +8,7 @@ import { consumeNewDocumentToken, createNewDocumentLaunch, loadLocal, loadRemote
 import { handoffToken, openMiniApp, verifyTelegram } from "./telegram.js";
 import { closePanel, closePanels, focusControl, holdDismissPress, isTypingEntry, librarySubmenuOpen, openPanel, openPlusRoot, openPlusSubmenu, panelIsOpen, retainTypingFocus, showToast, syncBackButton, togglePanel } from "./panels.js";
 import { dialogFocusables, dismissDialog, finishDialog, focusDialogStart, focusLibraryStart, libraryFocusables } from "./dialog.js";
-import { commitEditorInput, exec, flashBtn, formatBlock, histRedo, histUndo, insertFeature, insertHTML, insertHyperlink, insertLinkButton, insertPlainText, insertVisibleLink, requireEditorCore, restoreSel, saveSel, syncEditorSelectionUI } from "./editing.js";
+import { commitEditorInput, exec, flashBtn, formatBlock, histRedo, histUndo, insertFeature, syncHistoryButtons, insertHTML, insertHyperlink, insertLinkButton, insertPlainText, insertVisibleLink, requireEditorCore, restoreSel, saveSel, syncEditorSelectionUI } from "./editing.js";
 import { closeLibrary, consumeLibraryView, openLibrary, setDraftsExpanded, setPublicationsExpanded } from "./library.js";
 import { consumeBotLaunchAction, consumeLaunchDestination, consumeLaunchDocument, runBotLaunchAction } from "./launch.js";
 import { escapeHTML, mdToBasicHTML } from "./convert.js";
@@ -119,7 +119,7 @@ all('#linkMenu [data-link-kind]').forEach(btn=>btn.addEventListener('click',()=>
   closePanel(one('#linkMenu'));
   if(typeof action==='function')void action().catch(err=>showToast(err.message||'Não foi possível inserir o link'));
 }));
-one('#undoBtn').addEventListener('click', ()=>{ histUndo(); flashBtn(one('#undoBtn')); });
+one('#undoBtn').addEventListener('click', ()=>{ if(histUndo())flashBtn(one('#undoBtn')); });
 one('#redoBtn').addEventListener('click', ()=>{ histRedo(); flashBtn(one('#redoBtn')); });
 one('#themeBtn').addEventListener('click',()=>setTheme(document.documentElement.classList.contains('light')?'dark':'light'));
 one('#openAppBtn').addEventListener('click',()=>{if(S.dest==='telegram'&&S.session!=='ready')void openMiniApp();else void publishCurrent();});
@@ -237,7 +237,7 @@ export function boot(){
   if(typeof factory!=='function')throw new Error('Núcleo de edição indisponível');
   S.editorCore=factory({
     element:editor,
-    onChange:()=>{markDirty();restoreActiveMediaVisual();},
+    onChange:()=>{markDirty();restoreActiveMediaVisual();syncHistoryButtons();},
     onSelectionChange:()=>queueMicrotask(syncEditorSelectionUI)
   });
 

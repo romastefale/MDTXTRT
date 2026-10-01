@@ -380,6 +380,51 @@ test.describe('toque com o teclado aberto',()=>{
   });
 });
 
+// + e ☰ funcionam como interruptor: o 1º toque abre, o 2º no mesmo botão fecha,
+// com estado aberto visível e sem nunca tirar o foco do editor (teclado aberto).
+test.describe('+ e ☰ como interruptor com o teclado aberto',()=>{
+  test.use({hasTouch:true});
+  test('abrir, fechar e reabrir + e ☰ e tocar em desfazer mantêm #editor ativo',async ({page})=>{
+    const active=()=>page.evaluate(()=>document.activeElement?.id);
+    // Toque real no ponto do botão: com menu aberto, quem recebe é o que estiver por cima.
+    const tapAt=async sel=>{
+      const box=await page.locator(sel).boundingBox();
+      await page.touchscreen.tap(box.x+box.width/2,box.y+box.height/2);
+    };
+    await page.locator('#editor').tap();
+    await page.keyboard.type('x');
+    await expect(page.locator('#undoBtn')).not.toHaveAttribute('aria-disabled','true');
+    for(const [button,menu,openSel] of [['#plusBtn','#plusMenu','#plusBtn.on'],['#exportBtn','#exportMenu','#exportBtn[aria-expanded="true"]']]){
+      for(let round=0;round<2;round++){
+        await tapAt(button);
+        await expect(page.locator(menu)).toHaveAttribute('data-menu-open','');
+        await expect(page.locator(openSel)).toHaveCount(1);
+        expect(await active(),`abrir ${button} (${round})`).toBe('editor');
+        await tapAt(button);
+        await expect(page.locator(menu)).not.toHaveAttribute('data-menu-open','');
+        await expect(page.locator('#menuDismissLayer')).toBeHidden();
+        await expect(page.locator(openSel)).toHaveCount(0);
+        expect(await active(),`fechar ${button} (${round})`).toBe('editor');
+      }
+    }
+    // O 2º toque no + fecha também quando um submenu do + está aberto.
+    await tapAt('#plusBtn');
+    await page.locator('#plusMenu [data-plus-category="format"]').tap();
+    await expect(page.locator('#plus-format-menu')).toHaveAttribute('data-menu-open','');
+    await expect(page.locator('#plusBtn.on')).toHaveCount(1);
+    await tapAt('#plusBtn');
+    await expect(page.locator('#menuDismissLayer')).toBeHidden();
+    await expect(page.locator('#plusBtn.on')).toHaveCount(0);
+    expect(await active(),'fechar + com submenu').toBe('editor');
+    await tapAt('#undoBtn');
+    await expect(page.locator('#editor')).not.toContainText('x');
+    expect(await active(),'desfazer').toBe('editor');
+    await expect(page.locator('#undoBtn')).toHaveAttribute('aria-disabled','true');
+    await page.keyboard.type('!');
+    await expect(page.locator('#editor')).toContainText('!');
+  });
+});
+
 // Atalhos de Markdown digitados de verdade no início da linha (decisão do dono).
 test('atalhos de Markdown no início da linha viram título, citação e listas',async ({page})=>{
   const editor=page.locator('#editor');

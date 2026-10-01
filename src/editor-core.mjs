@@ -318,6 +318,8 @@ export function createEditorCore({element,onChange=()=>{},onSelectionChange=()=>
     handleKeydown,
     undo:()=>history.undo(),
     redo:()=>history.redo(),
+    canUndo:()=>history.canUndo(),
+    canRedo:()=>history.canRedo(),
     findLiteral:search.findLiteral,
     findNext:search.findNext,
     selectRange:search.selectRange,
