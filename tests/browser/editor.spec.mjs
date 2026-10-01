@@ -165,12 +165,16 @@ test('vidro usa hairline e material neutro translúcido, sem cor de acento sóli
     expect(piece.blur,piece.name+' desfoca o fundo').toMatch(/blur\(/);
     expect(piece.rim,piece.name+' tem borda hairline').toMatch(/0px 0px 0px (0\.5|1)px/);
   }
-  // Nenhum botão da barra usa preenchimento sólido de acento.
+  // Nenhum botão da barra usa preenchimento sólido de acento. O vidro branco neutro
+  // dos pontos estratégicos no claro (como o pill selecionado do site HTML, .9) pode
+  // passar de .75, mas nunca fica opaco.
   const solid=await page.evaluate(()=>[...document.querySelectorAll('#ux-root .bar > button,#ux-root .seg button,#ux-root .action-dot')].filter(el=>{
     const m=getComputedStyle(el).backgroundColor.match(/rgba?\(([^)]+)\)/);
     if(!m)return false;
     const parts=m[1].split(/[ ,/]+/).filter(Boolean);
-    return (parts.length>3?Number(parts[3]):1)>=.75;
+    const alpha=parts.length>3?Number(parts[3]):1;
+    const neutralWhite=parts.slice(0,3).every(v=>Number(v)===255);
+    return neutralWhite?alpha>.9:alpha>=.75;
   }).map(el=>el.id||el.getAttribute('aria-label')));
   expect(solid).toEqual([]);
 });

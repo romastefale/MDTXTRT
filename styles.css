@@ -107,12 +107,16 @@ html.light{
   /* Botões do topo do site romastefale/HTML no claro (SiteHeader.css): + e ☰ como
      .sh-pill (--chip-bg, --chip-border, --bar-text); estados ativos como o pill
      selecionado (--sel-bg, --sel-shadow). */
-  --prominent:rgba(255,255,255,.66);
-  --prominent-rim:rgba(106,179,243,.9);
-  --strategic-ink:color-mix(in srgb,var(--strategic) 62%,#0a0b0d);
-  --strategic-open:rgba(106,179,243,.42);
-  --strategic-open-rim:var(--strategic-ink);
-  --strategic-open-ink:#0a0b0d;
+  /* +, desfazer e ☰ no claro: sem azul. Vidro branco mais denso que a barra (perto
+     do --sel-bg .9 do site), aro neutro --chip-border, ícone --bar-text e sombra
+     --sel-shadow. Aberto: o .sh-pill[aria-expanded] do site (fundo #0a0b0d, ícone
+     claro), mas translúcido (.72) para a lente continuar aparecendo. */
+  --prominent:rgba(255,255,255,.86);
+  --prominent-rim:rgba(0,0,0,.12);
+  --strategic-ink:#0a0b0d;
+  --strategic-open:rgba(10,11,13,.72);
+  --strategic-open-rim:rgba(0,0,0,.12);
+  --strategic-open-ink:#fff;
   --prominent-shadow:0 1px 2px rgba(20,16,60,.08),0 2px 6px rgba(20,16,60,.08);
   --active-bg:rgba(255,255,255,.9);
   --muted:color-mix(in srgb,var(--text) 66%,transparent);
@@ -350,7 +354,6 @@ button{cursor:pointer;-webkit-tap-highlight-color:transparent}
 /* + e ☰ continuam em destaque, agora como vidro mais denso em vez de acento sólido. */
 .bar > button.more{background:var(--prominent);box-shadow:0 0 0 var(--rim-w) var(--prominent-rim),var(--prominent-shadow)}
 .bar > button.more.on::before{display:none}
-html.light .bar > button.more,html.light .action-dot{box-shadow:0 0 0 var(--rim-w) var(--prominent-rim)}
 .bar > button.more,.seg .action-dot{color:var(--strategic-ink)}
 /* Aberto (menu do + ou do ☰): o mesmo vidro com mais acento, aro cheio e ícone forte. */
 html .bar > button.more.on,html .export[aria-expanded="true"] .action-dot{
