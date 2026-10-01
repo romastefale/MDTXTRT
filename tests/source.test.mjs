@@ -1,12 +1,14 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {readFileSync,existsSync} from 'node:fs';
+import {readFileSync,existsSync,readdirSync} from 'node:fs';
 import {createHash} from 'node:crypto';
 import vm from 'node:vm';
 
 const root=new URL('../',import.meta.url);
 const read=name=>readFileSync(new URL(name,root),'utf8');
 // A interface React: ponto de entrada, componentes e estado dos menus.
+// O servidor: entrada (server.mjs) e módulos em server/.
+const serverSource=()=>['server.mjs',...readdirSync(new URL('server/',root)).filter(name=>name.endsWith('.mjs')).sort().map(name=>'server/'+name)].map(read).join('\n');
 const uiSource=()=>['src/liquid-glass-ui.jsx','src/chrome.jsx','src/ui-store.mjs'].map(read).join('\n');
 // A página é o HTML mais a folha de estilos que ele carrega.
 const page=()=>read('index.html')+'\n'+read('styles.css');
@@ -70,7 +72,7 @@ test('React UX renders menus and chrome through the fork Glass primitive',()=>{
 });
 
 test('MDTXTRT contains no bespoke Liquid Glass renderer or implicit browser fallback',()=>{
-  const html=page(),src=uiSource(),server=read('server.mjs');
+  const html=page(),src=uiSource(),server=serverSource();
   assert.match(html,/id="ux-root"/);
   assert.match(html,/<script type="module" src="ui\.js\?v=[a-f0-9]{12}"><\/script>/);
   assert.doesNotMatch(html,/glass\.js/);
@@ -154,7 +156,7 @@ test('editor keeps destination validation and literal-search implementation sepa
 });
 
 test('server exposes every React-referenced local SVG icon and vector app icon',()=>{
-  const src=uiSource(),server=read('server.mjs');
+  const src=uiSource(),server=serverSource();
   const plusStart=src.indexOf('const plusSections = [');
   const plusEnd=src.indexOf('function PlusCategory',plusStart);
   assert.ok(plusStart>=0&&plusEnd>plusStart);
@@ -170,7 +172,7 @@ test('server exposes every React-referenced local SVG icon and vector app icon',
 });
 
 test('Chrome PWA install metadata is exposed without changing runtime caching',()=>{
-  const html=page(),server=read('server.mjs');
+  const html=page(),server=serverSource();
   const manifest=JSON.parse(read('manifest.webmanifest'));
   assert.match(html,/<link rel="manifest" href="manifest\.webmanifest" \/>/);
   assert.equal(manifest.name,'MDTXTRT');
@@ -306,7 +308,7 @@ test('Telegram Mini App uses official fullscreen, viewport and safe-area state w
 });
 
 test('Telegraph supports explicit Telegram or browser capability ownership without identity fallback',()=>{
-  const app=read('app.js'),server=read('server.mjs');
+  const app=read('app.js'),server=serverSource();
   assert.match(app,/const BROWSER_OWNER_KEY='mdtxtrt-browser-owner'/);
   assert.match(app,/crypto\.getRandomValues\(new Uint8Array\(32\)\)/);
   assert.match(app,/session==='ready'\?\{initData:getTg\(\)\.initData\}:\{browserKey:browserOwnerKey\(\)\}/);
@@ -317,7 +319,7 @@ test('Telegraph supports explicit Telegram or browser capability ownership witho
 });
 
 test('server follows Bot API 10.3 Rich Message contracts without message downgrade paths',()=>{
-  const server=read('server.mjs');
+  const server=serverSource();
   assert.match(server,/function richTextLength\(nodes\)/);
   assert.doesNotMatch(server,/Buffer\.byteLength\(html\)>32768/);
   assert.match(server,/A mensagem excede 32768 caracteres/);
@@ -374,7 +376,7 @@ test('architecture provenance records official package use and copied example ow
 });
 
 test('draft persistence and Telegram provenance stay documented',()=>{
-  const app=read('app.js'),server=read('server.mjs'),architecture=read('ARCHITECTURE.md'),drafts=read('LOCAL_DRAFTS.md'),baseline=read('BASELINE.md');
+  const app=read('app.js'),server=serverSource(),architecture=read('ARCHITECTURE.md'),drafts=read('LOCAL_DRAFTS.md'),baseline=read('BASELINE.md');
   assert.match(server,/const DRAFT_DIR = DATA \+ "\/drafts"/);
   assert.match(server,/url\.pathname === "\/api\/drafts\/save"/);
   assert.match(server,/url\.pathname === "\/api\/drafts\/load"/);
@@ -417,7 +419,7 @@ test('step 4 format contract is explicit and conversion code uses the shared por
 });
 
 test('private bot actions are canonical Mini App web_app flows with no legacy direct fallback',()=>{
-  const app=read('app.js'),server=read('server.mjs');
+  const app=read('app.js'),server=serverSource();
   assert.match(server,/function botWebAppRow\(label,url,style="success"\)/);
   assert.match(server,/type=\\"web_app\\"/);
   assert.doesNotMatch(server,/function botCallbackRow\(/);
@@ -453,7 +455,7 @@ test('private bot actions are canonical Mini App web_app flows with no legacy di
 });
 
 test('step 6 persists drafts on the Railway volume, binds Telegram publication provenance and labels the document title explicitly',()=>{
-  const html=page(),app=read('app.js'),server=read('server.mjs');
+  const html=page(),app=read('app.js'),server=serverSource();
   assert.match(server,/const DRAFT_DIR = DATA \+ "\/drafts"/);
   assert.match(server,/function savePersistentDraft\(owner,draft,files=\[\]\)/);
   assert.match(server,/url\.pathname === "\/api\/drafts\/save"/);
