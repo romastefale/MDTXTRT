@@ -1238,3 +1238,30 @@ test('Mini App downloadFile links serve the exported file once prepared with ini
     assert.doesNotMatch(await r.text(),/Título|linha/);
   }
 });
+
+test('webhook is idempotent by update_id and answers 200 once an update is accepted, even when processing fails',async()=>{
+  const update={update_id:900001,message:{text:'/ajuda',message_id:901,chat:{id:7,type:'private'}}};
+  const before=callCount('sendRichMessage');
+  assert.equal((await webhook(update)).status,200);
+  const once=callCount('sendRichMessage');
+  assert.ok(once>before);
+  assert.equal((await webhook(update)).status,200);
+  assert.equal((await webhook(update)).status,200);
+  assert.equal(callCount('sendRichMessage'),once);
+  assert.equal((await webhook({...update,update_id:900002})).status,200);
+  assert.ok(callCount('sendRichMessage')>once);
+
+  const saved=await formPost('/api/drafts/save',{initData:init(9001),draft:JSON.stringify(draftFixture('<p>x</p>',randomUUID(),0,'UPSTREAM_TIMEOUT'))});
+  assert.equal(saved.status,200,saved.data.error);
+  const failing={update_id:900003,message:{text:'/rascunhos',message_id:902,from:{id:9001},chat:{id:9001,type:'private'}}};
+  const beforeFail=calls().length;
+  assert.equal((await webhook(failing)).status,200);
+  const afterFail=calls().length;
+  assert.ok(calls().slice(beforeFail).some(call=>call.method==='sendRichMessage'&&JSON.stringify(call.body).includes('UPSTREAM_TIMEOUT')));
+  assert.equal((await webhook(failing)).status,200);
+  assert.equal(calls().length,afterFail);
+
+  assert.equal((await webhook(update,false)).status,401);
+  const bad=await fetch(`http://127.0.0.1:${port}/telegram/webhook`,{method:'POST',headers:{'content-type':'application/json','x-telegram-bot-api-secret-token':createHmac('sha256',token).update('MDTXTRT_WEBHOOK').digest('hex')},body:'{'});
+  assert.equal(bad.status,400);
+});

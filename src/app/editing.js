@@ -24,7 +24,7 @@ export function restoreSel(){
   return S.savedRange?core.restoreSelection(S.savedRange):false;
 }
 export function pushHist(){requireEditorCore().syncFromDOM({addToHistory:true});}
-export function histUndo(){if(requireEditorCore().undo()){restoreActiveMediaVisual();syncEditorSelectionUI();}}
+export function histUndo(){const done=requireEditorCore().undo();if(done){restoreActiveMediaVisual();syncEditorSelectionUI();}return done;}
 export function histRedo(){if(requireEditorCore().redo()){restoreActiveMediaVisual();syncEditorSelectionUI();}}
 export function expandWord(){
   const sel = window.getSelection();
@@ -345,8 +345,15 @@ export function syncEditorSelectionUI(){
   toggleToolbarState(one('#quoteBtn'),Boolean(core.inBlock('blockquote')||core.inBlock('aside'))||panelIsOpen(one('#quoteMenu')));
   toggleToolbarState(one('#headingBtn'),/^(h[1-6]|footer)$/.test(kind)||panelIsOpen(one('#headingMenu')));
   toggleToolbarState(one('#linkBtn'),Boolean(core.linkHref())||Boolean(panelIsOpen(one('#linkMenu'))));
+  syncHistoryButtons(core);
   // O React marca is-current nos menus de título e citação e o estado do botão +.
   ui.update({blockKind:kind});
+}
+// Desfazer sem nada a desfazer fica esmaecido. aria-disabled em vez de disabled:
+// o botão continua recebendo o toque e o preventDefault que segura o teclado.
+export function syncHistoryButtons(core=S.editorCore){
+  const undo=one('#undoBtn');
+  if(undo&&typeof core?.canUndo==='function')undo.setAttribute('aria-disabled',String(!core.canUndo()));
 }
 export function flashBtn(btn){
   if(!btn) return;
