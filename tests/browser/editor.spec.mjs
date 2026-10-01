@@ -84,7 +84,7 @@ test('lentes refratam com WebGL 2',async ({page})=>{
     try{return Boolean(document.createElement('canvas').getContext('webgl2'));}catch{return false;}
   });
   test.info().annotations.push({type:'webgl2',description:webgl2?'disponível: lente testada':'indisponível: fallback CSS testado'});
-  for(const id of ['#plusBtn','#exportBtn']){
+  for(const id of ['#plusBtn','#exportBtn','#undoBtn']){
     await expect.poll(()=>page.locator(id).getAttribute('data-lens'),{timeout:8000}).toBe(webgl2?'webgl2':'css');
     const lens=await page.evaluate(sel=>{
       const button=document.querySelector(sel),host=button.querySelector('.lens');
@@ -165,12 +165,16 @@ test('vidro usa hairline e material neutro translúcido, sem cor de acento sóli
     expect(piece.blur,piece.name+' desfoca o fundo').toMatch(/blur\(/);
     expect(piece.rim,piece.name+' tem borda hairline').toMatch(/0px 0px 0px (0\.5|1)px/);
   }
-  // Nenhum botão da barra usa preenchimento sólido de acento.
+  // Nenhum botão da barra usa preenchimento sólido de acento. O vidro branco neutro
+  // dos pontos estratégicos no claro (como o pill selecionado do site HTML, .9) pode
+  // passar de .75, mas nunca fica opaco.
   const solid=await page.evaluate(()=>[...document.querySelectorAll('#ux-root .bar > button,#ux-root .seg button,#ux-root .action-dot')].filter(el=>{
     const m=getComputedStyle(el).backgroundColor.match(/rgba?\(([^)]+)\)/);
     if(!m)return false;
     const parts=m[1].split(/[ ,/]+/).filter(Boolean);
-    return (parts.length>3?Number(parts[3]):1)>=.75;
+    const alpha=parts.length>3?Number(parts[3]):1;
+    const neutralWhite=parts.slice(0,3).every(v=>Number(v)===255);
+    return neutralWhite?alpha>.9:alpha>=.75;
   }).map(el=>el.id||el.getAttribute('aria-label')));
   expect(solid).toEqual([]);
 });
@@ -375,6 +379,51 @@ test.describe('toque com o teclado aberto',()=>{
     await page.touchscreen.tap(24,layer.y+layer.height*.5);
     await expect(page.locator('#menuDismissLayer')).toBeHidden();
     expect(await active(),'depois de fechar por fora').toBe('editor');
+    await page.keyboard.type('!');
+    await expect(page.locator('#editor')).toContainText('!');
+  });
+});
+
+// + e ☰ funcionam como interruptor: o 1º toque abre, o 2º no mesmo botão fecha,
+// com estado aberto visível e sem nunca tirar o foco do editor (teclado aberto).
+test.describe('+ e ☰ como interruptor com o teclado aberto',()=>{
+  test.use({hasTouch:true});
+  test('abrir, fechar e reabrir + e ☰ e tocar em desfazer mantêm #editor ativo',async ({page})=>{
+    const active=()=>page.evaluate(()=>document.activeElement?.id);
+    // Toque real no ponto do botão: com menu aberto, quem recebe é o que estiver por cima.
+    const tapAt=async sel=>{
+      const box=await page.locator(sel).boundingBox();
+      await page.touchscreen.tap(box.x+box.width/2,box.y+box.height/2);
+    };
+    await page.locator('#editor').tap();
+    await page.keyboard.type('x');
+    await expect(page.locator('#undoBtn')).not.toHaveAttribute('aria-disabled','true');
+    for(const [button,menu,openSel] of [['#plusBtn','#plusMenu','#plusBtn.on'],['#exportBtn','#exportMenu','#exportBtn[aria-expanded="true"]']]){
+      for(let round=0;round<2;round++){
+        await tapAt(button);
+        await expect(page.locator(menu)).toHaveAttribute('data-menu-open','');
+        await expect(page.locator(openSel)).toHaveCount(1);
+        expect(await active(),`abrir ${button} (${round})`).toBe('editor');
+        await tapAt(button);
+        await expect(page.locator(menu)).not.toHaveAttribute('data-menu-open','');
+        await expect(page.locator('#menuDismissLayer')).toBeHidden();
+        await expect(page.locator(openSel)).toHaveCount(0);
+        expect(await active(),`fechar ${button} (${round})`).toBe('editor');
+      }
+    }
+    // O 2º toque no + fecha também quando um submenu do + está aberto.
+    await tapAt('#plusBtn');
+    await page.locator('#plusMenu [data-plus-category="format"]').tap();
+    await expect(page.locator('#plus-format-menu')).toHaveAttribute('data-menu-open','');
+    await expect(page.locator('#plusBtn.on')).toHaveCount(1);
+    await tapAt('#plusBtn');
+    await expect(page.locator('#menuDismissLayer')).toBeHidden();
+    await expect(page.locator('#plusBtn.on')).toHaveCount(0);
+    expect(await active(),'fechar + com submenu').toBe('editor');
+    await tapAt('#undoBtn');
+    await expect(page.locator('#editor')).not.toContainText('x');
+    expect(await active(),'desfazer').toBe('editor');
+    await expect(page.locator('#undoBtn')).toHaveAttribute('aria-disabled','true');
     await page.keyboard.type('!');
     await expect(page.locator('#editor')).toContainText('!');
   });

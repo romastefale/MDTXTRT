@@ -864,7 +864,9 @@ function Chrome() {
         <div className="top-slot top-left">
           <GlassControl className="seg top-pill">
             <ChromeLens optics={BAR_REFRACTION} variant="bar" />
-            <button type="button" id="undoBtn" aria-label="Desfazer" title="Desfazer"><Icon name="undo" /></button>
+            <button type="button" className="strategic" id="undoBtn" aria-label="Desfazer" title="Desfazer">
+              <span className="action-dot"><ChromeLens /><Icon name="undo" /></span>
+            </button>
             <button type="button" id="redoBtn" aria-label="Refazer" title="Refazer"><Icon name="redo" /></button>
           </GlassControl>
         </div>

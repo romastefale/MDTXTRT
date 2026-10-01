@@ -39,12 +39,24 @@ export async function exportFile(format) {
       type = "text/plain";
       ext = "txt";
     }
-    download(exportName(ext),content,type);
+    const name=exportName(ext);
+    if(!await telegramDownload(name,content,ext))download(name,content,type);
     showToast('Download iniciado');
     closePanels();
   } catch (err) {
     showToast(err.message||'Não foi possível exportar o arquivo');
   }
+}
+// Dentro do Telegram (Bot API 8.0+), o download passa pelo popup nativo WebApp.downloadFile,
+// com um link HTTPS curto preparado pelo servidor. Fora dele, segue o download local.
+export async function telegramDownload(name,content,format){
+  const tg=getTg();
+  if(!tg||S.session!=='ready'||typeof tg.downloadFile!=='function'||typeof tg.isVersionAtLeast!=='function'||!tg.isVersionAtLeast('8.0'))return false;
+  const res=await fetch(API+'/api/export/download',{method:'POST',signal:AbortSignal.timeout(20000),headers:{'content-type':'application/json'},body:JSON.stringify({initData:tg.initData,format,name,content})});
+  const data=await readResponse(res);
+  if(!res.ok||typeof data.url!=='string'||typeof data.file_name!=='string')throw new Error(data.error||'Não foi possível preparar o download');
+  tg.downloadFile({url:data.url,file_name:data.file_name});
+  return true;
 }
 export async function readResponse(res){
   try{return await res.json();}catch{throw new Error('A resposta do serviço não pôde ser lida');}
