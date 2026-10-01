@@ -1163,3 +1163,46 @@ test('Telegraph publish and recovery responses are bound to the originating docu
   assert.equal(invalid.status,400);
   assert.match(invalid.data.error,/Revisão do documento inválida/);
 });
+
+test('Mini App initData is checked with the documented byte-order data-check-string, including every launch field',async()=>{
+  // Campos de um lançamento real (WebAppInitData), assinados com a ordem por
+  // código dos nomes, como nas implementações de referência do Telegram.
+  const q=new URLSearchParams({
+    query_id:'AAHdF6IQAAAAAN0XohDhrOrc',
+    user:JSON.stringify({id:279058397,first_name:'Pi',language_code:'pt-br',allows_write_to_pm:true}),
+    chat_instance:'-3788475317572404878',
+    chat_type:'private',
+    start_param:'h_'+'ab'.repeat(16),
+    auth_date:String(Math.floor(Date.now()/1000)),
+    signature:'SIGNATURE_Ed25519_'+'x'.repeat(40)
+  });
+  const secret=createHmac('sha256','WebAppData').update(token).digest();
+  const sign=(order,params=q)=>createHmac('sha256',secret).update([...params].sort(order).map(([k,v])=>`${k}=${v}`).join('\n')).digest('hex');
+  const bytes=([a],[b])=>a<b?-1:a>b?1:0;
+  const signed=new URLSearchParams(q);signed.set('hash',sign(bytes));
+  assert.equal((await jsonPost('/api/telegram/session',{initData:signed.toString()})).status,200);
+  const tampered=new URLSearchParams(signed);tampered.set('chat_type','group');
+  assert.equal((await jsonPost('/api/telegram/session',{initData:tampered.toString()})).status,401);
+  // Um nome com maiúscula separa a ordem por código da colação do idioma.
+  const mixed=new URLSearchParams(q);mixed.set('Zeta','1');
+  mixed.set('hash',sign(bytes,mixed));
+  assert.equal((await jsonPost('/api/telegram/session',{initData:mixed.toString()})).status,200);
+  const locale=new URLSearchParams(q);locale.set('Zeta','1');
+  locale.set('hash',sign(([a],[b])=>a.localeCompare(b),locale));
+  assert.equal((await jsonPost('/api/telegram/session',{initData:locale.toString()})).status,401);
+});
+
+test('Telegraph pages load for editing with the attributes and relative paths the real getPage returns',async()=>{
+  const browserKey='93'.repeat(32);
+  const doc=randomUUID();
+  const published=await jsonPost('/api/telegraph/publish',{title:'LIVE_SHAPE',doc,content:[{tag:'p',children:['x']}],browserKey});
+  assert.equal(published.status,200,published.data.error);
+  assert.equal(published.data.path,'live-shape-page');
+  const page=await jsonPost('/api/telegraph/load',{browserKey,doc});
+  assert.equal(page.status,200,page.data.error);
+  assert.equal(page.data.html,
+    '<h3>Seção</h3>'+
+    '<p><a href="https://telegram.org/">site</a> e interno</p>'+
+    '<figure><img src="https://telegra.ph/file/6a5b15e7eb4d7329ca7af.jpg"><figcaption>Legenda</figcaption></figure>'+
+    '<figure><iframe src="https://telegra.ph/embed/youtube?url=https%3A%2F%2Fyoutu.be%2Fx"></iframe></figure>');
+});

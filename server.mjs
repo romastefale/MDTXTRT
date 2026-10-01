@@ -134,8 +134,10 @@ function userFromInitData(initData) {
   if (initData.length > 8192 || [...params.keys()].length !== new Set(params.keys()).size) throw new Error("Sessão Telegram inválida");
   const hash = params.get("hash") || "";
   params.delete("hash");
+  // Ordem alfabética por código (como sorted() nas implementações de referência
+  // do Telegram), não pela colação do idioma.
   const dataCheckString = [...params.entries()]
-    .sort(([a], [b]) => a.localeCompare(b))
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
     .map(([k, v]) => `${k}=${v}`)
     .join("\n");
   const secret = createHmac("sha256", "WebAppData").update(BOT_TOKEN).digest();
@@ -1383,16 +1385,34 @@ function telegraphValid(content) {
   if(!Array.isArray(content)||!content.length||Buffer.byteLength(JSON.stringify(content))>65536)throw new Error("Conteúdo do Telegraph inválido");
   content.forEach(walk);
 }
+// Conteúdo lido do Telegraph (getPage). A resposta real vai além do contrato de
+// envio: o Telegraph acrescenta atributos como id (títulos) e target (links),
+// usa caminhos relativos para arquivos hospedados nele (/file/…, /embed/…) e
+// links internos (#…). Para leitura, só href/src são aproveitados, caminhos
+// relativos viram endereços absolutos em telegra.ph e links internos ficam como
+// texto, de modo que o HTML resultante continua publicável.
+const TELEGRAPH_ORIGIN="https://telegra.ph/";
+const TELEGRAPH_TAGS=new Set("a aside b blockquote br code em figcaption figure h3 h4 hr i iframe img li ol p pre s strong u ul video".split(" "));
+function telegraphReadURL(value){
+  if(typeof value!=="string"||!value.trim()||value.trim().startsWith("#"))return "";
+  let url;try{url=new URL(value.trim(),TELEGRAPH_ORIGIN);}catch{return "";}
+  return ["http:","https:"].includes(url.protocol)?url.href:"";
+}
 function telegraphContentHTML(content){
-  telegraphValid(content);
+  if(!Array.isArray(content)||!content.length)throw new Error("Conteúdo do Telegraph inválido");
   const voidTags=new Set(["br","hr","img"]);
   const render=node=>{
     if(typeof node==="string")return htmlEscape(node);
-    const attrs=[];
-    for(const [key,value] of Object.entries(node.attrs||{}))attrs.push(key+'="'+htmlEscape(value)+'"');
-    const open="<"+node.tag+(attrs.length?" "+attrs.join(" "):"")+">";
+    if(!node||typeof node!=="object"||Array.isArray(node)||!TELEGRAPH_TAGS.has(node.tag))throw new Error("Elemento do Telegraph inválido");
+    if(node.children!==undefined&&!Array.isArray(node.children))throw new Error("Conteúdo do Telegraph inválido");
+    const inner=()=>(node.children||[]).map(render).join("");
+    const key=node.tag==="a"?"href":["img","video","iframe"].includes(node.tag)?"src":"";
+    const value=key?telegraphReadURL(node.attrs?.[key]):"";
+    if(node.tag==="a"&&!value)return inner();
+    if(key==="src"&&!value)return "";
+    const open="<"+node.tag+(value?" "+key+'="'+htmlEscape(value)+'"':"")+">";
     if(voidTags.has(node.tag))return open;
-    return open+(node.children||[]).map(render).join("")+"</"+node.tag+">";
+    return open+inner()+"</"+node.tag+">";
   };
   return content.map(render).join("");
 }
