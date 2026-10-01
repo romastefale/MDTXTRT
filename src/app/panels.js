@@ -1,15 +1,16 @@
 // Menus: abertura, posição, foco e retenção do teclado ao tocar.
 import { S } from "./state.js";
 import { panelAnchors, panelOpeners, plusSubmenus, sheets } from "./constants.js";
-import { editor, one, toast, toastText, ui } from "./dom.js";
+import { editor, one, ui } from "./dom.js";
 import { getTg } from "./theme.js";
 import { dismissDialog } from "./dialog.js";
 import { saveSel } from "./editing.js";
 import { closeLibrary } from "./library.js";
 
 export function showToast(msg){
-  toastText.data = String(msg); toast.classList.add('on');
-  clearTimeout(showToast.t); showToast.t = setTimeout(()=>toast.classList.remove('on'), 1600);
+  // O React (src/chrome.jsx, Toast) mostra o texto e a classe "on".
+  ui.setToast({text:String(msg),visible:true});
+  clearTimeout(showToast.t); showToast.t = setTimeout(()=>ui.setToast({visible:false}), 1600);
 }
 export function panelIsOpen(panel){
   if(!panel)return false;

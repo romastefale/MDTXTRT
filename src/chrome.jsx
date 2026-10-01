@@ -782,12 +782,25 @@ function LibrarySubmenu() {
   );
 }
 
-function Toast() {
+// Aviso efêmero: o texto e a visibilidade vêm do estado (setToast). Só o texto
+// e a classe "on" mudam; o vidro (ToastMaterial) não volta a renderizar.
+function ToastText() {
+  return useUI(state => state.toast.text);
+}
+
+const ToastMaterial = React.memo(function ToastMaterial() {
   return (
-    <div className="toast" id="toast" role="status" aria-live="polite" aria-atomic="true">
-      <Glass optics={BAR_LENS} className="toast-material">
-        <span className="toast-content" id="toastTextHost" />
-      </Glass>
+    <Glass optics={BAR_LENS} className="toast-material">
+      <span className="toast-content" id="toastTextHost"><ToastText /></span>
+    </Glass>
+  );
+});
+
+function Toast() {
+  const visible = useUI(state => state.toast.visible);
+  return (
+    <div className={visible ? "toast on" : "toast"} id="toast" role="status" aria-live="polite" aria-atomic="true">
+      <ToastMaterial />
     </div>
   );
 }

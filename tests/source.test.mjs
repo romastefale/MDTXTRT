@@ -559,3 +559,10 @@ test('menus, dialog and library are React state: app.js never rewrites their mar
   assert.match(app,/document\.addEventListener\('mousedown',retainTypingFocus,true\);/);
 });
 
+test('toast text and visibility are React state, not DOM mutations from the editor',()=>{
+  const app=appSource(),src=uiSource();
+  assert.match(src,/export function setToast\(patch\)/);
+  assert.match(src,/className=\{visible \? "toast on" : "toast"\}/);
+  assert.match(app,/ui\.setToast\(\{text:String\(msg\),visible:true\}\)/);
+  assert.doesNotMatch(app,/toast\.classList|\btoastText\b|createTextNode\(''\)/);
+});

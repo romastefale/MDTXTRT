@@ -1944,3 +1944,20 @@ test('React renders menu state described by app.js: anchors, dismiss layer, dest
   assert.equal(await confirmation,false);
   w.close();
 });
+
+test('toast is React state: text and visibility come from the UI store and the text stays after it hides',async()=>{
+  const w=page(),d=w.document;
+  await wait(5);
+  const toast=d.querySelector('#toast');
+  w.eval('showToast("Aviso de teste")');
+  assert.equal(toast.classList.contains('on'),true);
+  assert.equal(d.querySelector('#toastTextHost').textContent,'Aviso de teste');
+  assert.deepEqual({...w.MDTXTRT_UI.getState().toast},{text:'Aviso de teste',visible:true});
+  w.eval('showToast("Segundo aviso")');
+  assert.equal(d.querySelector('#toast').textContent,'Segundo aviso');
+  await wait(1700);
+  assert.equal(d.querySelector('#toast'),toast,'o mesmo elemento continua montado');
+  assert.equal(toast.classList.contains('on'),false);
+  assert.equal(toast.textContent,'Segundo aviso');
+  w.close();
+});

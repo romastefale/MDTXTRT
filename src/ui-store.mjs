@@ -1,4 +1,4 @@
-// Estado da interface (menus, diálogo e biblioteca) consumido pelo React.
+// Estado da interface (menus, diálogo, biblioteca e aviso) consumido pelo React.
 // app.js descreve o que deve aparecer; os componentes em src/chrome.jsx
 // renderizam. Cada atualização é aplicada com flushSync para que app.js possa
 // medir o painel logo em seguida (placePanel) sem esperar um quadro.
@@ -21,6 +21,7 @@ let state = Object.freeze({
     ok: "OK",
     cancel: "Cancelar",
   }),
+  toast: Object.freeze({ text: "", visible: false }),
   library: Object.freeze({
     status: "",
     publicationCount: 0,
@@ -87,6 +88,15 @@ export function setLibrary(patch) {
   });
 }
 
+// Aviso efêmero (toast): o texto permanece depois que ele some, como antes.
+export function setToast(patch) {
+  return updateUI(current => {
+    const next = { ...current.toast, ...patch };
+    if (sameShallow(current.toast, next)) return current;
+    return { ...current, toast: Object.freeze(next) };
+  });
+}
+
 export const uiStore = Object.freeze({
   getState: getUIState,
   subscribe: subscribeUI,
@@ -95,4 +105,5 @@ export const uiStore = Object.freeze({
   setMenu,
   setDialog,
   setLibrary,
+  setToast,
 });
