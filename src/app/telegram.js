@@ -224,6 +224,11 @@ export function setupTelegram(){
     try{tg.requestFullscreen();}
     catch(error){console.error('Telegram fullscreen',error);showToast('Não foi possível abrir em fullscreen');}
   }
+  // O editor rola e seleciona texto com gestos verticais; o swipe de fechar/minimizar
+  // do Telegram (Bot API 7.7+) conflita com eles. O cabeçalho continua fechando o app.
+  if(typeof tg.isVersionAtLeast==='function'&&tg.isVersionAtLeast('7.7')&&typeof tg.disableVerticalSwipes==='function'){
+    try{tg.disableVerticalSwipes();}catch(error){console.error('Telegram vertical swipes',error);}
+  }
   scheduleBrowserViewport();
   tg.SettingsButton.show();
   tg.SettingsButton.onClick(openPlusRoot);

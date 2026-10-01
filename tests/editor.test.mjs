@@ -1962,6 +1962,24 @@ test('toast is React state: text and visibility come from the UI store and the t
   w.close();
 });
 
+test('Mini App disables vertical swipes only when the WebApp version supports it',async()=>{
+  const fetch=async(url)=>String(url).endsWith('/api/telegram/session')?{ok:true,status:200,json:async()=>({ok:true})}:{ok:false,status:404,json:async()=>({error:'not found'})};
+  let calls=0;
+  const w=page({fetch,tg:{isVersionAtLeast:version=>['7.7','8.0'].includes(version),disableVerticalSwipes(){calls++;}}});
+  for(let i=0;i<50&&w.eval('session')!=='ready';i++)await wait(10);
+  assert.equal(calls,1);
+  w.close();
+  let oldCalls=0;
+  const old=page({fetch,tg:{isVersionAtLeast:()=>false,disableVerticalSwipes(){oldCalls++;}}});
+  for(let i=0;i<50&&old.eval('session')!=='ready';i++)await wait(10);
+  assert.equal(oldCalls,0);
+  old.close();
+  const missing=page({fetch,tg:{isVersionAtLeast:()=>true}});
+  for(let i=0;i<50&&missing.eval('session')!=='ready';i++)await wait(10);
+  assert.equal(missing.eval('session'),'ready');
+  missing.close();
+});
+
 test('Mini App MD export uses WebApp.downloadFile with the server link; browser keeps the local download',async()=>{
   const downloads=[],posts=[];
   const fetch=async(url,options={})=>{
