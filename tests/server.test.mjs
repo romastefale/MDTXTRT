@@ -1207,6 +1207,38 @@ test('Telegraph pages load for editing with the attributes and relative paths th
     '<figure><iframe src="https://telegra.ph/embed/youtube?url=https%3A%2F%2Fyoutu.be%2Fx"></iframe></figure>');
 });
 
+test('Mini App downloadFile links serve the exported file once prepared with initData, with official headers and no draft access',async()=>{
+  assert.equal((await jsonPost('/api/export/download',{format:'md',name:'Notas',content:'# Oi'})).status,401);
+  assert.equal((await jsonPost('/api/export/download',{initData:init(),format:'html',name:'Notas',content:'x'})).status,400);
+  assert.equal((await jsonPost('/api/export/download',{initData:init(),format:'md',name:'',content:'x'})).status,400);
+  assert.equal((await jsonPost('/api/export/download',{initData:init(),format:'txt',name:'Big',content:'x'.repeat(1_000_001)})).status,413);
+  const noOrigin=await fetch(`http://127.0.0.1:${port}/api/export/download`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({initData:init(),format:'md',name:'Notas',content:'x'})});
+  assert.equal(noOrigin.status,403);
+  const {status,data}=await jsonPost('/api/export/download',{initData:init(),format:'md',name:'Relatório "final".md',content:'# Título\n\nCorpo'});
+  assert.equal(status,200,data.error);
+  assert.equal(data.file_name,'Relatório -final-.md');
+  const url=new URL(data.url);
+  assert.equal(url.origin,origin);
+  assert.match(url.pathname,/^\/api\/export\/download\/[a-f0-9]{32}$/);
+  const res=await fetch(`http://127.0.0.1:${port}${url.pathname}`);
+  assert.equal(res.status,200);
+  assert.equal(res.headers.get('content-type'),'text/markdown; charset=utf-8');
+  assert.equal(res.headers.get('content-disposition'),`attachment; filename="Relat_rio -final-.md"; filename*=UTF-8''${encodeURIComponent('Relatório -final-.md')}`);
+  assert.equal(res.headers.get('access-control-allow-origin'),'https://web.telegram.org');
+  assert.equal(res.headers.get('cache-control'),'no-store');
+  assert.equal(await res.text(),'# Título\n\nCorpo');
+  const head=await fetch(`http://127.0.0.1:${port}${url.pathname}`,{method:'HEAD'});
+  assert.equal(head.status,200);
+  const txt=await jsonPost('/api/export/download',{initData:init(8),format:'txt',name:'Notas',content:'linha'});
+  assert.equal(txt.data.file_name,'Notas.txt');
+  assert.equal((await fetch(`http://127.0.0.1:${port}${new URL(txt.data.url).pathname}`)).headers.get('content-type'),'text/plain; charset=utf-8');
+  for(const bad of ['/api/export/download/'+'0'.repeat(32),'/api/export/download/x','/api/export/download/'+randomUUID()]){
+    const r=await fetch(`http://127.0.0.1:${port}${bad}`);
+    assert.equal(r.status,410);
+    assert.doesNotMatch(await r.text(),/Título|linha/);
+  }
+});
+
 test('webhook is idempotent by update_id and answers 200 once an update is accepted, even when processing fails',async()=>{
   const update={update_id:900001,message:{text:'/ajuda',message_id:901,chat:{id:7,type:'private'}}};
   const before=callCount('sendRichMessage');

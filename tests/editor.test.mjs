@@ -1961,3 +1961,48 @@ test('toast is React state: text and visibility come from the UI store and the t
   assert.equal(toast.textContent,'Segundo aviso');
   w.close();
 });
+
+test('Mini App MD export uses WebApp.downloadFile with the server link; browser keeps the local download',async()=>{
+  const downloads=[],posts=[];
+  const fetch=async(url,options={})=>{
+    const target=String(url);
+    if(target.endsWith('/api/telegram/session'))return {ok:true,status:200,json:async()=>({ok:true})};
+    if(target.endsWith('/api/export/download')){posts.push(JSON.parse(options.body));return {ok:true,status:200,json:async()=>({url:'https://mdtxtrt.up.railway.app/api/export/download/'+'b'.repeat(32),file_name:'Notas.md'})};}
+    return {ok:false,status:404,json:async()=>({error:'not found'})};
+  };
+  const w=page({fetch,tg:{isVersionAtLeast:version=>version==='8.0'||version==='7.7',downloadFile(params){downloads.push(params);}}}),d=w.document;
+  for(let i=0;i<50&&w.eval('session')!=='ready';i++)await wait(10);
+  let anchors=0;const realClick=w.HTMLAnchorElement.prototype.click;
+  w.HTMLAnchorElement.prototype.click=function(){if(this.download)anchors++;return realClick.call(this);};
+  d.querySelector('#docName').value='Notas';
+  d.querySelector('#editor').innerHTML='<h1>Oi</h1><p>texto</p>';
+  await w.eval('exportFile("md")');
+  assert.equal(anchors,0);
+  assert.equal(JSON.stringify(downloads),JSON.stringify([{url:'https://mdtxtrt.up.railway.app/api/export/download/'+'b'.repeat(32),file_name:'Notas.md'}]));
+  assert.equal(posts.length,1);
+  assert.equal(posts[0].initData,'signed-payload');
+  assert.equal(posts[0].format,'md');
+  assert.equal(posts[0].name,'Notas.md');
+  assert.match(posts[0].content,/^# Oi/);
+  assert.match(d.querySelector('#toast').textContent,/Download iniciado/);
+  w.close();
+
+  const old=page({fetch,tg:{isVersionAtLeast:()=>false,downloadFile(params){downloads.push(params);}}});
+  for(let i=0;i<50&&old.eval('session')!=='ready';i++)await wait(10);
+  let oldAnchors=0;old.HTMLAnchorElement.prototype.click=function(){if(this.download)oldAnchors++;};
+  old.document.querySelector('#docName').value='Notas';
+  old.document.querySelector('#editor').innerHTML='<p>texto</p>';
+  await old.eval('exportFile("txt")');
+  assert.equal(oldAnchors,1);
+  assert.equal(downloads.length,1);
+  old.close();
+
+  const b=page();
+  let browserAnchors=0;b.HTMLAnchorElement.prototype.click=function(){if(this.download)browserAnchors++;};
+  b.document.querySelector('#docName').value='Notas';
+  b.document.querySelector('#editor').innerHTML='<p>texto</p>';
+  await b.eval('exportFile("md")');
+  assert.equal(browserAnchors,1);
+  assert.equal(b.__requests.some(r=>r.url.includes('/api/export/download')),false);
+  b.close();
+});
