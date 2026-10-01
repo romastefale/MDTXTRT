@@ -1,7 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {readFileSync} from 'node:fs';
-import {JSDOM} from 'jsdom';
+import {readFileSync,readdirSync} from 'node:fs';
+import {JSDOM,VirtualConsole} from 'jsdom';
 import {randomUUID} from 'node:crypto';
 import {TextEncoder} from 'node:util';
 import {fileURLToPath} from 'node:url';
@@ -47,13 +47,34 @@ const chromeBundle=buildSync({
   define:{'process.env.NODE_ENV':'"production"'}
 }).outputFiles[0].text;
 
+// O editor (src/app/*.js), empacotado como em ui.js e avaliado como script
+// clássico. Para os testes inspecionarem o editor como faziam com o antigo
+// app.js, as funções e constantes dos módulos e o estado (S) ficam visíveis na
+// janela; a entrada é src/app/main.js, avaliada primeiro, como em produção.
+const appModules=['main.js',...readdirSync(new URL('src/app/',root)).filter(name=>name.endsWith('.js')&&name!=='main.js').sort()];
+const appBundle=buildSync({
+  stdin:{contents:appModules.map((name,index)=>'import * as m'+index+' from "./src/app/'+name+'";').join('\n')+`
+const expose=(name,descriptor)=>Object.defineProperty(window,name,{configurable:true,enumerable:true,...descriptor});
+for(const module of [${appModules.map((_,index)=>'m'+index).join(',')}])for(const [name,value] of Object.entries(module))if(name!=='S')expose(name,{value,writable:true});
+for(const name of Object.keys(m${appModules.indexOf('state.js')}.S))expose(name,{get:()=>m${appModules.indexOf('state.js')}.S[name],set:value=>{m${appModules.indexOf('state.js')}.S[name]=value;}});
+`,resolveDir:fileURLToPath(root),loader:'js'},
+  bundle:true,format:'iife',platform:'browser',target:'es2022',write:false,logLevel:'silent'
+}).outputFiles[0].text;
+
 function page(setup={}){
+  // Como o console padrão do JSDOM, mais o registro das navegações para outro
+  // documento (location.assign), que o JSDOM não executa.
+  const navigations=[];
+  const virtualConsole=new VirtualConsole().forwardTo(console);
+  virtualConsole.on('jsdomError',error=>{if(/navigation to another Document/.test(error.message))navigations.push(error);});
   const dom=new JSDOM(readFileSync(new URL('index.html',root),'utf8'),{
+    virtualConsole,
     url:setup.url||'https://mdtxtrt.example/',
     runScripts:'outside-only',
     pretendToBeVisual:true
   });
   const w=dom.window;
+  w.__navigations=navigations;
   const timeouts=new Set(),intervals=new Set(),frames=new Set();
   const nativeSetTimeout=w.setTimeout.bind(w),nativeClearTimeout=w.clearTimeout.bind(w);
   const nativeSetInterval=w.setInterval.bind(w),nativeClearInterval=w.clearInterval.bind(w);
@@ -136,7 +157,7 @@ function page(setup={}){
   w.eval(readFileSync(new URL('marked.js',root),'utf8'));
   w.eval(readFileSync(new URL('turndown.js',root),'utf8'));
   w.eval(readFileSync(new URL('editor-core.js',root),'utf8'));
-  w.eval(readFileSync(new URL('app.js',root),'utf8'));
+  w.eval(appBundle);
   w.close=()=>{
     for(const id of timeouts)nativeClearTimeout(id);
     for(const id of intervals)nativeClearInterval(id);
@@ -262,13 +283,14 @@ test('Telegram back button closes the draft recovery choice without starting a n
   };
   const w=page({fetch,tg:{BackButton:{show(){},hide(){},onClick(handler){backHandler=handler;}}}}),d=w.document;
   await wait(30);
-  let launched=0;
-  w.createNewDocumentLaunch=()=>{launched++;};
+  // "Começar rascunho novo" navega para ?new=<token> (createNewDocumentLaunch).
+  const launches=()=>w.__navigations.length;
+  const before=launches();
   assert.equal(d.querySelector('#dialogCancel').textContent,'Começar rascunho novo');
   assert.equal(typeof backHandler,'function');
   backHandler();
   await wait(30);
-  assert.equal(launched,0,'Voltar não pode escolher "Começar rascunho novo"');
+  assert.equal(launches()-before,0,'Voltar não pode escolher "Começar rascunho novo"');
   assert.equal(d.querySelector('#dialogMenu').hasAttribute('data-test-popover-open'),false);
   assert.equal(d.querySelector('#editor').getAttribute('contenteditable'),'false');
   d.querySelector('#editor').dispatchEvent(new w.PointerEvent('pointerdown',{bubbles:true}));
@@ -276,7 +298,7 @@ test('Telegram back button closes the draft recovery choice without starting a n
   assert.equal(d.querySelector('#dialogOk').textContent,'Tentar de novo');
   d.querySelector('#dialogCancel').click();
   await wait(10);
-  assert.equal(launched,1,'o botão explícito continua começando um rascunho novo');
+  assert.equal(launches()-before,1,'o botão explícito continua começando um rascunho novo');
   w.close();
 });
 

@@ -2,19 +2,21 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync,existsSync,readdirSync} from 'node:fs';
 import {createHash} from 'node:crypto';
-import vm from 'node:vm';
+import {transformSync} from 'esbuild';
 
 const root=new URL('../',import.meta.url);
 const read=name=>readFileSync(new URL(name,root),'utf8');
 // A interface React: ponto de entrada, componentes e estado dos menus.
 // O servidor: entrada (server.mjs) e módulos em server/.
 const serverSource=()=>['server.mjs',...readdirSync(new URL('server/',root)).filter(name=>name.endsWith('.mjs')).sort().map(name=>'server/'+name)].map(read).join('\n');
+// O editor: módulos em src/app/ (antes app.js).
+const appSource=()=>readdirSync(new URL('src/app/',root)).filter(name=>name.endsWith('.js')).sort().map(name=>read('src/app/'+name)).join('\n');
 const uiSource=()=>['src/liquid-glass-ui.jsx','src/chrome.jsx','src/ui-store.mjs'].map(read).join('\n');
 // A página é o HTML mais a folha de estilos que ele carrega.
 const page=()=>read('index.html')+'\n'+read('styles.css');
 
 test('application controller parses and committed browser bundles are present',()=>{
-  assert.doesNotThrow(()=>new vm.Script(read('app.js'),{filename:'app.js'}));
+  for(const name of readdirSync(new URL('src/app/',root)).filter(name=>name.endsWith('.js')))assert.doesNotThrow(()=>transformSync(read('src/app/'+name),{format:'esm',loader:'js',sourcefile:name}),name);
   assert.ok(existsSync(new URL('../ui.js',import.meta.url)));
   assert.ok(existsSync(new URL('../editor-core.js',import.meta.url)));
   assert.equal(existsSync(new URL('../glass.js',import.meta.url)),false);
@@ -92,7 +94,7 @@ test('editorial document typography uses the Telegraph serif family without chan
 });
 
 test('theme switch owns browser and Telegram chrome without mixed system bars',()=>{
-  const html=page(),src=uiSource(),app=read('app.js');
+  const html=page(),src=uiSource(),app=appSource();
   assert.match(html,/id="statusBarStyle"/);
   assert.match(html,/name="color-scheme" id="colorScheme"/);
   assert.match(html,/mdtxtrt-theme/);
@@ -131,7 +133,7 @@ test('interface icon assets are vector SVG only and referenced from React source
 });
 
 test('editor publication controls contain no instructional fixture content',()=>{
-  const app=read('app.js'),html=page();
+  const app=appSource(),html=page();
   assert.match(app,/if\(kind==='expandquote'\)return formatBlock\('expandquote'\)/);
   assert.match(app,/if\(kind==='pullquote'\)return formatBlock\('pullquote'\)/);
   assert.doesNotMatch(app,/Citação expansível|Citação em destaque|Nova tarefa|Texto expansível|<th>A<\/th>|<td>—<\/td>/);
@@ -142,7 +144,7 @@ test('editor publication controls contain no instructional fixture content',()=>
 });
 
 test('editor keeps destination validation and literal-search implementation separated',()=>{
-  const app=read('app.js'),search=read('src/editor-search.mjs');
+  const app=appSource(),search=read('src/editor-search.mjs');
   assert.match(app,/a:\['href','name'\],code:\['class'\]/);
   assert.match(app,/\['http:','https:'\]/);
   assert.match(app,/\['http:','https:','mailto:','tel:','tg:'\]/);
@@ -193,7 +195,7 @@ test('Chrome PWA install metadata is exposed without changing runtime caching',(
 });
 
 test('browser PWA uses platform safe areas while Telegram keeps its content safe area',()=>{
-  const html=page(),app=read('app.js');
+  const html=page(),app=appSource();
   assert.match(html,/viewport-fit=cover/);
   assert.match(html,/--safe-top:env\(safe-area-inset-top,0px\);[\s\S]*?--safe-bottom:env\(safe-area-inset-bottom,0px\);[\s\S]*?--safe-left:env\(safe-area-inset-left,0px\);[\s\S]*?--safe-right:env\(safe-area-inset-right,0px\);[\s\S]*?--safe-bottom-max:env\(safe-area-max-inset-bottom,36px\);/);
   assert.match(html,/html\.tg-shell\{[\s\S]*?--safe-top:var\(--app-tg-content-safe-top\);[\s\S]*?--safe-bottom:var\(--app-tg-content-safe-bottom\);[\s\S]*?--safe-left:var\(--app-tg-content-safe-left\);[\s\S]*?--safe-right:var\(--app-tg-content-safe-right\);[\s\S]*?--safe-bottom-max:0px/);
@@ -209,7 +211,7 @@ test('browser PWA uses platform safe areas while Telegram keeps its content safe
 });
 
 test('UI keeps zoom locked and context menus anchored to their triggers',()=>{
-  const html=page(),src=uiSource(),app=read('app.js');
+  const html=page(),src=uiSource(),app=appSource();
   assert.match(html,/minimum-scale=1, maximum-scale=1, user-scalable=no/);
   assert.match(src,/className="theme-switch" id="themeBtn"/);
   assert.match(src,/<span className="app-title">MDTXTRT<\/span>/);
@@ -238,7 +240,7 @@ test('link control exposes the three destination-aware choices in an anchored me
 });
 
 test('plus menu opens categorized submenus over its trigger',()=>{
-  const html=page(),src=uiSource(),app=read('app.js');
+  const html=page(),src=uiSource(),app=appSource();
   assert.match(src,/const plusSections = \[/);
   for(const id of ['file','format','structure','media','interaction']) assert.match(src,new RegExp('id: "'+id+'"'));
   assert.ok(src.includes('id={`plus-${section.id}-menu`}'));
@@ -255,7 +257,7 @@ test('plus menu opens categorized submenus over its trigger',()=>{
 });
 
 test('editorial pointer retention has one owner and standard menus never depend on native popover focus',()=>{
-  const html=page(),app=read('app.js'),src=uiSource();
+  const html=page(),app=appSource(),src=uiSource();
   assert.doesNotMatch(html,/keyboardPolicyReady|applyThemeWithoutReload|interactionFocus/);
   assert.match(app,/function isTypingEntry\(element\)[\s\S]*?\[contenteditable="true"\]/);
   assert.match(app,/function typingFocusActive\(outsidePanel=null\)[\s\S]*?isTypingEntry\(active\)&&\(!outsidePanel\|\|!outsidePanel\.contains\(active\)\)/);
@@ -281,7 +283,7 @@ test('editorial pointer retention has one owner and standard menus never depend 
 });
 
 test('document title is explicit in export flow and becomes the Telegraph page title',()=>{
-  const html=page(),src=uiSource(),app=read('app.js');
+  const html=page(),src=uiSource(),app=appSource();
   assert.match(html,/class="telegraph-title" id="telegraphTitleSlot" hidden/);
   assert.match(html,/tools\.setAttribute\('data-field-label','Título do documento'\)/);
   assert.match(html,/input\.setAttribute\('aria-label','Título do documento'\)/);
@@ -295,7 +297,7 @@ test('document title is explicit in export flow and becomes the Telegraph page t
 });
 
 test('Telegram Mini App uses official fullscreen, viewport and safe-area state without orientation inference',()=>{
-  const app=read('app.js');
+  const app=appSource();
   assert.match(app,/tg\.isFullscreen/);
   assert.match(app,/tg\.requestFullscreen\(\)/);
   assert.match(app,/tg\.onEvent\('fullscreenChanged'/);
@@ -308,7 +310,7 @@ test('Telegram Mini App uses official fullscreen, viewport and safe-area state w
 });
 
 test('Telegraph supports explicit Telegram or browser capability ownership without identity fallback',()=>{
-  const app=read('app.js'),server=serverSource();
+  const app=appSource(),server=serverSource();
   assert.match(app,/const BROWSER_OWNER_KEY='mdtxtrt-browser-owner'/);
   assert.match(app,/crypto\.getRandomValues\(new Uint8Array\(32\)\)/);
   assert.match(app,/session==='ready'\?\{initData:getTg\(\)\.initData\}:\{browserKey:browserOwnerKey\(\)\}/);
@@ -376,7 +378,7 @@ test('architecture provenance records official package use and copied example ow
 });
 
 test('draft persistence and Telegram provenance stay documented',()=>{
-  const app=read('app.js'),server=serverSource(),architecture=read('ARCHITECTURE.md'),drafts=read('LOCAL_DRAFTS.md'),baseline=read('BASELINE.md');
+  const app=appSource(),server=serverSource(),architecture=read('ARCHITECTURE.md'),drafts=read('LOCAL_DRAFTS.md'),baseline=read('BASELINE.md');
   assert.match(server,/const DRAFT_DIR = DATA \+ "\/drafts"/);
   assert.match(server,/url\.pathname === "\/api\/drafts\/save"/);
   assert.match(server,/url\.pathname === "\/api\/drafts\/load"/);
@@ -404,7 +406,7 @@ test('draft persistence and Telegram provenance stay documented',()=>{
 });
 
 test('step 4 format contract is explicit and conversion code uses the shared portable boundary',()=>{
-  const app=read('app.js'),contract=read('FORMAT_CONTRACT.md');
+  const app=appSource(),contract=read('FORMAT_CONTRACT.md');
   assert.match(app,/const FORMAT_CONTRACT=Object\.freeze/);
   assert.match(app,/function normalizePortableHTML\(root,label='conteúdo'\)/);
   assert.match(app,/function exportDocumentHTML\(\)\{[\s\S]*?requireEditorCore\(\)\.html\(\)/);
@@ -419,7 +421,7 @@ test('step 4 format contract is explicit and conversion code uses the shared por
 });
 
 test('private bot actions are canonical Mini App web_app flows with no legacy direct fallback',()=>{
-  const app=read('app.js'),server=serverSource();
+  const app=appSource(),server=serverSource();
   assert.match(server,/function botWebAppRow\(label,url,style="success"\)/);
   assert.match(server,/type=\\"web_app\\"/);
   assert.doesNotMatch(server,/function botCallbackRow\(/);
@@ -455,7 +457,7 @@ test('private bot actions are canonical Mini App web_app flows with no legacy di
 });
 
 test('step 6 persists drafts on the Railway volume, binds Telegram publication provenance and labels the document title explicitly',()=>{
-  const html=page(),app=read('app.js'),server=serverSource();
+  const html=page(),app=appSource(),server=serverSource();
   assert.match(server,/const DRAFT_DIR = DATA \+ "\/drafts"/);
   assert.match(server,/function savePersistentDraft\(owner,draft,files=\[\]\)/);
   assert.match(server,/url\.pathname === "\/api\/drafts\/save"/);
@@ -516,7 +518,7 @@ test('step 6 persists drafts on the Railway volume, binds Telegram publication p
 });
 
 test('step 5 overlays use the visual viewport',()=>{
-  const html=page(),app=read('app.js'),src=uiSource();
+  const html=page(),app=appSource(),src=uiSource();
   assert.match(html,/\.menu-list\{[\s\S]*?flex:1 1 auto[\s\S]*?max-height:none[\s\S]*?overflow-y:auto/);
   assert.match(html,/\.dialog\{[\s\S]*?max-height:100%[\s\S]*?overflow-y:auto/);
   assert.match(html,/#dialogMenu:popover-open::backdrop\{background:transparent;pointer-events:auto\}/);
@@ -533,7 +535,7 @@ test('step 5 overlays use the visual viewport',()=>{
 });
 
 test('menus, dialog and library are React state: app.js never rewrites their markup',()=>{
-  const app=read('app.js'),src=uiSource();
+  const app=appSource(),src=uiSource();
   assert.match(app,/const ui = window\.MDTXTRT_UI;/);
   assert.match(src,/window\.MDTXTRT_UI = uiStore;/);
   assert.match(src,/useSyncExternalStore\(subscribeUI, read, read\)/);
