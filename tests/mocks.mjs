@@ -50,6 +50,14 @@ globalThis.fetch = async (url,options={}) => {
     if(method==='createAccount')return Response.json({ok:true,result:{access_token:'persistent-test-token'}});
     if(method==='getPage'){
       const path=data.get('path');
+      // Formato observado no getPage real: id em títulos, target em links,
+      // arquivos hospedados com caminho relativo e links internos.
+      if(path==='live-shape-page')return Response.json({ok:true,result:{url:'https://telegra.ph/'+path,path,title:'Página real',content:[
+        {tag:'h3',attrs:{id:'Secao'},children:['Seção']},
+        {tag:'p',children:[{tag:'a',attrs:{href:'https://telegram.org/',target:'_blank'},children:['site']},' e ',{tag:'a',attrs:{href:'#Secao'},children:['interno']}]},
+        {tag:'figure',children:[{tag:'img',attrs:{src:'/file/6a5b15e7eb4d7329ca7af.jpg'}},{tag:'figcaption',children:['Legenda']}]},
+        {tag:'figure',children:[{tag:'iframe',attrs:{src:'/embed/youtube?url=https%3A%2F%2Fyoutu.be%2Fx'}}]}
+      ]}});
       return Response.json({ok:true,result:{url:'https://telegra.ph/'+path,path,title:'Página Telegraph',content:[{tag:'p',children:['Conteúdo Telegraph']}] }});
     }
     if(data.get('access_token')!=='persistent-test-token')return Response.json({ok:false,error:'invalid token'},{status:401});
@@ -57,7 +65,7 @@ globalThis.fetch = async (url,options={}) => {
     if(['createPage','editPage'].includes(method)&&data.get('title')==='UPSTREAM_REJECT')return Response.json({ok:false,error:'test rejection'},{status:400});
     if(method==='createPage'&&data.get('title')==='UPSTREAM_TIMEOUT')throw new TypeError('simulated Telegraph transport failure');
     if(method==='createPage'&&data.get('title')==='STORAGE_AFTER_CREATE')mkdirSync(process.env.RAILWAY_VOLUME_MOUNT_PATH+'/telegraph-token-pages.json.tmp');
-    const path=method==='createPage'?'test-page-regression':data.get('path');
+    const path=method==='createPage'?(data.get('title')==='LIVE_SHAPE'?'live-shape-page':'test-page-regression'):data.get('path');
     return Response.json({ok:true,result:{url:'https://telegra.ph/'+path,path}});
   }
   return real(url,options);
