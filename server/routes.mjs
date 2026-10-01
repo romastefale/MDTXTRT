@@ -8,7 +8,7 @@ import { serveStatic } from "./static.mjs";
 import { bindDraftFiles, handoffActionView, handoffFiles, handoffMediaPath, listPersistentDrafts, listTelegramPublications, listTelegraphPages, persistentDraftPaths, persistentDraftView, persistentMediaPath, publishHandoff, readHandoff, readPersistentDraft, saveHandoff, savePersistentDraft, writeHandoff } from "./storage.mjs";
 import { publishTelegramPersistent, sameSecret, webhookSecret } from "./telegram.mjs";
 import { publishTelegraph, readPages, telegraphContentHTML, verifyTelegraphPage } from "./telegraph.mjs";
-import { botLink, handleBotUpdate, selectedExportDocument } from "./bot.mjs";
+import { acceptUpdate, botLink, handleBotUpdate, selectedExportDocument } from "./bot.mjs";
 
 export const server = createServer(async (req, res) => {
   try {
@@ -354,16 +354,23 @@ export const server = createServer(async (req, res) => {
         res.end(JSON.stringify({ error: "Acesso não autorizado" }));
         return;
       }
-      try {
-        const update = await readJson(req);
-        await handleBotUpdate(update);
-        res.writeHead(200, { "content-type": "text/plain; charset=utf-8" });
-        res.end("ok");
-      } catch (err) {
+      let update;
+      try { update = await readJson(req); }
+      catch (err) {
         console.error("Telegram webhook", err);
-        res.writeHead(500, { "content-type": "application/json; charset=utf-8" });
-        res.end(JSON.stringify({ error: "Não foi possível processar a mensagem" }));
+        res.writeHead(400, { "content-type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ error: "Atualização inválida" }));
+        return;
       }
+      // Uma atualização aceita responde 200 mesmo se o processamento falhar (o erro é
+      // registrado): uma nova tentativa do Telegram repetiria respostas longas do bot.
+      // Repetições do mesmo update_id são ignoradas.
+      if (acceptUpdate(update)) {
+        try { await handleBotUpdate(update); }
+        catch (err) { console.error("Telegram webhook", err); }
+      }
+      res.writeHead(200, { "content-type": "text/plain; charset=utf-8" });
+      res.end("ok");
       return;
     }
     if (url.pathname === "/api/telegram/send" && req.method === "POST") {
