@@ -6,8 +6,12 @@
 
 - **Fase 0 concluída (#129):** fork `romastefale/liquid-glass` instalado de verdade, testes que congelavam o design removidos e testes em navegador real (Playwright, Chromium e WebKit, 390px e 1280px, claro e escuro).
 - **Correções urgentes concluídas:** o servidor do Railway voltou a entregar o `editor-core.js`, que deixava o Mini App sem editor (#130). A falha ao buscar o rascunho no servidor oferece tentar de novo ou começar outro rascunho sem sobrescrever a cópia (#131). O botão Voltar do Telegram fecha essa escolha sem descartar nada (#132).
-- **Próximo, fase 1:** vidro igual ao do site de referência [romastefale/HTML](https://romastefale.github.io/HTML/), com lentes com refração WebGL 2, material neutro translúcido, aro fino, sem contorno azul, espaçamento uniforme, teclado aberto enquanto se usa os menus e nenhum menu cortado na tela. O aviso efêmero de tela vertical continua, por decisão do proprietário. As decisões de interface são tomadas com o proprietário.
-- **Depois, fase 2:** estado dos menus no React, fim da mutação manual de DOM, CSS fora do `index.html` e divisão do `app.js` e do `server.mjs`.
+- **Fase 1 concluída (#135–#138):** vidro do site de referência [romastefale/HTML](https://romastefale.github.io/HTML/), lentes WebGL 2 com refração, material translúcido, aro fino, sem contorno azul, espaçamento uniforme e nenhum menu cortado na tela.
+- **Fase 2, parte feita:** CSS fora do `index.html`, em `styles.css` (#139); estado dos menus, do diálogo e da biblioteca no React (`src/ui-store.mjs` e `src/chrome.jsx`, #140).
+- **Estabilização (#141):** tocar nos menus com o teclado do iPhone aberto não fecha mais o teclado; atalhos Markdown (`# `, `## `, `> `, `- `, `1. `, `[ ] `) voltaram; barra acompanha o teclado sem vão e o cursor fica visível; modo escuro mais escuro e com mais contraste; botões +/☰ e estados ativos no estilo da pílula selecionada do site; refração por mapa nas barras.
+- **Pendente, fase 2:** dividir o `app.js` em módulos em `src/`; dividir o `server.mjs`; título do Telegraph, `inert` do diálogo e aviso (toast) ainda mexem no DOM direto em vez de passar pelo estado React.
+- **Pendente, auditorias:** revisar bot, backend e site contra a documentação mais recente do Telegram (Bot API, Mini Apps) e do Telegraph.
+- **Pendente com o proprietário (Pi):** segredos e variáveis no Railway, configuração no BotFather (Mini App, domínio, menu) e painel do Railway; aceitação física no iPhone, no app instalado e no Mini App.
 
 Panfleto do produto, com tutorial e roteiro: [romastefale.github.io/MDTXTRT/produto/](https://romastefale.github.io/MDTXTRT/produto/).
 
@@ -72,4 +76,4 @@ Se uma verificação posterior revelar um defeito, registre o SHA que expôs o p
 
 ## Conclusão
 
-O comportamento funcional descrito acima está entregue. A interface ainda não está: o trabalho pendente é o da fase 1 e da fase 2 descrito no início deste documento.
+O comportamento funcional descrito acima está entregue. A fase 1 da interface também está entregue; o que falta são os itens pendentes da fase 2 e as auditorias listados no início deste documento.

@@ -122,7 +122,7 @@ footer{text-align:center;font-size:14px;color:var(--faint);padding:0 var(--gutte
 
   <section id="como-usar">
     <h2>Como usar, em quatro passos</h2>
-    <p class="note">As imagens são do app atual, no tamanho de um celular. O vidro novo chega na fase 1 do roteiro.</p>
+    <p class="note">As imagens são do app no tamanho de um celular.</p>
     <div class="steps">
       <div class="step glass">
         <picture><source srcset="editor-dark.webp" media="(prefers-color-scheme: dark)"><img src="editor-light.webp" width="390" height="780" alt="Editor aberto com um título e um parágrafo" loading="lazy"></picture>
@@ -147,10 +147,10 @@ footer{text-align:center;font-size:14px;color:var(--faint);padding:0 var(--gutte
     <span class="kicker">Foco principal</span>
     <h2>Liquid Glass</h2>
     <p class="lead">A interface é feita de vidro: barras e menus flutuam sobre o texto, deixam a cor passar e somem da frente quando não são usados.</p>
-    <p>Hoje o vidro ainda é tingido e as lentes estão desligadas. Na fase 1, ele passa a ter:</p>
+    <p>Desde a fase 1, o vidro tem:</p>
     <ul class="check">
       <li>Material translúcido e neutro, que pega a cor do que está atrás em vez de pintar tudo de uma cor só.</li>
-      <li>Lentes com refração de verdade (WebGL 2), que curvam o conteúdo nas bordas como vidro.</li>
+      <li>Lentes com refração de verdade (WebGL 2), que curvam o conteúdo nas bordas como vidro, também nas barras de cima e de baixo.</li>
       <li>Um aro fino e discreto em cada peça de vidro, sem contorno azul de foco.</li>
       <li>O mesmo espaçamento entre todos os botões, como no <a href="https://romastefale.github.io/HTML/">site de referência do Liquid Glass</a>.</li>
       <li>Tema claro e escuro, com a página se fundindo na barra do navegador e do Telegram.</li>
@@ -161,7 +161,7 @@ footer{text-align:center;font-size:14px;color:var(--faint);padding:0 var(--gutte
     <h2>Revisão: onde o produto está hoje</h2>
     <div class="grid">
       <div class="card glass"><h3>Já funciona</h3><p>Editor, publicação no Telegram e no Telegraph, Markdown e TXT, biblioteca e rascunhos salvos no servidor. O editor do Mini App voltou a abrir, e ele não trava mais quando o servidor falha.</p></div>
-      <div class="card glass"><h3>Ainda não está bom</h3><p>O vidro atual é tingido e chapado e as lentes estão desligadas. O espaçamento é irregular e o código da interface está pesado.</p></div>
+      <div class="card glass"><h3>Ainda falta</h3><p>Dividir o <code>app.js</code> e o <code>server.mjs</code> em partes menores e revisar bot, servidor e site contra a documentação mais recente do Telegram e do Telegraph.</p></div>
       <div class="card glass"><h3>Como garantimos</h3><p>Cada mudança passa por testes de comportamento do editor e do servidor e por testes em navegador real, no Chromium e no WebKit, em celular e desktop, claro e escuro.</p></div>
     </div>
   </section>
@@ -171,8 +171,9 @@ footer{text-align:center;font-size:14px;color:var(--faint);padding:0 var(--gutte
     <div class="road">
       <div class="card glass"><span class="tag">Concluído</span><h3>Fase 0: base limpa</h3><p>A biblioteca de vidro é instalada do fork correto, os testes que congelavam o design saíram e entraram testes em navegador real.</p></div>
       <div class="card glass"><span class="tag">Concluído</span><h3>Correções urgentes</h3><p>O servidor voltou a entregar o núcleo do editor (#130). A recuperação de rascunho oferece tentar de novo ou começar outro (#131), e o botão Voltar do Telegram não descarta mais nada (#132).</p></div>
-      <div class="card glass"><span class="tag">Próximo</span><h3>Fase 1: o vidro líquido</h3><p>Lentes com refração, material neutro, aro fino e espaçamento uniforme, mantendo o teclado aberto ao usar os menus e nenhum menu cortado na tela. As decisões de interface são tomadas junto com o dono do produto.</p></div>
-      <div class="card glass"><span class="tag">Depois</span><h3>Fase 2: organização interna</h3><p>O estado dos menus passa para o React, o estilo sai do <code>index.html</code> e o código é dividido em partes menores e mais leves.</p></div>
+      <div class="card glass"><span class="tag">Concluído</span><h3>Fase 1: o vidro líquido</h3><p>Lentes com refração, material neutro, aro fino e espaçamento uniforme, com o teclado aberto ao usar os menus e nenhum menu cortado na tela (#135–#138).</p></div>
+      <div class="card glass"><span class="tag">Concluído</span><h3>Estabilização</h3><p>Teclado do iPhone continua aberto ao tocar nos menus, atalhos Markdown de volta, modo escuro mais escuro e refração nas barras (#141).</p></div>
+      <div class="card glass"><span class="tag">Em andamento</span><h3>Fase 2: organização interna</h3><p>Feito: o estilo saiu do <code>index.html</code> (#139) e o estado dos menus passou para o React (#140). Pendente: dividir o <code>app.js</code> e o <code>server.mjs</code> e auditar bot, servidor e site contra a documentação atual do Telegram e do Telegraph.</p></div>
       <div class="card glass"><span class="tag">Meta</span><h3>Produto final</h3><p>Aceitação no iPhone, no app instalado e no Mini App do Telegram, com uma interface coerente do começo ao fim.</p></div>
     </div>
   </section>
