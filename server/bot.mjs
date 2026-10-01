@@ -391,3 +391,20 @@ export async function configureBot(){
   await telegramCall("setWebhook",{url:WEBHOOK_BASE+"/telegram/webhook",secret_token:secret,allowed_updates:["message"]});
   console.log("Telegram ready");
 }
+
+// update_id recentes já aceitos pelo webhook (deduplicação de novas tentativas do Telegram).
+const RECENT_UPDATE_TTL = 24 * 60 * 60 * 1000;
+const RECENT_UPDATE_MAX = 5000;
+const recentUpdates = new Map();
+export function acceptUpdate(update) {
+  const id = update?.update_id;
+  if (!Number.isSafeInteger(id)) return true;
+  const now = Date.now();
+  for (const [key, at] of recentUpdates) {
+    if (now - at < RECENT_UPDATE_TTL && recentUpdates.size < RECENT_UPDATE_MAX) break;
+    recentUpdates.delete(key);
+  }
+  if (recentUpdates.has(id)) return false;
+  recentUpdates.set(id, now);
+  return true;
+}
