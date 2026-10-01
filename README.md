@@ -4,7 +4,7 @@
 
 - **Panfleto do produto**, com recursos, tutorial em quatro passos, revisão e roteiro: [romastefale.github.io/MDTXTRT/produto/](https://romastefale.github.io/MDTXTRT/produto/)
 - **Editor:** [romastefale.github.io/MDTXTRT/](https://romastefale.github.io/MDTXTRT/) no navegador, e o Mini App servido pelo Railway dentro do Telegram.
-- **Estado e roteiro:** [PRODUCT_POLISH_STATUS.md](PRODUCT_POLISH_STATUS.md) (fase 1 concluída; fase 2 em andamento, com a divisão do `app.js` e do `server.mjs` e as auditorias de bot, servidor e site pendentes). **Auditoria:** [RELATORIO_AUDITORIA.md](RELATORIO_AUDITORIA.md).
+- **Estado e roteiro:** [PRODUCT_POLISH_STATUS.md](PRODUCT_POLISH_STATUS.md) (fases 1 e 2 e auditoria Telegram/Telegraph concluídas; pendentes o título do Telegraph no React, o download pelo `WebApp.downloadFile` e a aceitação física no iPhone e no Mini App). **Auditoria:** [RELATORIO_AUDITORIA.md](RELATORIO_AUDITORIA.md).
 
 ## Baseline de trabalho — ponto de partida evolutivo
 
