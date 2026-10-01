@@ -9,6 +9,7 @@ import { bindDraftFiles, handoffActionView, handoffFiles, handoffMediaPath, list
 import { publishTelegramPersistent, sameSecret, webhookSecret } from "./telegram.mjs";
 import { publishTelegraph, readPages, telegraphContentHTML, verifyTelegraphPage } from "./telegraph.mjs";
 import { botLink, handleBotUpdate, selectedExportDocument } from "./bot.mjs";
+import { prepareDownload, serveDownload } from "./download.mjs";
 
 export const server = createServer(async (req, res) => {
   try {
@@ -25,6 +26,34 @@ export const server = createServer(async (req, res) => {
       return;
     }
 
+
+    const downloadPath=/^\/api\/export\/download\/([^/]*)$/.exec(url.pathname);
+    if(downloadPath&&(req.method==="GET"||req.method==="HEAD")){
+      serveDownload(req,res,downloadPath[1]);
+      return;
+    }
+
+    if (url.pathname === "/api/export/download" && req.method === "POST") {
+      if (!setCors(req, res)) {
+        res.writeHead(403, { "content-type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ error: "Acesso não autorizado" }));
+        return;
+      }
+      try{
+        let body;
+        try{body=await readJson(req,4_000_000);}catch(error){throw asHttpError(error,400,"Dados do download inválidos");}
+        let chatId;
+        try{({chatId}=userFromInitData(String(body?.initData||"")));}catch(error){throw asHttpError(error,401,"Sessão Telegram inválida");}
+        const prepared=prepareDownload(chatId,body);
+        res.writeHead(200,{"content-type":"application/json; charset=utf-8","cache-control":"no-store"});
+        res.end(JSON.stringify(prepared));
+      }catch(err){
+        const code=err instanceof HttpError?err.status:500;
+        res.writeHead(code,{"content-type":"application/json; charset=utf-8","cache-control":"no-store"});
+        res.end(JSON.stringify({error:err instanceof Error?err.message:"Não foi possível preparar o download"}));
+      }
+      return;
+    }
 
     if (url.pathname === "/api/export/source" && req.method === "POST") {
       if (!setCors(req, res)) {
