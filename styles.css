@@ -356,10 +356,11 @@ html.light .bar > button.more,html.light .action-dot{box-shadow:0 0 0 var(--rim-
 html .bar > button.more.on,html .export[aria-expanded="true"] .action-dot{
   --prominent:var(--strategic-open);--prominent-rim:var(--strategic-open-rim);color:var(--strategic-open-ink)
 }
-/* Desfazer: mesmo destaque; sem nada a desfazer, esmaecido. */
-.seg #undoBtn{background:var(--prominent);box-shadow:0 0 0 var(--rim-w) var(--prominent-rim),var(--prominent-shadow);color:var(--strategic-ink)}
-html.light .seg #undoBtn{box-shadow:0 0 0 var(--rim-w) var(--prominent-rim)}
-.seg #undoBtn:active{background:var(--strategic-open);color:var(--strategic-open-ink)}
+/* Desfazer: a mesma peça do ☰ (.action-dot com lente), logo o mesmo fundo, aro e
+   ícone do + e do ☰. Pressionado = estado aberto; sem nada a desfazer, esmaecido. */
+html .seg #undoBtn:active .action-dot{
+  --prominent:var(--strategic-open);--prominent-rim:var(--strategic-open-rim);color:var(--strategic-open-ink)
+}
 .seg #undoBtn[aria-disabled="true"]{opacity:.4}
 .action-dot{
   width:var(--control-size);height:var(--control-size);border-radius:50%;display:grid;place-items:center;
@@ -379,7 +380,7 @@ html.light .seg #undoBtn{box-shadow:0 0 0 var(--rim-w) var(--prominent-rim)}
 .lens:not([data-live]):not([data-frozen]){display:none}
 .action-dot > .ui-icon{position:relative;z-index:1}
 .bar > button > .lens{position:absolute;z-index:0}
-.seg .export{
+.seg .export,.seg .strategic{
   width:var(--control-size);height:var(--control-size);border:0;background:transparent;
   display:grid;place-items:center;padding:0;border-radius:50%
 }

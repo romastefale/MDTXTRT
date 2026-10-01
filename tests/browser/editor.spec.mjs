@@ -84,7 +84,7 @@ test('lentes refratam com WebGL 2',async ({page})=>{
     try{return Boolean(document.createElement('canvas').getContext('webgl2'));}catch{return false;}
   });
   test.info().annotations.push({type:'webgl2',description:webgl2?'disponível: lente testada':'indisponível: fallback CSS testado'});
-  for(const id of ['#plusBtn','#exportBtn']){
+  for(const id of ['#plusBtn','#exportBtn','#undoBtn']){
     await expect.poll(()=>page.locator(id).getAttribute('data-lens'),{timeout:8000}).toBe(webgl2?'webgl2':'css');
     const lens=await page.evaluate(sel=>{
       const button=document.querySelector(sel),host=button.querySelector('.lens');
