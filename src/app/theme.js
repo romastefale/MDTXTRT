@@ -7,7 +7,7 @@ import { scheme } from "./main.js";
 export function applyAssets(){
   all('[data-icon]').forEach(el => {
     const name = el.getAttribute('data-icon');
-    el.style.setProperty('--ui-icon', 'url("icons/' + name + '.svg")');
+    el.style.setProperty('--ui-icon', 'url("icons/' + name + '.svg?v=2")');
   });
 }
 export function getTg(){ return window.Telegram?.WebApp; }

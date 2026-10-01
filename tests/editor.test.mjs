@@ -1833,6 +1833,35 @@ test('viewport resize repositions an open dialog using the current visual area',
   w.close();
 });
 
+test('open menu stays on the trigger when the keyboard pans the visual viewport',async()=>{
+  const w=page({visualViewport:{offsetLeft:0,offsetTop:160,width:390,height:420}}),d=w.document;
+  const prev=w.HTMLElement.prototype.getBoundingClientRect;
+  w.HTMLElement.prototype.getBoundingClientRect=function(){
+    if(this.hasAttribute('data-fixed-probe'))return {left:0,top:-160,width:4,height:4,right:4,bottom:-156};
+    return prev.call(this);
+  };
+  const heading=d.querySelector('#headingBtn'),menu=d.querySelector('#headingMenu'),bar=d.querySelector('.bar-wrap');
+  bar.getBoundingClientRect=()=>({left:16,top:340,width:350,height:52,right:366,bottom:392});
+  heading.getBoundingClientRect=()=>({left:180,top:348,width:40,height:40,right:220,bottom:388});
+  menu.getBoundingClientRect=()=>{
+    const limit=parseFloat(menu.style.getPropertyValue('--menu-max-height'))||160;
+    const height=Math.min(160,limit);
+    return {left:0,top:0,width:210,height,right:210,bottom:height};
+  };
+  heading.click();
+  assert.equal(menu.hasAttribute('data-menu-open'),true);
+  const top=parseFloat(menu.style.getPropertyValue('--menu-top'));
+  const height=Math.min(160,parseFloat(menu.style.getPropertyValue('--menu-max-height'))||160);
+  const menuBottom=top+height;
+  // A barra foi medida na área visível (top 340) e o fixed é do viewport de layout,
+  // deslocado por offsetTop 160. O menu encosta acima da barra, não flutua 160px acima.
+  const barLayoutTop=340+160;
+  assert.ok(menuBottom<=barLayoutTop-8+0.5,'base '+menuBottom);
+  assert.ok(menuBottom>=barLayoutTop-40,'base longe '+menuBottom);
+  assert.ok(top>=160+8,'topo '+top);
+  w.close();
+});
+
 
 test('special quote controls format the current content instead of inserting sample phrases',async()=>{
   const w=page(),d=w.document,e=d.querySelector('#editor');

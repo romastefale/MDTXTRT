@@ -36,26 +36,60 @@ export function closeTopLayer(){
   if(sel)closePanel(one(sel),true);
 }
 export function clamp(value,min,max){return Math.max(min,Math.min(max,value));}
-export function visualViewportBounds(){
+// position:fixed e getBoundingClientRect nem sempre têm a mesma origem. Com o
+// teclado aberto o visualViewport pode estar deslocado: o retângulo do botão é
+// relativo à área visível e o `top` do menu é relativo ao viewport de layout.
+// Sem corrigir isso o menu abre longe do botão. Uma sonda em top:0 distingue
+// esse caso de um fixed já preso à área visível (o deslocamento não entra) e
+// do ambiente sem layout, que não mede a sonda.
+function probeFixedOrigin(){
+  const probe=document.createElement('div');
+  probe.setAttribute('data-fixed-probe','');
+  probe.style.cssText='position:fixed;top:0;left:0;width:4px;height:4px;margin:0;padding:0;border:0;pointer-events:none;visibility:hidden';
+  document.documentElement.appendChild(probe);
+  const box=probe.getBoundingClientRect();
+  probe.remove();
+  return box;
+}
+export function fixedFrame(){
   const root=document.documentElement,viewport=window.visualViewport;
-  if(S.session==='ready'){
-    const stable=Number(getTg()?.viewportStableHeight);
-    if(Number.isFinite(stable)&&stable>0){
-      const width=root.clientWidth||window.innerWidth;
-      return {left:0,top:0,width,height:stable,right:width,bottom:stable};
-    }
+  const telegramStable=S.session==='ready'?Number(getTg()?.viewportStableHeight):NaN;
+  if(Number.isFinite(telegramStable)&&telegramStable>0){
+    const width=root.clientWidth||window.innerWidth;
+    return {shiftX:0,shiftY:0,visualFixed:false,bounds:{left:0,top:0,width,height:telegramStable,right:width,bottom:telegramStable}};
   }
-  const left=viewport&&Number.isFinite(viewport.offsetLeft)?Math.max(0,viewport.offsetLeft):0;
-  const top=viewport&&Number.isFinite(viewport.offsetTop)?Math.max(0,viewport.offsetTop):0;
+  const ox=Math.max(0,viewport&&Number.isFinite(viewport.offsetLeft)?viewport.offsetLeft:0);
+  const oy=Math.max(0,viewport&&Number.isFinite(viewport.offsetTop)?viewport.offsetTop:0);
   const width=viewport&&Number.isFinite(viewport.width)&&viewport.width>0?viewport.width:(root.clientWidth||window.innerWidth);
   const height=viewport&&Number.isFinite(viewport.height)&&viewport.height>0?viewport.height:(root.clientHeight||window.innerHeight);
-  return {left,top,width,height,right:left+width,bottom:top+height};
+  let shiftX=0,shiftY=0,originLeft=ox,originTop=oy,visualFixed=false;
+  const keyboardLikely=ox>0.5||oy>0.5||Math.abs((root.clientHeight||0)-height)>=1;
+  if(keyboardLikely){
+    const box=probeFixedOrigin();
+    if(box.width>=1&&Math.abs(box.top+oy)<=2&&Math.abs(box.left+ox)<=2){
+      shiftX=ox;shiftY=oy;
+    }else if(box.width>=1&&Math.abs(box.top)<=2&&Math.abs(box.left)<=2){
+      visualFixed=true;originLeft=0;originTop=0;
+    }else if(box.width>=1){
+      shiftX=-box.left;shiftY=-box.top;originLeft=shiftX;originTop=shiftY;
+    }
+  }
+  return {shiftX,shiftY,visualFixed,bounds:{left:originLeft,top:originTop,width,height,right:originLeft+width,bottom:originTop+height}};
+}
+export function shiftToFixed(rect,frame){
+  if(!rect||(!frame.shiftX&&!frame.shiftY))return rect;
+  return {left:rect.left+frame.shiftX,top:rect.top+frame.shiftY,right:rect.right+frame.shiftX,bottom:rect.bottom+frame.shiftY,width:rect.width,height:rect.height};
+}
+export function visualViewportBounds(){
+  return fixedFrame().bounds;
 }
 export function panelViewportBounds(base=visualViewportBounds()){
+  const frame=fixedFrame();
+  const origin=base||frame.bounds;
   const bar=one('.bar-wrap');
-  const rect=bar?.getBoundingClientRect?.();
-  const bottom=rect&&Number.isFinite(rect.top)&&rect.top>base.top&&rect.top<base.bottom?Math.max(base.top,rect.top-8):base.bottom;
-  return {...base,height:Math.max(0,bottom-base.top),bottom};
+  const rect=shiftToFixed(bar?.getBoundingClientRect?.()||null,frame);
+  const bottom=rect&&Number.isFinite(rect.top)&&rect.top>origin.top&&rect.top<origin.bottom?Math.max(origin.top,rect.top-8):origin.bottom;
+  return {...origin,height:Math.max(0,bottom-origin.top),bottom};
 }
 export function panelAnchor(panel){
   const override=panelAnchors.get(panel);
@@ -90,13 +124,13 @@ export function usableAnchorRect(rect,bounds){
 export function placePanel(panel,anchorRect=null){
   if(!panel)return;
   const id=panel.id;
-  const viewport=visualViewportBounds(),bounds=panelViewportBounds(viewport),edge=8,gap=8;
+  const frame=fixedFrame(),viewport=frame.bounds,bounds=panelViewportBounds(viewport),edge=8,gap=8;
   const fullHeight=Math.max(0,bounds.height-edge*2);
   const baseMax=Math.max(0,Math.min(420,bounds.height*.55,fullHeight));
   const maxWidth=Math.max(0,bounds.width-edge*2);
   ui.setMenu(id,{positioned:true,maxHeight:baseMax,maxWidth});
   const anchor=panelAnchor(panel);
-  const rect=anchorRect||anchor?.getBoundingClientRect()||null;
+  const rect=shiftToFixed(anchorRect||anchor?.getBoundingClientRect()||null,frame);
   let box=panel.getBoundingClientRect();
   if(!usableAnchorRect(rect,viewport)){
     const minLeft=bounds.left+edge,maxLeft=Math.max(minLeft,bounds.right-edge-box.width);
