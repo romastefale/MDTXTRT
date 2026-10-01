@@ -25,6 +25,14 @@
   /* Botões em destaque (+ e ☰) e estados ativos, no desenho do pill selecionado do
      site romastefale/HTML (SiteHeader: --sel-bg/--sel-shadow). No escuro, o vidro
      leva o acento; no claro, o branco do site. Sempre translúcido. */
+  /* Pontos estratégicos (+, desfazer e ☰): o acento do escuro (#6ab3f3, o mesmo
+     de --accent e --prominent no escuro) nos dois temas, no ícone, no aro e no
+     preenchimento translúcido. Aberto = mais acento; nunca opaco (a lente refrata). */
+  --strategic:#6ab3f3;
+  --strategic-ink:color-mix(in srgb,var(--strategic) 72%,#fff);
+  --strategic-open:rgba(106,179,243,.55);
+  --strategic-open-rim:var(--strategic);
+  --strategic-open-ink:#fff;
   --prominent:rgba(106,179,243,.3);
   --prominent-rim:rgba(106,179,243,.5);
   --prominent-shadow:0 1px 6px rgba(0,0,0,.28);
@@ -96,10 +104,21 @@ html.tg-shell{
 }
 html.light{
   --edge:#8b82e6; --bg-art:url("produto/fundo-claro.svg"); --bg-shade:transparent;
-  --prominent:rgba(255,255,255,.72);
-  --prominent-rim:rgba(255,255,255,.18);
+  /* Botões do topo do site romastefale/HTML no claro (SiteHeader.css): + e ☰ como
+     .sh-pill (--chip-bg, --chip-border, --bar-text); estados ativos como o pill
+     selecionado (--sel-bg, --sel-shadow). */
+  /* +, desfazer e ☰ no claro: sem azul. Vidro branco mais denso que a barra (perto
+     do --sel-bg .9 do site), aro neutro --chip-border, ícone --bar-text e sombra
+     --sel-shadow. Aberto: o .sh-pill[aria-expanded] do site (fundo #0a0b0d, ícone
+     claro), mas translúcido (.72) para a lente continuar aparecendo. */
+  --prominent:rgba(255,255,255,.86);
+  --prominent-rim:rgba(0,0,0,.12);
+  --strategic-ink:#0a0b0d;
+  --strategic-open:rgba(10,11,13,.72);
+  --strategic-open-rim:rgba(0,0,0,.12);
+  --strategic-open-ink:#fff;
   --prominent-shadow:0 1px 2px rgba(20,16,60,.08),0 2px 6px rgba(20,16,60,.08);
-  --active-bg:rgba(255,255,255,.62);
+  --active-bg:rgba(255,255,255,.9);
   --muted:color-mix(in srgb,var(--text) 66%,transparent);
   --bg:#f2eefb; --text:#151515; --dim:#3a3a3c; --accent:#269c65;
   --link:var(--tg-theme-link-color,#2B88D8);
@@ -335,6 +354,17 @@ button{cursor:pointer;-webkit-tap-highlight-color:transparent}
 /* + e ☰ continuam em destaque, agora como vidro mais denso em vez de acento sólido. */
 .bar > button.more{background:var(--prominent);box-shadow:0 0 0 var(--rim-w) var(--prominent-rim),var(--prominent-shadow)}
 .bar > button.more.on::before{display:none}
+.bar > button.more,.seg .action-dot{color:var(--strategic-ink)}
+/* Aberto (menu do + ou do ☰): o mesmo vidro com mais acento, aro cheio e ícone forte. */
+html .bar > button.more.on,html .export[aria-expanded="true"] .action-dot{
+  --prominent:var(--strategic-open);--prominent-rim:var(--strategic-open-rim);color:var(--strategic-open-ink)
+}
+/* Desfazer: a mesma peça do ☰ (.action-dot com lente), logo o mesmo fundo, aro e
+   ícone do + e do ☰. Pressionado = estado aberto; sem nada a desfazer, esmaecido. */
+html .seg #undoBtn:active .action-dot{
+  --prominent:var(--strategic-open);--prominent-rim:var(--strategic-open-rim);color:var(--strategic-open-ink)
+}
+.seg #undoBtn[aria-disabled="true"]{opacity:.4}
 .action-dot{
   width:var(--control-size);height:var(--control-size);border-radius:50%;display:grid;place-items:center;
   position:relative;background:var(--prominent);color:inherit;box-shadow:0 0 0 var(--rim-w) var(--prominent-rim),var(--prominent-shadow)
@@ -353,7 +383,7 @@ button{cursor:pointer;-webkit-tap-highlight-color:transparent}
 .lens:not([data-live]):not([data-frozen]){display:none}
 .action-dot > .ui-icon{position:relative;z-index:1}
 .bar > button > .lens{position:absolute;z-index:0}
-.seg .export{
+.seg .export,.seg .strategic{
   width:var(--control-size);height:var(--control-size);border:0;background:transparent;
   display:grid;place-items:center;padding:0;border-radius:50%
 }
