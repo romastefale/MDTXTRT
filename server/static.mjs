@@ -15,7 +15,6 @@ const MIME = {
 const PUBLIC = new Set([
   "index.html",
   "styles.css",
-  "app.js",
   "ui.js",
   "editor-core.js",
   "marked.js",
