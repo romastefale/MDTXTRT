@@ -23,7 +23,6 @@ export function restoreSel(){
   if(current){S.savedRange=current;core.rememberSelection?.();return true;}
   return S.savedRange?core.restoreSelection(S.savedRange):false;
 }
-export function pushHist(){requireEditorCore().syncFromDOM({addToHistory:true});}
 export function histUndo(){const done=requireEditorCore().undo();if(done){restoreActiveMediaVisual();syncEditorSelectionUI();}return done;}
 export function histRedo(){if(requireEditorCore().redo()){restoreActiveMediaVisual();syncEditorSelectionUI();}}
 export function expandWord(){
@@ -45,23 +44,6 @@ export function exec(cmd,value=null){
   if(cmd==='insertUnorderedList')return toggleList();
   S.editorCore.exec(cmd,value);
   syncEditorSelectionUI();
-}
-export function normalizeBlocks(){
-  const sel=window.getSelection(),range=sel?.rangeCount?sel.getRangeAt(0):null;
-  if(!range || !editor.contains(range.commonAncestorContainer))return;
-  const start=[range.startContainer,range.startOffset,editor.childNodes[range.startOffset]],end=[range.endContainer,range.endOffset,editor.childNodes[range.endOffset]];
-  let p=null;
-  const blocks=new Set('P DIV H1 H2 H3 H4 H5 H6 BLOCKQUOTE FOOTER ASIDE PRE UL OL TABLE FIGURE DETAILS HR TG-MAP TG-COLLAGE TG-SLIDESHOW TG-MATH-BLOCK TG-BUTTON-ROW'.split(' '));
-  for(const node of [...editor.childNodes]){
-    if(node.nodeType===1&&blocks.has(node.tagName)){p=null;continue;}
-    if(!p){p=document.createElement('p');editor.insertBefore(p,node);}
-    p.append(node);
-  }
-  for(const [point,[node,offset,next]] of [['Start',start],['End',end]]){
-    if(node===editor){if(next?.parentNode)range['set'+point+'Before'](next);else range['set'+point](editor,editor.childNodes.length);}
-    else range['set'+point](node,offset);
-  }
-  sel.removeAllRanges();sel.addRange(range);saveSel();
 }
 export function toggleList(type='ul'){
   if(!S.editorCore)throw new Error('Núcleo de edição indisponível');
@@ -117,12 +99,12 @@ export async function insertHyperlink(){
   const destination=S.dest;
   restoreSel();
   if(requireEditorCore().selectionEmpty())S.editorCore.expandWord();
-  if(requireEditorCore().selectionEmpty())return showToast('Selecione um texto para criar o hyperlink');
+  if(requireEditorCore().selectionEmpty())return showToast('Selecione um texto para criar o hiperlink');
   const current=requireEditorCore().linkHref()||'https://';
-  const link=await askInlineLink('URL do hyperlink',current,{destination,anchor:linkBtn});
+  const link=await askInlineLink('URL do hiperlink',current,{destination,anchor:linkBtn});
   if(!link)return;
   restoreSel();
-  if(requireEditorCore().selectionEmpty())return showToast('Selecione um texto para criar o hyperlink');
+  if(requireEditorCore().selectionEmpty())return showToast('Selecione um texto para criar o hiperlink');
   exec('createLink',link.href);
 }
 export async function insertVisibleLink(){
@@ -363,4 +345,3 @@ export function flashBtn(btn){
   clearTimeout(btn._flash);
   btn._flash = setTimeout(()=>btn.classList.remove('is-flash'), 1400);
 }
-export function literalMatches(term){return requireEditorCore().findLiteral(term);}

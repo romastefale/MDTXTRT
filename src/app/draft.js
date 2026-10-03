@@ -65,7 +65,7 @@ export function cleanDraftHTML(html){
   const allowed=new Set('a b strong i em u ins s strike del code mark sub sup tg-spoiler tg-reference tg-emoji tg-time tg-math h1 h2 h3 h4 h5 h6 p pre footer hr ul ol li input blockquote aside cite img video audio tg-document figure figcaption iframe tg-map tg-collage tg-slideshow table caption thead tbody tfoot tr th td details summary tg-math-block tg-button tg-button-row br div'.split(' '));
   const attrs=new Set('href name class style src alt tg-spoiler start type reversed value checked disabled controls expandable unix format emoji-id lat long zoom width height bordered striped compact colspan rowspan align valign open url data query text forward-text request-write-access allow-user-chats allow-bot-chats allow-group-chats allow-channel-chats data-media-id data-media-missing'.split(' '));
   const localMedia=[...box.querySelectorAll('[data-media-id]')];
-  if(localMedia.length>50)throw new Error('O Telegram aceita no máximo 50 mídias por Rich Message');
+  if(localMedia.length>50)throw new Error('O Telegram aceita no máximo 50 mídias por mensagem');
   if(new Set(localMedia.map(node=>node.getAttribute('data-media-id'))).size!==localMedia.length)throw new Error('O rascunho contém identificadores de mídia duplicados');
   for(const el of [...box.querySelectorAll('*')]){
     if(!allowed.has(el.localName))throw new Error('O rascunho contém um elemento não suportado');
@@ -119,7 +119,7 @@ export function reportRemoteSaveFailure(error){
   console.error('Persistent draft',error);
   if(!S.remoteSaveNoticeShown){
     S.remoteSaveNoticeShown=true;
-    showToast('A cópia no volume não pôde ser atualizada; o rascunho local foi mantido');
+    showToast('A cópia no servidor não pôde ser atualizada; o rascunho local foi mantido');
   }
 }
 export async function persistRemoteDraft(pagehide=false){
@@ -136,7 +136,7 @@ export async function persistRemoteDraft(pagehide=false){
   else if(!pending.length&&JSON.stringify(snapshot).length<60000)options.keepalive=true;
   const res=await fetch(API+'/api/drafts/save',options);
   const data=await readResponse(res);
-  if(!res.ok)throw new Error(data.error||'Não foi possível persistir o rascunho no volume');
+  if(!res.ok)throw new Error(data.error||'Não foi possível salvar o rascunho no servidor');
   if(data?.draft?.docId!==snapshot.docId||data?.draft?.revision!==snapshot.revision)throw new Error('Confirmação de persistência inválida');
   S.remoteMediaSyncedIds=new Set(active.map(media=>media.id));
   S.remoteSaveNoticeShown=false;
@@ -208,7 +208,7 @@ export async function loadRemoteDraft(doc=''){
   });
   if(res.status===404)return false;
   const data=await readResponse(res);
-  if(!res.ok)throw new Error(data.error||'Não foi possível recuperar o rascunho do volume');
+  if(!res.ok)throw new Error(data.error||'Não foi possível recuperar o rascunho do servidor');
   return applyPersistentDraftData(data,identity);
 }
 export async function createNewDocumentLaunch(){
@@ -306,7 +306,7 @@ export async function recoverPersistentDraft(){
     if(loaded){
       setDestination(S.dest,false,false);
       syncEditorSelectionUI();
-      showToast('Rascunho recuperado do volume persistente');
+      showToast('Rascunho recuperado do servidor');
     }
     return true;
   }catch(error){

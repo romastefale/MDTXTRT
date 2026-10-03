@@ -37,15 +37,6 @@ export async function mediaLoad(id){
   });
   db.close();return value;
 }
-export async function mediaClear(){
-  if(storageBlocked())return;
-  const db=await mediaDB();
-  await new Promise((resolve,reject)=>{
-    const tx=db.transaction(DB_STORE,'readwrite');tx.objectStore(DB_STORE).clear();
-    tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error||new Error('Não foi possível limpar os anexos'));tx.onabort=tx.onerror;
-  });
-  db.close();
-}
 export async function mediaDelete(id){
   if(!id||storageBlocked())return;
   const db=await mediaDB();

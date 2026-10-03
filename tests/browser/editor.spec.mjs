@@ -548,6 +548,7 @@ test.describe(OFFLINE,()=>{
   test('com aviso e diálogo abertos, o toque no botão do diálogo dispara o botão',async ({page})=>{
     await page.goto('/index.html');
     await expect(page.locator('#dialogOk')).toHaveText('Tentar de novo');
+    await waitStartupGateEnd(page);
     await page.evaluate(()=>{
       window.MDTXTRT_UI.setToast({text:'Aviso por cima',visible:true});
       const root=document.documentElement;root.removeAttribute('data-device-gate');void root.offsetWidth;root.setAttribute('data-device-gate','');
@@ -1017,16 +1018,19 @@ test('borda da tela fica na cor sólida do cromo com texto rolando por baixo',as
 // Avisos efêmeros (toast e aviso de retrato): centrados na área livre entre as barras,
 // sem cobrir as barras nem +, ☰ e desfazer, também com o teclado aberto.
 const NOTICES={toast:'#toast .toast-material',retrato:'#deviceGate .device-gate-card'};
-async function showNotice(page,kind){
-  // Em tela larga o index.html abre o aviso de retrato logo depois de carregar e o
-  // tira 4,3s depois. Com a máquina carregada esse prazo caía no meio do teste e o
-  // aviso sumia: o aviso do teste só aparece depois dele (ou, se o inicial não abriu,
-  // 1,5s depois do DOMContentLoaded).
-  if(kind==='retrato')await page.waitForFunction(()=>{
+// Em tela larga o index.html abre o aviso de retrato logo depois de carregar e o
+// tira 4,3s depois. Com a máquina carregada esse prazo caía no meio do teste e o
+// aviso sumia: quem abre o próprio aviso de retrato espera o prazo do inicial acabar
+// (ou, se o inicial não abriu, 1,5s depois do DOMContentLoaded).
+async function waitStartupGateEnd(page){
+  await page.waitForFunction(()=>{
     const nav=performance.getEntriesByType('navigation')[0],now=performance.now();
     if(window.__startupGateAt!==undefined)return now>window.__startupGateAt+4400;
     return nav&&nav.domContentLoadedEventEnd>0&&now>nav.domContentLoadedEventEnd+1500;
   },null,{timeout:15000});
+}
+async function showNotice(page,kind){
+  if(kind==='retrato')await waitStartupGateEnd(page);
   await page.evaluate(kind=>{
     const root=document.documentElement;
     if(kind==='toast'){root.removeAttribute('data-device-gate');window.MDTXTRT_UI.setToast({text:'Link copiado',visible:true});}
@@ -1324,4 +1328,69 @@ test('toque fora do diálogo de link cancela pelo caminho do Esc sem soltar o fo
   await expect(editor).toHaveText('texto');
   expect(await page.evaluate(()=>window.__blurs),'nenhum foco solto no body').toBe(0);
   expect(await page.evaluate(()=>document.activeElement?.id),'mesmo destino do Esc').toBe(afterEsc);
+});
+
+// Cor calculada em [r,g,b,a] (0–255 e 0–1), aceitando rgb()/rgba() e color(srgb …),
+// que é como o Chromium devolve um color-mix().
+async function computedColor(page,selector,pseudo=null,property='color'){
+  return page.evaluate(([selector,pseudo,property])=>{
+    const value=getComputedStyle(document.querySelector(selector),pseudo)[property];
+    let m=/^rgba?\(([^)]+)\)$/.exec(value);
+    if(m){const p=m[1].split(/[\s,/]+/).filter(Boolean).map(Number);return [p[0],p[1],p[2],p.length>3?p[3]:1];}
+    m=/^color\(srgb ([^)]+)\)$/.exec(value);
+    if(m){const p=m[1].split(/[\s/]+/).filter(Boolean).map(Number);return [p[0]*255,p[1]*255,p[2]*255,p.length>3?p[3]:1];}
+    throw new Error('cor não reconhecida: '+value);
+  },[selector,pseudo,property]);
+}
+
+test('separadores dos menus usam a cor do texto a 16% nos dois temas, nunca branco no claro',async ({page})=>{
+  await page.evaluate(()=>{const probe=document.createElement('i');probe.id='textProbe';probe.style.color='var(--text)';document.body.append(probe);});
+  const text=await computedColor(page,'#textProbe');
+  const light=await page.evaluate(()=>document.documentElement.classList.contains('light'));
+  await page.locator('#exportBtn').click();
+  await expect(page.locator('#exportMenu .menu-divider').first()).toBeVisible();
+  const line=await computedColor(page,'#exportMenu .menu-divider','::after','backgroundColor');
+  // Mesma regra nos dois temas: o tom do texto (no escuro, o branco do aro a 16% fica a
+  // menos de 11 do #f5f5f7) com 16% de opacidade.
+  for(let i=0;i<3;i++)expect(Math.abs(line[i]-text[i]),'canal '+i+' do separador '+JSON.stringify(line)+' x texto '+JSON.stringify(text)).toBeLessThanOrEqual(11);
+  expect(line[3]).toBeGreaterThan(0.15);
+  expect(line[3]).toBeLessThan(0.17);
+  if(light)expect(Math.min(line[0],line[1],line[2]),'no claro o separador não pode ser branco').toBeLessThan(80);
+});
+
+test('H6 e Rodapé no menu de títulos têm a cor das outras opções',async ({page})=>{
+  await page.locator('#editor').click();
+  await page.locator('#headingBtn').click();
+  await expect(page.locator('#headingMenu [data-block="h6"]')).toBeVisible();
+  const reference=await computedColor(page,'#headingMenu [data-block="h3"]');
+  for(const block of ['h6','footer']){
+    expect(await computedColor(page,`#headingMenu [data-block="${block}"]`),block).toEqual(reference);
+  }
+});
+
+test('contador da biblioteca é menor que a linha e fica centrado nela',async ({page})=>{
+  const cors={'access-control-allow-origin':'*','access-control-allow-headers':'content-type','access-control-allow-methods':'POST, GET, OPTIONS'};
+  await page.route(/\/api\/library\/list/,route=>{
+    if(route.request().method()==='OPTIONS')return route.fulfill({status:204,headers:cors});
+    return route.fulfill({status:200,contentType:'application/json',headers:cors,body:JSON.stringify({drafts:[],telegram:[],telegraph:[]})});
+  });
+  await page.locator('#exportBtn').click();
+  await page.locator('#libraryBtn').click();
+  await expect(page.locator('#libraryMenu #draftCount')).toBeVisible();
+  for(const id of ['publicationCount','draftCount']){
+    const box=await page.evaluate(id=>{
+      const badge=document.getElementById(id),row=badge.closest('button');
+      const range=document.createRange();range.selectNodeContents(badge);
+      const r=badge.getBoundingClientRect(),w=row.getBoundingClientRect(),t=range.getBoundingClientRect();
+      return {height:r.height,width:r.width,rowHeight:w.height,badgeMid:r.top+r.height/2,rowMid:w.top+w.height/2,
+        textMidX:t.left+t.width/2,textMidY:t.top+t.height/2,badgeMidX:r.left+r.width/2};
+    },id);
+    expect(box.height,id).toBeLessThanOrEqual(17.5);
+    expect(box.width,id).toBeGreaterThanOrEqual(box.height-0.5);
+    // Antes ocupava quase a linha inteira (21px numa linha de ~25px); agora sobra folga em cima e embaixo.
+    expect(box.rowHeight-box.height,id+' folga na linha').toBeGreaterThanOrEqual(6);
+    expect(Math.abs(box.badgeMid-box.rowMid),id+' centrado na linha').toBeLessThanOrEqual(1);
+    expect(Math.abs(box.textMidX-box.badgeMidX),id+' número centrado na largura').toBeLessThanOrEqual(1.5);
+    expect(Math.abs(box.textMidY-box.badgeMid),id+' número centrado na altura').toBeLessThanOrEqual(2);
+  }
 });

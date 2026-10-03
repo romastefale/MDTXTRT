@@ -206,7 +206,7 @@ export function createFormatting(root,{changed=()=>{},selectionChanged=()=>{}}={
 
   function toggleLink(href){
     const range=rangeInside(root);
-    if(!range||range.collapsed)throw new Error("Selecione o texto para criar o hyperlink");
+    if(!range||range.collapsed)throw new Error("Selecione um texto para criar o hiperlink");
     const fragment=range.extractContents();
     stripElements(fragment,"a[href]");
     const link=root.ownerDocument.createElement("a");

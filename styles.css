@@ -138,6 +138,10 @@ html.light{
   --glass-strong:rgba(255,255,255,.42);
   --glass-press:rgba(28,28,30,.08);
   --rim:rgba(255,255,255,.18);
+  /* Separadores dos menus: no escuro o aro branco a 16% já é a cor do texto a 16%;
+     no claro o aro é branco e some sobre o vidro claro, então o separador usa o
+     texto a 16%, a mesma regra do escuro. */
+  --menu-edge:color-mix(in srgb,var(--text) 16%,transparent);
   --glass-field:rgba(255,255,255,.5);
   --glass-field-soft:rgba(255,255,255,.34);
 }
@@ -223,8 +227,8 @@ html:not([data-dest="telegraph"]) .editor h6{font-size:15px}
 .heading-list .h-opt.h3{font-size:15px;font-weight:650}
 .heading-list .h-opt.h4{font-size:14px;font-weight:650}
 .heading-list .h-opt.h5{font-size:12px;font-weight:650;letter-spacing:.06em;text-transform:uppercase}
-.heading-list .h-opt.h6{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
-.heading-list .h-opt.footer{font-size:12px;color:var(--muted)}
+.heading-list .h-opt.h6{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase}
+.heading-list .h-opt.footer{font-size:12px}
 .heading-list button.is-current{font-weight:650}
 /* Aro hairline por fora da borda (lê contra a página nos dois temas), brilho
    sem brilho de topo, e a sombra flutuante suave do site. */
@@ -599,8 +603,8 @@ html .seg #undoBtn:active .action-dot{
 .library-section-toggle[aria-expanded="true"] .menu-chevron{transform:rotate(90deg)}
 .library-section-toggle .menu-chevron{transition:transform .16s ease}
 .library-section-count{
-  min-width:21px;height:21px;border-radius:999px;display:inline-grid;place-items:center;padding:0 7px;
-  background:var(--glass-field-soft);color:var(--muted);font-size:10px;font-weight:750;line-height:1
+  min-width:17px;height:17px;border-radius:999px;display:inline-grid;place-items:center;padding:0 5px;
+  background:var(--glass-field-soft);color:var(--muted);font-size:9.5px;font-weight:750;line-height:1
 }
 .menu-list > button:hover .library-section-count,
 .menu-list > button:focus-visible .library-section-count{background:var(--glass-field)}
