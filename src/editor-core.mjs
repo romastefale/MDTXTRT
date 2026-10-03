@@ -54,6 +54,50 @@ function ensureCaretLine(block){
   block.replaceChildren(block.ownerDocument.createElement("br"));
 }
 
+// Crédito vazio: um <cite> sem texto (vazio, só espaços, só &nbsp; ou só <br>) sai no
+// envio, pela mesma regra de toRichHTML e telegraphNodes (#155): textContent.trim() vazio.
+// :empty não pega espaços nem <br>, então o núcleo marca esses <cite> com
+// data-empty-credit e a prévia os trata como "sem crédito" (styles.css). Enquanto o cursor
+// está dentro do crédito vazio (apagou o nome para digitar outro), ele fica sem a marca e
+// mantém a linha própria, para o texto digitado entrar no crédito. A marca é só da prévia:
+// html() e o histórico a tiram, e ela não chega ao rascunho, à exportação nem ao envio.
+export const EMPTY_CREDIT="data-empty-credit";
+export function isEmptyCredit(cite){return !cite.textContent.trim();}
+export function markEmptyCredits(root){
+  const selection=root.ownerDocument.getSelection?.(),caret=selection?.rangeCount?selection.anchorNode:null;
+  for(const cite of root.querySelectorAll("cite")){
+    const editing=Boolean(caret&&cite.contains(caret));
+    cite.toggleAttribute(EMPTY_CREDIT,isEmptyCredit(cite)&&!editing);
+  }
+}
+// O crédito vazio de uma citação (o último filho, sem texto depois dele).
+function trailingEmptyCredit(quote){
+  const cite=quote?.lastElementChild;
+  if(cite?.localName!=="cite"||!isEmptyCredit(cite))return null;
+  for(let node=cite.nextSibling;node;node=node.nextSibling)if(node.nodeType!==3||node.data.trim())return null;
+  return cite;
+}
+// Entra no crédito vazio: o cursor vai para dentro dele, a marca sai e a linha volta. Um
+// <cite> sem <br> nem &nbsp; não tem linha onde o cursor fique, então ganha um <br>.
+function enterEmptyCredit(root,cite){
+  if(!cite.querySelector("br")&&!cite.textContent.includes("\u00a0"))cite.append(cite.ownerDocument.createElement("br"));
+  setCaret(cite,0);
+  markEmptyCredits(root);
+}
+// Últimas linhas do texto da citação, sem o crédito.
+function quoteTextBottom(quote,cite){
+  const range=quote.ownerDocument.createRange();
+  range.setStart(quote,0);range.setEndBefore(cite);
+  const rects=[...range.getClientRects()].filter(rect=>rect.height>0);
+  return rects.length?Math.max(...rects.map(rect=>rect.bottom)):quote.getBoundingClientRect().top;
+}
+export function editorHTML(root){
+  if(!root.querySelector("["+EMPTY_CREDIT+"]"))return root.innerHTML;
+  const copy=root.cloneNode(true);
+  for(const node of copy.querySelectorAll("["+EMPTY_CREDIT+"]"))node.removeAttribute(EMPTY_CREDIT);
+  return copy.innerHTML;
+}
+
 function replaceBlockText(block,text){
   block.replaceChildren(block.ownerDocument.createTextNode(text));
 }
@@ -71,12 +115,47 @@ export function createEditorCore({element,onChange=()=>{},onSelectionChange=()=>
     onChange({});
   };
 
-  history=createHistory(element,{depth:120,onRestore:()=>{onChange({});notifySelection();}});
+  // Qualquer mudança no texto (digitação, colagem, setHTML, desfazer, innerHTML de fora)
+  // ou no cursor remarca os créditos vazios. Mudança de atributo não é observada: a marca
+  // não reentra.
+  const remarkCredits=()=>{if(!destroyed)markEmptyCredits(element);};
+  remarkCredits();
+  const Observer=element.ownerDocument?.defaultView?.MutationObserver;
+  const credits=typeof Observer==="function"?new Observer(remarkCredits):null;
+  credits?.observe(element,{subtree:true,childList:true,characterData:true});
+  element.ownerDocument?.addEventListener?.("selectionchange",remarkCredits);
+  // Copiar ou recortar leva o HTML sem a marca da prévia: ela sai antes de o navegador
+  // montar a área de transferência e volta antes do próximo quadro.
+  const clipboardWithoutMarks=()=>{
+    for(const cite of element.querySelectorAll("["+EMPTY_CREDIT+"]"))cite.removeAttribute(EMPTY_CREDIT);
+    const view=element.ownerDocument?.defaultView;
+    view?.requestAnimationFrame?.(remarkCredits);view?.setTimeout?.(remarkCredits,0);
+  };
+  element.addEventListener?.("copy",clipboardWithoutMarks,true);
+  element.addEventListener?.("cut",clipboardWithoutMarks,true);
+  // O crédito vazio não tem linha visível, mas continua alcançável como na main: um toque
+  // entre a última linha do texto e o meio do vão até o bloco seguinte entra nele.
+  const tapEmptyCredit=event=>{
+    const selection=element.ownerDocument.getSelection?.();
+    if(selection&&selection.rangeCount&&!selection.getRangeAt(0).collapsed)return;
+    for(const quote of element.querySelectorAll("blockquote,aside")){
+      const cite=trailingEmptyCredit(quote);
+      if(!cite||cite.contains(selection?.anchorNode))continue;
+      const box=quote.getBoundingClientRect();
+      if(event.clientX<box.left||event.clientX>box.right)continue;
+      const next=quote.nextElementSibling?.getBoundingClientRect().top??box.bottom+16;
+      if(event.clientY<quoteTextBottom(quote,cite)||event.clientY>box.bottom+Math.max(0,(next-box.bottom)/2))continue;
+      enterEmptyCredit(element,cite);notifySelection();
+      return;
+    }
+  };
+  element.addEventListener?.("click",tapEmptyCredit);
+  history=createHistory(element,{depth:120,serialize:editorHTML,onRestore:()=>{onChange({});notifySelection();}});
   const formatting=createFormatting(element,{changed,selectionChanged:notifySelection});
   const structure=createStructure(element,{changed,selectionChanged:notifySelection});
   const search=createSearch(element,{changed,selectionChanged:notifySelection});
 
-  function html(){return element.innerHTML;}
+  function html(){return editorHTML(element);}
 
   function setHTML(value,{silent=true}={}){
     element.innerHTML=String(value||"");
@@ -256,7 +335,24 @@ export function createEditorCore({element,onChange=()=>{},onSelectionChange=()=>
     return false;
   }
 
+  // Seta para a direita no fim do texto de uma citação com crédito vazio entra no crédito.
+  function enterCreditByArrow(event){
+    if(event.key!=="ArrowRight"||event.shiftKey||event.altKey||event.metaKey||event.ctrlKey)return false;
+    const range=rangeInside(element);
+    if(!range||!range.collapsed)return false;
+    const start=range.startContainer.nodeType===1?range.startContainer:range.startContainer.parentNode;
+    const quote=start?.closest?.("blockquote,aside"),cite=quote&&element.contains(quote)?trailingEmptyCredit(quote):null;
+    if(!cite||cite.contains(range.startContainer))return false;
+    const rest=element.ownerDocument.createRange();
+    rest.setStart(range.startContainer,range.startOffset);rest.setEndBefore(cite);
+    if(rest.toString()!==""||rest.cloneContents().querySelector?.("br,img,video,audio,iframe,input,tg-emoji"))return false;
+    event.preventDefault();
+    enterEmptyCredit(element,cite);notifySelection();
+    return true;
+  }
+
   function handleKeydown(event){
+    if(enterCreditByArrow(event))return true;
     if(!["Backspace","Delete"].includes(event.key))return false;
     const range=rangeInside(element);
     if(!range)return false;
@@ -329,7 +425,11 @@ export function createEditorCore({element,onChange=()=>{},onSelectionChange=()=>
     selectionMatches:search.selectionMatches,
     replaceSelection:search.replaceSelection,
     replaceAllLiteral:search.replaceAllLiteral,
-    destroy:()=>{destroyed=true;}
+    destroy:()=>{
+      destroyed=true;credits?.disconnect();element.ownerDocument?.removeEventListener?.("selectionchange",remarkCredits);
+      element.removeEventListener?.("copy",clipboardWithoutMarks,true);element.removeEventListener?.("cut",clipboardWithoutMarks,true);
+      element.removeEventListener?.("click",tapEmptyCredit);
+    }
   };
 }
 

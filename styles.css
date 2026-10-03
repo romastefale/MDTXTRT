@@ -415,6 +415,17 @@ html:not([data-dest="telegraph"]) .editor h6{font-size:15px}
 .editor aside:has(> cite:last-child){--pull-close-bottom:calc(4px + 1.42em)}
 html:not([data-dest="telegraph"]) .editor :is(blockquote,aside) > cite:last-child{display:block;font-style:normal;font-weight:400;color:var(--muted)}
 html:not([data-dest="telegraph"]) .editor aside > cite:last-child{font-style:italic}
+/* Crédito vazio (<cite> vazio, só espaços, só &nbsp; ou só <br>): o envio o tira (#155),
+   então a prévia o trata como ausente. O núcleo do editor marca esses <cite> com
+   data-empty-credit (:empty não pega espaços nem <br>). As regras acima ficam como estavam
+   (mesma especificidade e cascata da main); estas só desfazem o efeito do crédito: as aspas
+   de baixo não sobem e o crédito continua um bloco, mas com altura 0, sem linha visível.
+   Como bloco, ele continua alcançável: a seta para a direita no fim do destaque e um toque
+   logo abaixo dele entram no crédito, e aí a marca sai e a linha volta. A primeira regra
+   tem especificidade maior que a das aspas acima; a segunda só mexe na altura, que
+   nenhuma outra regra do crédito define. */
+.editor aside:has(> cite:last-child[data-empty-credit]){--pull-close-bottom:4px}
+.editor :is(blockquote,aside) > cite[data-empty-credit]{height:0;overflow:visible}
 /* Telegraph: sem <cite>; na publicação o nome do autor vira texto comum numa linha
    própria da citação (telegraphNodes), e a prévia mostra o mesmo. */
 html[data-dest="telegraph"] .editor :is(blockquote,aside) > cite{display:block;font:inherit;color:inherit}

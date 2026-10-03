@@ -880,6 +880,170 @@ test('citação e citação em destaque seguem o Telegraph e o Telegram',async (
   await expect(page.locator('html')).toHaveAttribute('data-dest','telegram');
 });
 
+// Crédito vazio (<cite> vazio, só espaços, só &nbsp; ou só <br>) não vai no envio (#155:
+// textContent.trim() vazio). A prévia tem de mostrar o mesmo que sem crédito: as aspas de
+// baixo no mesmo lugar e nenhuma linha a mais, também depois de apagar o crédito no teclado.
+test('crédito vazio no destaque deixa as aspas e a altura iguais às de sem crédito',async ({page})=>{
+  const CREDITS={nenhum:'',vazio:'<cite></cite>',espacos:'<cite>   </cite>',nbsp:'<cite>&nbsp;</cite>',quebra:'<cite><br></cite>',autor:'<cite>Autor</cite>'};
+  const measure=credit=>page.evaluate(credit=>{
+    const editor=document.querySelector('#editor');
+    editor.innerHTML='<p>antes</p><aside>Destaque do autor'+credit+'</aside><p>depois</p>';
+    return new Promise(resolve=>requestAnimationFrame(()=>{
+      const aside=editor.querySelector('aside'),box=aside.getBoundingClientRect(),mark=getComputedStyle(aside,'::after');
+      const text=document.createRange();text.selectNodeContents(aside.firstChild);
+      // Topo das aspas de baixo, medido a partir da linha do texto do destaque.
+      const markTop=box.height-parseFloat(mark.bottom||'0')-parseFloat(mark.height||'0');
+      resolve({height:Math.round(box.height*2)/2,markTop:mark.content==='none'?null:Math.round((box.top+markTop-text.getBoundingClientRect().bottom)*2)/2});
+    }));
+  },credit);
+  for(const dest of ['telegram','telegraph']){
+    if(await page.locator('html').getAttribute('data-dest')!==dest)await page.locator('#destBtn').click();
+    await expect(page.locator('html')).toHaveAttribute('data-dest',dest);
+    const none=await measure(CREDITS.nenhum);
+    for(const kind of ['vazio','espacos','nbsp','quebra'])expect(await measure(CREDITS[kind]),`${dest}: crédito ${kind} igual a sem crédito`).toEqual(none);
+    // Com crédito de verdade a citação ganha a linha do autor, e as aspas continuam junto
+    // da última linha do texto, acima do crédito.
+    const real=await measure(CREDITS.autor);
+    expect(real.height,`${dest}: crédito com texto ganha linha`).toBeGreaterThan(none.height+10);
+    expect(real.markTop,`${dest}: aspas acima do crédito, junto do texto`).toEqual(none.markTop);
+  }
+  await page.locator('#destBtn').click();
+  await expect(page.locator('html')).toHaveAttribute('data-dest','telegram');
+  const none=await measure(CREDITS.nenhum);
+  // Apagar o crédito no teclado: com o cursor ainda nele, o crédito vazio guarda a linha e
+  // o que for digitado entra no crédito; quando o cursor sai, a prévia volta a "sem crédito".
+  const asideBox=()=>page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>{
+    const aside=document.querySelector('#editor aside'),box=aside.getBoundingClientRect(),mark=getComputedStyle(aside,'::after');
+    const text=document.createRange();text.selectNodeContents(aside.firstChild);
+    resolve({height:Math.round(box.height*2)/2,markTop:Math.round((box.top+box.height-parseFloat(mark.bottom)-parseFloat(mark.height)-text.getBoundingClientRect().bottom)*2)/2});
+  })));
+  await measure(CREDITS.autor);
+  await page.evaluate(()=>{
+    const cite=document.querySelector('#editor cite'),range=document.createRange();
+    range.selectNodeContents(cite);range.collapse(false);
+    document.querySelector('#editor').focus();const sel=getSelection();sel.removeAllRanges();sel.addRange(range);
+  });
+  for(let i=0;i<'Autor'.length;i++)await page.keyboard.press('Backspace');
+  await expect.poll(()=>page.evaluate(()=>document.querySelector('#editor aside')?.textContent),{message:'só o crédito foi apagado'}).toBe('Destaque do autor');
+  await page.keyboard.type('Outro');
+  await expect.poll(()=>page.evaluate(()=>document.querySelector('#editor aside cite')?.textContent),{message:'o texto digitado entra no crédito'}).toBe('Outro');
+  for(let i=0;i<'Outro'.length;i++)await page.keyboard.press('Backspace');
+  await expect.poll(()=>page.evaluate(()=>document.querySelector('#editor aside')?.textContent)).toBe('Destaque do autor');
+  await page.locator('#editor p').last().click();
+  await expect.poll(asideBox,{message:'crédito apagado no teclado, cursor fora: igual a sem crédito'}).toEqual(none);
+  // A marca é só da prévia: o rascunho salvo leva o <cite> como estava, sem ela.
+  await page.evaluate(()=>{
+    const editor=document.querySelector('#editor');
+    editor.innerHTML='<p>antes</p><aside>Destaque<cite> </cite></aside>';
+    const range=document.createRange();range.selectNodeContents(editor.firstChild);range.collapse(false);
+    editor.focus();const sel=getSelection();sel.removeAllRanges();sel.addRange(range);
+  });
+  await expect(page.locator('#editor cite'),'na prévia o crédito vazio está marcado').toHaveAttribute('data-empty-credit','');
+  await page.keyboard.type('x');
+  await expect.poll(()=>page.evaluate(()=>localStorage.getItem('rmdtxtml')||''),{message:'rascunho salvo com o destaque'}).toContain('antesx');
+  const saved=await page.evaluate(()=>JSON.parse(localStorage.getItem('rmdtxtml')).html);
+  expect(saved).toContain('<cite> </cite>');
+  expect(saved,'marca da prévia fora do rascunho').not.toContain('data-empty-credit');
+});
+
+// Crédito do destaque no Telegram, como na main: linha própria, cor secundária, peso 400
+// (o "Add author" do app) e itálico, também com um crédito vazio em outra citação da página
+// (a marca da prévia não pode mudar a cascata do crédito com texto).
+test('crédito do destaque no Telegram: linha própria, mais apagado, peso 400 e itálico',async ({page})=>{
+  await expect(page.locator('html')).toHaveAttribute('data-dest','telegram');
+  await page.evaluate(()=>{document.querySelector('#editor').innerHTML='<aside>Destaque do autor<cite>Autor</cite></aside><blockquote>Citação<cite>Fonte</cite></blockquote><aside>Outro<cite> </cite></aside>';});
+  await expect(page.locator('#editor aside').nth(1).locator('cite')).toHaveAttribute('data-empty-credit','');
+  const s=await page.evaluate(()=>{
+    const aside=document.querySelector('#editor aside'),cite=aside.querySelector('cite'),quoteCite=document.querySelector('#editor blockquote cite');
+    const text=document.createRange();text.selectNodeContents(aside.firstChild);
+    const c=getComputedStyle(cite),q=getComputedStyle(quoteCite);
+    return {display:c.display,style:c.fontStyle,weight:c.fontWeight,color:c.color,textColor:getComputedStyle(aside).color,
+      ownLine:cite.getBoundingClientRect().top>=text.getBoundingClientRect().bottom-0.5,quote:{style:q.fontStyle,weight:q.fontWeight}};
+  });
+  expect(s).toMatchObject({display:'block',style:'italic',weight:'400',ownLine:true});
+  expect(s.color,'crédito mais apagado que o texto').not.toEqual(s.textColor);
+  expect(s.quote,'crédito da citação comum: sem itálico, peso 400').toEqual({style:'normal',weight:'400'});
+});
+
+// Sem outro jeito de pôr um crédito de volta num destaque, o crédito vazio continua
+// alcançável como na main: a seta para a direita no fim do texto e um toque logo abaixo
+// do destaque entram nele; com o cursor dentro ele mostra a linha e recebe o que se digita.
+test('crédito vazio continua alcançável pela seta e por um toque logo abaixo do destaque',async ({page})=>{
+  const setup=credit=>page.evaluate(credit=>{
+    const editor=document.querySelector('#editor');
+    editor.innerHTML='<p>antes</p><aside>Destaque do autor'+credit+'</aside><p>depois</p>';
+    const text=editor.querySelector('aside').firstChild,range=document.createRange();
+    range.setStart(text,text.data.length);range.collapse(true);
+    editor.focus();getSelection().removeAllRanges();getSelection().addRange(range);
+  },credit);
+  const state=()=>page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>{
+    const sel=getSelection(),node=sel.anchorNode,el=node?.nodeType===3?node.parentNode:node,aside=document.querySelector('#editor aside');
+    resolve({inCredit:Boolean(el?.closest('#editor aside cite')),height:Math.round(aside.getBoundingClientRect().height*2)/2});
+  })));
+  await page.evaluate(()=>{document.querySelector('#editor').innerHTML='<p>antes</p><aside>Destaque do autor</aside><p>depois</p>';});
+  const none=(await state()).height;
+  for(const credit of ['<cite><br></cite>','<cite></cite>','<cite> </cite>']){
+    await setup(credit);
+    await expect.poll(state,{message:`${credit}: sem linha com o cursor fora`}).toEqual({inCredit:false,height:none});
+    await page.keyboard.press('ArrowRight');
+    const arrow=await state();
+    expect(arrow.inCredit,`${credit}: a seta entra no crédito`).toBe(true);
+    expect(arrow.height,`${credit}: com o cursor dentro, o crédito mostra a linha`).toBeGreaterThan(none+10);
+    await page.keyboard.type('Nova');
+    await expect.poll(()=>page.evaluate(()=>document.querySelector('#editor aside cite')?.textContent.trim()),{message:`${credit}: o texto entra no crédito`}).toBe('Nova');
+    await setup(credit);
+    await expect.poll(state).toEqual({inCredit:false,height:none});
+    const box=await page.locator('#editor aside').boundingBox();
+    await page.mouse.click(box.x+box.width/2,box.y+box.height+2);
+    await expect.poll(state,{message:`${credit}: o toque logo abaixo entra no crédito`}).toMatchObject({inCredit:true});
+    // Saindo do crédito, a prévia volta a "sem crédito".
+    await page.locator('#editor p').last().click();
+    await expect.poll(state).toEqual({inCredit:false,height:none});
+  }
+});
+
+// A marca da prévia (data-empty-credit) não vai para a área de transferência nem para o
+// histórico de desfazer.
+test('copiar e desfazer não levam a marca do crédito vazio',async ({page})=>{
+  await page.evaluate(()=>{
+    const editor=document.querySelector('#editor');
+    editor.innerHTML='<p>antes</p><aside>Destaque<cite><br></cite></aside><p>depois</p>';
+  });
+  await expect(page.locator('#editor cite')).toHaveAttribute('data-empty-credit','');
+  // Copiar tudo e colar: o HTML que chega no colar é o que foi para a área de transferência.
+  await page.evaluate(()=>{
+    const editor=document.querySelector('#editor'),range=document.createRange();
+    range.selectNodeContents(editor);editor.focus();getSelection().removeAllRanges();getSelection().addRange(range);
+    window.__colado=null;
+    editor.addEventListener('paste',event=>{window.__colado=event.clipboardData.getData('text/html');},{capture:true,once:true});
+  });
+  await page.keyboard.press('ControlOrMeta+c');
+  await expect(page.locator('#editor cite'),'a marca volta na prévia depois de copiar').toHaveAttribute('data-empty-credit','');
+  await page.locator('#editor p').last().click();
+  await page.keyboard.press('End');
+  await page.keyboard.press('ControlOrMeta+v');
+  await expect.poll(()=>page.evaluate(()=>window.__colado),{message:'colar recebeu HTML'}).toContain('<cite');
+  expect(await page.evaluate(()=>window.__colado),'marca fora da área de transferência').not.toContain('data-empty-credit');
+  // Histórico: cada passo de desfazer e refazer restaura o HTML guardado; ele é lido antes
+  // de o núcleo remarcar (o observador só roda depois deste trecho síncrono).
+  await page.evaluate(()=>{
+    const editor=document.querySelector('#editor'),range=document.createRange();
+    editor.innerHTML='<p>antes</p><aside>Destaque<cite> </cite></aside><p>depois</p>';
+    range.selectNodeContents(editor.firstChild);range.collapse(false);editor.focus();getSelection().removeAllRanges();getSelection().addRange(range);
+  });
+  await expect(page.locator('#editor cite')).toHaveAttribute('data-empty-credit','');
+  for(const ch of 'abc')await page.keyboard.type(ch);
+  await expect.poll(()=>page.evaluate(()=>document.querySelector('#editor p').textContent)).toBe('antesabc');
+  const steps=await page.evaluate(()=>{
+    const editor=document.querySelector('#editor'),seen=[];
+    for(const id of ['#undoBtn','#undoBtn','#undoBtn','#redoBtn','#redoBtn']){document.querySelector(id).click();seen.push(editor.innerHTML);}
+    return seen;
+  });
+  expect(new Set(steps).size,'desfazer e refazer mudaram o texto').toBeGreaterThan(1);
+  expect(steps.filter(html=>html.includes('<cite')).length,'o crédito vazio está nos passos').toBe(steps.length);
+  for(const html of steps)expect(html,'marca fora do histórico').not.toContain('data-empty-credit');
+});
+
 // O seletor Telegram/Telegraph é só uma troca: nos dois estados é um botão comum da
 // barra, como o refazer, sem preenchimento nem aro de ponto estratégico.
 test('seletor de plataforma sem destaque nos dois estados',async ({page})=>{
