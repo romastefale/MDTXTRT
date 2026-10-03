@@ -6,6 +6,13 @@ const GATE='aviso de retrato';
 
 // A página roda como site estático; o SDK do Telegram fica fora do teste.
 test.beforeEach(async ({page})=>{
+  // Hora em que o index.html abriu o aviso de retrato inicial (tela larga), para os
+  // testes do aviso esperarem o prazo dele acabar (ver showNotice).
+  await page.addInitScript(()=>{
+    new MutationObserver(()=>{
+      if(window.__startupGateAt===undefined&&document.documentElement.hasAttribute('data-device-gate'))window.__startupGateAt=performance.now();
+    }).observe(document,{subtree:true,attributes:true,attributeFilter:['data-device-gate']});
+  });
   await page.route(/telegram\.org/,route=>route.fulfill({body:'',contentType:'text/javascript'}));
   // Sem backend: nenhum rascunho remoto e o resto da API indisponível.
   const cors={'access-control-allow-origin':'*','access-control-allow-headers':'content-type','access-control-allow-methods':'POST, GET, OPTIONS'};
@@ -1010,6 +1017,15 @@ test('borda da tela fica na cor sólida do cromo com texto rolando por baixo',as
 // sem cobrir as barras nem +, ☰ e desfazer, também com o teclado aberto.
 const NOTICES={toast:'#toast .toast-material',retrato:'#deviceGate .device-gate-card'};
 async function showNotice(page,kind){
+  // Em tela larga o index.html abre o aviso de retrato logo depois de carregar e o
+  // tira 4,3s depois. Com a máquina carregada esse prazo caía no meio do teste e o
+  // aviso sumia: o aviso do teste só aparece depois dele (ou, se o inicial não abriu,
+  // 1,5s depois do DOMContentLoaded).
+  if(kind==='retrato')await page.waitForFunction(()=>{
+    const nav=performance.getEntriesByType('navigation')[0],now=performance.now();
+    if(window.__startupGateAt!==undefined)return now>window.__startupGateAt+4400;
+    return nav&&nav.domContentLoadedEventEnd>0&&now>nav.domContentLoadedEventEnd+1500;
+  },null,{timeout:15000});
   await page.evaluate(kind=>{
     const root=document.documentElement;
     if(kind==='toast'){root.removeAttribute('data-device-gate');window.MDTXTRT_UI.setToast({text:'Link copiado',visible:true});}
@@ -1097,6 +1113,9 @@ for(const kind of Object.keys(NOTICES))test(`aviso efêmero (${kind}) legível s
   // Texto corrido e denso, sem linhas em branco, atrás de todo o aviso.
   await page.evaluate(()=>{document.querySelector('#editor').innerHTML='<p>'+'<b>Mdtxtrt</b> eiusmod tempor incididunt ut labore et dolore magna aliqua quis nostrud exercitation ullamco laboris. '.repeat(120)+'</p>';});
   await showNotice(page,kind);
+  // Mede o aviso parado na tela: a saída do aviso de retrato começa 4s depois de ele
+  // aparecer, e com a máquina carregada as medições passavam disso.
+  await page.addStyleTag({content:`${sel}{animation:none!important}`});
   // Cores do texto do aviso já resolvidas em sRGB 0–255 com alfa (canvas normaliza
   // rgb(), color(srgb …) e color-mix()).
   const colors=await page.evaluate(sel=>{
