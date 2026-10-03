@@ -619,7 +619,11 @@ test('editor quotes follow the canonical platform: Telegraph aside and blockquot
   // telegra.ph/css/core.min.css › .tl_article_content aside
   for(const rule of ['margin:18px 21px 16px','padding:0 18px','font-size:21px','font-style:italic','text-align:center','color:var(--telegraph-aside)'])assert.ok(aside.includes(rule),'aside '+rule);
   assert.doesNotMatch(aside,/border/);
-  assert.match(css,/html\.light\{[^}]*--telegraph-rule:#000;[^}]*--telegraph-aside:rgba\(0,0,0,\.6\)/);
+  // Claro: os literais do core.min.css (o texto do claro é #151515, não preto).
+  // Escuro (o Telegraph não tem): derivados da cor do texto.
+  assert.match(css,/html\.light\{[^}]*--telegraph-rule:#000;\s*--telegraph-aside:rgba\(0,0,0,\.6\);/);
+  assert.match(css,/:root\{[^}]*--telegraph-rule:var\(--text\);\s*--telegraph-aside:color-mix\(in srgb,var\(--text\) 60%,transparent\);/);
+  assert.doesNotMatch(css,/--telegraph-ink/);
   assert.match(css,/html\[data-dest="telegraph"\] \.editor blockquote:not\(\[expandable\]\)\{[^}]*margin:18px 21px 16px 0;padding:0 0 0 15px;border-left:3px solid var\(--telegraph-rule\);font-style:italic/);
   assert.match(css,/\.editor blockquote\{[^}]*border-left:3px solid var\(--link\)/);
   assert.match(publish,/document\.documentElement\.setAttribute\('data-dest',S\.dest\)/);

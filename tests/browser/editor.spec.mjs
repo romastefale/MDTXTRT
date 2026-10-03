@@ -576,14 +576,22 @@ test('citação e citação em destaque seguem o Telegraph e o Telegram',async (
   const light=info.project.use.colorScheme==='light';
   await page.evaluate(()=>{document.querySelector('#editor').innerHTML='<blockquote>Citação</blockquote><aside>Destaque do autor</aside><p>texto</p>';});
   const read=()=>page.evaluate(()=>{
+    // color-mix() sai como rgba() ou color(srgb …) conforme o motor: compara por canais.
+    const rgba=value=>{
+      const srgb=/^color\(srgb ([\d.e-]+) ([\d.e-]+) ([\d.e-]+)(?: \/ ([\d.e-]+))?\)$/.exec(value);
+      if(srgb)return [...srgb.slice(1,4).map(n=>Math.round(Number(n)*255)),Math.round(Number(srgb[4]??1)*100)/100];
+      const rgb=/^rgba?\(([\d.]+), ([\d.]+), ([\d.]+)(?:, ([\d.]+))?\)$/.exec(value);
+      return rgb?[...rgb.slice(1,4).map(Number),Math.round(Number(rgb[4]??1)*100)/100]:value;
+    };
     const q=getComputedStyle(document.querySelector('#editor blockquote')),a=getComputedStyle(document.querySelector('#editor aside'));
     const probe=document.createElement('span');probe.style.color='var(--link)';document.body.append(probe);
     const link=getComputedStyle(probe).color;probe.remove();
-    return {link,q:{bw:q.borderLeftWidth,bs:q.borderLeftStyle,bc:q.borderLeftColor,style:q.fontStyle,pad:q.paddingLeft,margin:q.margin},
-      a:{style:a.fontStyle,weight:a.fontWeight,align:a.textAlign,size:a.fontSize,color:a.color,margin:a.margin,padding:a.padding,family:a.fontFamily,
+    return {link,q:{bw:q.borderLeftWidth,bs:q.borderLeftStyle,bc:q.borderLeftColor,bcc:rgba(q.borderLeftColor),style:q.fontStyle,pad:q.paddingLeft,margin:q.margin},
+      a:{style:a.fontStyle,weight:a.fontWeight,align:a.textAlign,size:a.fontSize,color:a.color,cc:rgba(a.color),margin:a.margin,padding:a.padding,family:a.fontFamily,
         top:a.borderTopStyle+' '+a.borderTopWidth,bottom:a.borderBottomStyle+' '+a.borderBottomWidth}};
   });
-  const aside={style:'italic',weight:'400',align:'center',size:'21px',color:light?'rgba(0, 0, 0, 0.6)':'rgba(255, 255, 255, 0.6)',margin:'18px 21px 16px',padding:'0px 18px'};
+  // Claro: o valor literal do Telegraph. Escuro: o texto (#f5f5f7) a 60%.
+  const aside={style:'italic',weight:'400',align:'center',size:'21px',...(light?{color:'rgba(0, 0, 0, 0.6)'}:{cc:[245,245,247,0.6]}),margin:'18px 21px 16px',padding:'0px 18px'};
   // Telegram: barra na cor de link do tema, sem itálico.
   let s=await read();
   expect(s.q).toMatchObject({bw:'3px',bs:'solid',bc:s.link,style:'normal'});
@@ -591,11 +599,11 @@ test('citação e citação em destaque seguem o Telegraph e o Telegram',async (
   expect(s.a.family).toMatch(/Georgia/);
   expect(s.a.top,'sem linha acima do destaque').toMatch(/^none/);
   expect(s.a.bottom,'sem linha abaixo do destaque').toMatch(/^none/);
-  // Telegraph: barra preta de 3px (neutro claro no escuro), itálico, recuo de 15px.
+  // Telegraph: barra de 3px #000 no claro (o texto no escuro), itálico, recuo de 15px.
   await page.locator('#destBtn').click();
   await expect(page.locator('html')).toHaveAttribute('data-dest','telegraph');
   s=await read();
-  expect(s.q).toMatchObject({bw:'3px',bs:'solid',bc:light?'rgb(0, 0, 0)':'rgb(245, 245, 247)',style:'italic',pad:'15px',margin:'18px 21px 16px 0px'});
+  expect(s.q).toMatchObject({bw:'3px',bs:'solid',...(light?{bc:'rgb(0, 0, 0)'}:{bcc:[245,245,247,1]}),style:'italic',pad:'15px',margin:'18px 21px 16px 0px'});
   expect(s.a).toMatchObject(aside);
   await page.locator('#destBtn').click();
   await expect(page.locator('html')).toHaveAttribute('data-dest','telegram');
