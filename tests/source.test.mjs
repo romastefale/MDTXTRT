@@ -601,10 +601,7 @@ test('edge fades are solid at the screen edge and ease more translucently than m
   const ramp=/--fade-ramp:([^}]*?)transparent 100%/s.exec(css)[1];
   const cssStops=[...ramp.matchAll(/var\(--edge\) ([\d.]+)%,transparent\) calc\(var\(--fade-solid\) \+ \(100% - var\(--fade-solid\)\)\*([\d.]+)\)/g)].map(m=>[Number(m[2]),Number(m[1])]);
   assert.deepEqual(cssStops,stops.slice(1,-1));
-  // Sólido na borda como na main: área segura mais a faixa acima/abaixo da barra.
-  assert.match(css,/\.fade-top\{[^}]*--fade-solid:calc\(var\(--safe-top\) \+ var\(--gap\)\)/);
-  assert.match(css,/\.fade-bot\{[^}]*--fade-solid:calc\(var\(--safe-bottom-max\) \+ var\(--gap\)\)/);
-  assert.match(css,/--fade-ramp:var\(--edge\) 0,var\(--edge\) var\(--fade-solid\),/);
+  // A faixa sólida da borda é verificada por pixels no teste de navegador.
 });
 
 test('platform switcher is an ephemeral choice without a persistent on state',()=>{
@@ -630,22 +627,11 @@ test('no residue of the old palette: no green accent, no stale tokens, one hairl
   assert.match(css,/\.toast-material\{\s*border-radius:22px;overflow:hidden/);
 });
 
-test('editor quotes follow the canonical platform: Telegram rich-message quotes, Telegraph article quotes',()=>{
+test('editor quotes: Telegraph colour tokens per theme and html[data-dest] drives the preview',()=>{
   const css=read('styles.css'),publish=read('src/app/publish.js');
-  const rule=sel=>{const m=new RegExp('\\n'+sel.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'\\{([^}]*)\\}').exec(css);assert.ok(m,sel);return m[1];};
-  // Telegram (Bot API 10.3; Telegram-iOS InstantPageV2Layout › layoutQuoteText).
-  const tq=rule('.editor blockquote'),ta=rule('.editor aside');
-  for(const r of ['padding:6px 16px 6px 6px','border-left:3px solid var(--link)','border-radius:6px','background:color-mix(in srgb,var(--link) 10%,transparent)','font-size:15px','font-style:normal'])assert.ok(tq.includes(r),'blockquote '+r);
-  for(const r of ['width:fit-content','margin:1em auto','padding:12px 30px','border-radius:6px','background:color-mix(in srgb,var(--link) 10%,transparent)','font-size:15px','font-style:italic','text-align:center'])assert.ok(ta.includes(r),'aside '+r);
-  assert.doesNotMatch(ta,/border:|border-(top|bottom|left|right):/);
-  // Telegraph (telegra.ph/css/core.min.css › .tl_article_content).
-  assert.match(rule('html[data-dest="telegraph"] .editor'),/font-size:18px;line-height:1\.58/);
-  const gq=rule('html[data-dest="telegraph"] .editor blockquote'),ga=rule('html[data-dest="telegraph"] .editor aside');
-  for(const r of ['margin:18px 21px 16px 0','padding:0 0 0 15px','border-left:3px solid var(--telegraph-rule)','border-radius:0','background:none','font-style:italic'])assert.ok(gq.includes(r),'telegraph blockquote '+r);
-  for(const r of ['margin:18px 21px 16px','padding:0 18px','font-size:21px','font-style:italic','text-align:center','color:var(--telegraph-aside)','background:none'])assert.ok(ga.includes(r),'telegraph aside '+r);
-  assert.match(css,/html\[data-dest="telegraph"\] \.editor blockquote\[expandable\]::after\{content:none\}/);
-  // Claro: os literais do core.min.css (o texto do claro é #151515, não preto).
-  // Escuro (o Telegraph não tem): derivados da cor do texto.
+  // Os estilos computados das citações nos dois destinos e temas ficam no teste de
+  // navegador; aqui, só a origem dos tokens. Claro: os literais do core.min.css (o
+  // texto do claro é #151515, não preto). Escuro (o Telegraph não tem): derivados do texto.
   assert.match(css,/html\.light\{[^}]*--telegraph-rule:#000;\s*--telegraph-aside:rgba\(0,0,0,\.6\);/);
   assert.match(css,/:root\{[^}]*--telegraph-rule:var\(--text\);\s*--telegraph-aside:color-mix\(in srgb,var\(--text\) 60%,transparent\);/);
   assert.doesNotMatch(css,/--telegraph-ink/);
