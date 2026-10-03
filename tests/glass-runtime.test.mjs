@@ -166,8 +166,10 @@ test("bar and menu Glass materials keep the standardized neutral surface across 
     await wait();
     await wait();
 
+    // A troca é ao vivo (sem recarregar fora do app instalado): o tema muda já, e o
+    // material do vidro continua neutro.
     assert.equal(w.localStorage.getItem("mdtxtrt-theme"), "dark");
-    assert.equal(w.document.documentElement.dataset.theme, "light");
+    assert.equal(w.document.documentElement.dataset.theme, "dark");
     assert.equal(brightnessLayer(bar), undefined);
     assert.match(edgeLayer(bar)?.style.boxShadow || "", /0\.000/);
     assert.equal(brightnessLayer(menu), undefined);
