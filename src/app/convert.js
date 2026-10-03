@@ -82,6 +82,9 @@ export function telegraphURL(value){
   return url.href;
 }
 function telegraphCredit(el, standalone, conv){
+  // Crédito vazio (<cite></cite> ou só espaços) sai inteiro: nada de quebra de linha
+  // nem parágrafo em branco no Telegraph.
+  if(!el.textContent.trim()) return null;
   const children=Array.from(el.childNodes).map(conv).flat().filter(v => v !== null && v !== '');
   if(!children.length) return null;
   if(standalone) return {tag:'p', children};
@@ -129,6 +132,8 @@ export function toRichHTML(root){
     let tag=n.tagName.toLowerCase();
     if(n.classList?.contains('tg-footer')) tag='footer';
     if(unwrap.has(tag)) return Array.from(n.childNodes).map(walk).join('');
+    // Crédito vazio (<cite></cite> ou só espaços) não vai ao Telegram como crédito em branco.
+    if(tag==='cite'&&!(n.textContent||'').trim()) return '';
     if(!allow.has(tag)) throw new Error('O conteúdo contém um elemento que o Telegram não aceita: '+tag);
     const attrs=[];
     if(tag==='blockquote'&&n.hasAttribute('expandable')) attrs.push('expandable');
