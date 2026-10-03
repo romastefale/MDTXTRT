@@ -39,7 +39,7 @@ A implementação e a regressão cobrem:
 - fidelidade semântica editor → publicação sem texto de demonstração serializado;
 - importação/exportação Markdown e TXT na interface;
 - importação/exportação pela conversa privada com o bot;
-- comandos privados `/start`, `/app`, `/novo`, `/rascunhos`, `/telegraph`, `/ajuda`, `/enviar`, `/exportar`, `/importar`;
+- comandos privados `/start`, `/app`, `/novo`, `/rascunhos`, `/telegraph`, `/enviar`, `/exportar`, `/importar`, `/ajuda` (e `/help`, comando global da Bot API);
 - menus, submenus, links, estruturas, interações e mídia declaradas, filtrados por destino;
 - handoff browser/PWA → Mini App sem publicação implícita;
 - publicação Telegram com histórico de revisões no chat: mensagem anterior preservada, aviso de atualização e nova Rich Message;

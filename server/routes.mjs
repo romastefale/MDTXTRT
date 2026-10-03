@@ -421,9 +421,10 @@ export const server = createServer(async (req, res) => {
         res.end(JSON.stringify(result));
       }catch(err){
         const msg=err instanceof Error?err.message:"Não foi possível publicar no Telegram";
-        const code=err instanceof HttpError?err.status:err instanceof DeliveryError?(err.outcome==="uncertain"?409:502):400;
-        res.writeHead(code,{"content-type":"application/json; charset=utf-8"});
-        res.end(JSON.stringify({error:msg,...(err instanceof DeliveryError?{outcome:err.outcome}:{})}));
+        const limited=err instanceof DeliveryError&&err.retryAfter>0;
+        const code=err instanceof HttpError?err.status:limited?429:err instanceof DeliveryError?(err.outcome==="uncertain"?409:502):400;
+        res.writeHead(code,{"content-type":"application/json; charset=utf-8",...(limited?{"retry-after":String(err.retryAfter)}:{})});
+        res.end(JSON.stringify({error:msg,...(err instanceof DeliveryError?{outcome:err.outcome}:{}),...(limited?{retryAfter:err.retryAfter}:{})}));
       }finally{cleanupIncomingMedia(media);}
       return;
     }
