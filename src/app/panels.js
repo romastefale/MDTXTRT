@@ -23,8 +23,8 @@ const NOTICE_SURFACES='#toast .toast-material,#deviceGate .device-gate-card';
 export function deviceNoticeVisible(){
   const gate=document.getElementById('deviceGate');
   if(!gate||!document.documentElement.hasAttribute('data-device-gate'))return false;
-  const style=getComputedStyle(gate);
-  return style.display!=='none'&&style.visibility!=='hidden';
+  const card=gate.querySelector('.device-gate-card');
+  return getComputedStyle(gate).display!=='none'&&(!card||getComputedStyle(card).visibility!=='hidden');
 }
 export function noticeVisible(){
   return ui.getState().toast.visible||deviceNoticeVisible();

@@ -12,9 +12,9 @@ import { getUIState, subscribeUI, uiStore } from "./ui-store.mjs";
  * MDTXTRT owns only this application-specific React shell.
  */
 // Normativa do fork (src/GlassMaterial.tsx › MATERIAL_OPTICS) e do site
-// romastefale/HTML (src/lib/optics.ts): as barras e o toast usam o frost do
-// material (6px, saturate 1.15); menus e diálogos, o de painel de leitura (22px,
-// saturate 1.4). specular 0 desliga a borda da biblioteca (o brilho de topo e o
+// romastefale/HTML (src/lib/optics.ts): as barras usam o frost do material (6px,
+// saturate 1.15); menus, diálogos e os avisos efêmeros, o de painel de leitura
+// (22px, saturate 1.4). specular 0 desliga a borda da biblioteca (o brilho de topo e o
 // aro dela): não há brilho de topo, e o único aro, hairline e uniforme, vem do CSS
 // (styles.css › --glass-edge), 0,5px em telas 2x ou mais.
 const NO_SHINE = { specular: 0, sheen: 0, glow: 0 };
@@ -24,6 +24,10 @@ export const MENU_LENS = {
   frost: 22,
   saturate: 1.4,
 };
+
+// O toast fica sobre o texto do documento: o fosco de painel de leitura do site
+// (src/lib/optics.ts › PANEL: frost 22, saturate 1.4), o mesmo da lista de páginas.
+const NOTICE_LENS = MENU_LENS;
 
 const BAR_LENS = {
   ...NO_SHINE,
@@ -820,7 +824,7 @@ function ToastText() {
 
 const ToastMaterial = React.memo(function ToastMaterial() {
   return (
-    <Glass optics={BAR_LENS} className="toast-material">
+    <Glass optics={NOTICE_LENS} className="toast-material">
       <span className="toast-content" id="toastTextHost"><ToastText /></span>
     </Glass>
   );

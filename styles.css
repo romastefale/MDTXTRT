@@ -12,10 +12,15 @@
   /* Normativa do fork romastefale/liquid-glass e do site romastefale/HTML:
      tintas sempre translúcidas (tint-control nas barras, tint-frost nos painéis,
      tint-soft nos botões em destaque), frost do material (6px, saturate 1.15)
-     nas barras e de painel (22px, 1.4) em menus e diálogos, brightness 0, brilho
+     nas barras e de painel (22px, 1.4) em menus, diálogos e avisos efêmeros (estes
+     com a tinta densa de vidro com texto sobre o conteúdo), brightness 0, brilho
      sem brilho especular de topo (como no site HTML) e um único aro hairline uniforme. */
   --glass:rgba(30,26,64,.4);
   --glass-panel:rgba(18,15,46,.44);
+  /* Avisos efêmeros sobre o texto (toast e aviso de retrato): a tinta mais densa
+     do site romastefale/HTML para vidro com texto sobre o conteúdo, a da lista de
+     páginas (src/components/SiteHeader.css › --picker-bg, no <Frost> com a ótica PANEL). */
+  --glass-notice:rgba(22,22,26,.88);
   --glass-strong:rgba(255,255,255,.12);
   --glass-press:rgba(255,255,255,.14);
   --rim:rgba(255,255,255,.16);
@@ -121,6 +126,7 @@ html.light{
   --telegraph-aside:rgba(0,0,0,.6);
   --glass:rgba(255,255,255,.5);
   --glass-panel:rgba(255,255,255,.52);
+  --glass-notice:rgba(242,243,247,.9);
   --glass-strong:rgba(255,255,255,.42);
   --glass-press:rgba(28,28,30,.08);
   --rim:rgba(255,255,255,.18);
@@ -157,14 +163,20 @@ body{
 .device-gate{z-index:35;text-align:center;color:var(--text);-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 /* O vidro do aviso recebe o toque (que só o fecha); o resto da faixa deixa passar. */
 .device-gate-card,.toast-material{pointer-events:auto}
-.device-gate-card{
-  width:min(360px,100%);padding:10px 14px;border:0;border-radius:22px;
-  background:var(--glass-panel);-webkit-backdrop-filter:var(--blur-panel);backdrop-filter:var(--blur-panel);
+.device-gate-card{width:min(360px,100%);padding:10px 14px;border:0;border-radius:22px}
+/* Os dois avisos ficam sobre o texto do documento: tinta densa (--glass-notice) e o
+   fosco de painel de leitura (--blur-panel: PANEL, 22px, saturate 1.4), com o mesmo
+   aro hairline e sem brilho de topo. */
+.device-gate-card,.toast-material{
+  background:var(--glass-notice);-webkit-backdrop-filter:var(--blur-panel);backdrop-filter:var(--blur-panel);
   box-shadow:var(--glass-edge),var(--float)
 }
 .device-gate strong{display:block;font-size:14px;line-height:1.25;letter-spacing:-.01em}
 .device-gate p{margin:4px 0 0;color:var(--muted);font-size:12px;line-height:1.35}
-html[data-device-gate] .device-gate{display:flex;animation:device-gate-out .22s ease 4s forwards}
+/* A saída anima o próprio cartão: uma animação de opacidade num ancestral faz dele a
+   raiz do backdrop no Chromium, e o fosco do cartão deixa de ver o texto de trás. */
+html[data-device-gate] .device-gate{display:flex}
+html[data-device-gate] .device-gate-card{animation:device-gate-out .22s ease 4s forwards}
 @keyframes device-gate-out{to{opacity:0;visibility:hidden}}
 ::selection{background:color-mix(in srgb,var(--link) 38%,transparent);color:inherit}
 button,input{font:inherit;color:inherit}
@@ -193,7 +205,7 @@ button{cursor:pointer;-webkit-tap-highlight-color:transparent}
 .heading-list button.is-current{font-weight:650}
 /* Aro hairline por fora da borda (lê contra a página nos dois temas), brilho
    sem brilho de topo, e a sombra flutuante suave do site. */
-.seg,.bar,.toast-material{
+.seg,.bar{
   background:var(--glass);-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);
   box-shadow:var(--glass-edge),var(--float)
 }

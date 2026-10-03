@@ -151,10 +151,10 @@ test('vidro usa hairline e material neutro translúcido, sem cor de acento sóli
       const parts=m[1].split(/[ ,/]+/).filter(Boolean);
       return parts.length>3?Number(parts[3]):1;
     };
-    return [...document.querySelectorAll('.seg,.bar,.glass-menu-material,.toast-material')].map(el=>{
+    return [...document.querySelectorAll('.seg,.bar,.glass-menu-material,.toast-material,.device-gate-card')].map(el=>{
       const cs=getComputedStyle(el);
       return {
-        name:el.id||el.className.split(' ')[0],
+        name:el.id||el.className.split(' ')[0],notice:el.matches('.toast-material,.device-gate-card'),
         bg:cs.backgroundColor,bgAlpha:alpha(cs.backgroundColor),
         blur:(cs.backdropFilter||cs.webkitBackdropFilter||''),
         rim:cs.boxShadow
@@ -163,7 +163,13 @@ test('vidro usa hairline e material neutro translúcido, sem cor de acento sóli
   });
   expect(pieces.length).toBeGreaterThan(4);
   for(const piece of pieces){
-    expect(piece.bgAlpha,piece.name+' deixa a cor passar').toBeLessThan(.75);
+    // Os avisos efêmeros ficam sobre o texto do documento: a tinta densa do site
+    // (--picker-bg, .88–.9), translúcida mas sem deixar o texto de trás aparecer.
+    // Nunca opaca, a regra da biblioteca. O resto do cromo deixa a cor passar.
+    if(piece.notice){
+      expect(piece.bgAlpha,piece.name+' é translúcido, nunca opaco').toBeLessThan(1);
+      expect(piece.bgAlpha,piece.name+' tem tinta densa sobre o texto').toBeGreaterThanOrEqual(.85);
+    }else expect(piece.bgAlpha,piece.name+' deixa a cor passar').toBeLessThan(.75);
     expect(piece.bgAlpha,piece.name+' tem material').toBeGreaterThan(0);
     expect(piece.blur,piece.name+' desfoca o fundo').toMatch(/blur\(/);
     expect(piece.rim,piece.name+' tem borda hairline').toMatch(/0px 0px 0px (0\.5|1)px/);
@@ -825,4 +831,53 @@ for(const kind of Object.keys(NOTICES))test(`toque fecha o aviso (${kind}) sem f
   expect(await page.evaluate(()=>document.activeElement?.id)).toBe('editor');
   await page.keyboard.type('!');
   await expect(editor).toHaveText(before+'!');
+});
+
+// Legibilidade do aviso sobre o texto do documento: mede os pixels de verdade do
+// vidro com o texto do aviso apagado (só o fundo composto, com o documento por
+// baixo). Primeiro confirma que há texto atrás (sem o aviso, o recorte varia muito).
+// Com o aviso, o texto do aviso, inclusive o secundário, tem contraste AA (4,5:1)
+// contra o pior pixel do fundo composto; onde o motor pinta o backdrop-filter
+// (Chromium), o texto de trás também não aparece pelo vidro (variação de luminância
+// baixa). O WebKit do Playwright no Linux não pinta backdrop-filter nenhum, então lá
+// só a tinta conta, e ela sozinha precisa garantir o contraste.
+const luminance=([r,g,b])=>{const f=v=>{v/=255;return v<=.04045?v/12.92:((v+.055)/1.055)**2.4;};return .2126*f(r)+.7152*f(g)+.0722*f(b);};
+const contrast=(a,b)=>(Math.max(a,b)+.05)/(Math.min(a,b)+.05);
+async function backdropPixels(page,box){
+  await page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));
+  const shot=(await page.screenshot({clip:box,scale:'css'})).toString('base64');
+  return page.evaluate(async b64=>{
+    const img=new Image();img.src='data:image/png;base64,'+b64;await img.decode();
+    const c=document.createElement('canvas');c.width=img.width;c.height=img.height;const x=c.getContext('2d');x.drawImage(img,0,0);
+    const d=x.getImageData(0,0,c.width,c.height).data,out=[];
+    for(let i=0;i<d.length;i+=4)out.push([d[i],d[i+1],d[i+2]]);
+    return out;
+  },shot);
+}
+for(const kind of Object.keys(NOTICES))test(`aviso efêmero (${kind}) legível sobre o texto do documento`,async ({page,browserName})=>{
+  const sel=NOTICES[kind];
+  // Texto corrido e denso, sem linhas em branco, atrás de todo o aviso.
+  await page.evaluate(()=>{document.querySelector('#editor').innerHTML='<p>'+'<b>Mdtxtrt</b> eiusmod tempor incididunt ut labore et dolore magna aliqua quis nostrud exercitation ullamco laboris. '.repeat(120)+'</p>';});
+  await showNotice(page,kind);
+  // Cores do texto do aviso já resolvidas em sRGB 0–255 com alfa (canvas normaliza
+  // rgb(), color(srgb …) e color-mix()).
+  const colors=await page.evaluate(sel=>{
+    const el=document.querySelector(sel),c=document.createElement('canvas').getContext('2d',{willReadFrequently:true});
+    const nodes=[el,...el.querySelectorAll('*')].filter(n=>[...n.childNodes].some(t=>t.nodeType===3&&t.textContent.trim()));
+    return [...new Set(nodes.map(n=>getComputedStyle(n).color))].map(css=>{c.clearRect(0,0,1,1);c.fillStyle=css;c.fillRect(0,0,1,1);const d=c.getImageData(0,0,1,1).data;return {css,rgb:[d[0],d[1],d[2]],a:d[3]/255};});
+  },sel);
+  expect(colors.length,'texto do aviso encontrado').toBeGreaterThan(0);
+  const box=await page.locator(sel).evaluate(el=>{const r=el.getBoundingClientRect(),rad=Math.min(parseFloat(getComputedStyle(el).borderTopLeftRadius)||0,r.height/2);return {x:Math.ceil(r.left+rad),y:Math.ceil(r.top+3),width:Math.floor(r.width-2*rad),height:Math.floor(r.height-6)};});
+  const range=px=>{const l=px.map(luminance);return Math.max(...l)-Math.min(...l);};
+  const hide=await page.addStyleTag({content:`${sel}{visibility:hidden!important}`});
+  expect(range(await backdropPixels(page,box)),'há texto do documento atrás do aviso').toBeGreaterThan(.3);
+  await hide.evaluate(el=>el.remove());
+  await page.addStyleTag({content:`${sel},${sel} *{color:transparent!important;text-shadow:none!important}`});
+  const glass=await backdropPixels(page,box);
+  if(browserName==='chromium')expect(range(glass),'o texto de trás não aparece pelo vidro').toBeLessThanOrEqual(.03);
+  for(const {css,rgb,a} of colors){
+    // Contraste do texto (com o próprio alfa composto sobre o pixel) contra cada pixel.
+    const worst=Math.min(...glass.map(bg=>contrast(luminance(rgb.map((v,k)=>v*a+bg[k]*(1-a))),luminance(bg))));
+    expect(worst,`contraste de ${css} contra o fundo composto`).toBeGreaterThanOrEqual(4.5);
+  }
 });
