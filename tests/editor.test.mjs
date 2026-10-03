@@ -302,6 +302,89 @@ test('Telegram back button closes the draft recovery choice without starting a n
   w.close();
 });
 
+// Toque fora de um diálogo de escolha = Cancelar (dismissDialog), como o Voltar e o Esc.
+const outsideTap=(w,target,pointerType='touch')=>{
+  const fire=type=>{const e=new w.Event(type,{bubbles:true,cancelable:true});if(type==='pointerdown')Object.defineProperty(e,'pointerType',{value:pointerType});target.dispatchEvent(e);return e;};
+  const down=fire('pointerdown'),mouse=fire('mousedown');
+  let reached=false;const seen=()=>{reached=true;};
+  target.addEventListener('click',seen);target.click();target.removeEventListener('click',seen);
+  return {down:down.defaultPrevented,mouse:mouse.defaultPrevented,reached};
+};
+test('outside tap on the draft recovery choice cancels through dismissDialog and never retries or starts a new draft',async()=>{
+  let loads=0;
+  const fetch=async(url)=>{
+    if(String(url).endsWith('/api/drafts/load')){loads++;throw new TypeError('volume unavailable');}
+    return {ok:false,status:404,json:async()=>({error:'not found'})};
+  };
+  const w=page({fetch}),d=w.document,dialog=d.querySelector('#dialogMenu');
+  await wait(30);
+  const launches=()=>w.__navigations.length,before=launches(),loadsBefore=loads;
+  assert.equal(d.querySelector('#dialogOk').textContent,'Tentar de novo');
+  assert.equal(d.querySelector('#dialogCancel').textContent,'Começar rascunho novo');
+  // Espiona o caminho: o fechamento passa por finishDialog(null), o mesmo do Esc.
+  for(const pointerType of ['touch','mouse']){
+    if(!dialog.matches(':popover-open')){
+      d.querySelector('#editor').dispatchEvent(new w.PointerEvent('pointerdown',{bubbles:true}));
+      await wait(10);
+    }
+    assert.equal(dialog.matches(':popover-open'),true,pointerType);
+    const t=outsideTap(w,d.querySelector('.topbar')||d.body,pointerType);
+    await wait(30);
+    assert.equal(dialog.matches(':popover-open'),false,'o toque fora fecha o diálogo ('+pointerType+')');
+    assert.deepEqual({mouse:t.mouse,reached:t.reached,down:t.down},{mouse:true,reached:false,down:pointerType==='mouse'},pointerType);
+    assert.equal(launches()-before,0,'nunca "Começar rascunho novo" ('+pointerType+')');
+    assert.equal(loads-loadsBefore,0,'nunca "Tentar de novo" ('+pointerType+')');
+    assert.equal(d.querySelector('#editor').getAttribute('contenteditable'),'false','a edição continua pausada');
+  }
+  // O toque no texto que reabre a escolha não a fecha logo em seguida.
+  const editor=d.querySelector('#editor');
+  editor.dispatchEvent(new w.PointerEvent('pointerdown',{bubbles:true}));
+  editor.dispatchEvent(new w.MouseEvent('mousedown',{bubbles:true,cancelable:true}));
+  await wait(10);
+  editor.click();
+  await wait(10);
+  assert.equal(dialog.matches(':popover-open'),true,'o toque que abriu o diálogo não conta como toque fora');
+  // Toques dentro do diálogo continuam valendo: o botão explícito ainda começa o rascunho novo.
+  d.querySelector('#dialogCancel').click();
+  await wait(10);
+  assert.equal(launches()-before,1);
+  w.close();
+});
+
+test('outside tap on a confirmation resolves it as cancel, and on a one-button notice just closes it, keeping the field focused',async()=>{
+  const w=page(),d=w.document,dialog=d.querySelector('#dialogMenu');
+  const settled=promise=>Promise.race([promise,wait(500).then(()=>'ainda aberto')]);
+  await wait(20);
+  // Confirmação: o toque fora nunca confirma.
+  const confirm=w.eval('approve("Publicar mesmo assim?")');
+  await wait(5);
+  assert.equal(dialog.matches(':popover-open'),true);
+  outsideTap(w,d.querySelector('#editor'));
+  assert.equal(await settled(confirm),false,'toque fora = Cancelar');
+  assert.equal(dialog.matches(':popover-open'),false);
+  // Aviso de um botão ("Entendi"): só fecha.
+  const notice=w.eval('notifyDialog("Este navegador está bloqueando o armazenamento.")');
+  await wait(5);
+  assert.equal(d.querySelector('#dialogCancel').hidden||d.querySelector('#dialogCancel').textContent==='',true);
+  outsideTap(w,d.body,'mouse');
+  assert.equal(await settled(notice),null);
+  assert.equal(dialog.matches(':popover-open'),false);
+  // Pergunta com campo: o toque fora não tira o foco do campo antes de fechar (o
+  // mousedown é cancelado) e resolve como Cancelar.
+  const answer=w.eval('ask("URL do link","https://")');
+  await wait(5);
+  const input=d.querySelector('#dialogInput');
+  assert.equal(d.activeElement,input);
+  const e=new w.Event('mousedown',{bubbles:true,cancelable:true});
+  const down=new w.Event('pointerdown',{bubbles:true,cancelable:true});Object.defineProperty(down,'pointerType',{value:'touch'});
+  d.body.dispatchEvent(down);d.body.dispatchEvent(e);
+  assert.equal(e.defaultPrevented,true);
+  assert.equal(d.activeElement,input,'o campo continua focado até o clique');
+  d.body.click();
+  assert.equal(await settled(answer),null);
+  w.close();
+});
+
 test('remote draft save sends the active canonical document and stable browser identity',async()=>{
   const doc='91919191-9191-4191-8191-919191919191';
   const browserKey='cd'.repeat(32);
@@ -1843,7 +1926,9 @@ test('viewport resize repositions an open dialog using the current visual area',
   w.visualViewport.height=280;
   w.eval('syncBrowserViewport()');
   assert.equal(parseFloat(dialog.style.getPropertyValue('--menu-top')),170);
-  assert.equal(parseFloat(dialog.style.getPropertyValue('--menu-max-height')),154);
+  // O diálogo pode ocupar toda a área livre (280px menos 8px de cada lado) para
+  // mostrar o texto inteiro; os menus continuam com o teto de 55%.
+  assert.equal(parseFloat(dialog.style.getPropertyValue('--menu-max-height')),264);
   d.querySelector('#dialogCancel').click();
   await prompt;
   w.close();

@@ -4,21 +4,22 @@ import { THEME_KEY, sheets } from "./constants.js";
 import { all, docName, editor, fileInput, linkBtn, menuDismissLayer, one, ui } from "./dom.js";
 import { applyAssets, applyScheme, setTheme } from "./theme.js";
 import { clearRuntimeMedia, decorateSpecials, installMedia, mediaDelete, mediaNode, restoreActiveMediaVisual, restoreMedia, telegramUploadLimit } from "./media.js";
-import { consumeNewDocumentToken, createNewDocumentLaunch, loadLocal, loadRemoteDraft, markDirty, offerDraftRecovery, persistRemoteDraft, recoverPersistentDraft, saveLocal, startRequestedNewDocument } from "./draft.js";
+import { consumeNewDocumentToken, createNewDocumentLaunch, loadLocal, loadRemoteDraft, markDirty, offerDraftRecovery, persistRemoteDraft, recoverPersistentDraft, remoteDraftsAvailable, saveLocal, startRequestedNewDocument } from "./draft.js";
 import { handoffToken, openMiniApp, verifyTelegram } from "./telegram.js";
 import { closePanel, closePanels, focusControl, holdDismissPress, isTypingEntry, librarySubmenuOpen, noticeDismissPress, openPanel, openPlusRoot, openPlusSubmenu, panelIsOpen, retainTypingFocus, showToast, syncBackButton, togglePanel } from "./panels.js";
-import { dialogFocusables, dismissDialog, finishDialog, focusDialogStart, focusLibraryStart, libraryFocusables } from "./dialog.js";
+import { dialogFocusables, dismissDialog, finishDialog, focusDialogStart, focusLibraryStart, libraryFocusables, notifyDialog } from "./dialog.js";
 import { commitEditorInput, exec, flashBtn, formatBlock, histRedo, histUndo, insertFeature, syncHistoryButtons, insertHTML, insertHyperlink, insertLinkButton, insertPlainText, insertVisibleLink, requireEditorCore, restoreSel, saveSel, syncEditorSelectionUI } from "./editing.js";
 import { closeLibrary, consumeLibraryView, openLibrary, setDraftsExpanded, setPublicationsExpanded } from "./library.js";
 import { consumeBotLaunchAction, consumeLaunchDestination, consumeLaunchDocument, runBotLaunchAction } from "./launch.js";
 import { escapeHTML, mdToBasicHTML } from "./convert.js";
 import { exportFile, publishCurrent, setDestination } from "./publish.js";
 import { scheduleBrowserViewport, scheduleCaretVisible, syncBrowserViewport } from "./viewport.js";
+import { STORAGE_BLOCKED_NOTICE, storageBlocked, storageGet } from "./storage.js";
 
 applyAssets();
 export const scheme=window.matchMedia('(prefers-color-scheme: light)');
 try{
-  const stored=localStorage.getItem(THEME_KEY);
+  const stored=storageGet(THEME_KEY);
   if(stored==='light'||stored==='dark')S.themePreference=stored;
 }catch{}
 applyScheme();
@@ -53,6 +54,51 @@ document.addEventListener('keydown',event=>{
   const sel=sheets.find(name=>panelIsOpen(one(name)));
   if(sel){event.preventDefault();closePanel(one(sel),true);}
 });
+// Toque fora do diálogo (no fundo transparente): é o mesmo Cancelar do Esc e do Voltar
+// do Telegram (dismissDialog). Num diálogo de escolha ("Tentar de novo" / "Começar
+// rascunho novo") ou de confirmação, nunca roda a ação principal nem a segunda opção;
+// num aviso de um botão só ("Entendi"), apenas o fecha. O toque não chega ao que está
+// embaixo e não tira o foco do campo (o teclado continua aberto): como na camada de
+// dispensa dos menus, cancela o mousedown, e o pointerdown só fora do toque (cancelar o
+// pointerdown de um toque faz o WebKit suprimir o mousedown). Só conta um toque que
+// começou com o diálogo já aberto: o toque no texto que abre a recuperação do
+// rascunho não o fecha logo em seguida.
+let dialogOutsidePress=false;
+function dialogOutsideTarget(event){
+  const dialog=one('#dialogMenu');
+  if(!dialog?.matches(':popover-open'))return false;
+  const target=event.target;
+  if(target instanceof Node&&dialog.contains(target)&&target!==dialog)return false;
+  if(target===dialog){
+    // O ::backdrop entrega o toque ao próprio popover: fora do retângulo é fundo.
+    const box=dialog.getBoundingClientRect();
+    return !(event.clientX>=box.left&&event.clientX<=box.right&&event.clientY>=box.top&&event.clientY<=box.bottom);
+  }
+  return true;
+}
+function holdDialogOutsidePress(event){
+  if(!(event.type==='pointerdown'&&event.pointerType==='touch'))event.preventDefault();
+  event.stopPropagation();
+}
+let dialogPointerPressAt=-Infinity;
+window.addEventListener('pointerdown',event=>{
+  dialogPointerPressAt=event.timeStamp;
+  dialogOutsidePress=dialogOutsideTarget(event);
+  if(dialogOutsidePress)holdDialogOutsidePress(event);
+},true);
+window.addEventListener('mousedown',event=>{
+  // Sem pointerdown antes (navegador sem Pointer Events), o toque começa aqui.
+  if(event.timeStamp-dialogPointerPressAt>1000)dialogOutsidePress=dialogOutsideTarget(event);
+  if(dialogOutsidePress)holdDialogOutsidePress(event);
+},true);
+window.addEventListener('pointercancel',()=>{dialogOutsidePress=false;},true);
+window.addEventListener('click',event=>{
+  if(!dialogOutsidePress)return;
+  dialogOutsidePress=false;
+  if(!dialogOutsideTarget(event))return;
+  event.preventDefault();event.stopPropagation();
+  dismissDialog();
+},true);
 window.addEventListener('pagehide',()=>{
   saveLocal();
   clearTimeout(S.remoteSaveTimer);
@@ -172,7 +218,7 @@ one('#mediaInput').addEventListener('change',async()=>{
 });
 one('#libraryBtn')?.addEventListener('click',()=>openLibrary());
 one('#libraryClose')?.addEventListener('click',closeLibrary);
-one('#libraryNew')?.addEventListener('click',createNewDocumentLaunch);
+one('#libraryNew')?.addEventListener('click',()=>{if(storageBlocked())closePanels();void createNewDocumentLaunch();});
 one('#publicationToggle')?.addEventListener('click',()=>setPublicationsExpanded(!ui.getState().library.publicationsOpen));
 one('#draftToggle')?.addEventListener('click',()=>setDraftsExpanded(!ui.getState().library.draftsOpen));
 one('#libraryMenu')?.addEventListener('keydown',event=>{
@@ -264,8 +310,13 @@ export function boot(){
       ?(preservedPrevious?'Novo documento criado. O anterior foi preservado neste dispositivo.':'Novo documento criado.')
       :'Novo documento criado, mas não foi possível persistir o novo rascunho neste dispositivo.';
   }
-  if(notice)showToast(notice);
-  const recoverVolume=!createdNew&&!loadedLocal&&!handoffToken();
+  // Armazenamento bloqueado: um aviso só, que explica a causa, no lugar dos erros
+  // de rascunho local e de identidade. Sem identidade que dure, não há cópia no
+  // servidor a buscar, então a edição não fica pausada esperando por ela.
+  const blocked=storageBlocked();
+  if(blocked)void notifyDialog(STORAGE_BLOCKED_NOTICE);
+  else if(notice)showToast(notice);
+  const recoverVolume=!createdNew&&!loadedLocal&&!handoffToken()&&remoteDraftsAvailable();
   if(recoverVolume)editor.setAttribute('contenteditable','false');
   void (async()=>{
     try{

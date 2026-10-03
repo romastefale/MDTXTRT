@@ -12,6 +12,17 @@ This document defines the draft persistence model used by MDTXTRT. The active do
 - `IndexedDB("mdtxtrt").objectStore("media")` stores browser attachment blobs by media identifier.
 - Theme preference and the standalone-browser capability key are separate from document state.
 
+### Storage blocked by the browser
+
+Safari with "Block All Cookies" (and other browsers that deny site data) throws on any `localStorage` access and keeps IndexedDB closed. `src/app/storage.js` detects this once at startup; every editor read and write of the browser slot, the `/novo` archive and the browser identity goes through it. When storage is blocked:
+
+- the active draft, archives and browser identity live in memory for the current page session only, and attachment blobs stay in the in-memory media map (IndexedDB is not opened);
+- one dialog explains that nothing is kept after closing or reloading and where to turn the setting off (Settings › Apps › Safari › Advanced › Block All Cookies; on iOS 17, Settings › Safari › Advanced). It replaces the separate local-draft and identity error notices;
+- the Railway volume copy is not used in a standalone browser, because an identity that lasts one session could never fetch it again. Editing is therefore not paused waiting for a volume recovery. Inside the Telegram Mini App the verified Telegram identity still owns the volume copy;
+- a new draft starts in the same page after confirmation instead of reloading through `/novo`, and changing the theme applies it without a reload. Both would otherwise lose the session text.
+
+When storage works, nothing changes: write failures still reach the caller and the #131 recovery choice (retry or start a new draft) is unchanged.
+
 ### Railway volume copy
 
 The backend persists active drafts below `$RAILWAY_VOLUME_MOUNT_PATH/drafts`. In production this path is the mounted Railway volume `/data`.

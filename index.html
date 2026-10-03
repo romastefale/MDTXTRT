@@ -22,7 +22,7 @@
   <meta name="twitter:image" content="https://romastefale.github.io/MDTXTRT/x-banner.jpg" />
   <script>(()=>{const k="mdtxtrt-theme",r=document.documentElement,m=document.querySelector("#themeColor"),c=document.querySelector("#colorScheme"),s=document.querySelector("#statusBarStyle");let p="";try{p=localStorage.getItem(k)||""}catch{}const t=p==="light"||p==="dark"?p:matchMedia("(prefers-color-scheme: light)").matches?"light":"dark",l=t==="light";r.classList.add(t);r.dataset.theme=t;r.style.colorScheme=t;m.setAttribute("content",l?"#8b82e6":"#151137");if(c)c.setAttribute("content",t);if(s)s.content=l?"default":"black-translucent";})();</script>
   <script src="https://telegram.org/js/telegram-web-app.js?63"></script>
-  <link rel="stylesheet" href="styles.css?v=3ad51328c6f1" />
+  <link rel="stylesheet" href="styles.css?v=1c4b58b03fae" />
 </head>
 <body>
   <div class="bg" aria-hidden="true"></div>
@@ -46,15 +46,33 @@
   <script src="marked.js"></script>
   <script src="turndown.js"></script>
   <script src="editor-core.js?v=d762109f81bf"></script>
-  <script type="module" src="ui.js?v=01ad346a233c"></script>
+  <script type="module" src="ui.js?v=a40f40155ebc"></script>
   <script>
     document.addEventListener('DOMContentLoaded',()=>{
       const root=document.documentElement;
       const telegramMiniApp=Boolean(window.Telegram?.WebApp?.initData);
-      const initialDeviceNotice=!telegramMiniApp&&(matchMedia('(orientation:landscape)').matches||matchMedia('(min-width:760px)').matches);
-      if(initialDeviceNotice){
-        root.setAttribute('data-device-gate','');
-        setTimeout(()=>root.removeAttribute('data-device-gate'),4300);
+      // Aviso de retrato, efêmero. No iPhone o viewport pode ter medidas provisórias
+      // no DOMContentLoaded (largura de layout padrão, barra do Safari ainda se
+      // ajustando) e o aviso aparecia em retrato. Mede de novo depois de dois quadros
+      // e só mostra se continuar em paisagem. Em tela de toque vale a orientação do
+      // aparelho (screen.orientation); o critério de largura fica para telas largas
+      // de fato (tablet ou janela de computador).
+      const wideOrLandscape=()=>{
+        const mediaLandscape=matchMedia('(orientation:landscape)').matches;
+        if(matchMedia('(pointer:coarse)').matches){
+          const type=String(screen.orientation?.type||'');
+          const deviceLandscape=type?type.startsWith('landscape'):typeof window.orientation==='number'?Math.abs(window.orientation)===90:mediaLandscape;
+          const shortSide=Math.min(screen.width||0,screen.height||0);
+          return deviceLandscape&&mediaLandscape||shortSide>=760&&matchMedia('(min-width:760px)').matches;
+        }
+        return mediaLandscape||matchMedia('(min-width:760px)').matches;
+      };
+      if(!telegramMiniApp&&wideOrLandscape()){
+        requestAnimationFrame(()=>requestAnimationFrame(()=>{
+          if(!wideOrLandscape())return;
+          root.setAttribute('data-device-gate','');
+          setTimeout(()=>root.removeAttribute('data-device-gate'),4300);
+        }));
       }
       const destBtn=document.querySelector('#destBtn');
       const tools=document.querySelector('.document-tools');

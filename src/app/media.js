@@ -5,6 +5,7 @@ import { editor } from "./dom.js";
 import { activeMedia } from "./draft.js";
 import { showToast } from "./panels.js";
 import { requireEditorCore } from "./editing.js";
+import { storageBlocked } from "./storage.js";
 
 export function mediaDB(){
   return new Promise((resolve,reject)=>{
@@ -15,7 +16,10 @@ export function mediaDB(){
     req.onerror=()=>reject(req.error||new Error('Não foi possível abrir o armazenamento de anexos'));
   });
 }
+// Com o armazenamento bloqueado o IndexedDB também está: os anexos ficam só em
+// memória nesta sessão (S.mediaFiles), como o rascunho.
 export async function mediaStore(value){
+  if(storageBlocked())return;
   const db=await mediaDB();
   await new Promise((resolve,reject)=>{
     const tx=db.transaction(DB_STORE,'readwrite');
@@ -25,6 +29,7 @@ export async function mediaStore(value){
   db.close();
 }
 export async function mediaLoad(id){
+  if(storageBlocked())return null;
   const db=await mediaDB();
   const value=await new Promise((resolve,reject)=>{
     const req=db.transaction(DB_STORE,'readonly').objectStore(DB_STORE).get(id);
@@ -33,6 +38,7 @@ export async function mediaLoad(id){
   db.close();return value;
 }
 export async function mediaClear(){
+  if(storageBlocked())return;
   const db=await mediaDB();
   await new Promise((resolve,reject)=>{
     const tx=db.transaction(DB_STORE,'readwrite');tx.objectStore(DB_STORE).clear();
@@ -41,7 +47,7 @@ export async function mediaClear(){
   db.close();
 }
 export async function mediaDelete(id){
-  if(!id)return;
+  if(!id||storageBlocked())return;
   const db=await mediaDB();
   await new Promise((resolve,reject)=>{
     const tx=db.transaction(DB_STORE,'readwrite');tx.objectStore(DB_STORE).delete(id);
