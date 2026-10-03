@@ -8,9 +8,7 @@
   --edge:#151137;
   --bg-shade:rgba(6,4,20,.3);
   --bg-art:url("produto/fundo-escuro.svg");
-  --bg:#211d52;
   --text:#f5f5f7;
-  --dim:#d1d1d6;
   /* Normativa do fork romastefale/liquid-glass e do site romastefale/HTML:
      tintas sempre translúcidas (tint-control nas barras, tint-frost nos painéis,
      tint-soft nos botões em destaque), frost do material (6px, saturate 1.15)
@@ -25,9 +23,9 @@
   /* Botões em destaque (+ e ☰) e estados ativos, no desenho do pill selecionado do
      site romastefale/HTML (SiteHeader: --sel-bg/--sel-shadow). No escuro, o vidro
      leva o acento; no claro, o branco do site. Sempre translúcido. */
-  /* Pontos estratégicos (+, desfazer e ☰): o acento do escuro (#6ab3f3, o mesmo
-     de --accent e --prominent no escuro) nos dois temas, no ícone, no aro e no
-     preenchimento translúcido. Aberto = mais acento; nunca opaco (a lente refrata). */
+  /* Pontos estratégicos (+, desfazer e ☰) no escuro: o acento #6ab3f3 (o mesmo de
+     --prominent) no ícone, no aro e no preenchimento translúcido. Aberto = mais
+     acento; nunca opaco (a lente refrata). O claro redefine tudo em html.light. */
   --strategic:#6ab3f3;
   --strategic-ink:color-mix(in srgb,var(--strategic) 72%,#fff);
   --strategic-open:rgba(106,179,243,.55);
@@ -37,38 +35,32 @@
   --prominent-rim:rgba(106,179,243,.5);
   --prominent-shadow:0 1px 6px rgba(0,0,0,.28);
   --active-bg:rgba(106,179,243,.22);
+  /* Botão de formato ligado (B, I, U, link, título, lista, citação): estado claro
+     mas neutro, sem aro nem sombra, para não parecer um ponto estratégico. */
+  --toggle-on:rgba(255,255,255,.16);
   --float:0 10px 28px rgba(30,20,90,.16),0 2px 6px rgba(30,20,90,.08);
   --blur:blur(6px) saturate(1.15);
   --blur-panel:blur(22px) saturate(1.4);
   --glass-ease:cubic-bezier(.34,1.36,.42,1);
   --glass-edge:0 0 0 var(--rim-w) var(--rim);
   --pill-gap:6px;
-  /* Acento do editor: cor de link do Telegram no tema escuro, legível no fundo roxo. */
-  --accent:#6ab3f3;
-  /* Cor de link do texto do editor: a do tema do Telegram quando o SDK a injeta. */
+  /* Cor de link do texto do editor (e única cor de destaque do texto): a do tema do
+     Telegram quando o SDK a injeta; senão o azul de link do Telegram no escuro. */
   --link:var(--tg-theme-link-color,#6ab3f3);
+  /* Valores do Telegraph (telegra.ph/css/core.min.css): barra da citação #000 e
+     citação em destaque rgba(0,0,0,.6) no claro. O Telegraph não tem tema escuro:
+     aqui ficam os neutros claros equivalentes. */
+  --telegraph-rule:#f5f5f7;
+  --telegraph-aside:rgba(255,255,255,.6);
   /* Neutros puros (alfa do texto), sem mistura com acento, nos dois temas. */
   --muted:color-mix(in srgb,var(--text) 72%,transparent);
   --neutral-1:color-mix(in srgb,var(--text) 5%,transparent);
   --neutral-2:color-mix(in srgb,var(--text) 8%,transparent);
-  --neutral-3:color-mix(in srgb,var(--text) 12%,transparent);
   --neutral-4:color-mix(in srgb,var(--text) 18%,transparent);
   --line:color-mix(in srgb,var(--text) 18%,transparent);
-  --glass-tint:var(--glass);
-  --glass-tint-strong:var(--glass-strong);
-  --bar-glass-tint-strong:var(--glass-strong);
-  --bar-control-accent-bg:transparent;
   --menu-edge:var(--rim);
   --glass-field:rgba(255,255,255,.12);
   --glass-field-soft:rgba(255,255,255,.08);
-  --library-surface:color-mix(in srgb,var(--text) 6%,transparent);
-  --library-section-bg:color-mix(in srgb,var(--text) 9%,transparent);
-  --library-card-bg:color-mix(in srgb,var(--text) 12%,transparent);
-  --library-card-border:var(--line);
-  --library-backdrop:rgba(0,0,0,.62);
-  --library-shadow:rgba(0,0,0,.48);
-  --menu-shadow:rgba(8,4,40,.34);
-  --menu-shadow-tight:rgba(8,4,40,.18);
   --safe-top:env(safe-area-inset-top,0px);
   --safe-bottom:env(safe-area-inset-bottom,0px);
   --safe-left:env(safe-area-inset-left,0px);
@@ -119,9 +111,12 @@ html.light{
   --strategic-open-ink:#fff;
   --prominent-shadow:0 1px 2px rgba(20,16,60,.08),0 2px 6px rgba(20,16,60,.08);
   --active-bg:rgba(255,255,255,.9);
+  --toggle-on:rgba(10,11,13,.1);
   --muted:color-mix(in srgb,var(--text) 66%,transparent);
-  --bg:#f2eefb; --text:#151515; --dim:#3a3a3c; --accent:#269c65;
+  --text:#151515;
   --link:var(--tg-theme-link-color,#2B88D8);
+  --telegraph-rule:#000;
+  --telegraph-aside:rgba(0,0,0,.6);
   --glass:rgba(255,255,255,.5);
   --glass-panel:rgba(255,255,255,.52);
   --glass-strong:rgba(255,255,255,.42);
@@ -129,12 +124,8 @@ html.light{
   --rim:rgba(255,255,255,.18);
   --glass-field:rgba(255,255,255,.5);
   --glass-field-soft:rgba(255,255,255,.34);
-  --library-backdrop:rgba(22,39,45,.24);
-  --library-shadow:rgba(25,55,65,.18);
-  --menu-shadow:rgba(30,20,90,.16);
-  --menu-shadow-tight:rgba(30,20,90,.08);
 }
-@media (min-resolution:2dppx){:root{--rim-w:.5px}}
+@media (min-resolution:2dppx),(-webkit-min-device-pixel-ratio:2){:root{--rim-w:.5px}}
 html{color-scheme:light dark;-webkit-text-size-adjust:100%;text-size-adjust:100%}
 html.light{color-scheme:light}
 html.dark{color-scheme:dark}
@@ -145,7 +136,7 @@ html[data-keyboard]{--bottom:0px}
 html{background:var(--edge)}
 body{
   padding:0;color:var(--text);background:var(--edge);overscroll-behavior:none;touch-action:pan-x pan-y;
-  accent-color:var(--accent);caret-color:var(--link);
+  accent-color:var(--link);caret-color:var(--link);
   font:16px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif
 }
 .bg{
@@ -164,10 +155,10 @@ body{
   box-shadow:var(--glass-edge),var(--float)
 }
 .device-gate strong{display:block;font-size:14px;line-height:1.25;letter-spacing:-.01em}
-.device-gate p{margin:4px 0 0;color:var(--dim);font-size:12px;line-height:1.35}
+.device-gate p{margin:4px 0 0;color:var(--muted);font-size:12px;line-height:1.35}
 html[data-device-gate] .device-gate{display:block;animation:device-gate-out .22s ease 4s forwards}
 @keyframes device-gate-out{to{opacity:0;visibility:hidden}}
-::selection{background:color-mix(in srgb,var(--accent) 38%, transparent);color:inherit}
+::selection{background:color-mix(in srgb,var(--link) 38%,transparent);color:inherit}
 button,input{font:inherit;color:inherit}
 button{cursor:pointer;-webkit-tap-highlight-color:transparent}
 /* Sem anel azul de foco nem realce de toque em lugar nenhum. */
@@ -283,12 +274,14 @@ button{cursor:pointer;-webkit-tap-highlight-color:transparent}
   background:var(--glass-strong);box-shadow:var(--glass-edge);z-index:0;animation:flash-out 1.4s ease forwards
 }
 .seg button.is-flash > *{position:relative;z-index:1}
-@keyframes flash-out{0%,35%{opacity:1}100%{opacity:0}}
+/* O lampejo some pela cor, não pela opacidade: no WebKit, opacidade animada põe o
+   ::before numa camada própria cujo recorte cortava o círculo (e o ponto do desfazer). */
+@keyframes flash-out{0%,35%{background-color:var(--glass-strong);box-shadow:var(--glass-edge)}100%{background-color:transparent;box-shadow:0 0 0 var(--rim-w) transparent}}
 .bar > button{position:relative}
 .bar > button.on{background:transparent}
 .bar > button.on::before{
   content:"";position:absolute;inset:0;border-radius:50%;
-  background:var(--active-bg);box-shadow:var(--glass-edge),var(--prominent-shadow);z-index:0
+  background:var(--toggle-on);z-index:0
 }
 .bar > button > *{position:relative;z-index:1}
 .canvas{
@@ -307,6 +300,7 @@ button{cursor:pointer;-webkit-tap-highlight-color:transparent}
 .telegraph-title{width:100%;margin:0 0 12px;padding:0}
 .telegraph-title[hidden]{display:none}
 .telegraph-title .document-tools{display:block;padding:0}
+.telegraph-title .document-tools::before{content:none}
 .telegraph-title .document-tools input{
   width:100%;height:auto;margin:0;padding:0;border:0;border-radius:0;background:transparent;color:var(--text);outline:0;
   font:700 clamp(30px,8.5vw,40px)/1.12 Georgia,"Times New Roman",serif;
@@ -325,14 +319,24 @@ button{cursor:pointer;-webkit-tap-highlight-color:transparent}
 .editor u,.editor ins{text-decoration:underline;text-underline-offset:.12em}
 .editor blockquote,.editor aside{box-sizing:border-box;min-height:1.55em}
 .editor blockquote{margin:1em 0;padding:.18em 0 .18em 12px;border-left:3px solid var(--link)}
+/* Telegraph (telegra.ph/css/core.min.css › .tl_article_content blockquote): serifa,
+   itálico, margem 18px 21px 16px 0, recuo de 15px e barra de 3px preta. O Telegraph
+   não tem tema escuro: no escuro a barra é o neutro claro do texto. No Telegram a
+   barra segue a cor de link do tema (regra acima), como nos apps do Telegram. */
+html[data-dest="telegraph"] .editor blockquote:not([expandable]){
+  margin:18px 21px 16px 0;padding:0 0 0 15px;border-left:3px solid var(--telegraph-rule);font-style:italic
+}
 .editor blockquote[expandable]{position:relative;padding:.72em 34px .72em 12px;border-radius:0 12px 12px 0;background:color-mix(in srgb,var(--link) 8%,transparent)}
 .editor blockquote[expandable]::after{content:"";position:absolute;right:13px;bottom:13px;width:7px;height:7px;border-right:2px solid color-mix(in srgb,var(--link) 75%,var(--text));border-bottom:2px solid color-mix(in srgb,var(--link) 75%,var(--text));transform:rotate(45deg);pointer-events:none}
-.editor aside{margin:1.15em 6%;padding:.8em 1em;border-top:1px solid color-mix(in srgb,var(--accent) 48%,var(--line));border-bottom:1px solid color-mix(in srgb,var(--accent) 48%,var(--line));text-align:center;font-size:1.12em;font-weight:650;line-height:1.45}
+/* Citação em destaque: só existe no Telegraph, então vale o desenho dele nos dois
+   destinos (core.min.css › .tl_article_content aside): serifa, 21px, itálico,
+   centrado, cor rgba(0,0,0,.6), margem 18px 21px 16px e recuo 0 18px, sem linhas. */
+.editor aside{margin:18px 21px 16px;padding:0 18px;font-family:Georgia,Cambria,"Times New Roman",serif;font-size:21px;font-style:italic;font-weight:400;color:var(--telegraph-aside);text-align:center}
 .editor ul{padding-left:1.2em}
 .editor li:has(> input[type="checkbox"]){min-height:1.5em}
 .editor table{width:100%;border-collapse:collapse;font-size:14px}
 .editor th,.editor td{height:1.8em;min-width:3em;border:1px solid var(--line);padding:6px}
-.editor details{margin:1em 0;padding:.6em .75em;border:1px solid var(--line);border-radius:12px;background:color-mix(in srgb,var(--accent) 5%,transparent)}
+.editor details{margin:1em 0;padding:.6em .75em;border:1px solid var(--line);border-radius:12px;background:var(--neutral-1)}
 .editor summary{min-height:1.45em;font-weight:650;cursor:text}
 .editor details>p{min-height:1.45em}
 .editor a{color:var(--link)}
@@ -341,15 +345,15 @@ button{cursor:pointer;-webkit-tap-highlight-color:transparent}
 .editor figure>img,.editor figure>video,.editor figure>iframe{display:block;width:100%;border-radius:12px;background:var(--neutral-2)}
 .editor figure>audio{display:block;width:100%;min-height:40px}
 .editor figcaption{font-size:13px;line-height:1.35;color:var(--muted);padding:8px 4px 2px}
-.editor tg-math{display:inline-block;max-width:100%;margin:0 .08em;padding:.12em .38em;border-radius:7px;background:color-mix(in srgb,var(--accent) 12%,transparent);font:500 .94em/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere}
-.editor tg-math-block{display:block;margin:1em 0;padding:12px 14px;border:1px solid color-mix(in srgb,var(--accent) 25%,transparent);border-radius:14px;background:color-mix(in srgb,var(--accent) 8%,transparent);font:500 14px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere;overflow-x:auto}
+.editor tg-math{display:inline-block;max-width:100%;margin:0 .08em;padding:.12em .38em;border-radius:7px;background:var(--neutral-2);font:500 .94em/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere}
+.editor tg-math-block{display:block;margin:1em 0;padding:12px 14px;border:1px solid var(--line);border-radius:14px;background:var(--neutral-1);font:500 14px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere;overflow-x:auto}
 .editor tg-button-row{display:flex;justify-content:center;gap:8px;margin:1em 0}
-.editor tg-button{display:inline-block;border-radius:12px;padding:8px 14px;background:var(--accent);color:#fff}
+.editor tg-button{display:inline-block;border-radius:12px;padding:8px 14px;background:var(--link);color:#fff}
 .editor tg-document,.editor tg-map{display:block;margin:1em 0;padding:12px;border-radius:12px;background:var(--neutral-2)}
 .editor tg-document{min-height:48px;border:1px solid var(--line)}
 .editor tg-document::before{content:"Documento";font-weight:600}
 .editor tg-map::before{content:"Mapa"}
-.editor [data-media-missing]{display:block;min-height:96px;border:1px dashed color-mix(in srgb,var(--accent) 45%,transparent);border-radius:12px;background:color-mix(in srgb,var(--accent) 7%,transparent)}
+.editor [data-media-missing]{display:block;min-height:96px;border:1px dashed var(--line);border-radius:12px;background:var(--neutral-1)}
 .editor [data-media-missing]::after{content:"Anexo salvo indisponível";display:grid;place-items:center;min-height:96px;color:var(--muted);font-size:13px}
 .editor tg-collage,.editor tg-slideshow{display:flex;flex-wrap:wrap;gap:8px;margin:1em 0}
 .editor tg-spoiler{background:var(--neutral-4);border-radius:4px}
@@ -457,11 +461,13 @@ html .seg #undoBtn:active .action-dot{
 .toast{
   position:fixed;left:50%;bottom:calc(var(--vv-bottom) + var(--foot-inset) + 8px);
   transform:translateX(-50%);z-index:50;display:none;min-width:80px;max-width:min(86vw,420px);
-  padding:0;border-radius:999px;font-size:12px;line-height:1.25;color:var(--text);pointer-events:none
+  padding:0;border-radius:22px;font-size:12px;line-height:1.25;color:var(--text);pointer-events:none
 }
 .toast.on{display:block}
+/* 22px (o do cartão do aviso de retrato): numa linha o raio se limita à metade da
+   altura e vira cápsula; em várias linhas os cantos não cortam o texto. */
 .toast-material{
-  border-radius:999px;overflow:hidden
+  border-radius:22px;overflow:hidden
 }
 .toast-content{
   position:relative;z-index:1;display:block;padding:8px 13px;

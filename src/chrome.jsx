@@ -14,8 +14,9 @@ import { getUIState, subscribeUI, uiStore } from "./ui-store.mjs";
 // Normativa do fork (src/GlassMaterial.tsx › MATERIAL_OPTICS) e do site
 // romastefale/HTML (src/lib/optics.ts): as barras e o toast usam o frost do
 // material (6px, saturate 1.15); menus e diálogos, o de painel de leitura (22px,
-// saturate 1.4). specular 0 desliga a borda da biblioteca: o brilho de topo e o
-// aro hairline uniforme vêm do CSS (index.html), finos em telas 2x.
+// saturate 1.4). specular 0 desliga a borda da biblioteca (o brilho de topo e o
+// aro dela): não há brilho de topo, e o único aro, hairline e uniforme, vem do CSS
+// (styles.css › --glass-edge), 0,5px em telas 2x ou mais.
 const NO_SHINE = { specular: 0, sheen: 0, glow: 0 };
 
 export const MENU_LENS = {

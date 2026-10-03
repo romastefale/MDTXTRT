@@ -609,8 +609,8 @@ test('document name stays in export flow and becomes the Telegraph title',async(
   await wait(0);
   assert.equal(slot.hidden,false);
   assert.equal(tools.parentElement,slot);
-  assert.equal(tools.getAttribute('data-field-label'),'Título da página no Telegraph');
-  assert.equal(input.getAttribute('placeholder'),'Título da página no Telegraph');
+  assert.equal(tools.hasAttribute('data-field-label'),false);
+  assert.equal(input.getAttribute('placeholder'),'Título');
   assert.equal(input.getAttribute('aria-label'),'Título da página no Telegraph');
   input.value='Minha página';
   input.dispatchEvent(new w.Event('input',{bubbles:true}));
@@ -1860,6 +1860,43 @@ test('open menu stays on the trigger when the keyboard pans the visual viewport'
   assert.ok(menuBottom>=barLayoutTop-40,'base longe '+menuBottom);
   assert.ok(top>=160+8,'topo '+top);
   w.close();
+});
+
+// A sonda do fixed (top:0 a bottom:0) mede a origem e a altura do bloco do
+// position:fixed. Os três casos com o teclado aberto e a área visível deslocada:
+function probeFrame(probe,clientHeight=844){
+  const w=page({visualViewport:{offsetLeft:0,offsetTop:120,width:390,height:504}});
+  Object.defineProperty(w.document.documentElement,'clientHeight',{configurable:true,get:()=>clientHeight});
+  const prev=w.HTMLElement.prototype.getBoundingClientRect;
+  w.HTMLElement.prototype.getBoundingClientRect=function(){
+    if(this.hasAttribute('data-fixed-probe'))return {left:0,right:4,width:4,...probe,bottom:probe.top+probe.height};
+    return prev.call(this);
+  };
+  const frame=w.eval('fixedFrame()');
+  w.close();
+  return frame;
+}
+test('fixed frame: fixed already following the visual area keeps the origin at 0 (no keyboard height added twice)',()=>{
+  // Sonda em 0 com a altura da área visível: o fixed acompanha a área visível
+  // (o caso do 86d2617). Nada de deslocamento e a altura é a da área visível.
+  const frame=probeFrame({top:0,height:504});
+  assert.equal(frame.visualFixed,true);
+  assert.deepEqual([frame.shiftX,frame.shiftY],[0,0]);
+  assert.deepEqual([frame.bounds.top,frame.bounds.height],[0,504]);
+});
+test('fixed frame: rect and fixed both relative to the layout viewport place the visible area at offsetTop',()=>{
+  // Sonda em 0 com a altura do viewport de layout: as duas origens coincidem e a
+  // área visível começa em offsetTop (antes isso era lido como fixed na área visível).
+  const frame=probeFrame({top:0,height:844});
+  assert.equal(frame.visualFixed,false);
+  assert.deepEqual([frame.shiftX,frame.shiftY],[0,0]);
+  assert.deepEqual([frame.bounds.top,frame.bounds.height],[120,504]);
+});
+test('fixed frame: rect relative to the visual area and fixed to the layout viewport shift by offsetTop',()=>{
+  const frame=probeFrame({top:-120,height:844});
+  assert.equal(frame.visualFixed,false);
+  assert.deepEqual([frame.shiftX,frame.shiftY],[0,120]);
+  assert.deepEqual([frame.bounds.top,frame.bounds.height],[120,504]);
 });
 
 

@@ -74,7 +74,7 @@ export function fixedFrame(){
   if(keyboardLikely){
     const box=probeFixedOrigin();
     if(box.width>=1){
-      shiftX=-box.left;shiftY=-box.top;
+      shiftX=-box.left||0;shiftY=-box.top||0;
       if(Math.abs(box.height-visible)<=2&&Math.abs(box.height-layout)>2){
         visualFixed=true;originLeft=0;originTop=0;height=Math.min(height,box.height);
       }

@@ -287,8 +287,12 @@ test('document title is explicit in export flow and becomes the Telegraph page t
   assert.match(html,/class="telegraph-title" id="telegraphTitleSlot" hidden/);
   assert.match(html,/tools\.setAttribute\('data-field-label','Título do documento'\)/);
   assert.match(html,/input\.setAttribute\('aria-label','Título do documento'\)/);
-  assert.match(html,/tools\.setAttribute\('data-field-label','Título da página no Telegraph'\)/);
+  // Acima do texto, só o título: sem rótulo visível, placeholder curto, nome completo no aria-label.
+  assert.match(html,/tools\.removeAttribute\('data-field-label'\)/);
+  assert.match(html,/input\.setAttribute\('placeholder','Título'\)/);
   assert.match(html,/input\.setAttribute\('aria-label','Título da página no Telegraph'\)/);
+  assert.match(html,/\.telegraph-title \.document-tools::before\{content:none\}/);
+  assert.doesNotMatch(html,/data-field-label','Título da página no Telegraph'/);
   assert.match(html,/slot\.append\(tools\)/);
   assert.match(html,/new MutationObserver\(sync\)\.observe\(destBtn,\{attributes:true,attributeFilter:\['data-dest'\]\}\)/);
   assert.match(src,/className="tools document-tools"/);
@@ -593,4 +597,40 @@ test('platform switcher is an ephemeral choice without a persistent on state',()
   assert.match(dest,/data-dest=\{dest\}/);
   assert.doesNotMatch(css,/#destBtn(\.active|\[aria-pressed|\.on)/);
   assert.doesNotMatch(css,/\.seg button\.active/);
+});
+
+test('no residue of the old palette: no green accent, no stale tokens, one hairline rule',()=>{
+  const css=read('styles.css');
+  // O verde antigo (--accent do claro) saiu de vez; o texto usa --link ou neutros.
+  assert.doesNotMatch(css,/#269c65/i);
+  assert.doesNotMatch(css,/--accent\b/);
+  for(const token of ['--bg:','--dim','--glass-tint','--bar-glass-tint-strong','--bar-control-accent-bg','--library-surface','--library-card','--library-section-bg','--library-backdrop','--library-shadow','--menu-shadow','--neutral-3'])assert.ok(!css.includes(token),'token sem uso: '+token);
+  // Hairline de 0,5px em telas 2x, também no Safari anterior ao 16 (sem min-resolution).
+  assert.match(css,/@media \(min-resolution:2dppx\),\(-webkit-min-device-pixel-ratio:2\)\{:root\{--rim-w:\.5px\}\}/);
+  assert.match(css,/--glass-edge:0 0 0 var\(--rim-w\) var\(--rim\)/);
+  assert.doesNotMatch(css,/inset 0 1px/);
+  // Toast em várias linhas: cantos de 22px, nunca a cápsula de 999px que cortava o texto.
+  assert.match(css,/\.toast-material\{\s*border-radius:22px;overflow:hidden/);
+});
+
+test('editor quotes follow the canonical platform: Telegraph aside and blockquote, Telegram link bar',()=>{
+  const css=read('styles.css'),publish=read('src/app/publish.js');
+  const aside=/\n\.editor aside\{([^}]*)\}/.exec(css)[1];
+  // telegra.ph/css/core.min.css › .tl_article_content aside
+  for(const rule of ['margin:18px 21px 16px','padding:0 18px','font-size:21px','font-style:italic','text-align:center','color:var(--telegraph-aside)'])assert.ok(aside.includes(rule),'aside '+rule);
+  assert.doesNotMatch(aside,/border/);
+  assert.match(css,/html\.light\{[^}]*--telegraph-rule:#000;[^}]*--telegraph-aside:rgba\(0,0,0,\.6\)/);
+  assert.match(css,/html\[data-dest="telegraph"\] \.editor blockquote:not\(\[expandable\]\)\{[^}]*margin:18px 21px 16px 0;padding:0 0 0 15px;border-left:3px solid var\(--telegraph-rule\);font-style:italic/);
+  assert.match(css,/\.editor blockquote\{[^}]*border-left:3px solid var\(--link\)/);
+  assert.match(publish,/document\.documentElement\.setAttribute\('data-dest',S\.dest\)/);
+});
+
+test('undo and redo flash fade by colour, never by animated opacity (WebKit clipped the circle)',()=>{
+  const css=read('styles.css'),main=read('src/app/main.js');
+  const frames=/@keyframes flash-out\{([^\n]*)\}\n/.exec(css)[1];
+  assert.doesNotMatch(frames,/opacity/);
+  assert.match(frames,/background-color:var\(--glass-strong\)/);
+  assert.match(frames,/background-color:transparent/);
+  assert.match(main,/one\('#undoBtn'\)\.addEventListener\('click', \(\)=>\{ if\(histUndo\(\)\)flashBtn\(one\('#undoBtn'\)\); \}\);/);
+  assert.match(main,/one\('#redoBtn'\)\.addEventListener\('click', \(\)=>\{ histRedo\(\); flashBtn\(one\('#redoBtn'\)\); \}\);/);
 });

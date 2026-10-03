@@ -16,6 +16,9 @@ export function setDestination(value, notify=true, persist=true){
   const publishLabel=S.dest==='telegram'&&S.session!=='ready'?'Abrir no Mini App':'Publicar no '+name;
   // O React troca ícones, rótulos e os itens exclusivos de cada destino.
   ui.update({dest:S.dest,publishLabel});
+  // O editor é a prévia do destino: o CSS usa html[data-dest] para desenhar a
+  // citação como o Telegraph (barra preta, itálico) ou como o Telegram (cor de link).
+  document.documentElement.setAttribute('data-dest',S.dest);
   applyAssets();
   closePanels();
   if(changed)bumpDocumentRevision();

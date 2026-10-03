@@ -558,6 +558,8 @@ for(const mini of [false,true])test(`menu com o teclado aberto e área visível 
   // No navegador a barra sobe com o teclado. No Mini App ela segue a altura do
   // Telegram (comportamento inalterado), então só o menu é verificado.
   if(!mini)await inVisibleArea(page,'.bar-wrap');
+  // A barra superior acompanha a área visível nos dois casos (no Mini App também).
+  await inVisibleArea(page,'.topbar');
   await page.locator('#headingBtn').click();
   await expect(page.locator('#headingMenu')).toBeVisible();
   await inVisibleArea(page,'#headingMenu');
@@ -566,4 +568,135 @@ for(const mini of [false,true])test(`menu com o teclado aberto e área visível 
   await inVisibleArea(page,'#headingMenu');
   expect(await page.evaluate(()=>document.activeElement?.id)).toBe('editor');
   await closeMenus(page);
+});
+
+// Citações como a plataforma de destino as mostra (telegra.ph/css/core.min.css e
+// apps do Telegram). A citação em destaque só existe no Telegraph: vale nos dois.
+test('citação e citação em destaque seguem o Telegraph e o Telegram',async ({page},info)=>{
+  const light=info.project.use.colorScheme==='light';
+  await page.evaluate(()=>{document.querySelector('#editor').innerHTML='<blockquote>Citação</blockquote><aside>Destaque do autor</aside><p>texto</p>';});
+  const read=()=>page.evaluate(()=>{
+    const q=getComputedStyle(document.querySelector('#editor blockquote')),a=getComputedStyle(document.querySelector('#editor aside'));
+    const probe=document.createElement('span');probe.style.color='var(--link)';document.body.append(probe);
+    const link=getComputedStyle(probe).color;probe.remove();
+    return {link,q:{bw:q.borderLeftWidth,bs:q.borderLeftStyle,bc:q.borderLeftColor,style:q.fontStyle,pad:q.paddingLeft,margin:q.margin},
+      a:{style:a.fontStyle,weight:a.fontWeight,align:a.textAlign,size:a.fontSize,color:a.color,margin:a.margin,padding:a.padding,family:a.fontFamily,
+        top:a.borderTopStyle+' '+a.borderTopWidth,bottom:a.borderBottomStyle+' '+a.borderBottomWidth}};
+  });
+  const aside={style:'italic',weight:'400',align:'center',size:'21px',color:light?'rgba(0, 0, 0, 0.6)':'rgba(255, 255, 255, 0.6)',margin:'18px 21px 16px',padding:'0px 18px'};
+  // Telegram: barra na cor de link do tema, sem itálico.
+  let s=await read();
+  expect(s.q).toMatchObject({bw:'3px',bs:'solid',bc:s.link,style:'normal'});
+  expect(s.a).toMatchObject(aside);
+  expect(s.a.family).toMatch(/Georgia/);
+  expect(s.a.top,'sem linha acima do destaque').toMatch(/^none/);
+  expect(s.a.bottom,'sem linha abaixo do destaque').toMatch(/^none/);
+  // Telegraph: barra preta de 3px (neutro claro no escuro), itálico, recuo de 15px.
+  await page.locator('#destBtn').click();
+  await expect(page.locator('html')).toHaveAttribute('data-dest','telegraph');
+  s=await read();
+  expect(s.q).toMatchObject({bw:'3px',bs:'solid',bc:light?'rgb(0, 0, 0)':'rgb(245, 245, 247)',style:'italic',pad:'15px',margin:'18px 21px 16px 0px'});
+  expect(s.a).toMatchObject(aside);
+  await page.locator('#destBtn').click();
+  await expect(page.locator('html')).toHaveAttribute('data-dest','telegram');
+});
+
+// O seletor Telegram/Telegraph é só uma troca: nos dois estados é um botão comum da
+// barra, como o refazer, sem preenchimento nem aro de ponto estratégico.
+test('seletor de plataforma sem destaque nos dois estados',async ({page})=>{
+  const look=sel=>page.evaluate(sel=>{
+    const el=document.querySelector(sel),cs=getComputedStyle(el),before=getComputedStyle(el,'::before');
+    return {bg:cs.backgroundColor,shadow:cs.boxShadow,before:before.content==='none'||before.content==='normal'?'none':before.backgroundColor,color:cs.color};
+  },sel);
+  await page.mouse.move(1,400);
+  const redo=await look('#redoBtn');
+  for(const dest of ['telegram','telegraph']){
+    await expect(page.locator('#destBtn')).toHaveAttribute('data-dest',dest);
+    expect(await look('#destBtn'),'seletor em '+dest).toEqual(redo);
+    await expect(page.locator(`#destBtn [data-icon="${dest}"]`)).toHaveCount(1);
+    await page.locator('#destBtn').click();
+    await page.mouse.move(1,400);
+  }
+});
+
+// Botão de formato ligado: claro, mas neutro (sem aro nem sombra), diferente do + e do ☰.
+test('estado ligado dos botões de formato não imita os pontos estratégicos',async ({page})=>{
+  await page.locator('#editor').click();
+  await page.keyboard.type('texto');
+  await page.locator('#quoteBtn').click();
+  await page.locator('#quoteMenu .menu-list > button:not([hidden])').first().click();
+  await expect(page.locator('#quoteBtn.on')).toHaveCount(1);
+  const s=await page.evaluate(()=>{
+    const on=getComputedStyle(document.querySelector('#quoteBtn'),'::before'),plus=getComputedStyle(document.querySelector('#plusBtn'));
+    const probe=document.createElement('span');probe.style.background='var(--toggle-on)';document.body.append(probe);
+    const token=getComputedStyle(probe).backgroundColor;probe.remove();
+    return {bg:on.backgroundColor,shadow:on.boxShadow,token,plus:plus.backgroundColor};
+  });
+  expect(s.bg).toBe(s.token);
+  expect(s.shadow).toBe('none');
+  expect(s.bg).not.toBe(s.plus);
+});
+
+// Vidro: um só aro hairline por fora (0,5px em tela 2x, 1px em 1x), nenhum brilho de
+// topo, e a lente do + / desfazer / ☰ coincide com o botão (mesma caixa e raio).
+test('aro hairline único, sem brilho de topo e lente alinhada ao aro',async ({page})=>{
+  const r=await page.evaluate(()=>{
+    const width=devicePixelRatio>=2?0.5:1,bad=[];
+    const visible=shadow=>(shadow.match(/rgba?\([^)]*\)[^,]*/g)||[]).filter(part=>!/rgba\([^)]*,\s*0\)/.test(part));
+    for(const el of document.querySelectorAll('.seg,.bar,.glass-menu-material,.toast-material')){
+      const shadow=getComputedStyle(el).boxShadow;
+      if(!shadow.includes(`0px 0px 0px ${width}px`))bad.push('aro '+el.className+': '+shadow);
+      if(visible(shadow).some(part=>part.includes('inset')))bad.push('brilho interno '+el.className);
+      for(const layer of el.querySelectorAll(':scope > [data-lg-layer]')){
+        if(visible(getComputedStyle(layer).boxShadow).length)bad.push('borda da biblioteca visível em '+el.className);
+      }
+    }
+    for(const sel of ['#plusBtn','#undoBtn .action-dot','#exportBtn .action-dot']){
+      const host=document.querySelector(sel),lens=host.querySelector(':scope > .lens');
+      const a=host.getBoundingClientRect(),b=lens.getBoundingClientRect(),ha=getComputedStyle(host),hl=getComputedStyle(lens);
+      if(Math.abs(a.left-b.left)>0.01||Math.abs(a.top-b.top)>0.01||Math.abs(a.width-b.width)>0.01||Math.abs(a.height-b.height)>0.01)bad.push('lente fora do botão '+sel);
+      if(ha.borderTopLeftRadius!==hl.borderTopLeftRadius)bad.push('raio da lente '+sel+' '+hl.borderTopLeftRadius+' x '+ha.borderTopLeftRadius);
+      if(!ha.boxShadow.includes(`0px 0px 0px ${width}px`))bad.push('aro '+sel+': '+ha.boxShadow);
+    }
+    return bad;
+  });
+  expect(r).toEqual([]);
+});
+
+// Aviso longo em várias linhas: o texto inteiro fica dentro do vidro arredondado.
+test('toast em várias linhas não corta o texto nos cantos',async ({page})=>{
+  await page.evaluate(()=>window.MDTXTRT_UI.setToast({text:'Não foi possível concluir esta ação agora. Verifique a conexão e tente de novo em alguns instantes; nada do texto foi perdido.',visible:true}));
+  await expect(page.locator('#toast')).toBeVisible();
+  const out=await page.evaluate(()=>{
+    const box=document.querySelector('#toast .toast-material').getBoundingClientRect();
+    const radius=Math.min(parseFloat(getComputedStyle(document.querySelector('#toast .toast-material')).borderTopLeftRadius),box.height/2,box.width/2);
+    const range=document.createRange();range.selectNodeContents(document.querySelector('#toastTextHost'));
+    const inside=(x,y)=>{
+      const cx=Math.min(Math.max(x,box.left+radius),box.right-radius),cy=Math.min(Math.max(y,box.top+radius),box.bottom-radius);
+      return Math.hypot(x-cx,y-cy)<=radius+0.5;
+    };
+    const lines=[...range.getClientRects()];
+    return {lines:lines.length,clipped:lines.filter(l=>![[l.left,l.top],[l.right,l.top],[l.left,l.bottom],[l.right,l.bottom]].every(([x,y])=>inside(x,y))).length};
+  });
+  expect(out.lines).toBeGreaterThan(1);
+  expect(out.clipped).toBe(0);
+});
+
+// Título do Telegraph acima do texto: só "Título", sem rótulo pequeno, e cabe inteiro.
+for(const width of [390,320])test(`título do Telegraph sem rótulo e com placeholder inteiro em ${width}px`,async ({page})=>{
+  await page.setViewportSize({width,height:844});
+  await page.locator('#destBtn').click();
+  const input=page.locator('#telegraphTitleSlot #docName');
+  await expect(input).toBeVisible();
+  await input.fill('');
+  await expect(input).toHaveAttribute('placeholder','Título');
+  await expect(input).toHaveAttribute('aria-label','Título da página no Telegraph');
+  const m=await input.evaluate(el=>{
+    const cs=getComputedStyle(el),label=getComputedStyle(el.closest('.document-tools'),'::before');
+    const ctx=document.createElement('canvas').getContext('2d');ctx.font=cs.font;
+    if(cs.letterSpacing&&cs.letterSpacing!=='normal')ctx.letterSpacing=cs.letterSpacing;
+    return {label:label.content,text:ctx.measureText(el.placeholder).width,room:el.clientWidth-parseFloat(cs.paddingLeft)-parseFloat(cs.paddingRight)};
+  });
+  expect(m.label==='none'||m.label==='normal','sem rótulo visível').toBe(true);
+  expect(m.text,'placeholder cabe no campo').toBeLessThanOrEqual(m.room);
 });
