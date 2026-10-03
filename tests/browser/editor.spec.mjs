@@ -703,8 +703,11 @@ for(const width of [390,320])test(`título do Telegraph sem rótulo e com placeh
     const cs=getComputedStyle(el),label=getComputedStyle(el.closest('.document-tools'),'::before');
     const ctx=document.createElement('canvas').getContext('2d');ctx.font=cs.font;
     if(cs.letterSpacing&&cs.letterSpacing!=='normal')ctx.letterSpacing=cs.letterSpacing;
-    return {label:label.content,text:ctx.measureText(el.placeholder).width,room:el.clientWidth-parseFloat(cs.paddingLeft)-parseFloat(cs.paddingRight)};
+    const text=ctx.measureText(el.placeholder);
+    return {label:label.content,text:text.width,room:el.clientWidth-parseFloat(cs.paddingLeft)-parseFloat(cs.paddingRight),
+      glyphs:text.actualBoundingBoxAscent+text.actualBoundingBoxDescent,height:el.clientHeight-parseFloat(cs.paddingTop)-parseFloat(cs.paddingBottom)};
   });
   expect(m.label==='none'||m.label==='normal','sem rótulo visível').toBe(true);
   expect(m.text,'placeholder cabe no campo').toBeLessThanOrEqual(m.room);
+  expect(m.glyphs,'acento e letras do placeholder cabem na altura do campo').toBeLessThanOrEqual(m.height);
 });

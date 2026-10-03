@@ -31,6 +31,17 @@ test('browser bundle cache busters follow the committed Git blob SHAs',()=>{
   }
 });
 
+// O esbuild grava no bundle o caminho de cada módulo relativo ao projeto. Um
+// node_modules fora do clone (link simbólico) muda esses caminhos e o bundle deixa
+// de ser o mesmo que o CI reconstrói com npm ci.
+test('committed bundles reference modules only inside the project',()=>{
+  for(const file of ['ui.js','editor-core.js']){
+    const bundle=read(file);
+    assert.doesNotMatch(bundle,/__commonJS\(\{"(?:\.\.\/|\/)/,file+' must be built from the clone\'s own node_modules');
+    assert.doesNotMatch(bundle,/\/(?:home|workspace|Users|tmp)\//,file+' must not embed absolute build paths');
+  }
+});
+
 test('official Liquid Glass React dependencies and deterministic build are pinned',()=>{
   const pkg=JSON.parse(read('package.json'));
   const lock=JSON.parse(read('package-lock.json'));
