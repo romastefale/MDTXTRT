@@ -1,6 +1,6 @@
 # Estado do produto
 
-## Estado atual (01/10/2026)
+## Estado atual (03/10/2026)
 
 **Fases 0, 1 e 2 concluídas. Os ajustes finos que restavam no código também.** A aceitação física continua com o proprietário.
 
@@ -10,6 +10,8 @@
 - **Fase 2 concluída:** CSS em `styles.css` (#139); estado dos menus, do diálogo e da biblioteca no React (#140); teclado do iPhone, atalhos Markdown, modo escuro e refração nas barras (#141); `server/` e `src/app/` (#144, #145); toast como estado React (#146).
 - **Auditoria Telegram/Telegraph concluída (#143).**
 - **Ajustes finos concluídos:** download de MD/TXT no Mini App por `WebApp.downloadFile` (#148); swipes verticais desativados quando a versão permite (#149); webhook idempotente por `update_id` (#150); + e ☰ no tema claro como os botões do site (#151). O ícone do destino Telegraph voltou a ser o T do Telegraph — o símbolo de documento do Material Symbols tinha tomado o lugar. Com o teclado aberto, o menu usa a mesma origem do `position:fixed`: se a área visível está deslocada, o menu acompanha o botão em vez de abrir fora do lugar; se o `fixed` já acompanha a área visível, a altura do teclado não é somada de novo.
+- **Cache buster do `ui.js` corrigido (#152):** o `?v=` voltou a ser o blob commitado e a main voltou a ficar verde.
+- **Acabamento (#153):** os degradês do topo e da base começam quase transparentes do lado do conteúdo e chegam à cor sólida só na borda, então a translucidez do texto sob as barras aparece. O seletor Telegram/Telegraph é uma escolha efêmera, sem estado ligado (só o retorno da pressão). Com o teclado aberto e a área visível deslocada (`offsetTop`), o menu abre dentro da área visível também no Mini App. O T do Telegraph, como os outros logotipos de marca, é exceção à regra do Material Symbols.
 - **De propósito, sem mudança:** o título do Telegraph continua movido pelo script em `index.html` (um input controlado no React mexe no foco e no teclado do iPhone); o `inert` do diálogo continua no DOM porque atinge elementos que não são do React.
 - **Pendente com o proprietário (Pi):** segredos e variáveis no Railway, configuração no BotFather (Mini App, domínio, menu) e painel do Railway; aceitação física no iPhone, no app instalado e no Mini App.
 
