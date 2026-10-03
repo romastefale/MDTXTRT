@@ -908,8 +908,8 @@ for(const kind of Object.keys(NOTICES))test(`toque fecha o aviso (${kind}) sem f
 // baixo). Primeiro confirma que há texto atrás (sem o aviso, o recorte varia muito).
 // Com o aviso, o texto do aviso, inclusive o secundário, tem contraste AA (4,5:1)
 // contra o pior pixel do fundo composto; onde o motor pinta o backdrop-filter
-// (Chromium), o texto de trás também não aparece pelo vidro (variação de luminância
-// baixa). O WebKit do Playwright no Linux não pinta backdrop-filter nenhum, então lá
+// (Chromium), o texto de trás também não aparece pelo vidro (textura abaixo de 1,1:1,
+// sem contar o degradê do fundo, então não depende da fonte da máquina). O WebKit do Playwright no Linux não pinta backdrop-filter nenhum, então lá
 // só a tinta conta, e ela sozinha precisa garantir o contraste.
 const luminance=([r,g,b])=>{const f=v=>{v/=255;return v<=.04045?v/12.92:((v+.055)/1.055)**2.4;};return .2126*f(r)+.7152*f(g)+.0722*f(b);};
 const contrast=(a,b)=>(Math.max(a,b)+.05)/(Math.min(a,b)+.05);
@@ -944,7 +944,16 @@ for(const kind of Object.keys(NOTICES))test(`aviso efêmero (${kind}) legível s
   await hide.evaluate(el=>el.remove());
   await page.addStyleTag({content:`${sel},${sel} *{color:transparent!important;text-shadow:none!important}`});
   const glass=await backdropPixels(page,box);
-  if(browserName==='chromium')expect(range(glass),'o texto de trás não aparece pelo vidro').toBeLessThanOrEqual(.03);
+  if(browserName==='chromium'){
+    // Textura que o texto de trás deixa no vidro: o mesmo recorte com a tinta do
+    // documento apagada tira o degradê do fundo; o que sobra é só o texto. Abaixo de
+    // 1,1:1 (medido de 1,002 a 1,053; a tinta antiga deixava de 1,34 a 5,1:1).
+    const ink=await page.addStyleTag({content:'.editor,.editor *{color:transparent!important}'});
+    const clean=await backdropPixels(page,box);
+    await ink.evaluate(el=>el.remove());
+    const ratio=glass.map((px,i)=>(luminance(px)+.05)/(luminance(clean[i])+.05));
+    expect(Math.max(...ratio)/Math.min(...ratio),'o texto de trás não aparece pelo vidro').toBeLessThanOrEqual(1.1);
+  }
   for(const {css,rgb,a} of colors){
     // Contraste do texto (com o próprio alfa composto sobre o pixel) contra cada pixel.
     const worst=Math.min(...glass.map(bg=>contrast(luminance(rgb.map((v,k)=>v*a+bg[k]*(1-a))),luminance(bg))));
