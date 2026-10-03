@@ -5,9 +5,10 @@ import { docName, editor } from "./dom.js";
 import { getTg } from "./theme.js";
 import { clearRuntimeMedia, decorateSpecials, installMedia } from "./media.js";
 import { showToast } from "./panels.js";
-import { chooseDialog } from "./dialog.js";
+import { approve, chooseDialog } from "./dialog.js";
 import { requireEditorCore, syncEditorSelectionUI } from "./editing.js";
 import { readResponse, setDestination } from "./publish.js";
+import { storageBlocked, storageGet, storageSet } from "./storage.js";
 
 export function normalizedRevision(value){return Number.isSafeInteger(value)&&value>=0?value:0;}
 export function bumpDocumentRevision(){
@@ -17,14 +18,14 @@ export function bumpDocumentRevision(){
 export function requestMatchesDocument(doc,revision){return S.docId===doc&&S.docRevision===revision;}
 export function browserOwnerKey(){
   let key='';
-  try{key=localStorage.getItem(BROWSER_OWNER_KEY)||'';}
+  try{key=storageGet(BROWSER_OWNER_KEY)||'';}
   catch{throw new Error('Não foi possível acessar a identidade persistente do navegador');}
   if(/^[a-f0-9]{64}$/.test(key))return key;
   const bytes=crypto.getRandomValues(new Uint8Array(32));
   key=Array.from(bytes,byte=>byte.toString(16).padStart(2,'0')).join('');
   try{
-    localStorage.setItem(BROWSER_OWNER_KEY,key);
-    if(localStorage.getItem(BROWSER_OWNER_KEY)!==key)throw new Error('A identidade não permaneceu armazenada');
+    storageSet(BROWSER_OWNER_KEY,key);
+    if(storageGet(BROWSER_OWNER_KEY)!==key)throw new Error('A identidade não permaneceu armazenada');
   }catch{throw new Error('Não foi possível persistir a identidade do navegador');}
   return key;
 }
@@ -96,7 +97,7 @@ export function saveLocal(){
     return false;
   }
   try{
-    localStorage.setItem(DRAFT_KEY,JSON.stringify(draftState()));
+    storageSet(DRAFT_KEY,JSON.stringify(draftState()));
     scheduleRemoteDraftSave();
     return true;
   }catch{
@@ -122,7 +123,7 @@ export function reportRemoteSaveFailure(error){
   }
 }
 export async function persistRemoteDraft(pagehide=false){
-  if(S.draftWriteBlocked)return false;
+  if(S.draftWriteBlocked||!remoteDraftsAvailable())return false;
   const snapshot=draftState();
   const form=new FormData();
   appendRemoteIdentity(form);
@@ -141,8 +142,15 @@ export async function persistRemoteDraft(pagehide=false){
   S.remoteSaveNoticeShown=false;
   return true;
 }
+// Com o armazenamento bloqueado a identidade do navegador só vive nesta sessão:
+// uma cópia no servidor ficaria órfã, sem como ser buscada depois.
+export function remoteDraftsAvailable(){
+  const initData=getTg()?.initData;
+  return Boolean(typeof initData==='string'&&initData)||!storageBlocked();
+}
 export function scheduleRemoteDraftSave(delay=650){
   clearTimeout(S.remoteSaveTimer);
+  if(!remoteDraftsAvailable())return;
   S.remoteSaveTimer=setTimeout(()=>{
     S.remoteSaveQueue=S.remoteSaveQueue.then(()=>persistRemoteDraft(false)).catch(error=>{reportRemoteSaveFailure(error);});
   },delay);
@@ -187,7 +195,7 @@ export async function applyPersistentDraftData(data,identity){
   }
   setDestination(S.dest,false,false);
   syncEditorSelectionUI();
-  try{localStorage.setItem(DRAFT_KEY,JSON.stringify({...d,html}));}catch(error){console.error('Local draft cache',error);}
+  try{storageSet(DRAFT_KEY,JSON.stringify({...d,html}));}catch(error){console.error('Local draft cache',error);}
   return true;
 }
 export async function loadRemoteDraft(doc=''){
@@ -203,7 +211,20 @@ export async function loadRemoteDraft(doc=''){
   if(!res.ok)throw new Error(data.error||'Não foi possível recuperar o rascunho do volume');
   return applyPersistentDraftData(data,identity);
 }
-export function createNewDocumentLaunch(){
+export async function createNewDocumentLaunch(){
+  // Sem armazenamento, recarregar a página perderia o texto sem guardar o anterior:
+  // o rascunho novo começa aqui mesmo, depois de confirmar.
+  if(storageBlocked()&&S.session!=='ready'){
+    const empty=!editor.textContent.trim()&&!editor.querySelector('[data-media-id],img,video,audio,iframe,hr');
+    if(!empty&&!await approve('Este navegador está bloqueando o armazenamento, então o texto atual não pode ser guardado. Começar um rascunho novo mesmo assim?'))return;
+    resetToNewDocument();
+    S.draftRecoveryPending=false;
+    editor.setAttribute('contenteditable','true');
+    setDestination(S.dest,false,false);
+    syncEditorSelectionUI();
+    showToast('Novo documento criado.');
+    return;
+  }
   const bytes=crypto.getRandomValues(new Uint8Array(16));
   const token=Array.from(bytes,byte=>byte.toString(16).padStart(2,'0')).join('');
   const url=new URL(location.href);
@@ -228,7 +249,7 @@ export function consumeNewDocumentToken(){
 }
 export function archiveStoredDraftForNew(token){
   let raw;
-  try{raw=localStorage.getItem(DRAFT_KEY);}
+  try{raw=storageGet(DRAFT_KEY);}
   catch{throw new Error('Não foi possível acessar o documento anterior; nenhum novo documento foi criado');}
   if(raw===null)return false;
   let suffix='unreadable-'+token;
@@ -238,8 +259,8 @@ export function archiveStoredDraftForNew(token){
   }catch{}
   const key=DRAFT_ARCHIVE_PREFIX+suffix;
   try{
-    localStorage.setItem(key,raw);
-    if(localStorage.getItem(key)!==raw)throw new Error('readback');
+    storageSet(key,raw);
+    if(storageGet(key)!==raw)throw new Error('readback');
   }catch{throw new Error('Não foi possível preservar o documento anterior; nenhum novo documento foi criado');}
   return true;
 }
@@ -259,7 +280,7 @@ export function startRequestedNewDocument(token){
 }
 export function loadLocal(){
   let raw;
-  try{raw=localStorage.getItem(DRAFT_KEY);}
+  try{raw=storageGet(DRAFT_KEY);}
   catch{S.draftWriteBlocked=true;throw new Error('Não foi possível acessar o rascunho local; nenhuma cópia foi alterada');}
   if(raw===null)return false;
   let d;

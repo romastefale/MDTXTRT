@@ -69,7 +69,11 @@ export function dialogOpen(label,value='',rows=1,confirmMode=false,anchorOverrid
   S.dialogReturnFocus=dialogOrigin();
   closePanels();
   const dialog=one('#dialogMenu');
-  const anchor=anchorOverride?.isConnected?anchorOverride:S.dialogReturnFocus?.isConnected?S.dialogReturnFocus:null;
+  // O editor ocupa a tela toda e não serve de âncora: preso a ele, o diálogo ia
+  // para cima da barra superior com a altura que sobrava acima do texto (poucos
+  // pixels) e o texto aparecia cortado. Sem âncora ele fica centrado na área livre.
+  const origin=anchorOverride?.isConnected?anchorOverride:S.dialogReturnFocus?.isConnected?S.dialogReturnFocus:null;
+  const anchor=origin&&origin!==editor?origin:null;
   if(anchor)panelAnchors.set(dialog,anchor);else panelAnchors.delete(dialog);
   const anchorRect=anchor?.getBoundingClientRect()||null;
   S.dialogConfirm=confirmMode;
@@ -83,16 +87,31 @@ export function dialogOpen(label,value='',rows=1,confirmMode=false,anchorOverrid
     value:confirmMode?'':String(value===null||value===undefined?'':value),
     rows:Math.max(1,Math.min(5,rows)),
     ok:labels?.ok||(confirmMode?'Continuar':'OK'),
-    cancel:labels?.cancel||'Cancelar'
+    cancel:labels&&'cancel' in labels?String(labels.cancel||''):'Cancelar'
   });
   setDialogModality(true);
   placePanel(dialog,anchorRect);
+  watchDialogSize(dialog);
   syncBackButton();
   return new Promise(resolve=>{
     S.dialogResolve=resolve;
     focusDialogStart(rows===1);
   });
 }
+// O texto pode quebrar em mais linhas depois da primeira medida (fonte, largura,
+// teclado): o diálogo é reposicionado sempre que o tamanho do conteúdo muda.
+let dialogSizeObserver=null;
+function watchDialogSize(dialog){
+  if(dialogSizeObserver||typeof ResizeObserver!=='function')return;
+  const content=dialog.querySelector('.dialog');
+  if(!content)return;
+  dialogSizeObserver=new ResizeObserver(()=>{
+    if(ui.getState().dialog.open)placePanel(dialog,panelAnchors.get(dialog)?.getBoundingClientRect()||null);
+  });
+  dialogSizeObserver.observe(content);
+}
 export function ask(label,value='',rows=1,anchorOverride=null){return dialogOpen(label,value,rows,false,anchorOverride);}
 export async function approve(label){return await dialogOpen(label,'',1,true)===true;}
 export function chooseDialog(label,ok,cancel){return dialogOpen(label,'',1,true,null,{ok,cancel});}
+// Aviso com um botão só (sem Cancelar).
+export function notifyDialog(label,ok='Entendi'){return dialogOpen(label,'',1,true,null,{ok,cancel:''});}

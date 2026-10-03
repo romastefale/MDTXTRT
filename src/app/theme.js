@@ -3,6 +3,7 @@ import { S } from "./state.js";
 import { THEME_KEY } from "./constants.js";
 import { all, one } from "./dom.js";
 import { scheme } from "./main.js";
+import { storageBlocked } from "./storage.js";
 
 export function applyAssets(){
   all('[data-icon]').forEach(el => {
@@ -54,6 +55,9 @@ export function applyScheme(mode=resolvedTheme()){
 export function setTheme(mode){
   if(mode!=='light'&&mode!=='dark')throw new Error('Tema inválido');
   S.themePreference=mode;
+  // Com o armazenamento bloqueado o tema não sobrevive ao recarregamento e o texto
+  // da sessão se perderia: o tema muda aqui mesmo, sem recarregar.
+  if(storageBlocked()){applyScheme();return;}
   try{localStorage.setItem(THEME_KEY,mode);}catch{}
   window.location.reload();
 }

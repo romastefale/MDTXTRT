@@ -521,8 +521,10 @@ html .seg #undoBtn:active .action-dot{
   margin:0 4px;padding:9px 10px;border-radius:6px;background:var(--glass-field-soft);
   border:0;color:var(--muted);font-size:11px
 }
-.dialog{display:flex;flex-direction:column;gap:7px;width:100%;min-height:0;max-height:100%;overflow-y:auto;overscroll-behavior:contain;padding:3px}
-.dialog-label{font-size:12px;line-height:1.35;color:var(--muted);padding:2px 4px}
+/* O diálogo cresce com o texto até a área livre entre as barras; só se nem isso
+   couber o conteúdo rola dentro dele (nunca fica cortado). */
+.dialog{display:flex;flex-direction:column;flex:1 1 auto;gap:7px;width:100%;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:3px}
+.dialog-label{font-size:12px;line-height:1.35;color:var(--muted);padding:2px 4px;overflow-wrap:break-word;flex:none}
 #dialogInput{
   width:100%;min-height:34px;max-height:112px;resize:none;border:0;border-radius:7px;
   background:var(--glass-field);color:inherit;padding:8px 9px;outline:0;font:inherit;font-size:13px
@@ -530,6 +532,7 @@ html .seg #undoBtn:active .action-dot{
 #dialogInput[hidden]{display:none}
 .dialog-actions{display:flex;justify-content:flex-end;gap:5px}
 .dialog-actions button{min-height:30px;border:0;border-radius:6px;padding:0 10px;background:var(--glass-field-soft);color:inherit;font-size:12px}
+.dialog-actions button[hidden]{display:none}
 .dialog-actions #dialogOk{background:var(--glass-strong);font-weight:650;box-shadow:var(--glass-edge)}
 #findMenu .menu-list{gap:0;width:100%}
 #findMenu .tools:last-child{flex-wrap:wrap}
