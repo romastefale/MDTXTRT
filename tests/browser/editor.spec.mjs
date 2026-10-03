@@ -697,6 +697,8 @@ test('citação e citação em destaque seguem o Telegraph e o Telegram',async (
     margin:'18px 21px 16px',pad:'0px 18px 0px 18px',radius:'0px',bg:[0,0,0,0],bw:'0px',top:'none',bottom:'none'});
   expect(s.a.family).toMatch(/^Georgia, Cambria/);
   expect(s.marks.map(m=>m.content),'sem aspas no Telegraph').toEqual(['none','none']);
+  // O Telegraph não tem crédito: o nome fica como texto da citação, numa linha própria.
+  expect(s.cite).toMatchObject({display:'block',style:'italic',weight:'400',color:s.quoteText,size:'18px',ownLine:true});
   expect(s.a.width,'destaque do Telegraph ocupa a coluna').toBeGreaterThan(s.a.editorWidth-50);
   await page.locator('#destBtn').click();
   await expect(page.locator('html')).toHaveAttribute('data-dest','telegram');

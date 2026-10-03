@@ -836,6 +836,20 @@ test('Telegram serializer preserves language class on code',()=>{
   w.close();
 });
 
+test('Telegraph keeps the quote and caption credit as plain text, never as <cite> and never dropped',()=>{
+  const w=page(),e=w.document.querySelector('#editor');
+  e.innerHTML='<blockquote>Citação<cite>Ana Souza</cite></blockquote><aside>Destaque<cite>Rui <b>Lima</b></cite></aside>'+
+    '<figure><img src="https://example.com/a.jpg"><figcaption>Legenda<cite>Foto: Bia</cite></figcaption></figure><blockquote><cite>Só o autor</cite></blockquote>';
+  const nodes=JSON.parse(w.eval('JSON.stringify(telegraphNodes(document.querySelector("#editor")))'));
+  const tags=n=>typeof n==='string'?[]:[n.tag,...(n.children||[]).flatMap(tags)];
+  assert.ok(!nodes.flatMap(tags).includes('cite'));
+  assert.deepEqual(nodes[0],{tag:'blockquote',children:['Citação',{tag:'br'},'Ana Souza']});
+  assert.deepEqual(nodes[1],{tag:'aside',children:['Destaque',{tag:'br'},'Rui ',{tag:'b',children:['Lima']}]});
+  assert.deepEqual(nodes[2].children[1],{tag:'figcaption',children:['Legenda',{tag:'br'},'Foto: Bia']});
+  assert.deepEqual(nodes[3],{tag:'blockquote',children:['Só o autor']});
+  w.close();
+});
+
 test('Telegraph serializer rejects non-http links locally',()=>{
   const w=page(),e=w.document.querySelector('#editor');
   e.innerHTML='<p><a href="mailto:test@example.com">mail</a></p>';

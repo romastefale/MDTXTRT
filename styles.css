@@ -396,6 +396,9 @@ html:not([data-dest="telegraph"]) .editor h6{font-size:15px}
 .editor aside:has(> cite:last-child){--pull-close-bottom:calc(4px + 1.42em)}
 html:not([data-dest="telegraph"]) .editor :is(blockquote,aside) > cite:last-child{display:block;font-style:normal;font-weight:600;color:var(--muted)}
 html:not([data-dest="telegraph"]) .editor aside > cite:last-child{font-style:italic}
+/* Telegraph: sem <cite>; na publicação o nome do autor vira texto comum numa linha
+   própria da citação (telegraphNodes), e a prévia mostra o mesmo. */
+html[data-dest="telegraph"] .editor :is(blockquote,aside) > cite{display:block;font:inherit;color:inherit}
 /* Telegraph (telegra.ph/css/core.min.css › .tl_article_content): texto do artigo 18px com
    entrelinha 1.58; blockquote com serifa, itálico, margem 18px 21px 16px 0, recuo de 15px
    e barra de 3px (#000 no claro, a cor do texto no escuro); aside com serifa, 21px,
