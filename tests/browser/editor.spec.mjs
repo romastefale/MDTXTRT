@@ -298,6 +298,16 @@ test('aviso de tela vertical continua no produto',async ({page})=>{
   await expect(page.locator('#deviceGateTitle')).toHaveText('Melhor em modo retrato');
 });
 
+// Um ponto fora do diálogo e fora das barras, no texto embaixo do fundo transparente.
+async function outsideDialogPoint(page){
+  return page.evaluate(()=>{
+    const box=document.querySelector('#dialogMenu').getBoundingClientRect();
+    const top=document.querySelector('.topbar').getBoundingClientRect().bottom,bar=document.querySelector('#typebar').getBoundingClientRect().top;
+    const below=(box.bottom+bar)/2,above=(top+box.top)/2;
+    return {x:24,y:bar-box.bottom>top-box.top?below:above,gapBelow:bar-box.bottom,gapAbove:box.top-top};
+  });
+}
+
 test.describe(OFFLINE,()=>{
   test.beforeEach(async ({page})=>{
     page.volumeUp=false;
@@ -314,6 +324,29 @@ test.describe(OFFLINE,()=>{
     page.volumeUp=true;
     await page.locator('#dialogOk').click();
     await expect(page.locator('#editor')).toHaveAttribute('contenteditable','true');
+  });
+
+  // Toque fora da escolha = Cancelar (o mesmo dismissDialog do Esc e do Voltar):
+  // nunca "Tentar de novo" nem "Começar rascunho novo".
+  test('toque fora da escolha cancela sem tentar de novo nem começar rascunho novo',async ({page})=>{
+    let loads=0;
+    page.on('request',request=>{if(request.method()!=='OPTIONS'&&request.url().endsWith('/api/drafts/load'))loads++;});
+    await page.goto('/index.html');
+    await expect(page.locator('#dialogOk')).toHaveText('Tentar de novo');
+    await page.evaluate(()=>document.documentElement.removeAttribute('data-device-gate'));
+    const url=page.url(),loadsBefore=loads;
+    const point=await outsideDialogPoint(page);
+    await page.mouse.click(point.x,point.y);
+    await expect(page.locator('#dialogMenu')).toBeHidden();
+    await page.waitForTimeout(300);
+    expect(page.url(),'sem navegar para um rascunho novo').toBe(url);
+    expect(loads-loadsBefore,'sem nova busca da cópia').toBe(0);
+    await expect(page.locator('#editor')).toHaveAttribute('contenteditable','false');
+    // Um toque no texto reabre a escolha, que continua lá depois do mesmo toque.
+    await page.locator('#editor').click({position:{x:30,y:30}});
+    await expect(page.locator('#dialogOk')).toHaveText('Tentar de novo');
+    await page.waitForTimeout(300);
+    await expect(page.locator('#dialogMenu')).toBeVisible();
   });
 
   for(const size of [{width:390,height:844},{width:320,height:568}])test(`o aviso cabe inteiro abaixo da barra superior em ${size.width}x${size.height}`,async ({page})=>{
@@ -559,6 +592,16 @@ test.describe(BLOCKED,()=>{
     await expect(page.locator('#undoBtn')).toBeVisible();
   });
 
+  test('toque fora do aviso de armazenamento só o fecha',async ({page})=>{
+    await expect(page.locator('#dialogOk')).toHaveText('Entendi');
+    await page.evaluate(()=>document.documentElement.removeAttribute('data-device-gate'));
+    const point=await outsideDialogPoint(page);
+    await page.mouse.click(point.x,point.y);
+    await expect(page.locator('#dialogMenu')).toBeHidden();
+    expect(await page.evaluate(()=>window.__navigations)).toBe(0);
+    await expect(page.locator('#editor')).toHaveAttribute('contenteditable','true');
+  });
+
   test('um aviso claro, inteiro e abaixo da barra; edição liberada sem pausar',async ({page})=>{
     await expect(page.locator('#dialogLabel')).toContainText('bloqueando o armazenamento');
     await expect(page.locator('#dialogLabel')).toContainText('Bloquear Todos os Cookies');
@@ -661,4 +704,37 @@ test.describe(GATE,()=>{
     await expect(page.locator('#deviceGateTitle')).toHaveText('Melhor em modo retrato');
     await expect(page.locator('#deviceGate')).toBeHidden({timeout:7000});
   });
+});
+
+// Pergunta com campo (link): o toque fora cancela pelo mesmo caminho do Esc
+// (dismissDialog), não insere nada e não aciona o que está embaixo. O toque em si não
+// solta o foco do campo (nenhum blur para o body, que fecharia o teclado); ao fechar,
+// o foco vai para o mesmo lugar que o Esc o leva.
+test('toque fora do diálogo de link cancela pelo caminho do Esc sem soltar o foco',async ({page})=>{
+  await page.evaluate(()=>document.documentElement.removeAttribute('data-device-gate'));
+  const editor=page.locator('#editor');
+  await editor.click();
+  await page.keyboard.type('texto');
+  const openLink=async()=>{
+    await page.locator('#linkBtn').click();
+    await page.locator('#linkMenu [data-link-kind="url"]').click();
+    await expect(page.locator('#dialogMenu')).toBeVisible();
+    await expect(page.locator('#dialogInput')).toBeFocused();
+  };
+  await openLink();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#dialogMenu')).toBeHidden();
+  const afterEsc=await page.evaluate(()=>document.activeElement?.id);
+  await editor.click();
+  await openLink();
+  await page.evaluate(()=>{window.__blurs=0;document.addEventListener('focusout',e=>{if(!e.relatedTarget)window.__blurs++;},true);});
+  const point=await outsideDialogPoint(page);
+  await page.mouse.move(point.x,point.y);
+  await page.mouse.down();
+  await expect(page.locator('#dialogInput'),'o campo continua focado durante o toque').toBeFocused();
+  await page.mouse.up();
+  await expect(page.locator('#dialogMenu')).toBeHidden();
+  await expect(editor).toHaveText('texto');
+  expect(await page.evaluate(()=>window.__blurs),'nenhum foco solto no body').toBe(0);
+  expect(await page.evaluate(()=>document.activeElement?.id),'mesmo destino do Esc').toBe(afterEsc);
 });

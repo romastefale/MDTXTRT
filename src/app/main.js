@@ -54,6 +54,51 @@ document.addEventListener('keydown',event=>{
   const sel=sheets.find(name=>panelIsOpen(one(name)));
   if(sel){event.preventDefault();closePanel(one(sel),true);}
 });
+// Toque fora do diálogo (no fundo transparente): é o mesmo Cancelar do Esc e do Voltar
+// do Telegram (dismissDialog). Num diálogo de escolha ("Tentar de novo" / "Começar
+// rascunho novo") ou de confirmação, nunca roda a ação principal nem a segunda opção;
+// num aviso de um botão só ("Entendi"), apenas o fecha. O toque não chega ao que está
+// embaixo e não tira o foco do campo (o teclado continua aberto): como na camada de
+// dispensa dos menus, cancela o mousedown, e o pointerdown só fora do toque (cancelar o
+// pointerdown de um toque faz o WebKit suprimir o mousedown). Só conta um toque que
+// começou com o diálogo já aberto: o toque no texto que abre a recuperação do
+// rascunho não o fecha logo em seguida.
+let dialogOutsidePress=false;
+function dialogOutsideTarget(event){
+  const dialog=one('#dialogMenu');
+  if(!dialog?.matches(':popover-open'))return false;
+  const target=event.target;
+  if(target instanceof Node&&dialog.contains(target)&&target!==dialog)return false;
+  if(target===dialog){
+    // O ::backdrop entrega o toque ao próprio popover: fora do retângulo é fundo.
+    const box=dialog.getBoundingClientRect();
+    return !(event.clientX>=box.left&&event.clientX<=box.right&&event.clientY>=box.top&&event.clientY<=box.bottom);
+  }
+  return true;
+}
+function holdDialogOutsidePress(event){
+  if(!(event.type==='pointerdown'&&event.pointerType==='touch'))event.preventDefault();
+  event.stopPropagation();
+}
+let dialogPointerPressAt=-Infinity;
+window.addEventListener('pointerdown',event=>{
+  dialogPointerPressAt=event.timeStamp;
+  dialogOutsidePress=dialogOutsideTarget(event);
+  if(dialogOutsidePress)holdDialogOutsidePress(event);
+},true);
+window.addEventListener('mousedown',event=>{
+  // Sem pointerdown antes (navegador sem Pointer Events), o toque começa aqui.
+  if(event.timeStamp-dialogPointerPressAt>1000)dialogOutsidePress=dialogOutsideTarget(event);
+  if(dialogOutsidePress)holdDialogOutsidePress(event);
+},true);
+window.addEventListener('pointercancel',()=>{dialogOutsidePress=false;},true);
+window.addEventListener('click',event=>{
+  if(!dialogOutsidePress)return;
+  dialogOutsidePress=false;
+  if(!dialogOutsideTarget(event))return;
+  event.preventDefault();event.stopPropagation();
+  dismissDialog();
+},true);
 window.addEventListener('pagehide',()=>{
   saveLocal();
   clearTimeout(S.remoteSaveTimer);
