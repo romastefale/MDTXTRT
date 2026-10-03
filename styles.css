@@ -8,16 +8,19 @@
   --edge:#151137;
   --bg-shade:rgba(6,4,20,.3);
   --bg-art:url("produto/fundo-escuro.svg");
-  --bg:#211d52;
   --text:#f5f5f7;
-  --dim:#d1d1d6;
   /* Normativa do fork romastefale/liquid-glass e do site romastefale/HTML:
      tintas sempre translúcidas (tint-control nas barras, tint-frost nos painéis,
      tint-soft nos botões em destaque), frost do material (6px, saturate 1.15)
-     nas barras e de painel (22px, 1.4) em menus e diálogos, brightness 0, brilho
+     nas barras e de painel (22px, 1.4) em menus, diálogos e avisos efêmeros (estes
+     com a tinta densa de vidro com texto sobre o conteúdo), brightness 0, brilho
      sem brilho especular de topo (como no site HTML) e um único aro hairline uniforme. */
   --glass:rgba(30,26,64,.4);
   --glass-panel:rgba(18,15,46,.44);
+  /* Avisos efêmeros sobre o texto (toast e aviso de retrato): a tinta mais densa
+     do site romastefale/HTML para vidro com texto sobre o conteúdo, a da lista de
+     páginas (src/components/SiteHeader.css › --picker-bg, no <Frost> com a ótica PANEL). */
+  --glass-notice:rgba(22,22,26,.88);
   --glass-strong:rgba(255,255,255,.12);
   --glass-press:rgba(255,255,255,.14);
   --rim:rgba(255,255,255,.16);
@@ -25,9 +28,9 @@
   /* Botões em destaque (+ e ☰) e estados ativos, no desenho do pill selecionado do
      site romastefale/HTML (SiteHeader: --sel-bg/--sel-shadow). No escuro, o vidro
      leva o acento; no claro, o branco do site. Sempre translúcido. */
-  /* Pontos estratégicos (+, desfazer e ☰): o acento do escuro (#6ab3f3, o mesmo
-     de --accent e --prominent no escuro) nos dois temas, no ícone, no aro e no
-     preenchimento translúcido. Aberto = mais acento; nunca opaco (a lente refrata). */
+  /* Pontos estratégicos (+, desfazer e ☰) no escuro: o acento #6ab3f3 (o mesmo de
+     --prominent) no ícone, no aro e no preenchimento translúcido. Aberto = mais
+     acento; nunca opaco (a lente refrata). O claro redefine tudo em html.light. */
   --strategic:#6ab3f3;
   --strategic-ink:color-mix(in srgb,var(--strategic) 72%,#fff);
   --strategic-open:rgba(106,179,243,.55);
@@ -37,38 +40,35 @@
   --prominent-rim:rgba(106,179,243,.5);
   --prominent-shadow:0 1px 6px rgba(0,0,0,.28);
   --active-bg:rgba(106,179,243,.22);
+  /* Botão de formato ligado (B, I, U, link, título, lista, citação): estado claro
+     mas neutro, sem aro nem sombra, para não parecer um ponto estratégico. */
+  --toggle-on:rgba(255,255,255,.16);
   --float:0 10px 28px rgba(30,20,90,.16),0 2px 6px rgba(30,20,90,.08);
   --blur:blur(6px) saturate(1.15);
   --blur-panel:blur(22px) saturate(1.4);
   --glass-ease:cubic-bezier(.34,1.36,.42,1);
   --glass-edge:0 0 0 var(--rim-w) var(--rim);
   --pill-gap:6px;
-  /* Acento do editor: cor de link do Telegram no tema escuro, legível no fundo roxo. */
-  --accent:#6ab3f3;
-  /* Cor de link do texto do editor: a do tema do Telegram quando o SDK a injeta. */
+  /* Cor de link do texto do editor (e única cor de destaque do texto): a do tema do
+     Telegram quando o SDK a injeta; senão o azul de link do Telegram no escuro. */
   --link:var(--tg-theme-link-color,#6ab3f3);
+  /* Telegraph: o core.min.css do telegra.ph só tem valores para fundo claro (barra
+     da citação #000, destaque rgba(0,0,0,.6)). Ele não tem tema escuro: aqui os
+     valores derivam da cor do texto. No claro ficam os literais (abaixo). */
+  --telegraph-rule:var(--text);
+  --telegraph-aside:color-mix(in srgb,var(--text) 60%,transparent);
+  --telegraph-text:color-mix(in srgb,var(--text) 80%,transparent);
+  --telegraph-link-rule:color-mix(in srgb,var(--text) 70%,transparent);
+  --telegraph-placeholder:color-mix(in srgb,var(--text) 44%,transparent);
   /* Neutros puros (alfa do texto), sem mistura com acento, nos dois temas. */
   --muted:color-mix(in srgb,var(--text) 72%,transparent);
   --neutral-1:color-mix(in srgb,var(--text) 5%,transparent);
   --neutral-2:color-mix(in srgb,var(--text) 8%,transparent);
-  --neutral-3:color-mix(in srgb,var(--text) 12%,transparent);
   --neutral-4:color-mix(in srgb,var(--text) 18%,transparent);
   --line:color-mix(in srgb,var(--text) 18%,transparent);
-  --glass-tint:var(--glass);
-  --glass-tint-strong:var(--glass-strong);
-  --bar-glass-tint-strong:var(--glass-strong);
-  --bar-control-accent-bg:transparent;
   --menu-edge:var(--rim);
   --glass-field:rgba(255,255,255,.12);
   --glass-field-soft:rgba(255,255,255,.08);
-  --library-surface:color-mix(in srgb,var(--text) 6%,transparent);
-  --library-section-bg:color-mix(in srgb,var(--text) 9%,transparent);
-  --library-card-bg:color-mix(in srgb,var(--text) 12%,transparent);
-  --library-card-border:var(--line);
-  --library-backdrop:rgba(0,0,0,.62);
-  --library-shadow:rgba(0,0,0,.48);
-  --menu-shadow:rgba(8,4,40,.34);
-  --menu-shadow-tight:rgba(8,4,40,.18);
   --safe-top:env(safe-area-inset-top,0px);
   --safe-bottom:env(safe-area-inset-bottom,0px);
   --safe-left:env(safe-area-inset-left,0px);
@@ -119,22 +119,29 @@ html.light{
   --strategic-open-ink:#fff;
   --prominent-shadow:0 1px 2px rgba(20,16,60,.08),0 2px 6px rgba(20,16,60,.08);
   --active-bg:rgba(255,255,255,.9);
+  --toggle-on:rgba(10,11,13,.1);
   --muted:color-mix(in srgb,var(--text) 66%,transparent);
-  --bg:#f2eefb; --text:#151515; --dim:#3a3a3c; --accent:#269c65;
+  --text:#151515;
   --link:var(--tg-theme-link-color,#2B88D8);
+  /* Valores literais do core.min.css: o texto do claro é #151515, não preto puro,
+     então derivar dele não daria o #000 e o rgba(0,0,0,.6) do Telegraph. */
+  --telegraph-rule:#000;
+  --telegraph-aside:rgba(0,0,0,.6);
+  /* core.min.css: .tl_article_content e .tl_article_header rgba(0,0,0,.8); link com
+     a cor do texto e borda inferior de .1em rgba(0,0,0,.7); placeholder .44. */
+  --telegraph-text:rgba(0,0,0,.8);
+  --telegraph-link-rule:rgba(0,0,0,.7);
+  --telegraph-placeholder:rgba(0,0,0,.44);
   --glass:rgba(255,255,255,.5);
   --glass-panel:rgba(255,255,255,.52);
+  --glass-notice:rgba(242,243,247,.9);
   --glass-strong:rgba(255,255,255,.42);
   --glass-press:rgba(28,28,30,.08);
   --rim:rgba(255,255,255,.18);
   --glass-field:rgba(255,255,255,.5);
   --glass-field-soft:rgba(255,255,255,.34);
-  --library-backdrop:rgba(22,39,45,.24);
-  --library-shadow:rgba(25,55,65,.18);
-  --menu-shadow:rgba(30,20,90,.16);
-  --menu-shadow-tight:rgba(30,20,90,.08);
 }
-@media (min-resolution:2dppx){:root{--rim-w:.5px}}
+@media (min-resolution:2dppx),(-webkit-min-device-pixel-ratio:2){:root{--rim-w:.5px}}
 html{color-scheme:light dark;-webkit-text-size-adjust:100%;text-size-adjust:100%}
 html.light{color-scheme:light}
 html.dark{color-scheme:dark}
@@ -145,29 +152,41 @@ html[data-keyboard]{--bottom:0px}
 html{background:var(--edge)}
 body{
   padding:0;color:var(--text);background:var(--edge);overscroll-behavior:none;touch-action:pan-x pan-y;
-  accent-color:var(--accent);caret-color:var(--link);
+  accent-color:var(--link);caret-color:var(--link);
   font:16px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif
 }
 .bg{
   position:fixed;top:var(--vv-top);left:0;width:100%;height:var(--vv-height);z-index:0;pointer-events:none;
   background:linear-gradient(var(--bg-shade),var(--bg-shade)),var(--bg-art) center/100% 100% no-repeat,var(--edge)
 }
-.device-gate{
-  display:none;position:fixed;
-  top:calc(var(--vv-top) + var(--safe-top) + 8px);left:50%;z-index:35;
-  width:min(360px,calc(100vw - 24px));transform:translateX(-50%);
-  padding:0;text-align:center;color:var(--text);pointer-events:none
+/* Avisos efêmeros (aviso de retrato e toast): centrados na área livre entre a barra
+   de cima e a de baixo da área visível (com o teclado aberto, acima dele), nunca
+   sobre as barras nem sobre +, ☰ e desfazer. */
+.device-gate,.toast{
+  position:fixed;left:0;right:0;
+  top:calc(var(--vv-top) + var(--safe-top) + var(--gap) + var(--topbar-h) + var(--gap));
+  bottom:calc(var(--vv-bottom) + var(--foot-inset));
+  display:none;align-items:center;justify-content:center;padding:0 12px;pointer-events:none
 }
-.device-gate-card{
-  width:100%;padding:10px 14px;border:0;border-radius:22px;
-  background:var(--glass-panel);-webkit-backdrop-filter:var(--blur-panel);backdrop-filter:var(--blur-panel);
+.device-gate{z-index:35;text-align:center;color:var(--text);-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+/* O vidro do aviso recebe o toque (que só o fecha); o resto da faixa deixa passar. */
+.device-gate-card,.toast-material{pointer-events:auto}
+.device-gate-card{width:min(360px,100%);padding:10px 14px;border:0;border-radius:22px}
+/* Os dois avisos ficam sobre o texto do documento: tinta densa (--glass-notice) e o
+   fosco de painel de leitura (--blur-panel: PANEL, 22px, saturate 1.4), com o mesmo
+   aro hairline e sem brilho de topo. */
+.device-gate-card,.toast-material{
+  background:var(--glass-notice);-webkit-backdrop-filter:var(--blur-panel);backdrop-filter:var(--blur-panel);
   box-shadow:var(--glass-edge),var(--float)
 }
 .device-gate strong{display:block;font-size:14px;line-height:1.25;letter-spacing:-.01em}
-.device-gate p{margin:4px 0 0;color:var(--dim);font-size:12px;line-height:1.35}
-html[data-device-gate] .device-gate{display:block;animation:device-gate-out .22s ease 4s forwards}
+.device-gate p{margin:4px 0 0;color:var(--muted);font-size:12px;line-height:1.35}
+/* A saída anima o próprio cartão: uma animação de opacidade num ancestral faz dele a
+   raiz do backdrop no Chromium, e o fosco do cartão deixa de ver o texto de trás. */
+html[data-device-gate] .device-gate{display:flex}
+html[data-device-gate] .device-gate-card{animation:device-gate-out .22s ease 4s forwards}
 @keyframes device-gate-out{to{opacity:0;visibility:hidden}}
-::selection{background:color-mix(in srgb,var(--accent) 38%, transparent);color:inherit}
+::selection{background:color-mix(in srgb,var(--link) 38%,transparent);color:inherit}
 button,input{font:inherit;color:inherit}
 button{cursor:pointer;-webkit-tap-highlight-color:transparent}
 /* Sem anel azul de foco nem realce de toque em lugar nenhum. */
@@ -182,6 +201,21 @@ button{cursor:pointer;-webkit-tap-highlight-color:transparent}
 .editor h4{font-size:18px;margin:.85em 0 .3em}
 .editor h5{font-size:14px;letter-spacing:.02em;margin:.85em 0 .3em}
 .editor h6{font-size:12px;letter-spacing:.03em;color:var(--muted);margin:.85em 0 .3em}
+/* Telegram (referência: app Telegram iOS, editor de mensagem rica, print do Pi,
+   2026-10-03, 3x): títulos com serifa (a do sistema, New York no iPhone), em
+   seminegrito (haste do H1 medida em 9px, 0,136 em: mais fina que o negrito), do
+   H1 ao H6 em 22, 20, 18, 17, 16 e 15pt (altura das maiúsculas medida: 47, 43, 38,
+   36, 34 e 32px, o H6 do tamanho do texto da citação), entrelinha 1,2 e 8pt entre
+   títulos, todos na cor do texto. O Telegraph segue o core.min.css (abaixo). */
+html:not([data-dest="telegraph"]) .editor :is(h1,h2,h3,h4,h5,h6){
+  font-family:ui-serif,"New York",Georgia,"Times New Roman",serif;font-weight:600;letter-spacing:0;line-height:1.2;color:inherit;margin:8px 0
+}
+html:not([data-dest="telegraph"]) .editor h1{font-size:22px}
+html:not([data-dest="telegraph"]) .editor h2{font-size:20px}
+html:not([data-dest="telegraph"]) .editor h3{font-size:18px}
+html:not([data-dest="telegraph"]) .editor h4{font-size:17px}
+html:not([data-dest="telegraph"]) .editor h5{font-size:16px}
+html:not([data-dest="telegraph"]) .editor h6{font-size:15px}
 .editor .tg-footer,.editor footer{display:block;font-size:12px;color:var(--muted);margin:1.6em 0 .4em;padding-top:.7em;border-top:1px solid var(--line);font-weight:400}
 .menu-list button.is-current{background:var(--active-bg);font-weight:650}
 .heading-list .h-opt.h1{font-size:20px;font-weight:750;letter-spacing:-.03em}
@@ -194,7 +228,7 @@ button{cursor:pointer;-webkit-tap-highlight-color:transparent}
 .heading-list button.is-current{font-weight:650}
 /* Aro hairline por fora da borda (lê contra a página nos dois temas), brilho
    sem brilho de topo, e a sombra flutuante suave do site. */
-.seg,.bar,.toast-material{
+.seg,.bar{
   background:var(--glass);-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);
   box-shadow:var(--glass-edge),var(--float)
 }
@@ -207,19 +241,38 @@ button{cursor:pointer;-webkit-tap-highlight-color:transparent}
 .seg button:active,.bar > button:active,.theme-switch:active{transform:scale(.975)}
 @media (hover:hover){.seg button:hover,.bar > button:hover,.theme-switch:hover{filter:brightness(1.08)}}
 .seg,.bar{color:var(--text);border-radius:999px}
+/* Degradês de borda: o conteúdo rola por baixo das barras de vidro e só na borda
+   da tela se funde à cor sólida do cromo do navegador (--edge). A faixa sólida
+   (--fade-solid) é a da main: a área segura mais o --gap acima/abaixo da barra, então
+   nada do texto aparece colado à borda da tela. Depois dela a rampa cai em curva
+   (alfa = (1-t)², onze paradas), mais translúcida que a da main sob o vidro das
+   barras. As mesmas paradas desenham o fundo da lente em src/chrome.jsx. */
 .fade-top,.fade-bot{
   position:fixed;left:0;right:0;z-index:20;pointer-events:none;
   transform:translateZ(0);backface-visibility:hidden;contain:paint;
-  background-repeat:no-repeat
+  background-repeat:no-repeat;
+  --fade-ramp:var(--edge) 0,var(--edge) var(--fade-solid),
+    color-mix(in srgb,var(--edge) 81%,transparent) calc(var(--fade-solid) + (100% - var(--fade-solid))*0.1),
+    color-mix(in srgb,var(--edge) 64%,transparent) calc(var(--fade-solid) + (100% - var(--fade-solid))*0.2),
+    color-mix(in srgb,var(--edge) 49%,transparent) calc(var(--fade-solid) + (100% - var(--fade-solid))*0.3),
+    color-mix(in srgb,var(--edge) 36%,transparent) calc(var(--fade-solid) + (100% - var(--fade-solid))*0.4),
+    color-mix(in srgb,var(--edge) 25%,transparent) calc(var(--fade-solid) + (100% - var(--fade-solid))*0.5),
+    color-mix(in srgb,var(--edge) 16%,transparent) calc(var(--fade-solid) + (100% - var(--fade-solid))*0.6),
+    color-mix(in srgb,var(--edge) 9%,transparent) calc(var(--fade-solid) + (100% - var(--fade-solid))*0.7),
+    color-mix(in srgb,var(--edge) 4%,transparent) calc(var(--fade-solid) + (100% - var(--fade-solid))*0.8),
+    color-mix(in srgb,var(--edge) 1%,transparent) calc(var(--fade-solid) + (100% - var(--fade-solid))*0.9),
+    transparent 100%
 }
 .fade-top{
   top:var(--vv-top);height:calc(var(--head-inset) + 50px);
-  background:linear-gradient(180deg,var(--edge) 0,var(--edge) calc(var(--safe-top) + var(--gap)),color-mix(in srgb,var(--edge) 60%,transparent) 52%,color-mix(in srgb,var(--edge) 26%,transparent) 76%,transparent 100%)
+  --fade-solid:calc(var(--safe-top) + var(--gap));
+  background-image:linear-gradient(180deg,var(--fade-ramp))
 }
 .fade-bot{
   top:auto;bottom:calc(var(--vv-bottom) + var(--safe-bottom) - var(--safe-bottom-max));
   height:calc(var(--foot-inset) + 50px + var(--safe-bottom-max));
-  background:linear-gradient(0deg,var(--edge) 0,var(--edge) calc(var(--safe-bottom-max) + var(--gap)),color-mix(in srgb,var(--edge) 60%,transparent) 52%,color-mix(in srgb,var(--edge) 26%,transparent) 76%,transparent 100%)
+  --fade-solid:calc(var(--safe-bottom-max) + var(--gap));
+  background-image:linear-gradient(0deg,var(--fade-ramp))
 }
 .app{display:contents}
 .topbar{
@@ -257,7 +310,6 @@ button{cursor:pointer;-webkit-tap-highlight-color:transparent}
   background:transparent;display:grid;place-items:center;padding:0
 }
 .seg button:active,.bar > button:active{background:var(--glass-press)}
-.seg button.active{background:var(--active-bg);box-shadow:var(--prominent-shadow)}
 .seg #destBtn{position:relative}
 .seg #destBtn .ui-icon{width:28px;height:28px}
 .seg button.is-flash{position:relative}
@@ -266,12 +318,14 @@ button{cursor:pointer;-webkit-tap-highlight-color:transparent}
   background:var(--glass-strong);box-shadow:var(--glass-edge);z-index:0;animation:flash-out 1.4s ease forwards
 }
 .seg button.is-flash > *{position:relative;z-index:1}
-@keyframes flash-out{0%,35%{opacity:1}100%{opacity:0}}
+/* O lampejo some pela cor, não pela opacidade: no WebKit, opacidade animada põe o
+   ::before numa camada própria cujo recorte cortava o círculo (e o ponto do desfazer). */
+@keyframes flash-out{0%,35%{background-color:var(--glass-strong);box-shadow:var(--glass-edge)}100%{background-color:transparent;box-shadow:0 0 0 var(--rim-w) transparent}}
 .bar > button{position:relative}
 .bar > button.on{background:transparent}
 .bar > button.on::before{
   content:"";position:absolute;inset:0;border-radius:50%;
-  background:var(--active-bg);box-shadow:var(--glass-edge),var(--prominent-shadow);z-index:0
+  background:var(--toggle-on);z-index:0
 }
 .bar > button > *{position:relative;z-index:1}
 .canvas{
@@ -290,6 +344,7 @@ button{cursor:pointer;-webkit-tap-highlight-color:transparent}
 .telegraph-title{width:100%;margin:0 0 12px;padding:0}
 .telegraph-title[hidden]{display:none}
 .telegraph-title .document-tools{display:block;padding:0}
+.telegraph-title .document-tools::before{content:none}
 .telegraph-title .document-tools input{
   width:100%;height:auto;margin:0;padding:0;border:0;border-radius:0;background:transparent;color:var(--text);outline:0;
   font:700 clamp(30px,8.5vw,40px)/1.12 Georgia,"Times New Roman",serif;
@@ -299,40 +354,96 @@ button{cursor:pointer;-webkit-tap-highlight-color:transparent}
 .editor:empty::before{content:attr(data-placeholder);color:var(--muted);pointer-events:none}
 .editor{
   outline:none;min-height:100%;caret-color:var(--link);font-size:16px;
-  font-family:Georgia,"Times New Roman",serif;
+  /* Telegram: texto e citações na fonte do sistema (sem serifa), como o app. */
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,"Segoe UI",Roboto,sans-serif;
   -webkit-user-select:text;user-select:text
 }
 .editor p{margin:.7em 0}
 .editor strong,.editor b{font-weight:700}
 .editor em,.editor i{font-style:italic}
 .editor u,.editor ins{text-decoration:underline;text-underline-offset:.12em}
+/* Citações canônicas por plataforma: o editor é a prévia do destino (html[data-dest]).
+   Telegram (padrão): Bot API 10.3, mensagem rica. <blockquote> é RichBlockBlockQuotation
+   (com expandable, RichBlockExpandableBlockQuotation) e <aside> é RichBlockPullQuotation,
+   "citação com texto centrado"; as três têm um crédito opcional (credit), o <cite> no fim
+   da citação. Desenho medido no app (referência: app Telegram iOS, print do Pi,
+   2026-10-03, 3x): texto de 15pt na fonte do sistema; citação com barra de 3px na cor de
+   link, fundo de 10% dela, cantos de 8pt, texto a 9pt da borda esquerda e 4pt em cima e
+   embaixo, entrelinha 1,25, sem itálico; destaque numa caixa centrada que abraça o texto,
+   itálico, 30pt dos lados, 5pt em cima e embaixo, entrelinha 1,42, cantos de 8pt, com as
+   aspas “ (no alto à esquerda) e ” (embaixo à direita do texto) em 12×9pt na cor de
+   link, a 6pt da borda (a de baixo a 4pt, acima do crédito quando há). O crédito fica numa linha própria, no mesmo tamanho, em
+   semi-negrito e na cor secundária (itálico no destaque). */
 .editor blockquote,.editor aside{box-sizing:border-box;min-height:1.55em}
-.editor blockquote{margin:1em 0;padding:.18em 0 .18em 12px;border-left:3px solid var(--link)}
-.editor blockquote[expandable]{position:relative;padding:.72em 34px .72em 12px;border-radius:0 12px 12px 0;background:color-mix(in srgb,var(--link) 8%,transparent)}
+.editor blockquote{
+  margin:1em 0;padding:4px 16px 4px 6px;border-left:3px solid var(--link);border-radius:8px;
+  background:color-mix(in srgb,var(--link) 10%,transparent);font-size:15px;line-height:1.25;font-style:normal
+}
+.editor blockquote[expandable]{position:relative;padding-right:34px}
 .editor blockquote[expandable]::after{content:"";position:absolute;right:13px;bottom:13px;width:7px;height:7px;border-right:2px solid color-mix(in srgb,var(--link) 75%,var(--text));border-bottom:2px solid color-mix(in srgb,var(--link) 75%,var(--text));transform:rotate(45deg);pointer-events:none}
-.editor aside{margin:1.15em 6%;padding:.8em 1em;border-top:1px solid color-mix(in srgb,var(--accent) 48%,var(--line));border-bottom:1px solid color-mix(in srgb,var(--accent) 48%,var(--line));text-align:center;font-size:1.12em;font-weight:650;line-height:1.45}
+.editor aside{
+  position:relative;display:block;width:fit-content;max-width:100%;margin:1em auto;padding:5px 30px;border-radius:8px;
+  background:color-mix(in srgb,var(--link) 10%,transparent);font-size:15px;line-height:1.42;font-style:italic;font-weight:400;text-align:center
+}
+/* As aspas do destaque: desenho próprio (máscara), igual em qualquer fonte. */
+.editor aside::before,.editor aside::after{
+  content:"";position:absolute;width:12px;height:9px;background:var(--link);pointer-events:none;
+  -webkit-mask:var(--pull-quote-mark) center/contain no-repeat;mask:var(--pull-quote-mark) center/contain no-repeat
+}
+.editor aside{--pull-quote-mark:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 9'%3E%3Cpath d='M2.6 9A2.6 2.6 0 0 1 0 6.3C0 3.4 1.7 1.2 4.5 0l.5 1C3.6 1.8 2.8 2.8 2.7 3.8A2.6 2.6 0 0 1 2.6 9Zm7 0A2.6 2.6 0 0 1 7 6.3C7 3.4 8.7 1.2 11.5 0l.5 1c-1.4.8-2.2 1.8-2.3 2.8A2.6 2.6 0 0 1 9.6 9Z'/%3E%3C/svg%3E")}
+.editor aside::before{left:6px;top:6px}
+.editor aside::after{right:6px;bottom:var(--pull-close-bottom,4px);transform:rotate(180deg)}
+.editor aside:has(> cite:last-child){--pull-close-bottom:calc(4px + 1.42em)}
+html:not([data-dest="telegraph"]) .editor :is(blockquote,aside) > cite:last-child{display:block;font-style:normal;font-weight:600;color:var(--muted)}
+html:not([data-dest="telegraph"]) .editor aside > cite:last-child{font-style:italic}
+/* Telegraph: sem <cite>; na publicação o nome do autor vira texto comum numa linha
+   própria da citação (telegraphNodes), e a prévia mostra o mesmo. */
+html[data-dest="telegraph"] .editor :is(blockquote,aside) > cite{display:block;font:inherit;color:inherit}
+/* Telegraph (telegra.ph/css/core.min.css › .tl_article_content): texto do artigo 18px com
+   entrelinha 1.58; blockquote com serifa, itálico, margem 18px 21px 16px 0, recuo de 15px
+   e barra de 3px (#000 no claro, a cor do texto no escuro); aside com serifa, 21px,
+   itálico, rgba(0,0,0,.6) no claro (o texto a 60% no escuro), centrado, margem
+   18px 21px 16px e recuo 0 18px, sem linhas nem fundo. O Telegraph não tem citação
+   expansível: ela aparece como citação comum. CustomSerif é a fonte própria do
+   telegra.ph; aqui vale o resto da pilha (Georgia, Cambria, Times New Roman). */
+html[data-dest="telegraph"] .editor{font-family:Georgia,Cambria,"Times New Roman",serif;font-size:18px;line-height:1.58;color:var(--telegraph-text)}
+html[data-dest="telegraph"] .editor:empty::before{color:var(--telegraph-placeholder)}
+html[data-dest="telegraph"] .telegraph-title .document-tools input{color:var(--telegraph-text)}
+html[data-dest="telegraph"] .telegraph-title .document-tools input::placeholder{color:var(--telegraph-placeholder)}
+html[data-dest="telegraph"] .editor blockquote{
+  position:relative;margin:18px 21px 16px 0;padding:0 0 0 15px;border-left:3px solid var(--telegraph-rule);border-radius:0;background:none;
+  font-family:Georgia,Cambria,"Times New Roman",serif;font-size:inherit;line-height:inherit;font-style:italic
+}
+html[data-dest="telegraph"] .editor blockquote[expandable]::after,html[data-dest="telegraph"] .editor aside::before,html[data-dest="telegraph"] .editor aside::after{content:none}
+html[data-dest="telegraph"] .editor aside{
+  width:auto;max-width:none;margin:18px 21px 16px;padding:0 18px;border-radius:0;background:none;
+  font-family:Georgia,Cambria,"Times New Roman",serif;font-size:21px;line-height:1.58;font-style:italic;font-weight:400;color:var(--telegraph-aside);text-align:center
+}
 .editor ul{padding-left:1.2em}
 .editor li:has(> input[type="checkbox"]){min-height:1.5em}
 .editor table{width:100%;border-collapse:collapse;font-size:14px}
 .editor th,.editor td{height:1.8em;min-width:3em;border:1px solid var(--line);padding:6px}
-.editor details{margin:1em 0;padding:.6em .75em;border:1px solid var(--line);border-radius:12px;background:color-mix(in srgb,var(--accent) 5%,transparent)}
+.editor details{margin:1em 0;padding:.6em .75em;border:1px solid var(--line);border-radius:12px;background:var(--neutral-1)}
 .editor summary{min-height:1.45em;font-weight:650;cursor:text}
 .editor details>p{min-height:1.45em}
 .editor a{color:var(--link)}
+/* Telegraph (core.min.css › .tl_article a[href]): o link tem a cor do texto, sem
+   sublinhado, com uma borda inferior de .1em. */
+html[data-dest="telegraph"] .editor a{color:inherit;text-decoration:none;border-bottom:.1em solid var(--telegraph-link-rule)}
 .editor img,.editor video,.editor iframe{max-width:100%;height:auto}
 .editor figure{margin:1em 0;padding:8px;border:1px solid var(--line);border-radius:18px;background:var(--neutral-1);overflow:hidden}
 .editor figure>img,.editor figure>video,.editor figure>iframe{display:block;width:100%;border-radius:12px;background:var(--neutral-2)}
 .editor figure>audio{display:block;width:100%;min-height:40px}
 .editor figcaption{font-size:13px;line-height:1.35;color:var(--muted);padding:8px 4px 2px}
-.editor tg-math{display:inline-block;max-width:100%;margin:0 .08em;padding:.12em .38em;border-radius:7px;background:color-mix(in srgb,var(--accent) 12%,transparent);font:500 .94em/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere}
-.editor tg-math-block{display:block;margin:1em 0;padding:12px 14px;border:1px solid color-mix(in srgb,var(--accent) 25%,transparent);border-radius:14px;background:color-mix(in srgb,var(--accent) 8%,transparent);font:500 14px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere;overflow-x:auto}
+.editor tg-math{display:inline-block;max-width:100%;margin:0 .08em;padding:.12em .38em;border-radius:7px;background:var(--neutral-2);font:500 .94em/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere}
+.editor tg-math-block{display:block;margin:1em 0;padding:12px 14px;border:1px solid var(--line);border-radius:14px;background:var(--neutral-1);font:500 14px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere;overflow-x:auto}
 .editor tg-button-row{display:flex;justify-content:center;gap:8px;margin:1em 0}
-.editor tg-button{display:inline-block;border-radius:12px;padding:8px 14px;background:var(--accent);color:#fff}
+.editor tg-button{display:inline-block;border-radius:12px;padding:8px 14px;background:var(--link);color:#fff}
 .editor tg-document,.editor tg-map{display:block;margin:1em 0;padding:12px;border-radius:12px;background:var(--neutral-2)}
 .editor tg-document{min-height:48px;border:1px solid var(--line)}
 .editor tg-document::before{content:"Documento";font-weight:600}
 .editor tg-map::before{content:"Mapa"}
-.editor [data-media-missing]{display:block;min-height:96px;border:1px dashed color-mix(in srgb,var(--accent) 45%,transparent);border-radius:12px;background:color-mix(in srgb,var(--accent) 7%,transparent)}
+.editor [data-media-missing]{display:block;min-height:96px;border:1px dashed var(--line);border-radius:12px;background:var(--neutral-1)}
 .editor [data-media-missing]::after{content:"Anexo salvo indisponível";display:grid;place-items:center;min-height:96px;color:var(--muted);font-size:13px}
 .editor tg-collage,.editor tg-slideshow{display:flex;flex-wrap:wrap;gap:8px;margin:1em 0}
 .editor tg-spoiler{background:var(--neutral-4);border-radius:4px}
@@ -437,14 +548,12 @@ html .seg #undoBtn:active .action-dot{
 .menu-list > button:hover .menu-chevron,.menu-list > button:focus-visible .menu-chevron{opacity:1}
 .plus-submenu .submenu-back{font-weight:650}
 .glass-menu .heading-list .h-opt{font-size:13px;font-weight:500;letter-spacing:0;text-transform:none}
-.toast{
-  position:fixed;left:50%;bottom:calc(var(--vv-bottom) + var(--foot-inset) + 8px);
-  transform:translateX(-50%);z-index:50;display:none;min-width:80px;max-width:min(86vw,420px);
-  padding:0;border-radius:999px;font-size:12px;line-height:1.25;color:var(--text);pointer-events:none
-}
-.toast.on{display:block}
+.toast{z-index:50;font-size:12px;line-height:1.25;color:var(--text)}
+.toast.on{display:flex}
+/* 22px (o do cartão do aviso de retrato): numa linha o raio se limita à metade da
+   altura e vira cápsula; em várias linhas os cantos não cortam o texto. */
 .toast-material{
-  border-radius:999px;overflow:hidden
+  border-radius:22px;overflow:hidden;min-width:80px;max-width:min(86vw,420px)
 }
 .toast-content{
   position:relative;z-index:1;display:block;padding:8px 13px;
@@ -538,9 +647,6 @@ html .seg #undoBtn:active .action-dot{
 #findMenu .tools:last-child{flex-wrap:wrap}
 #findMenu .tools button{flex:1 1 auto;white-space:nowrap}
 @media (prefers-reduced-motion:reduce){.glass-menu{animation:none}}
-@media (orientation:landscape),(min-width:760px){
-  html[data-device-gate] .device-gate{display:block}
-}
 /* Toque na interface não seleciona texto nem abre o menu de contexto do iOS: a
    seleção sai do editor e o teclado fecharia. Campos de texto continuam selecionáveis. */
 #ux-root{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}

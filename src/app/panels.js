@@ -12,6 +12,68 @@ export function showToast(msg){
   ui.setToast({text:String(msg),visible:true});
   clearTimeout(showToast.t); showToast.t = setTimeout(()=>ui.setToast({visible:false}), 1600);
 }
+// Avisos efêmeros (toast e aviso de retrato): somem sozinhos e também com um toque
+// em qualquer ponto da tela, sem tirar o foco do campo de texto (o teclado continua
+// aberto). O aviso só some quando o toque TERMINA (pointerup ou click), nunca no
+// começo: sumir no pointerdown mexia na tela no meio do gesto, e um botão de diálogo
+// tocado nesse instante às vezes não disparava. Um toque fora do aviso segue
+// normalmente para o que foi tocado (o + abre, o ☰ abre) e fecha o aviso no click.
+// Um toque que começa dentro de um diálogo ou menu aberto não fecha nem mexe em
+// nada. Um toque no próprio aviso só o fecha e não chega ao texto embaixo dele: o
+// padrão de holdDismissPress, com o mousedown cancelado (é ele que impediria o blur)
+// e o pointerdown de um toque não, porque cancelá-lo faz o WebKit suprimir esse
+// mousedown; o click que vem depois também é engolido.
+const NOTICE_SURFACES='#toast .toast-material,#deviceGate .device-gate-card';
+export function deviceNoticeVisible(){
+  const gate=document.getElementById('deviceGate');
+  if(!gate||!document.documentElement.hasAttribute('data-device-gate'))return false;
+  const card=gate.querySelector('.device-gate-card');
+  return getComputedStyle(gate).display!=='none'&&(!card||getComputedStyle(card).visibility!=='hidden');
+}
+export function noticeVisible(){
+  return ui.getState().toast.visible||deviceNoticeVisible();
+}
+export function dismissNotices(){
+  clearTimeout(showToast.t);
+  if(ui.getState().toast.visible)ui.setToast({visible:false});
+  document.documentElement.removeAttribute('data-device-gate');
+}
+const NOTICE_PRESS_MS=1500;
+// Gesto em curso enquanto havia aviso: onNotice = começou no vidro do aviso (só o
+// fecha); senão começou fora (fecha no click e o click segue).
+let noticePress=null;
+function noticePressActive(){return Boolean(noticePress)&&performance.now()-noticePress.at<NOTICE_PRESS_MS;}
+function startsInOpenLayer(target){
+  const layer=target?.closest?.('.glass-menu');
+  if(!layer)return false;
+  if(layer.hasAttribute('data-menu-open'))return true;
+  try{return panelIsOpen(layer);}catch{return false;}
+}
+export function noticeDismissPress(event){
+  const type=event.type;
+  if(type==='pointercancel'){noticePress=null;return;}
+  // pointerdown inicia o gesto; mousedown sem pointerdown antes (navegadores sem
+  // Pointer Events) também.
+  if(type==='pointerdown'||(type==='mousedown'&&!noticePressActive())){
+    noticePress=null;
+    if(!noticeVisible()||startsInOpenLayer(event.target))return;
+    noticePress={at:performance.now(),onNotice:Boolean(event.target?.closest?.(NOTICE_SURFACES))};
+  }
+  if(!noticePressActive()){noticePress=null;return;}
+  const {onNotice}=noticePress;
+  if(type==='click'){
+    noticePress=null;
+    dismissNotices();
+    if(onNotice){event.preventDefault();event.stopPropagation();}
+    return;
+  }
+  if(!onNotice)return;
+  // No próprio aviso: nada chega embaixo dele. Some ao soltar (pointerup); o
+  // mousedown/click de compatibilidade que vêm depois continuam engolidos.
+  if(type==='pointerup'){dismissNotices();event.stopPropagation();return;}
+  if(type==='mousedown'||!touchPress(event))event.preventDefault();
+  event.stopPropagation();
+}
 export function panelIsOpen(panel){
   if(!panel)return false;
   if(panel.id==='dialogMenu')return ui.getState().dialog.open;
@@ -37,41 +99,47 @@ export function closeTopLayer(){
 }
 export function clamp(value,min,max){return Math.max(min,Math.min(max,value));}
 // position:fixed e getBoundingClientRect nem sempre têm a mesma origem. Com o
-// teclado aberto o visualViewport pode estar deslocado: o retângulo do botão é
-// relativo à área visível e o `top` do menu é relativo ao viewport de layout.
-// Sem corrigir isso o menu abre longe do botão. Uma sonda em top:0 distingue
-// esse caso de um fixed já preso à área visível (o deslocamento não entra) e
-// do ambiente sem layout, que não mede a sonda.
+// teclado aberto o visualViewport pode estar deslocado: o retângulo do botão pode
+// ser relativo à área visível e o `top` do menu ao viewport de layout. Sem
+// corrigir isso o menu abre longe do botão. Uma sonda fixa de top:0 a bottom:0
+// mede as duas coisas: o topo dá a diferença entre as origens e a altura diz se o
+// fixed já acompanha a área visível (altura = área visível) ou o viewport de
+// layout (então a área visível começa em offsetTop). No ambiente sem layout a
+// sonda não mede nada.
 function probeFixedOrigin(){
   const probe=document.createElement('div');
   probe.setAttribute('data-fixed-probe','');
-  probe.style.cssText='position:fixed;top:0;left:0;width:4px;height:4px;margin:0;padding:0;border:0;pointer-events:none;visibility:hidden';
+  probe.style.cssText='position:fixed;top:0;bottom:0;left:0;width:4px;margin:0;padding:0;border:0;pointer-events:none;visibility:hidden';
   document.documentElement.appendChild(probe);
   const box=probe.getBoundingClientRect();
   probe.remove();
   return box;
 }
+// Lido na hora (sem cache): ao abrir o menu e a cada resize/scroll do
+// visualViewport com o menu aberto (main.js › scheduleBrowserViewport, em rAF).
+// No Mini App vale o mesmo deslocamento (offsetTop) do navegador: o iPhone também
+// rola a área visível para mostrar o cursor com o teclado aberto. Antes o topo
+// ficava preso em 0 e a altura era só a estável, e o menu podia abrir acima da
+// área visível. A altura é a menor entre a estável do Telegram e a área visível.
 export function fixedFrame(){
   const root=document.documentElement,viewport=window.visualViewport;
   const telegramStable=S.session==='ready'?Number(getTg()?.viewportStableHeight):NaN;
-  if(Number.isFinite(telegramStable)&&telegramStable>0){
-    const width=root.clientWidth||window.innerWidth;
-    return {shiftX:0,shiftY:0,visualFixed:false,bounds:{left:0,top:0,width,height:telegramStable,right:width,bottom:telegramStable}};
-  }
+  const stable=Number.isFinite(telegramStable)&&telegramStable>0?telegramStable:0;
   const ox=Math.max(0,viewport&&Number.isFinite(viewport.offsetLeft)?viewport.offsetLeft:0);
   const oy=Math.max(0,viewport&&Number.isFinite(viewport.offsetTop)?viewport.offsetTop:0);
   const width=viewport&&Number.isFinite(viewport.width)&&viewport.width>0?viewport.width:(root.clientWidth||window.innerWidth);
-  const height=viewport&&Number.isFinite(viewport.height)&&viewport.height>0?viewport.height:(root.clientHeight||window.innerHeight);
+  const visible=viewport&&Number.isFinite(viewport.height)&&viewport.height>0?viewport.height:0;
+  const layout=root.clientHeight||window.innerHeight||0;
+  let height=stable?(visible?Math.min(stable,visible):stable):(visible||layout);
   let shiftX=0,shiftY=0,originLeft=ox,originTop=oy,visualFixed=false;
-  const keyboardLikely=ox>0.5||oy>0.5||Math.abs((root.clientHeight||0)-height)>=1;
+  const keyboardLikely=ox>0.5||oy>0.5||(visible>0&&Math.abs((stable||layout)-visible)>=1);
   if(keyboardLikely){
     const box=probeFixedOrigin();
-    if(box.width>=1&&Math.abs(box.top+oy)<=2&&Math.abs(box.left+ox)<=2){
-      shiftX=ox;shiftY=oy;
-    }else if(box.width>=1&&Math.abs(box.top)<=2&&Math.abs(box.left)<=2){
-      visualFixed=true;originLeft=0;originTop=0;
-    }else if(box.width>=1){
-      shiftX=-box.left;shiftY=-box.top;originLeft=shiftX;originTop=shiftY;
+    if(box.width>=1){
+      shiftX=-box.left||0;shiftY=-box.top||0;
+      if(Math.abs(box.height-visible)<=2&&Math.abs(box.height-layout)>2){
+        visualFixed=true;originLeft=0;originTop=0;height=Math.min(height,box.height);
+      }
     }
   }
   return {shiftX,shiftY,visualFixed,bounds:{left:originLeft,top:originTop,width,height,right:originLeft+width,bottom:originTop+height}};

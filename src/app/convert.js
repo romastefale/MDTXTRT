@@ -81,6 +81,14 @@ export function telegraphURL(value){
   if(!['http:','https:'].includes(url.protocol))throw new Error('O Telegraph exige links HTTP ou HTTPS');
   return url.href;
 }
+function telegraphCredit(el, standalone, conv){
+  const children=Array.from(el.childNodes).map(conv).flat().filter(v => v !== null && v !== '');
+  if(!children.length) return null;
+  if(standalone) return {tag:'p', children};
+  let prev=el.previousSibling;
+  while(prev && prev.nodeType !== 1 && !(prev.nodeType === 3 && prev.textContent.trim())) prev=prev.previousSibling;
+  return prev && prev.nodeName.toLowerCase() !== 'br' ? [{tag:'br'}, ...children] : children;
+}
 export function telegraphNodes(root){
   const allow = new Set(['a','aside','b','blockquote','br','code','em','figcaption','figure','h3','h4','hr','i','iframe','img','li','ol','p','pre','s','strong','u','ul','video']);
   const conv = (el, standalone=false) => {
@@ -89,6 +97,9 @@ export function telegraphNodes(root){
     let tag = el.tagName.toLowerCase();
     if(el.hasAttribute('data-media-id')) throw new Error('O Telegraph precisa de uma URL pública para mídia');
     if(['div','article','section','span','thead','tbody','tfoot'].includes(tag)) return Array.from(el.childNodes).map(child=>conv(child,standalone)).flat().filter(Boolean);
+    // O Telegraph não tem <cite> (o crédito/credit da Bot API 10.3 no fim da citação ou
+    // da legenda): a tag sai, o nome do autor fica como texto, numa linha própria.
+    if(tag === 'cite') return telegraphCredit(el, standalone, child=>conv(child,false));
     if(!allow.has(tag)) throw new Error('O conteúdo contém um elemento que o Telegraph não aceita: ' + tag);
     const node = {tag};
     if(tag === 'a'){const href=el.getAttribute('href');if(!href)throw new Error('Âncoras do Telegram não podem ser publicadas no Telegraph');node.attrs={href:telegraphURL(href)};}

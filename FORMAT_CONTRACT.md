@@ -22,7 +22,7 @@ Markdown strike has one canonical file representation: `~~text~~`. The importer 
 | Destination | Supported contract | Unsupported content |
 | --- | --- | --- |
 | Telegram Rich Message | The rich-message HTML contract validated by `toRichHTML()` on the client and by the server Rich Message validator. Local media is uploaded separately and bound to its media placeholder. | Rejected before/at publication; no silent semantic downgrade. |
-| Telegraph | Telegraph's explicit tag/attribute subset validated by `telegraphNodes()` on the client and `telegraphValid()` on the server. | Rejected with an error; no silent conversion to a weaker representation. |
+| Telegraph | Telegraph's explicit tag/attribute subset validated by `telegraphNodes()` on the client and `telegraphValid()` on the server. | Rejected with an error; no silent conversion to a weaker representation. One explicit exception: a `<cite>` credit at the end of a quote or caption (Bot API 10.3 `credit`) has no Telegraph element, so the tag is unwrapped and the author's text stays inside the quote/caption on its own line (`<br>`); it is never dropped. |
 
 ## Editor-to-publication fidelity
 

@@ -563,6 +563,8 @@ test('pointer-based editor controls keep the active typing focus while navigatin
   };
   const w=page({fetch,visualViewport:{height:360}}),d=w.document,editor=d.querySelector('#editor');
   await wait(40);
+  // Este ambiente abre com o aviso de retrato; o primeiro toque só o fecharia.
+  d.documentElement.removeAttribute('data-device-gate');
   editor.focus();
 
   const press=element=>{
@@ -692,8 +694,8 @@ test('document name stays in export flow and becomes the Telegraph title',async(
   await wait(0);
   assert.equal(slot.hidden,false);
   assert.equal(tools.parentElement,slot);
-  assert.equal(tools.getAttribute('data-field-label'),'Título da página no Telegraph');
-  assert.equal(input.getAttribute('placeholder'),'Título da página no Telegraph');
+  assert.equal(tools.hasAttribute('data-field-label'),false);
+  assert.equal(input.getAttribute('placeholder'),'Título');
   assert.equal(input.getAttribute('aria-label'),'Título da página no Telegraph');
   input.value='Minha página';
   input.dispatchEvent(new w.Event('input',{bubbles:true}));
@@ -914,6 +916,20 @@ test('Telegram serializer preserves language class on code',()=>{
   e.innerHTML='<pre><code class="language-js">const x=1;</code></pre>';
   const html=w.eval('buildRich().rich_message.html');
   assert.match(html,/<code class="language-js">/);
+  w.close();
+});
+
+test('Telegraph keeps the quote and caption credit as plain text, never as <cite> and never dropped',()=>{
+  const w=page(),e=w.document.querySelector('#editor');
+  e.innerHTML='<blockquote>Citação<cite>Ana Souza</cite></blockquote><aside>Destaque<cite>Rui <b>Lima</b></cite></aside>'+
+    '<figure><img src="https://example.com/a.jpg"><figcaption>Legenda<cite>Foto: Bia</cite></figcaption></figure><blockquote><cite>Só o autor</cite></blockquote>';
+  const nodes=JSON.parse(w.eval('JSON.stringify(telegraphNodes(document.querySelector("#editor")))'));
+  const tags=n=>typeof n==='string'?[]:[n.tag,...(n.children||[]).flatMap(tags)];
+  assert.ok(!nodes.flatMap(tags).includes('cite'));
+  assert.deepEqual(nodes[0],{tag:'blockquote',children:['Citação',{tag:'br'},'Ana Souza']});
+  assert.deepEqual(nodes[1],{tag:'aside',children:['Destaque',{tag:'br'},'Rui ',{tag:'b',children:['Lima']}]});
+  assert.deepEqual(nodes[2].children[1],{tag:'figcaption',children:['Legenda',{tag:'br'},'Foto: Bia']});
+  assert.deepEqual(nodes[3],{tag:'blockquote',children:['Só o autor']});
   w.close();
 });
 
@@ -1947,6 +1963,43 @@ test('open menu stays on the trigger when the keyboard pans the visual viewport'
   w.close();
 });
 
+// A sonda do fixed (top:0 a bottom:0) mede a origem e a altura do bloco do
+// position:fixed. Os três casos com o teclado aberto e a área visível deslocada:
+function probeFrame(probe,clientHeight=844){
+  const w=page({visualViewport:{offsetLeft:0,offsetTop:120,width:390,height:504}});
+  Object.defineProperty(w.document.documentElement,'clientHeight',{configurable:true,get:()=>clientHeight});
+  const prev=w.HTMLElement.prototype.getBoundingClientRect;
+  w.HTMLElement.prototype.getBoundingClientRect=function(){
+    if(this.hasAttribute('data-fixed-probe'))return {left:0,right:4,width:4,...probe,bottom:probe.top+probe.height};
+    return prev.call(this);
+  };
+  const frame=w.eval('fixedFrame()');
+  w.close();
+  return frame;
+}
+test('fixed frame: fixed already following the visual area keeps the origin at 0 (no keyboard height added twice)',()=>{
+  // Sonda em 0 com a altura da área visível: o fixed acompanha a área visível
+  // (o caso do 86d2617). Nada de deslocamento e a altura é a da área visível.
+  const frame=probeFrame({top:0,height:504});
+  assert.equal(frame.visualFixed,true);
+  assert.deepEqual([frame.shiftX,frame.shiftY],[0,0]);
+  assert.deepEqual([frame.bounds.top,frame.bounds.height],[0,504]);
+});
+test('fixed frame: rect and fixed both relative to the layout viewport place the visible area at offsetTop',()=>{
+  // Sonda em 0 com a altura do viewport de layout: as duas origens coincidem e a
+  // área visível começa em offsetTop (antes isso era lido como fixed na área visível).
+  const frame=probeFrame({top:0,height:844});
+  assert.equal(frame.visualFixed,false);
+  assert.deepEqual([frame.shiftX,frame.shiftY],[0,0]);
+  assert.deepEqual([frame.bounds.top,frame.bounds.height],[120,504]);
+});
+test('fixed frame: rect relative to the visual area and fixed to the layout viewport shift by offsetTop',()=>{
+  const frame=probeFrame({top:-120,height:844});
+  assert.equal(frame.visualFixed,false);
+  assert.deepEqual([frame.shiftX,frame.shiftY],[0,120]);
+  assert.deepEqual([frame.bounds.top,frame.bounds.height],[120,504]);
+});
+
 
 test('special quote controls format the current content instead of inserting sample phrases',async()=>{
   const w=page(),d=w.document,e=d.querySelector('#editor');
@@ -2028,7 +2081,10 @@ test('React renders menu state described by app.js: anchors, dismiss layer, dest
   assert.equal(d.querySelector('#openAppLabel').textContent,'Abrir no Mini App');
   d.querySelector('#destBtn').click();
   assert.deepEqual([spoiler.hidden,embed.hidden,h1.hidden,h3.hidden,expand.hidden],[true,false,true,false,true]);
-  assert.equal(d.querySelector('#destBtn').getAttribute('aria-pressed'),'true');
+  // Seletor efêmero: mostra o destino, sem estado ligado/ativo persistente.
+  assert.equal(d.querySelector('#destBtn').getAttribute('data-dest'),'telegraph');
+  assert.equal(d.querySelector('#destBtn').hasAttribute('aria-pressed'),false);
+  assert.equal(d.querySelector('#destBtn').classList.contains('active'),false);
   assert.equal(d.querySelector('#openAppLabel').textContent,'Publicar no Telegraph');
   assert.equal(d.querySelector('#openAppBtn [data-icon]').getAttribute('data-icon'),'telegraph');
 
@@ -2056,6 +2112,96 @@ test('React renders menu state described by app.js: anchors, dismiss layer, dest
   assert.equal(d.querySelector('#dialogOk').textContent,'Continuar');
   d.querySelector('#dialogCancel').click();
   assert.equal(await confirmation,false);
+  w.close();
+});
+
+// Avisos efêmeros: um toque em qualquer ponto fecha o aviso sem tirar o foco do editor
+// (o teclado continua aberto). Fora do aviso, o toque segue para o controle tocado; no
+// próprio aviso, só o fecha e não chega ao que está embaixo.
+test('a tap anywhere dismisses the toast or the portrait notice and keeps the typing focus; a tap on the notice reaches nothing below',async()=>{
+  const w=page({visualViewport:{height:360}}),d=w.document,root=d.documentElement,editor=d.querySelector('#editor');
+  await wait(40);
+  editor.focus();
+  const exportBtn=d.querySelector('#exportBtn'),exportMenu=d.querySelector('#exportMenu');
+  const fire=(target,type,pointerType)=>{
+    const event=new w.Event(type,{bubbles:true,cancelable:true});
+    if(pointerType)Object.defineProperty(event,'pointerType',{value:pointerType});
+    target.dispatchEvent(event);
+    return event;
+  };
+  const noticeShown=()=>w.MDTXTRT_UI.getState().toast.visible||root.hasAttribute('data-device-gate');
+  // A ordem real dos eventos: mouse (pointerdown, mousedown, pointerup, mouseup) e
+  // dedo (pointerdown, pointerup e só então os de compatibilidade), depois o click.
+  // atPress = o aviso continuava na tela logo depois do pointerdown (ele só some
+  // quando o toque termina, então nada se mexe no meio do gesto).
+  const tap=(target,pointerType)=>{
+    const order=pointerType==='touch'?['pointerdown','pointerup','mousedown','mouseup']:['pointerdown','mousedown','pointerup','mouseup'];
+    const prevented={};let atPress=null;
+    for(const type of order){
+      prevented[type]=fire(target,type,type.startsWith('pointer')?pointerType:undefined).defaultPrevented;
+      if(type==='pointerdown')atPress=noticeShown();
+    }
+    let clicked=false;const seen=()=>{clicked=true;};
+    target.addEventListener('click',seen);target.click();target.removeEventListener('click',seen);
+    return {down:prevented.pointerdown,mouse:prevented.mousedown,clicked,atPress};
+  };
+  // Toque fora (no ☰), com mouse: os dois avisos fecham e o ☰ abre, foco no editor.
+  assert.equal(root.hasAttribute('data-device-gate'),true,'este ambiente abre com o aviso de retrato');
+  w.eval('showToast("Aviso de teste")');
+  let t=tap(exportBtn,'mouse');
+  assert.equal(t.atPress,true,'nada some no começo do toque');
+  assert.equal(w.MDTXTRT_UI.getState().toast.visible,false,'o toast fecha no toque');
+  assert.equal(root.hasAttribute('data-device-gate'),false,'o aviso de retrato fecha no mesmo toque');
+  assert.equal(t.clicked,true);
+  assert.equal(exportMenu.hasAttribute('data-menu-open'),true,'o toque fora segue para o ☰');
+  assert.equal(d.activeElement,editor,'o foco continua no editor');
+  exportBtn.click();
+  // Toque fora com o dedo (no +).
+  w.eval('showToast("Outro aviso")');
+  t=tap(d.querySelector('#plusBtn'),'touch');
+  assert.equal(w.MDTXTRT_UI.getState().toast.visible,false);
+  assert.equal(d.querySelector('#plusMenu').hasAttribute('data-menu-open'),true);
+  assert.equal(d.activeElement,editor);
+  d.querySelector('#plusBtn').click();
+  // Toque no próprio toast: fecha e não chega a nada (mouse: pointerdown e mousedown
+  // cancelados; dedo: só o mousedown, o pointerdown não pode ser cancelado no WebKit).
+  for(const pointerType of ['mouse','touch']){
+    w.eval('showToast("Aviso")');
+    const material=d.querySelector('#toast .toast-material');
+    let reached=false;const below=()=>{reached=true;};
+    d.body.addEventListener('click',below);
+    t=tap(material,pointerType);
+    d.body.removeEventListener('click',below);
+    assert.equal(t.atPress,true,'no próprio aviso também só some ao soltar ('+pointerType+')');
+    assert.equal(w.MDTXTRT_UI.getState().toast.visible,false,pointerType);
+    assert.deepEqual({down:t.down,mouse:t.mouse,reached},{down:pointerType==='mouse',mouse:true,reached:false},pointerType);
+    assert.equal(d.activeElement,editor,pointerType);
+  }
+  // Toque no cartão do aviso de retrato: fecha e não chega a nada.
+  root.setAttribute('data-device-gate','');
+  const card=d.querySelector('#deviceGate .device-gate-card');
+  t=tap(card,'touch');
+  assert.equal(root.hasAttribute('data-device-gate'),false);
+  assert.equal(t.mouse,true);
+  assert.equal(d.activeElement,editor);
+  // Toque que começa dentro de um diálogo aberto: o aviso não some nem mexe na tela,
+  // e o botão tocado dispara.
+  const confirmation=w.eval('approve("Apagar?")');
+  w.eval('showToast("Aviso por cima")');
+  root.setAttribute('data-device-gate','');
+  t=tap(d.querySelector('#dialogOk'),'touch');
+  assert.equal(t.clicked,true);
+  assert.equal(await confirmation,true,'o botão do diálogo dispara');
+  assert.equal(w.MDTXTRT_UI.getState().toast.visible,true,'o toast continua: o toque era no diálogo');
+  assert.equal(root.hasAttribute('data-device-gate'),true,'o aviso de retrato também');
+  w.eval('dismissNotices()');
+  // Depois de um toque no aviso que vira rolagem (pointercancel), o clique seguinte
+  // não é engolido.
+  w.eval('showToast("Aviso")');
+  fire(d.querySelector('#toast .toast-material'),'pointerdown','touch');
+  fire(d.querySelector('#toast .toast-material'),'pointercancel','touch');
+  exportBtn.click();
+  assert.equal(exportMenu.hasAttribute('data-menu-open'),true);
   w.close();
 });
 

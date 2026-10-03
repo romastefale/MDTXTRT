@@ -44,4 +44,4 @@ A mutabilidade é uma invariante permanente do projeto: nenhum candidato, releas
 
 ## Créditos
 
-Ícones da interface: [Material Symbols Rounded](https://fonts.google.com/icons) (peso 400, preenchimento 0, tamanho óptico 24), do Google, sob a licença Apache 2.0 ([icons/LICENSE](icons/LICENSE)). A marca do Telegram em `icons/telegram.svg` não faz parte do conjunto.
+Ícones da interface: [Material Symbols Rounded](https://fonts.google.com/icons) (peso 400, preenchimento 0, tamanho óptico 24), do Google, sob a licença Apache 2.0 ([icons/LICENSE](icons/LICENSE)). Exceção à regra: as marcas do Telegram (`icons/telegram.svg`) e do Telegraph (`icons/telegraph.svg`, o T) são logotipos das plataformas e não vêm do Material Symbols.

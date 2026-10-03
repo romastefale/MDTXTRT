@@ -31,6 +31,17 @@ test('browser bundle cache busters follow the committed Git blob SHAs',()=>{
   }
 });
 
+// O esbuild grava no bundle o caminho de cada módulo relativo ao projeto. Um
+// node_modules fora do clone (link simbólico) muda esses caminhos e o bundle deixa
+// de ser o mesmo que o CI reconstrói com npm ci.
+test('committed bundles reference modules only inside the project',()=>{
+  for(const file of ['ui.js','editor-core.js']){
+    const bundle=read(file);
+    assert.doesNotMatch(bundle,/__commonJS\(\{"(?:\.\.\/|\/)/,file+' must be built from the clone\'s own node_modules');
+    assert.doesNotMatch(bundle,/\/(?:home|workspace|Users|tmp)\//,file+' must not embed absolute build paths');
+  }
+});
+
 // Safari com "Bloquear Todos os Cookies": tocar no localStorage lança erro. Todo
 // acesso do editor passa por src/app/storage.js, que tem a reserva em memória. A
 // exceção é setTheme (theme.js), que só grava o tema depois de saber que o
@@ -100,10 +111,10 @@ test('MDTXTRT contains no bespoke Liquid Glass renderer or implicit browser fall
   assert.match(server,/"ui\.js"/);
 });
 
-test('editorial document typography uses the Telegraph serif family without changing app chrome',()=>{
+// As famílias do documento (sem serifa no Telegram, títulos com serifa; Georgia no
+// Telegraph) são medidas no navegador, no teste das citações e títulos.
+test('app chrome keeps the system font and the Telegraph title keeps its serif',()=>{
   const html=page();
-  assert.match(html,/\.editor\{[\s\S]*?font-family:Georgia,"Times New Roman",serif;/);
-  assert.match(html,/\.editor h1,\.editor h2,\.editor h3,\.editor h4,\.editor h5,\.editor h6\{font-family:inherit;/);
   assert.match(html,/body\{[\s\S]*?font:16px\/1\.45 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif/);
   assert.match(html,/\.telegraph-title \.document-tools input\{[\s\S]*?Georgia,"Times New Roman",serif/);
 });
@@ -302,10 +313,14 @@ test('document title is explicit in export flow and becomes the Telegraph page t
   assert.match(html,/class="telegraph-title" id="telegraphTitleSlot" hidden/);
   assert.match(html,/tools\.setAttribute\('data-field-label','Título do documento'\)/);
   assert.match(html,/input\.setAttribute\('aria-label','Título do documento'\)/);
-  assert.match(html,/tools\.setAttribute\('data-field-label','Título da página no Telegraph'\)/);
+  // Acima do texto, só o título: sem rótulo visível, placeholder curto, nome completo no aria-label.
+  assert.match(html,/tools\.removeAttribute\('data-field-label'\)/);
+  assert.match(html,/input\.setAttribute\('placeholder','Título'\)/);
   assert.match(html,/input\.setAttribute\('aria-label','Título da página no Telegraph'\)/);
+  assert.match(html,/\.telegraph-title \.document-tools::before\{content:none\}/);
+  assert.doesNotMatch(html,/data-field-label','Título da página no Telegraph'/);
   assert.match(html,/slot\.append\(tools\)/);
-  assert.match(html,/new MutationObserver\(sync\)\.observe\(destBtn,\{attributes:true,attributeFilter:\['aria-pressed'\]\}\)/);
+  assert.match(html,/new MutationObserver\(sync\)\.observe\(destBtn,\{attributes:true,attributeFilter:\['data-dest'\]\}\)/);
   assert.match(src,/className="tools document-tools"/);
   assert.doesNotMatch(html,/id="telegraphTitle"/);
   assert.doesNotMatch(app,/telegraphTitle|setDocumentName/);
@@ -580,4 +595,70 @@ test('toast text and visibility are React state, not DOM mutations from the edit
   assert.match(src,/className=\{visible \? "toast on" : "toast"\}/);
   assert.match(app,/ui\.setToast\(\{text:String\(msg\),visible:true\}\)/);
   assert.doesNotMatch(app,/toast\.classList|\btoastText\b|createTextNode\(''\)/);
+});
+
+test('edge fades are solid at the screen edge and ease more translucently than main under the bars',()=>{
+  const css=read('styles.css'),jsx=read('src/chrome.jsx');
+  const stops=JSON.parse(/export const FADE_STOPS = (\[\[.*?\]\]);/.exec(jsx)[1]);
+  assert.deepEqual(stops[0],[0,100]);
+  assert.deepEqual(stops.at(-1),[1,0]);
+  // Rampa (1-t)²: suave e sem degraus.
+  for(let i=1;i<stops.length;i++){
+    assert.ok(stops[i][0]>stops[i-1][0],'posições crescentes');
+    assert.ok(stops[i][1]<stops[i-1][1],'alfa cai sem degraus');
+    assert.ok(Math.abs(stops[i][1]-100*(1-stops[i][0])**2)<=0.5,`(1-t)² em t=${stops[i][0]}`);
+  }
+  // Depois da faixa sólida, mais translúcida que a rampa da main (100 → 60% na metade →
+  // 26% a três quartos → 0), para o texto aparecer sob o vidro das barras.
+  const main=t=>t<=.5?100-80*t:t<=.75?60-136*(t-.5):26-104*(t-.75);
+  for(const [t,a] of stops.slice(1,-1))assert.ok(a<main(t),`alfa ${a}% em t=${t} abaixo da main (${main(t).toFixed(1)}%)`);
+  // O CSS usa as mesmas paradas que o fundo das lentes (canvas).
+  const ramp=/--fade-ramp:([^}]*?)transparent 100%/s.exec(css)[1];
+  const cssStops=[...ramp.matchAll(/var\(--edge\) ([\d.]+)%,transparent\) calc\(var\(--fade-solid\) \+ \(100% - var\(--fade-solid\)\)\*([\d.]+)\)/g)].map(m=>[Number(m[2]),Number(m[1])]);
+  assert.deepEqual(cssStops,stops.slice(1,-1));
+  // A faixa sólida da borda é verificada por pixels no teste de navegador.
+});
+
+test('platform switcher is an ephemeral choice without a persistent on state',()=>{
+  const css=read('styles.css'),jsx=read('src/chrome.jsx');
+  const dest=jsx.slice(jsx.indexOf('function DestButton()'),jsx.indexOf('function DestButton()')+900);
+  assert.doesNotMatch(dest,/aria-pressed|className=\{dest/);
+  assert.match(dest,/data-dest=\{dest\}/);
+  assert.doesNotMatch(css,/#destBtn(\.active|\[aria-pressed|\.on)/);
+  assert.doesNotMatch(css,/\.seg button\.active/);
+});
+
+test('no residue of the old palette: no green accent, no stale tokens, one hairline rule',()=>{
+  const css=read('styles.css');
+  // O verde antigo (--accent do claro) saiu de vez; o texto usa --link ou neutros.
+  assert.doesNotMatch(css,/#269c65/i);
+  assert.doesNotMatch(css,/--accent\b/);
+  for(const token of ['--bg:','--dim','--glass-tint','--bar-glass-tint-strong','--bar-control-accent-bg','--library-surface','--library-card','--library-section-bg','--library-backdrop','--library-shadow','--menu-shadow','--neutral-3'])assert.ok(!css.includes(token),'token sem uso: '+token);
+  // Hairline de 0,5px em telas 2x, também no Safari anterior ao 16 (sem min-resolution).
+  assert.match(css,/@media \(min-resolution:2dppx\),\(-webkit-min-device-pixel-ratio:2\)\{:root\{--rim-w:\.5px\}\}/);
+  assert.match(css,/--glass-edge:0 0 0 var\(--rim-w\) var\(--rim\)/);
+  assert.doesNotMatch(css,/inset 0 1px/);
+  // Toast em várias linhas: cantos de 22px, nunca a cápsula de 999px que cortava o texto.
+  assert.match(css,/\.toast-material\{\s*border-radius:22px;overflow:hidden/);
+});
+
+test('editor quotes: Telegraph colour tokens per theme and html[data-dest] drives the preview',()=>{
+  const css=read('styles.css'),publish=read('src/app/publish.js');
+  // Os estilos computados das citações nos dois destinos e temas ficam no teste de
+  // navegador; aqui, só a origem dos tokens. Claro: os literais do core.min.css (o
+  // texto do claro é #151515, não preto). Escuro (o Telegraph não tem): derivados do texto.
+  assert.match(css,/html\.light\{[^}]*--telegraph-rule:#000;\s*--telegraph-aside:rgba\(0,0,0,\.6\);/);
+  assert.match(css,/:root\{[^}]*--telegraph-rule:var\(--text\);\s*--telegraph-aside:color-mix\(in srgb,var\(--text\) 60%,transparent\);/);
+  assert.doesNotMatch(css,/--telegraph-ink/);
+  assert.match(publish,/document\.documentElement\.setAttribute\('data-dest',S\.dest\)/);
+});
+
+test('undo and redo flash fade by colour, never by animated opacity (WebKit clipped the circle)',()=>{
+  const css=read('styles.css'),main=read('src/app/main.js');
+  const frames=/@keyframes flash-out\{([^\n]*)\}\n/.exec(css)[1];
+  assert.doesNotMatch(frames,/opacity/);
+  assert.match(frames,/background-color:var\(--glass-strong\)/);
+  assert.match(frames,/background-color:transparent/);
+  assert.match(main,/one\('#undoBtn'\)\.addEventListener\('click', \(\)=>\{ if\(histUndo\(\)\)flashBtn\(one\('#undoBtn'\)\); \}\);/);
+  assert.match(main,/one\('#redoBtn'\)\.addEventListener\('click', \(\)=>\{ histRedo\(\); flashBtn\(one\('#redoBtn'\)\); \}\);/);
 });

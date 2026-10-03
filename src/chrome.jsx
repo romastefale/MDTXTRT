@@ -12,10 +12,11 @@ import { getUIState, subscribeUI, uiStore } from "./ui-store.mjs";
  * MDTXTRT owns only this application-specific React shell.
  */
 // Normativa do fork (src/GlassMaterial.tsx › MATERIAL_OPTICS) e do site
-// romastefale/HTML (src/lib/optics.ts): as barras e o toast usam o frost do
-// material (6px, saturate 1.15); menus e diálogos, o de painel de leitura (22px,
-// saturate 1.4). specular 0 desliga a borda da biblioteca: o brilho de topo e o
-// aro hairline uniforme vêm do CSS (index.html), finos em telas 2x.
+// romastefale/HTML (src/lib/optics.ts): as barras usam o frost do material (6px,
+// saturate 1.15); menus, diálogos e os avisos efêmeros, o de painel de leitura
+// (22px, saturate 1.4). specular 0 desliga a borda da biblioteca (o brilho de topo e o
+// aro dela): não há brilho de topo, e o único aro, hairline e uniforme, vem do CSS
+// (styles.css › --glass-edge), 0,5px em telas 2x ou mais.
 const NO_SHINE = { specular: 0, sheen: 0, glow: 0 };
 
 export const MENU_LENS = {
@@ -23,6 +24,10 @@ export const MENU_LENS = {
   frost: 22,
   saturate: 1.4,
 };
+
+// O toast fica sobre o texto do documento: o fosco de painel de leitura do site
+// (src/lib/optics.ts › PANEL: frost 22, saturate 1.4), o mesmo da lista de páginas.
+const NOTICE_LENS = MENU_LENS;
 
 const BAR_LENS = {
   ...NO_SHINE,
@@ -114,21 +119,50 @@ function loadBackdrop() {
     img.src = src;
   });
 }
-function paintFade(ctx, rect, bgRect, edge, down) {
+// Paradas dos degradês de borda (styles.css › .fade-top/.fade-bot): [t, alfa%],
+// alfa = (1-t)², t de 0 (fim da faixa sólida: área segura + --gap) a 1 (lado do
+// conteúdo).
+export const FADE_STOPS = [[0, 100], [0.1, 81], [0.2, 64], [0.3, 49], [0.4, 36], [0.5, 25], [0.6, 16], [0.7, 9], [0.8, 4], [0.9, 1], [1, 0]];
+// Altura em px da faixa sólida (--fade-solid: área segura em env() + --gap).
+function fadeSolid(el) {
+  if (!el) return 0;
+  const probe = document.createElement("div");
+  probe.style.cssText = "position:absolute;visibility:hidden;width:0;height:var(--fade-solid,0px)";
+  el.append(probe);
+  const value = probe.getBoundingClientRect().height || 0;
+  probe.remove();
+  return value;
+}
+// O canvas não entende color-mix(): a cor da borda vira rgba() com o alfa da parada.
+function edgeRGBA(ctx, edge) {
+  ctx.fillStyle = "#000";
+  ctx.fillStyle = edge;
+  const hex = String(ctx.fillStyle);
+  const m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex);
+  if (m) {
+    const [r, g, b] = [m[1], m[2], m[3]].map(v => parseInt(v, 16));
+    return a => `rgba(${r},${g},${b},${a / 100})`;
+  }
+  const rgb = /^rgba?\(([^,]+),([^,]+),([^,)]+)/.exec(hex.replace(/\s/g, ""));
+  if (rgb) return a => `rgba(${rgb[1]},${rgb[2]},${rgb[3]},${a / 100})`;
+  return a => (a > 50 ? edge : "transparent");
+}
+function paintFade(ctx, rect, bgRect, edge, down, solid) {
   if (!rect || !rect.height) return;
   const top = rect.top - bgRect.top;
-  const g = ctx.createLinearGradient(0, down ? top : top + rect.height, 0, down ? top + rect.height : top);
-  const alpha = a => `color-mix(in srgb, ${edge} ${a}%, transparent)`;
-  const stops = [[0, 100], [Math.min(0.2, 12 / rect.height), 100], [0.52, 60], [0.76, 26], [1, 0]];
-  for (const [at, a] of stops) {
-    try { g.addColorStop(at, alpha(a)); } catch { g.addColorStop(at, a > 0 ? edge : "transparent"); }
-  }
+  const g = ctx.createLinearGradient(0, down ? top + rect.height : top, 0, down ? top : top + rect.height);
+  const color = edgeRGBA(ctx, edge);
+  const s = Math.min(Math.max(0, solid), rect.height) / rect.height;
+  g.addColorStop(0, color(100));
+  for (const [t, a] of FADE_STOPS) g.addColorStop(s + (1 - s) * t, color(a));
   ctx.fillStyle = g;
   ctx.fillRect(0, top, bgRect.width, rect.height);
 }
 function backdropCanvas(bgRect) {
-  const fadeTop = document.querySelector(".fade-top")?.getBoundingClientRect();
-  const fadeBot = document.querySelector(".fade-bot")?.getBoundingClientRect();
+  const fadeTopEl = document.querySelector(".fade-top");
+  const fadeBotEl = document.querySelector(".fade-bot");
+  const fadeTop = fadeTopEl?.getBoundingClientRect();
+  const fadeBot = fadeBotEl?.getBoundingClientRect();
   const w = Math.max(1, Math.round(bgRect.width));
   const h = Math.max(1, Math.round(bgRect.height));
   const key = [backdrop.src, w, h, fadeTop?.height, fadeBot?.top, document.documentElement.className].join("|");
@@ -147,8 +181,8 @@ function backdropCanvas(bgRect) {
     ctx.fillStyle = shade;
     ctx.fillRect(0, 0, w, h);
   }
-  paintFade(ctx, fadeTop, bgRect, edge, false);
-  paintFade(ctx, fadeBot, bgRect, edge, true);
+  paintFade(ctx, fadeTop, bgRect, edge, false, fadeSolid(fadeTopEl));
+  paintFade(ctx, fadeBot, bgRect, edge, true, fadeSolid(fadeBotEl));
   backdrop.canvas = canvas;
   backdrop.key = key;
   return canvas;
@@ -790,7 +824,7 @@ function ToastText() {
 
 const ToastMaterial = React.memo(function ToastMaterial() {
   return (
-    <Glass optics={BAR_LENS} className="toast-material">
+    <Glass optics={NOTICE_LENS} className="toast-material">
       <span className="toast-content" id="toastTextHost"><ToastText /></span>
     </Glass>
   );
@@ -807,6 +841,9 @@ function Toast() {
 
 // Controles da barra que refletem estado: cada um assina só o que usa, e o
 // Chrome (com os vidros das barras) nunca volta a renderizar.
+// O seletor de plataforma é uma escolha efêmera: só alterna entre Telegram e
+// Telegraph (o logotipo mostra o destino atual). Não tem estado "ligado" nem
+// pill selecionado persistente; o retorno é só o da pressão (:active).
 function DestButton() {
   const dest = useUI(state => state.dest);
   const destName = dest === "telegram" ? "Telegram" : "Telegraph";
@@ -814,9 +851,8 @@ function DestButton() {
     <button
       type="button"
       id="destBtn"
-      className={dest === "telegraph" ? "active" : undefined}
+      data-dest={dest}
       aria-label={"Alternar destino. Atual: " + destName}
-      aria-pressed={String(dest === "telegraph")}
       title={"Destino: " + destName}
     >
       <Icon name={dest === "telegram" ? "telegram" : "telegraph"} />

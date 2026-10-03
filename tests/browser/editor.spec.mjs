@@ -21,6 +21,9 @@ test.beforeEach(async ({page})=>{
   if([OFFLINE,BLOCKED,GATE].some(group=>test.info().titlePath.includes(group)))return;
   await page.goto('/index.html');
   await expect(page.locator('#undoBtn')).toBeVisible();
+  // Em 1280px o aviso de retrato abre por 4s por cima do texto: os testes de
+  // interface começam sem ele (os do aviso o mostram de novo).
+  await page.evaluate(()=>document.documentElement.removeAttribute('data-device-gate'));
 });
 
 test.afterEach(async ({page})=>{
@@ -38,12 +41,20 @@ test('texto longo quebra dentro da largura da tela',async ({page})=>{
   const editor=page.locator('#editor');
   await editor.click();
   await page.keyboard.type('palavra '.repeat(60)+'x'.repeat(120));
-  const {scrollWidth,innerWidth,editorOverflow}=await page.evaluate(()=>{
-    const el=document.querySelector('#editor');
-    return {scrollWidth:document.documentElement.scrollWidth,innerWidth,editorOverflow:el.scrollWidth-el.clientWidth};
+  // Mede onde termina cada caractere visível. O scrollWidth não serve: o WebKit
+  // conta nele o espaço que sobra no fim de cada linha (pendurado, invisível), e
+  // isso depende só da largura da fonte.
+  const {scrollWidth,innerWidth,inkOverflow}=await page.evaluate(()=>{
+    const el=document.querySelector('#editor'),right=el.getBoundingClientRect().right-parseFloat(getComputedStyle(el).paddingRight);
+    const walk=document.createTreeWalker(el,NodeFilter.SHOW_TEXT),range=document.createRange();let ink=-Infinity;
+    for(let t=walk.nextNode();t;t=walk.nextNode())for(let i=0;i<t.length;i++){
+      if(/\s/.test(t.data[i]))continue;
+      range.setStart(t,i);range.setEnd(t,i+1);ink=Math.max(ink,range.getBoundingClientRect().right);
+    }
+    return {scrollWidth:document.documentElement.scrollWidth,innerWidth,inkOverflow:ink-right};
   });
   expect(scrollWidth).toBeLessThanOrEqual(innerWidth);
-  expect(editorOverflow).toBeLessThanOrEqual(1);
+  expect(inkOverflow).toBeLessThanOrEqual(1);
 });
 
 test('desfazer e refazer funcionam por clique real',async ({page})=>{
@@ -150,10 +161,10 @@ test('vidro usa hairline e material neutro translúcido, sem cor de acento sóli
       const parts=m[1].split(/[ ,/]+/).filter(Boolean);
       return parts.length>3?Number(parts[3]):1;
     };
-    return [...document.querySelectorAll('.seg,.bar,.glass-menu-material,.toast-material')].map(el=>{
+    return [...document.querySelectorAll('.seg,.bar,.glass-menu-material,.toast-material,.device-gate-card')].map(el=>{
       const cs=getComputedStyle(el);
       return {
-        name:el.id||el.className.split(' ')[0],
+        name:el.id||el.className.split(' ')[0],notice:el.matches('.toast-material,.device-gate-card'),
         bg:cs.backgroundColor,bgAlpha:alpha(cs.backgroundColor),
         blur:(cs.backdropFilter||cs.webkitBackdropFilter||''),
         rim:cs.boxShadow
@@ -162,7 +173,13 @@ test('vidro usa hairline e material neutro translúcido, sem cor de acento sóli
   });
   expect(pieces.length).toBeGreaterThan(4);
   for(const piece of pieces){
-    expect(piece.bgAlpha,piece.name+' deixa a cor passar').toBeLessThan(.75);
+    // Os avisos efêmeros ficam sobre o texto do documento: a tinta densa do site
+    // (--picker-bg, .88–.9), translúcida mas sem deixar o texto de trás aparecer.
+    // Nunca opaca, a regra da biblioteca. O resto do cromo deixa a cor passar.
+    if(piece.notice){
+      expect(piece.bgAlpha,piece.name+' é translúcido, nunca opaco').toBeLessThan(1);
+      expect(piece.bgAlpha,piece.name+' tem tinta densa sobre o texto').toBeGreaterThanOrEqual(.85);
+    }else expect(piece.bgAlpha,piece.name+' deixa a cor passar').toBeLessThan(.75);
     expect(piece.bgAlpha,piece.name+' tem material').toBeGreaterThan(0);
     expect(piece.blur,piece.name+' desfoca o fundo').toMatch(/blur\(/);
     expect(piece.rim,piece.name+' tem borda hairline').toMatch(/0px 0px 0px (0\.5|1)px/);
@@ -391,6 +408,28 @@ test.describe(OFFLINE,()=>{
     expect(saves).not.toContain(remoteDoc);
     expect(new Set(saves)).toEqual(new Set([docId]));
   });
+
+  // Aviso e diálogo abertos juntos (o aviso de retrato abre com a página em 1280px):
+  // o toque no botão do diálogo dispara esse botão, e o aviso não some nem mexe na
+  // tela no meio do gesto, porque o toque começou dentro do diálogo.
+  test('com aviso e diálogo abertos, o toque no botão do diálogo dispara o botão',async ({page})=>{
+    await page.goto('/index.html');
+    await expect(page.locator('#dialogOk')).toHaveText('Tentar de novo');
+    await page.evaluate(()=>{
+      window.MDTXTRT_UI.setToast({text:'Aviso por cima',visible:true});
+      const root=document.documentElement;root.removeAttribute('data-device-gate');void root.offsetWidth;root.setAttribute('data-device-gate','');
+    });
+    await expect(page.locator('#toast .toast-material')).toBeVisible();
+    await expect(page.locator('#deviceGate .device-gate-card')).toBeVisible();
+    page.volumeUp=true;
+    // Clique real do mouse no centro do botão (o Playwright confere que é o botão
+    // que recebe o toque, não o aviso).
+    await page.locator('#dialogOk').click();
+    await expect(page.locator('#editor')).toHaveAttribute('contenteditable','true');
+    await expect(page.locator('#dialogMenu')).toBeHidden();
+    expect(await page.evaluate(()=>({toast:window.MDTXTRT_UI.getState().toast.visible,gate:document.documentElement.hasAttribute('data-device-gate')})),
+      'os avisos continuam: o toque era no diálogo').toEqual({toast:true,gate:true});
+  });
 });
 
 // Toque real (iPhone/Telegram): o teclado continua aberto e cada toque ainda ativa o controle.
@@ -550,6 +589,418 @@ test('o cursor continua visível acima da barra enquanto se digita com o teclado
   });
   expect(caret.bottom,'cursor acima da barra').toBeLessThanOrEqual(bar.top+0.5);
   expect(caret.top,'cursor abaixo da barra superior').toBeGreaterThan(0);
+});
+
+// O iPhone rola a área visível (visualViewport.offsetTop > 0) para mostrar o cursor
+// com o teclado aberto. O menu tem de abrir dentro da área visível, lida na hora,
+// e continuar nela quando a área muda com o menu aberto.
+async function pannedKeyboard(page){
+  await page.addInitScript(()=>{
+    const vv=new EventTarget();let keyboard=0,top=0;
+    for(const [key,get] of Object.entries({
+      offsetLeft:()=>0,offsetTop:()=>top,pageLeft:()=>0,pageTop:()=>top,scale:()=>1,
+      width:()=>document.documentElement.clientWidth,
+      height:()=>document.documentElement.clientHeight-keyboard
+    }))Object.defineProperty(vv,key,{get});
+    Object.defineProperty(window,'visualViewport',{configurable:true,get:()=>vv});
+    window.__pan=(height,offset)=>{keyboard=height;top=offset;vv.dispatchEvent(new Event('resize'));vv.dispatchEvent(new Event('scroll'));};
+  });
+  await page.reload();
+  await expect(page.locator('#undoBtn')).toBeVisible();
+}
+async function inVisibleArea(page,sel){
+  const {box,view}=await page.evaluate(sel=>{
+    const vv=window.visualViewport,box=document.querySelector(sel).getBoundingClientRect().toJSON();
+    return {box,view:{top:vv.offsetTop,bottom:vv.offsetTop+vv.height}};
+  },sel);
+  expect(box.top,sel+' topo dentro da área visível').toBeGreaterThanOrEqual(view.top-0.5);
+  expect(box.bottom,sel+' base dentro da área visível').toBeLessThanOrEqual(view.bottom+0.5);
+  return box;
+}
+for(const mini of [false,true])test(`menu com o teclado aberto e área visível deslocada fica na área visível${mini?' (Mini App)':''}`,async ({page})=>{
+  await page.setViewportSize({width:390,height:844});
+  if(mini)await page.addInitScript(()=>{
+    const noop=()=>{},button={show:noop,hide:noop,onClick:noop};
+    // Só o que o app lê do WebApp; qualquer outro método vira no-op.
+    const webApp={initData:'query_id=test',initDataUnsafe:{},version:'6.0',platform:'ios',colorScheme:matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light',themeParams:{},
+      viewportHeight:844,viewportStableHeight:844,isExpanded:true,isFullscreen:false,isVersionAtLeast:()=>false,
+      SettingsButton:button,BackButton:button,MainButton:button};
+    window.Telegram={WebApp:new Proxy(webApp,{get:(target,key)=>key in target?target[key]:noop})};
+  });
+  if(mini)await page.route(/\/api\/telegram\/session/,route=>{
+    const cors={'access-control-allow-origin':'*','access-control-allow-headers':'content-type','access-control-allow-methods':'POST, OPTIONS'};
+    if(route.request().method()==='OPTIONS')return route.fulfill({status:204,headers:cors});
+    return route.fulfill({status:200,contentType:'application/json',body:'{"ok":true}',headers:cors});
+  });
+  await pannedKeyboard(page);
+  if(mini)await expect(page.locator('body')).toHaveClass(/\btg\b/);
+  await page.locator('#editor').click();
+  await page.evaluate(()=>window.__pan(340,120));await settle(page);
+  // No navegador a barra sobe com o teclado. No Mini App ela segue a altura do
+  // Telegram (comportamento inalterado), então só o menu é verificado.
+  if(!mini)await inVisibleArea(page,'.bar-wrap');
+  // A barra superior acompanha a área visível nos dois casos (no Mini App também).
+  await inVisibleArea(page,'.topbar');
+  await page.locator('#headingBtn').click();
+  await expect(page.locator('#headingMenu')).toBeVisible();
+  await inVisibleArea(page,'#headingMenu');
+  // A área visível muda com o menu aberto: o menu acompanha (resize/scroll em rAF).
+  await page.evaluate(()=>window.__pan(340,200));await settle(page);await settle(page);
+  await inVisibleArea(page,'#headingMenu');
+  expect(await page.evaluate(()=>document.activeElement?.id)).toBe('editor');
+  await closeMenus(page);
+});
+
+// Citações e títulos como a plataforma de destino os mostra. Telegram: Bot API 10.3
+// (RichBlockBlockQuotation, RichBlockExpandableBlockQuotation e RichBlockPullQuotation,
+// "citação com texto centrado", cada uma com o crédito opcional em <cite>), medidos no
+// app (referência: app Telegram iOS, print do Pi, 2026-10-03). Telegraph: core.min.css.
+test('citação e citação em destaque seguem o Telegraph e o Telegram',async ({page},info)=>{
+  const light=info.project.use.colorScheme==='light';
+  await page.evaluate(()=>{document.querySelector('#editor').innerHTML='<h1>Título 1</h1><h6>Título 6</h6><blockquote>Citação<cite>Autor</cite></blockquote><aside>Destaque do autor</aside><blockquote expandable="">Longa</blockquote><p>texto <a href="https://telegra.ph">link</a></p>';});
+  const read=()=>page.evaluate(()=>{
+    // color-mix() sai como rgba() ou color(srgb …) conforme o motor: compara por canais.
+    const rgba=value=>{
+      const srgb=/^color\(srgb ([\d.e-]+) ([\d.e-]+) ([\d.e-]+)(?: \/ ([\d.e-]+))?\)$/.exec(value);
+      if(srgb)return [...srgb.slice(1,4).map(n=>Math.round(Number(n)*255)),Math.round(Number(srgb[4]??1)*100)/100];
+      const rgb=/^rgba?\(([\d.]+), ([\d.]+), ([\d.]+)(?:, ([\d.]+))?\)$/.exec(value);
+      return rgb?[...rgb.slice(1,4).map(Number),Math.round(Number(rgb[4]??1)*100)/100]:value;
+    };
+    const ed=document.querySelector('#editor'),qe=ed.querySelector('blockquote'),ae=ed.querySelector('aside'),xe=ed.querySelector('blockquote[expandable]');
+    const q=getComputedStyle(qe),a=getComputedStyle(ae),x=getComputedStyle(xe),e=getComputedStyle(ed);
+    const probe=document.createElement('span');probe.style.color='var(--link)';document.body.append(probe);
+    const link=rgba(getComputedStyle(probe).color);probe.remove();
+    const er=ed.getBoundingClientRect(),ar=ae.getBoundingClientRect();
+    const pick=c=>({bw:c.borderLeftWidth,bs:c.borderLeftStyle,bc:rgba(c.borderLeftColor),style:c.fontStyle,size:c.fontSize,
+      pad:c.paddingTop+' '+c.paddingRight+' '+c.paddingBottom+' '+c.paddingLeft,margin:c.margin,radius:c.borderTopRightRadius,bg:rgba(c.backgroundColor),family:c.fontFamily});
+    const an=getComputedStyle(ed.querySelector('a')),title=document.querySelector('#docName');
+    const marks=['::before','::after'].map(pseudo=>{const m=getComputedStyle(ae,pseudo);return {content:m.content,w:m.width,h:m.height,left:m.left,right:m.right,top:m.top,bottom:m.bottom,bg:rgba(m.backgroundColor),mask:(m.maskImage||m.webkitMaskImage||'').startsWith('url(')};});
+    const head=sel=>{const h=getComputedStyle(ed.querySelector(sel));return {size:h.fontSize,family:h.fontFamily,weight:h.fontWeight,color:rgba(h.color)};};
+    const cite=getComputedStyle(qe.querySelector('cite')),citeBox=qe.querySelector('cite').getBoundingClientRect(),firstLine=qe.firstChild;
+    const range=document.createRange();range.selectNodeContents(firstLine);
+    return {link,editor:{size:e.fontSize,lh:Math.round(parseFloat(e.lineHeight)/parseFloat(e.fontSize)*100)/100},
+      text:rgba(e.color),quoteText:rgba(q.color),family:e.fontFamily,qlh:Math.round(parseFloat(q.lineHeight)/parseFloat(q.fontSize)*100)/100,
+      alh:Math.round(parseFloat(a.lineHeight)/parseFloat(a.fontSize)*100)/100,marks,h1:head('h1'),h6:head('h6'),
+      cite:{display:cite.display,style:cite.fontStyle,weight:cite.fontWeight,color:rgba(cite.color),size:cite.fontSize,ownLine:citeBox.top>=range.getBoundingClientRect().bottom-0.5},title:title?rgba(getComputedStyle(title).color):null,
+      anchor:{color:rgba(an.color),line:an.textDecorationLine,bw:an.borderBottomWidth,bs:an.borderBottomStyle,bc:rgba(an.borderBottomColor),size:parseFloat(an.fontSize)},
+      q:pick(q),x:{...pick(x),chevron:getComputedStyle(xe,'::after').content},
+      a:{...pick(a),weight:a.fontWeight,align:a.textAlign,color:rgba(a.color),lh:Math.round(parseFloat(a.lineHeight)/parseFloat(a.fontSize)*100)/100,
+        top:a.borderTopStyle,bottom:a.borderBottomStyle,width:ar.width,editorWidth:er.width,leftGap:ar.left-er.left,rightGap:er.right-ar.right}};
+  });
+  const tint=s=>[...s.link.slice(0,3),0.1];
+  // Telegram (padrão).
+  let s=await read();
+  // Texto e citações na fonte do sistema; títulos com serifa, H1 22pt e H6 15pt.
+  const sans=/^-apple-system, BlinkMacSystemFont/;
+  expect(s.family,'texto sem serifa').toMatch(sans);
+  expect(s.q.family,'citação sem serifa').toMatch(sans);
+  for(const [h,size] of [[s.h1,'22px'],[s.h6,'15px']]){
+    expect(h).toMatchObject({size,weight:'600',color:s.text});
+    expect(h.family,'título com serifa').toMatch(/^ui-serif, "?New York"?, Georgia/);
+  }
+  expect(s.q).toMatchObject({bw:'3px',bs:'solid',bc:s.link,style:'normal',size:'15px',pad:'4px 16px 4px 6px',radius:'8px',bg:tint(s)});
+  expect(s.qlh).toBe(1.25);
+  expect(s.x).toMatchObject({bw:'3px',bc:s.link,style:'normal',size:'15px',radius:'8px',bg:tint(s)});
+  expect(s.x.chevron).not.toBe('none');
+  expect(s.a).toMatchObject({style:'italic',weight:'400',align:'center',size:'15px',pad:'5px 30px 5px 30px',radius:'8px',bg:tint(s),bw:'0px'});
+  expect(s.alh).toBe(1.42);
+  // Aspas do destaque: “ no alto à esquerda e ” embaixo à direita, 12×9 na cor de link.
+  const [open,close]=s.marks;
+  expect(open).toMatchObject({content:'""',w:'12px',h:'9px',left:'6px',top:'6px',bg:s.link,mask:true});
+  expect(close).toMatchObject({content:'""',w:'12px',h:'9px',right:'6px',bottom:'4px',bg:s.link,mask:true});
+  // Crédito (<cite>, o credit da Bot API): linha própria, semi-negrito, cor secundária.
+  expect(s.cite).toMatchObject({display:'block',style:'normal',weight:'600',size:'15px',ownLine:true});
+  expect(s.cite.color,'crédito mais apagado que o texto').not.toEqual(s.quoteText);
+  expect(s.a.top,'pílula sem linhas').toBe('none');
+  expect(s.a.width,'a pílula abraça o texto').toBeLessThan(s.a.editorWidth-40);
+  expect(Math.abs(s.a.leftGap-s.a.rightGap),'pílula centrada').toBeLessThanOrEqual(1);
+  // Telegraph: core.min.css › .tl_article_content.
+  await page.locator('#destBtn').click();
+  await expect(page.locator('html')).toHaveAttribute('data-dest','telegraph');
+  s=await read();
+  expect(s.editor).toEqual({size:'18px',lh:1.58});
+  // Cores do texto do core.min.css (claro; no escuro, as mesmas proporções do texto).
+  const ink=alpha=>light?[0,0,0,alpha]:[245,245,247,alpha];
+  expect(s.text,'texto do artigo').toEqual(ink(0.8));
+  expect(s.quoteText,'citação herda o texto').toEqual(ink(0.8));
+  expect(s.title,'título da página').toEqual(ink(0.8));
+  expect(s.anchor).toMatchObject({color:ink(0.8),line:'none',bs:'solid',bc:ink(0.7)});
+  // .1em de borda; o motor arredonda a espessura para pixels de tela (mínimo 1).
+  const dpr=await page.evaluate(()=>devicePixelRatio),em=s.anchor.size*0.1;
+  expect(parseFloat(s.anchor.bw),'borda do link de .1em').toBeGreaterThanOrEqual(Math.max(1/dpr,Math.floor(em*dpr)/dpr)-0.01);
+  expect(parseFloat(s.anchor.bw),'borda do link de .1em').toBeLessThanOrEqual(em+0.01);
+  const rule=light?[0,0,0,1]:[245,245,247,1];
+  const plain={bw:'3px',bs:'solid',bc:rule,style:'italic',size:'18px',pad:'0px 0px 0px 15px',margin:'18px 21px 16px 0px',radius:'0px',bg:[0,0,0,0]};
+  expect(s.q).toMatchObject(plain);
+  expect(s.q.family).toMatch(/^Georgia, Cambria/);
+  // O Telegraph não tem citação expansível: aparece como citação comum.
+  expect(s.x).toMatchObject({...plain,chevron:'none'});
+  expect(s.a).toMatchObject({style:'italic',weight:'400',align:'center',size:'21px',lh:1.58,color:light?[0,0,0,0.6]:[245,245,247,0.6],
+    margin:'18px 21px 16px',pad:'0px 18px 0px 18px',radius:'0px',bg:[0,0,0,0],bw:'0px',top:'none',bottom:'none'});
+  expect(s.a.family).toMatch(/^Georgia, Cambria/);
+  expect(s.marks.map(m=>m.content),'sem aspas no Telegraph').toEqual(['none','none']);
+  // O Telegraph não tem crédito: o nome fica como texto da citação, numa linha própria.
+  expect(s.cite).toMatchObject({display:'block',style:'italic',weight:'400',color:s.quoteText,size:'18px',ownLine:true});
+  expect(s.a.width,'destaque do Telegraph ocupa a coluna').toBeGreaterThan(s.a.editorWidth-50);
+  await page.locator('#destBtn').click();
+  await expect(page.locator('html')).toHaveAttribute('data-dest','telegram');
+});
+
+// O seletor Telegram/Telegraph é só uma troca: nos dois estados é um botão comum da
+// barra, como o refazer, sem preenchimento nem aro de ponto estratégico.
+test('seletor de plataforma sem destaque nos dois estados',async ({page})=>{
+  const look=sel=>page.evaluate(sel=>{
+    const el=document.querySelector(sel),cs=getComputedStyle(el),before=getComputedStyle(el,'::before');
+    return {bg:cs.backgroundColor,shadow:cs.boxShadow,before:before.content==='none'||before.content==='normal'?'none':before.backgroundColor,color:cs.color};
+  },sel);
+  await page.mouse.move(1,400);
+  const redo=await look('#redoBtn');
+  for(const dest of ['telegram','telegraph']){
+    await expect(page.locator('#destBtn')).toHaveAttribute('data-dest',dest);
+    expect(await look('#destBtn'),'seletor em '+dest).toEqual(redo);
+    await expect(page.locator(`#destBtn [data-icon="${dest}"]`)).toHaveCount(1);
+    await page.locator('#destBtn').click();
+    await page.mouse.move(1,400);
+  }
+});
+
+// Botão de formato ligado: claro, mas neutro (sem aro nem sombra), diferente do + e do ☰.
+test('estado ligado dos botões de formato não imita os pontos estratégicos',async ({page})=>{
+  await page.locator('#editor').click();
+  await page.keyboard.type('texto');
+  await page.locator('#quoteBtn').click();
+  await page.locator('#quoteMenu .menu-list > button:not([hidden])').first().click();
+  await expect(page.locator('#quoteBtn.on')).toHaveCount(1);
+  const s=await page.evaluate(()=>{
+    const on=getComputedStyle(document.querySelector('#quoteBtn'),'::before'),plus=getComputedStyle(document.querySelector('#plusBtn'));
+    const probe=document.createElement('span');probe.style.background='var(--toggle-on)';document.body.append(probe);
+    const token=getComputedStyle(probe).backgroundColor;probe.remove();
+    return {bg:on.backgroundColor,shadow:on.boxShadow,token,plus:plus.backgroundColor};
+  });
+  expect(s.bg).toBe(s.token);
+  expect(s.shadow).toBe('none');
+  expect(s.bg).not.toBe(s.plus);
+});
+
+// Vidro: um só aro hairline por fora (0,5px em tela 2x, 1px em 1x), nenhum brilho de
+// topo, e a lente do + / desfazer / ☰ coincide com o botão (mesma caixa e raio).
+test('aro hairline único, sem brilho de topo e lente alinhada ao aro',async ({page})=>{
+  const r=await page.evaluate(()=>{
+    const width=devicePixelRatio>=2?0.5:1,bad=[];
+    const visible=shadow=>(shadow.match(/rgba?\([^)]*\)[^,]*/g)||[]).filter(part=>!/rgba\([^)]*,\s*0\)/.test(part));
+    for(const el of document.querySelectorAll('.seg,.bar,.glass-menu-material,.toast-material')){
+      const shadow=getComputedStyle(el).boxShadow;
+      if(!shadow.includes(`0px 0px 0px ${width}px`))bad.push('aro '+el.className+': '+shadow);
+      if(visible(shadow).some(part=>part.includes('inset')))bad.push('brilho interno '+el.className);
+      for(const layer of el.querySelectorAll(':scope > [data-lg-layer]')){
+        if(visible(getComputedStyle(layer).boxShadow).length)bad.push('borda da biblioteca visível em '+el.className);
+      }
+    }
+    for(const sel of ['#plusBtn','#undoBtn .action-dot','#exportBtn .action-dot']){
+      const host=document.querySelector(sel),lens=host.querySelector(':scope > .lens');
+      const a=host.getBoundingClientRect(),b=lens.getBoundingClientRect(),ha=getComputedStyle(host),hl=getComputedStyle(lens);
+      if(Math.abs(a.left-b.left)>0.01||Math.abs(a.top-b.top)>0.01||Math.abs(a.width-b.width)>0.01||Math.abs(a.height-b.height)>0.01)bad.push('lente fora do botão '+sel);
+      if(ha.borderTopLeftRadius!==hl.borderTopLeftRadius)bad.push('raio da lente '+sel+' '+hl.borderTopLeftRadius+' x '+ha.borderTopLeftRadius);
+      if(!ha.boxShadow.includes(`0px 0px 0px ${width}px`))bad.push('aro '+sel+': '+ha.boxShadow);
+    }
+    return bad;
+  });
+  expect(r).toEqual([]);
+});
+
+// Aviso longo em várias linhas: o texto inteiro fica dentro do vidro arredondado.
+test('toast em várias linhas não corta o texto nos cantos',async ({page})=>{
+  await page.evaluate(()=>window.MDTXTRT_UI.setToast({text:'Não foi possível concluir esta ação agora. Verifique a conexão e tente de novo em alguns instantes; nada do texto foi perdido.',visible:true}));
+  await expect(page.locator('#toast')).toBeVisible();
+  const out=await page.evaluate(()=>{
+    const box=document.querySelector('#toast .toast-material').getBoundingClientRect();
+    const radius=Math.min(parseFloat(getComputedStyle(document.querySelector('#toast .toast-material')).borderTopLeftRadius),box.height/2,box.width/2);
+    const range=document.createRange();range.selectNodeContents(document.querySelector('#toastTextHost'));
+    const inside=(x,y)=>{
+      const cx=Math.min(Math.max(x,box.left+radius),box.right-radius),cy=Math.min(Math.max(y,box.top+radius),box.bottom-radius);
+      return Math.hypot(x-cx,y-cy)<=radius+0.5;
+    };
+    const lines=[...range.getClientRects()];
+    return {lines:lines.length,clipped:lines.filter(l=>![[l.left,l.top],[l.right,l.top],[l.left,l.bottom],[l.right,l.bottom]].every(([x,y])=>inside(x,y))).length};
+  });
+  expect(out.lines).toBeGreaterThan(1);
+  expect(out.clipped).toBe(0);
+});
+
+// Título do Telegraph acima do texto: só "Título", sem rótulo pequeno, e cabe inteiro.
+for(const width of [390,320])test(`título do Telegraph sem rótulo e com placeholder inteiro em ${width}px`,async ({page})=>{
+  await page.setViewportSize({width,height:844});
+  await page.locator('#destBtn').click();
+  const input=page.locator('#telegraphTitleSlot #docName');
+  await expect(input).toBeVisible();
+  await input.fill('');
+  await expect(input).toHaveAttribute('placeholder','Título');
+  await expect(input).toHaveAttribute('aria-label','Título da página no Telegraph');
+  const m=await input.evaluate(el=>{
+    const cs=getComputedStyle(el),label=getComputedStyle(el.closest('.document-tools'),'::before');
+    const ctx=document.createElement('canvas').getContext('2d');ctx.font=cs.font;
+    if(cs.letterSpacing&&cs.letterSpacing!=='normal')ctx.letterSpacing=cs.letterSpacing;
+    const text=ctx.measureText(el.placeholder);
+    return {label:label.content,text:text.width,room:el.clientWidth-parseFloat(cs.paddingLeft)-parseFloat(cs.paddingRight),
+      glyphs:text.actualBoundingBoxAscent+text.actualBoundingBoxDescent,height:el.clientHeight-parseFloat(cs.paddingTop)-parseFloat(cs.paddingBottom)};
+  });
+  expect(m.label==='none'||m.label==='normal','sem rótulo visível').toBe(true);
+  expect(m.text,'placeholder cabe no campo').toBeLessThanOrEqual(m.room);
+  expect(m.glyphs,'acento e letras do placeholder cabem na altura do campo').toBeLessThanOrEqual(m.height);
+});
+
+// Borda da tela: a área segura e a faixa acima/abaixo das barras são a cor sólida do
+// cromo (--edge), com o texto rolando por baixo, como na main e no site HTML. Mede
+// os pixels de verdade, no meio da largura (longe da sombra das pílulas).
+test('borda da tela fica na cor sólida do cromo com texto rolando por baixo',async ({page})=>{
+  const html=Array.from({length:40},(_,i)=>`<p><b>Parágrafo ${i}</b> eiusmod tempor incididunt ut labore et dolore magna aliqua, quis nostrud exercitation ullamco.</p>`).join('');
+  await page.evaluate(h=>{document.querySelector('#editor').innerHTML=h;},html);
+  const strip=await page.evaluate(()=>{
+    const p=document.createElement('div');p.style.cssText='position:fixed;visibility:hidden;height:var(--gap)';document.body.append(p);
+    const h=p.getBoundingClientRect().height;p.remove();return Math.floor(h);
+  });
+  expect(strip,'faixa sólida visível').toBeGreaterThanOrEqual(4);
+  let worst={top:0,bottom:0};
+  for(let step=0;step<8;step++){
+    await page.evaluate(t=>{document.querySelector('.scroll').scrollTop=t;},400+step*3);
+    await page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));
+    const shot=(await page.screenshot({scale:'css'})).toString('base64');
+    const d=await page.evaluate(async ({b64,strip})=>{
+      const img=new Image();img.src='data:image/png;base64,'+b64;await img.decode();
+      const c=document.createElement('canvas');c.width=img.width;c.height=img.height;const x=c.getContext('2d');x.drawImage(img,0,0);
+      const probe=document.createElement('span');probe.style.color='var(--edge)';document.body.append(probe);
+      const edge=getComputedStyle(probe).color.match(/\d+/g).map(Number);probe.remove();
+      const left=Math.round(c.width/2-30);
+      const dev=(y0,y1)=>{let max=0;for(let y=y0;y<y1;y++){const px=x.getImageData(left,y,60,1).data;for(let i=0;i<px.length;i+=4)max=Math.max(max,Math.abs(px[i]-edge[0]),Math.abs(px[i+1]-edge[1]),Math.abs(px[i+2]-edge[2]));}return max;};
+      return {top:dev(0,strip),bottom:dev(c.height-strip,c.height)};
+    },{b64:shot,strip});
+    worst={top:Math.max(worst.top,d.top),bottom:Math.max(worst.bottom,d.bottom)};
+  }
+  expect(worst.top,'faixa do topo sólida (sem texto)').toBeLessThanOrEqual(4);
+  expect(worst.bottom,'faixa da base sólida (sem texto)').toBeLessThanOrEqual(4);
+});
+
+// Avisos efêmeros (toast e aviso de retrato): centrados na área livre entre as barras,
+// sem cobrir as barras nem +, ☰ e desfazer, também com o teclado aberto.
+const NOTICES={toast:'#toast .toast-material',retrato:'#deviceGate .device-gate-card'};
+async function showNotice(page,kind){
+  await page.evaluate(kind=>{
+    const root=document.documentElement;
+    if(kind==='toast'){root.removeAttribute('data-device-gate');window.MDTXTRT_UI.setToast({text:'Link copiado',visible:true});}
+    else{window.MDTXTRT_UI.setToast({visible:false});root.removeAttribute('data-device-gate');void root.offsetWidth;root.setAttribute('data-device-gate','');}
+  },kind);
+  await expect(page.locator(NOTICES[kind])).toBeVisible();
+}
+async function noticeLayout(page,kind){
+  return page.evaluate(sel=>{
+    const r=el=>{const b=document.querySelector(el).getBoundingClientRect();return {top:b.top,bottom:b.bottom,left:b.left,right:b.right};};
+    return {box:r(sel),top:r('.topbar'),bar:r('#typebar'),controls:['#plusBtn','#exportBtn','#undoBtn','#redoBtn'].map(r),width:innerWidth};
+  },NOTICES[kind]);
+}
+const overlaps=(a,b)=>a.left<b.right&&b.left<a.right&&a.top<b.bottom&&b.top<a.bottom;
+for(const kind of Object.keys(NOTICES))for(const keyboard of [false,true])test(`aviso efêmero (${kind}) centrado entre as barras${keyboard?' com o teclado aberto':''}`,async ({page})=>{
+  for(const width of [390,320]){
+    await page.setViewportSize({width,height:keyboard?568:844});
+    if(keyboard){
+      // Teclado de 280px: a área visual encolhe e as barras sobem com ela.
+      // Espera o ajuste de viewport do redimensionamento terminar para não ser sobrescrito.
+      await page.evaluate(()=>new Promise(done=>requestAnimationFrame(()=>requestAnimationFrame(()=>setTimeout(done,50)))));
+      await page.evaluate(()=>{const s=document.documentElement.style;s.setProperty('--vv-bottom','280px');s.setProperty('--vv-height',(innerHeight-280)+'px');});
+    }
+    await showNotice(page,kind);
+    const l=await noticeLayout(page,kind);
+    expect(l.box.top,'abaixo da barra de cima').toBeGreaterThan(l.top.bottom);
+    expect(l.box.bottom,'acima da barra de baixo').toBeLessThan(l.bar.top);
+    for(const c of l.controls)expect(overlaps(l.box,c),'não cobre + ☰ desfazer refazer').toBe(false);
+    expect(Math.abs((l.box.top+l.box.bottom)/2-(l.top.bottom+l.bar.top)/2),'centro vertical entre as barras').toBeLessThanOrEqual(1);
+    expect(Math.abs((l.box.left+l.box.right)/2-l.width/2),'centro horizontal').toBeLessThanOrEqual(1);
+    if(keyboard){
+      expect(await page.evaluate(()=>document.documentElement.style.getPropertyValue('--vv-bottom'))).toBe('280px');
+      expect(l.box.bottom,'visível acima do teclado').toBeLessThan(568-280);
+    }
+  }
+});
+
+for(const kind of Object.keys(NOTICES))test(`toque fecha o aviso (${kind}) sem fechar o teclado; no aviso não chega ao texto`,async ({page})=>{
+  const editor=page.locator('#editor');
+  await editor.click();
+  await page.keyboard.type('texto '.repeat(80));
+  const before=await editor.textContent();
+  // Toque fora (no ☰): fecha o aviso e o ☰ abre; o editor continua ativo.
+  await showNotice(page,kind);
+  await page.locator('#exportBtn').click();
+  await expect(page.locator(NOTICES[kind])).toBeHidden();
+  await expect(page.locator('#exportMenu')).toHaveAttribute('data-menu-open','');
+  expect(await page.evaluate(()=>document.activeElement?.id)).toBe('editor');
+  await closeMenus(page);
+  expect(await page.evaluate(()=>document.activeElement?.id)).toBe('editor');
+  // Toque no próprio aviso (sobre o texto): só fecha; o cursor não vai para baixo dele.
+  await showNotice(page,kind);
+  // Toque real no centro do vidro (o mouse do Playwright, sem rolar nada antes).
+  const center=await page.locator(NOTICES[kind]).evaluate(el=>{const r=el.getBoundingClientRect();return {x:r.left+r.width/2,y:r.top+r.height/2};});
+  await page.mouse.click(center.x,center.y);
+  await expect(page.locator(NOTICES[kind])).toBeHidden();
+  expect(await page.evaluate(()=>document.activeElement?.id)).toBe('editor');
+  await page.keyboard.type('!');
+  await expect(editor).toHaveText(before+'!');
+});
+
+// Legibilidade do aviso sobre o texto do documento: mede os pixels de verdade do
+// vidro com o texto do aviso apagado (só o fundo composto, com o documento por
+// baixo). Primeiro confirma que há texto atrás (sem o aviso, o recorte varia muito).
+// Com o aviso, o texto do aviso, inclusive o secundário, tem contraste AA (4,5:1)
+// contra o pior pixel do fundo composto; onde o motor pinta o backdrop-filter
+// (Chromium), o texto de trás também não aparece pelo vidro (textura abaixo de 1,1:1,
+// sem contar o degradê do fundo, então não depende da fonte da máquina). O WebKit do Playwright no Linux não pinta backdrop-filter nenhum, então lá
+// só a tinta conta, e ela sozinha precisa garantir o contraste.
+const luminance=([r,g,b])=>{const f=v=>{v/=255;return v<=.04045?v/12.92:((v+.055)/1.055)**2.4;};return .2126*f(r)+.7152*f(g)+.0722*f(b);};
+const contrast=(a,b)=>(Math.max(a,b)+.05)/(Math.min(a,b)+.05);
+async function backdropPixels(page,box){
+  await page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));
+  const shot=(await page.screenshot({clip:box,scale:'css'})).toString('base64');
+  return page.evaluate(async b64=>{
+    const img=new Image();img.src='data:image/png;base64,'+b64;await img.decode();
+    const c=document.createElement('canvas');c.width=img.width;c.height=img.height;const x=c.getContext('2d');x.drawImage(img,0,0);
+    const d=x.getImageData(0,0,c.width,c.height).data,out=[];
+    for(let i=0;i<d.length;i+=4)out.push([d[i],d[i+1],d[i+2]]);
+    return out;
+  },shot);
+}
+for(const kind of Object.keys(NOTICES))test(`aviso efêmero (${kind}) legível sobre o texto do documento`,async ({page,browserName})=>{
+  const sel=NOTICES[kind];
+  // Texto corrido e denso, sem linhas em branco, atrás de todo o aviso.
+  await page.evaluate(()=>{document.querySelector('#editor').innerHTML='<p>'+'<b>Mdtxtrt</b> eiusmod tempor incididunt ut labore et dolore magna aliqua quis nostrud exercitation ullamco laboris. '.repeat(120)+'</p>';});
+  await showNotice(page,kind);
+  // Cores do texto do aviso já resolvidas em sRGB 0–255 com alfa (canvas normaliza
+  // rgb(), color(srgb …) e color-mix()).
+  const colors=await page.evaluate(sel=>{
+    const el=document.querySelector(sel),c=document.createElement('canvas').getContext('2d',{willReadFrequently:true});
+    const nodes=[el,...el.querySelectorAll('*')].filter(n=>[...n.childNodes].some(t=>t.nodeType===3&&t.textContent.trim()));
+    return [...new Set(nodes.map(n=>getComputedStyle(n).color))].map(css=>{c.clearRect(0,0,1,1);c.fillStyle=css;c.fillRect(0,0,1,1);const d=c.getImageData(0,0,1,1).data;return {css,rgb:[d[0],d[1],d[2]],a:d[3]/255};});
+  },sel);
+  expect(colors.length,'texto do aviso encontrado').toBeGreaterThan(0);
+  const box=await page.locator(sel).evaluate(el=>{const r=el.getBoundingClientRect(),rad=Math.min(parseFloat(getComputedStyle(el).borderTopLeftRadius)||0,r.height/2);return {x:Math.ceil(r.left+rad),y:Math.ceil(r.top+3),width:Math.floor(r.width-2*rad),height:Math.floor(r.height-6)};});
+  const range=px=>{const l=px.map(luminance);return Math.max(...l)-Math.min(...l);};
+  const hide=await page.addStyleTag({content:`${sel}{visibility:hidden!important}`});
+  expect(range(await backdropPixels(page,box)),'há texto do documento atrás do aviso').toBeGreaterThan(.3);
+  await hide.evaluate(el=>el.remove());
+  await page.addStyleTag({content:`${sel},${sel} *{color:transparent!important;text-shadow:none!important}`});
+  const glass=await backdropPixels(page,box);
+  if(browserName==='chromium'){
+    // Textura que o texto de trás deixa no vidro: o mesmo recorte com a tinta do
+    // documento apagada tira o degradê do fundo; o que sobra é só o texto. Abaixo de
+    // 1,1:1 (medido de 1,002 a 1,053; a tinta antiga deixava de 1,34 a 5,1:1).
+    const ink=await page.addStyleTag({content:'.editor,.editor *{color:transparent!important}'});
+    const clean=await backdropPixels(page,box);
+    await ink.evaluate(el=>el.remove());
+    const ratio=glass.map((px,i)=>(luminance(px)+.05)/(luminance(clean[i])+.05));
+    expect(Math.max(...ratio)/Math.min(...ratio),'o texto de trás não aparece pelo vidro').toBeLessThanOrEqual(1.1);
+  }
+  for(const {css,rgb,a} of colors){
+    // Contraste do texto (com o próprio alfa composto sobre o pixel) contra cada pixel.
+    const worst=Math.min(...glass.map(bg=>contrast(luminance(rgb.map((v,k)=>v*a+bg[k]*(1-a))),luminance(bg))));
+    expect(worst,`contraste de ${css} contra o fundo composto`).toBeGreaterThanOrEqual(4.5);
+  }
 });
 
 // Diálogo: texto inteiro visível (sem corte nem rolagem), abaixo da barra superior,
