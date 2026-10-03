@@ -19,6 +19,9 @@ test.beforeEach(async ({page})=>{
   if(test.info().titlePath.includes(OFFLINE))return;
   await page.goto('/index.html');
   await expect(page.locator('#undoBtn')).toBeVisible();
+  // Em 1280px o aviso de retrato abre por 4s e o primeiro toque só o fecharia: os
+  // testes de interface começam sem ele (os do aviso o mostram de novo).
+  await page.evaluate(()=>document.documentElement.removeAttribute('data-device-gate'));
 });
 
 test.afterEach(async ({page})=>{
@@ -570,11 +573,12 @@ for(const mini of [false,true])test(`menu com o teclado aberto e área visível 
   await closeMenus(page);
 });
 
-// Citações como a plataforma de destino as mostra (telegra.ph/css/core.min.css e
-// apps do Telegram). A citação em destaque só existe no Telegraph: vale nos dois.
+// Citações como a plataforma de destino as mostra. Telegram: Bot API 10.3 (aside é a
+// RichBlockPullQuotation, citação com texto centrado) desenhada como o cliente
+// (Telegram-iOS › InstantPageV2Layout › layoutQuoteText). Telegraph: core.min.css.
 test('citação e citação em destaque seguem o Telegraph e o Telegram',async ({page},info)=>{
   const light=info.project.use.colorScheme==='light';
-  await page.evaluate(()=>{document.querySelector('#editor').innerHTML='<blockquote>Citação</blockquote><aside>Destaque do autor</aside><p>texto</p>';});
+  await page.evaluate(()=>{document.querySelector('#editor').innerHTML='<blockquote>Citação</blockquote><aside>Destaque do autor</aside><blockquote expandable="">Longa</blockquote><p>texto</p>';});
   const read=()=>page.evaluate(()=>{
     // color-mix() sai como rgba() ou color(srgb …) conforme o motor: compara por canais.
     const rgba=value=>{
@@ -583,28 +587,43 @@ test('citação e citação em destaque seguem o Telegraph e o Telegram',async (
       const rgb=/^rgba?\(([\d.]+), ([\d.]+), ([\d.]+)(?:, ([\d.]+))?\)$/.exec(value);
       return rgb?[...rgb.slice(1,4).map(Number),Math.round(Number(rgb[4]??1)*100)/100]:value;
     };
-    const q=getComputedStyle(document.querySelector('#editor blockquote')),a=getComputedStyle(document.querySelector('#editor aside'));
+    const ed=document.querySelector('#editor'),qe=ed.querySelector('blockquote'),ae=ed.querySelector('aside'),xe=ed.querySelector('blockquote[expandable]');
+    const q=getComputedStyle(qe),a=getComputedStyle(ae),x=getComputedStyle(xe),e=getComputedStyle(ed);
     const probe=document.createElement('span');probe.style.color='var(--link)';document.body.append(probe);
-    const link=getComputedStyle(probe).color;probe.remove();
-    return {link,q:{bw:q.borderLeftWidth,bs:q.borderLeftStyle,bc:q.borderLeftColor,bcc:rgba(q.borderLeftColor),style:q.fontStyle,pad:q.paddingLeft,margin:q.margin},
-      a:{style:a.fontStyle,weight:a.fontWeight,align:a.textAlign,size:a.fontSize,color:a.color,cc:rgba(a.color),margin:a.margin,padding:a.padding,family:a.fontFamily,
-        top:a.borderTopStyle+' '+a.borderTopWidth,bottom:a.borderBottomStyle+' '+a.borderBottomWidth}};
+    const link=rgba(getComputedStyle(probe).color);probe.remove();
+    const er=ed.getBoundingClientRect(),ar=ae.getBoundingClientRect();
+    const pick=c=>({bw:c.borderLeftWidth,bs:c.borderLeftStyle,bc:rgba(c.borderLeftColor),style:c.fontStyle,size:c.fontSize,
+      pad:c.paddingTop+' '+c.paddingRight+' '+c.paddingBottom+' '+c.paddingLeft,margin:c.margin,radius:c.borderTopRightRadius,bg:rgba(c.backgroundColor),family:c.fontFamily});
+    return {link,editor:{size:e.fontSize,lh:Math.round(parseFloat(e.lineHeight)/parseFloat(e.fontSize)*100)/100},
+      q:pick(q),x:{...pick(x),chevron:getComputedStyle(xe,'::after').content},
+      a:{...pick(a),weight:a.fontWeight,align:a.textAlign,color:rgba(a.color),lh:Math.round(parseFloat(a.lineHeight)/parseFloat(a.fontSize)*100)/100,
+        top:a.borderTopStyle,bottom:a.borderBottomStyle,width:ar.width,editorWidth:er.width,leftGap:ar.left-er.left,rightGap:er.right-ar.right}};
   });
-  // Claro: o valor literal do Telegraph. Escuro: o texto (#f5f5f7) a 60%.
-  const aside={style:'italic',weight:'400',align:'center',size:'21px',...(light?{color:'rgba(0, 0, 0, 0.6)'}:{cc:[245,245,247,0.6]}),margin:'18px 21px 16px',padding:'0px 18px'};
-  // Telegram: barra na cor de link do tema, sem itálico.
+  const tint=s=>[...s.link.slice(0,3),0.1];
+  // Telegram (padrão).
   let s=await read();
-  expect(s.q).toMatchObject({bw:'3px',bs:'solid',bc:s.link,style:'normal'});
-  expect(s.a).toMatchObject(aside);
-  expect(s.a.family).toMatch(/Georgia/);
-  expect(s.a.top,'sem linha acima do destaque').toMatch(/^none/);
-  expect(s.a.bottom,'sem linha abaixo do destaque').toMatch(/^none/);
-  // Telegraph: barra de 3px #000 no claro (o texto no escuro), itálico, recuo de 15px.
+  expect(s.q).toMatchObject({bw:'3px',bs:'solid',bc:s.link,style:'normal',size:'15px',pad:'6px 16px 6px 6px',radius:'6px',bg:tint(s)});
+  expect(s.x).toMatchObject({bw:'3px',bc:s.link,style:'normal',size:'15px',radius:'6px',bg:tint(s)});
+  expect(s.x.chevron).not.toBe('none');
+  expect(s.a).toMatchObject({style:'italic',weight:'400',align:'center',size:'15px',pad:'12px 30px 12px 30px',radius:'6px',bg:tint(s),bw:'0px'});
+  expect(s.a.top,'pílula sem linhas').toBe('none');
+  expect(s.a.width,'a pílula abraça o texto').toBeLessThan(s.a.editorWidth-40);
+  expect(Math.abs(s.a.leftGap-s.a.rightGap),'pílula centrada').toBeLessThanOrEqual(1);
+  // Telegraph: core.min.css › .tl_article_content.
   await page.locator('#destBtn').click();
   await expect(page.locator('html')).toHaveAttribute('data-dest','telegraph');
   s=await read();
-  expect(s.q).toMatchObject({bw:'3px',bs:'solid',...(light?{bc:'rgb(0, 0, 0)'}:{bcc:[245,245,247,1]}),style:'italic',pad:'15px',margin:'18px 21px 16px 0px'});
-  expect(s.a).toMatchObject(aside);
+  expect(s.editor).toEqual({size:'18px',lh:1.58});
+  const rule=light?[0,0,0,1]:[245,245,247,1];
+  const plain={bw:'3px',bs:'solid',bc:rule,style:'italic',size:'18px',pad:'0px 0px 0px 15px',margin:'18px 21px 16px 0px',radius:'0px',bg:[0,0,0,0]};
+  expect(s.q).toMatchObject(plain);
+  expect(s.q.family).toMatch(/^Georgia, Cambria/);
+  // O Telegraph não tem citação expansível: aparece como citação comum.
+  expect(s.x).toMatchObject({...plain,chevron:'none'});
+  expect(s.a).toMatchObject({style:'italic',weight:'400',align:'center',size:'21px',lh:1.58,color:light?[0,0,0,0.6]:[245,245,247,0.6],
+    margin:'18px 21px 16px',pad:'0px 18px 0px 18px',radius:'0px',bg:[0,0,0,0],bw:'0px',top:'none',bottom:'none'});
+  expect(s.a.family).toMatch(/^Georgia, Cambria/);
+  expect(s.a.width,'destaque do Telegraph ocupa a coluna').toBeGreaterThan(s.a.editorWidth-50);
   await page.locator('#destBtn').click();
   await expect(page.locator('html')).toHaveAttribute('data-dest','telegram');
 });
@@ -710,4 +729,100 @@ for(const width of [390,320])test(`título do Telegraph sem rótulo e com placeh
   expect(m.label==='none'||m.label==='normal','sem rótulo visível').toBe(true);
   expect(m.text,'placeholder cabe no campo').toBeLessThanOrEqual(m.room);
   expect(m.glyphs,'acento e letras do placeholder cabem na altura do campo').toBeLessThanOrEqual(m.height);
+});
+
+// Borda da tela: a área segura e a faixa acima/abaixo das barras são a cor sólida do
+// cromo (--edge), com o texto rolando por baixo, como na main e no site HTML. Mede
+// os pixels de verdade, no meio da largura (longe da sombra das pílulas).
+test('borda da tela fica na cor sólida do cromo com texto rolando por baixo',async ({page})=>{
+  const html=Array.from({length:40},(_,i)=>`<p><b>Parágrafo ${i}</b> eiusmod tempor incididunt ut labore et dolore magna aliqua, quis nostrud exercitation ullamco.</p>`).join('');
+  await page.evaluate(h=>{document.querySelector('#editor').innerHTML=h;},html);
+  const strip=await page.evaluate(()=>{
+    const p=document.createElement('div');p.style.cssText='position:fixed;visibility:hidden;height:var(--gap)';document.body.append(p);
+    const h=p.getBoundingClientRect().height;p.remove();return Math.floor(h);
+  });
+  expect(strip,'faixa sólida visível').toBeGreaterThanOrEqual(4);
+  let worst={top:0,bottom:0};
+  for(let step=0;step<8;step++){
+    await page.evaluate(t=>{document.querySelector('.scroll').scrollTop=t;},400+step*3);
+    await page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));
+    const shot=(await page.screenshot({scale:'css'})).toString('base64');
+    const d=await page.evaluate(async ({b64,strip})=>{
+      const img=new Image();img.src='data:image/png;base64,'+b64;await img.decode();
+      const c=document.createElement('canvas');c.width=img.width;c.height=img.height;const x=c.getContext('2d');x.drawImage(img,0,0);
+      const probe=document.createElement('span');probe.style.color='var(--edge)';document.body.append(probe);
+      const edge=getComputedStyle(probe).color.match(/\d+/g).map(Number);probe.remove();
+      const left=Math.round(c.width/2-30);
+      const dev=(y0,y1)=>{let max=0;for(let y=y0;y<y1;y++){const px=x.getImageData(left,y,60,1).data;for(let i=0;i<px.length;i+=4)max=Math.max(max,Math.abs(px[i]-edge[0]),Math.abs(px[i+1]-edge[1]),Math.abs(px[i+2]-edge[2]));}return max;};
+      return {top:dev(0,strip),bottom:dev(c.height-strip,c.height)};
+    },{b64:shot,strip});
+    worst={top:Math.max(worst.top,d.top),bottom:Math.max(worst.bottom,d.bottom)};
+  }
+  expect(worst.top,'faixa do topo sólida (sem texto)').toBeLessThanOrEqual(4);
+  expect(worst.bottom,'faixa da base sólida (sem texto)').toBeLessThanOrEqual(4);
+});
+
+// Avisos efêmeros (toast e aviso de retrato): centrados na área livre entre as barras,
+// sem cobrir as barras nem +, ☰ e desfazer, também com o teclado aberto.
+const NOTICES={toast:'#toast .toast-material',retrato:'#deviceGate .device-gate-card'};
+async function showNotice(page,kind){
+  await page.evaluate(kind=>{
+    const root=document.documentElement;
+    if(kind==='toast'){root.removeAttribute('data-device-gate');window.MDTXTRT_UI.setToast({text:'Link copiado',visible:true});}
+    else{window.MDTXTRT_UI.setToast({visible:false});root.removeAttribute('data-device-gate');void root.offsetWidth;root.setAttribute('data-device-gate','');}
+  },kind);
+  await expect(page.locator(NOTICES[kind])).toBeVisible();
+}
+async function noticeLayout(page,kind){
+  return page.evaluate(sel=>{
+    const r=el=>{const b=document.querySelector(el).getBoundingClientRect();return {top:b.top,bottom:b.bottom,left:b.left,right:b.right};};
+    return {box:r(sel),top:r('.topbar'),bar:r('#typebar'),controls:['#plusBtn','#exportBtn','#undoBtn','#redoBtn'].map(r),width:innerWidth};
+  },NOTICES[kind]);
+}
+const overlaps=(a,b)=>a.left<b.right&&b.left<a.right&&a.top<b.bottom&&b.top<a.bottom;
+for(const kind of Object.keys(NOTICES))for(const keyboard of [false,true])test(`aviso efêmero (${kind}) centrado entre as barras${keyboard?' com o teclado aberto':''}`,async ({page})=>{
+  for(const width of [390,320]){
+    await page.setViewportSize({width,height:keyboard?568:844});
+    if(keyboard){
+      // Teclado de 280px: a área visual encolhe e as barras sobem com ela.
+      // Espera o ajuste de viewport do redimensionamento terminar para não ser sobrescrito.
+      await page.evaluate(()=>new Promise(done=>requestAnimationFrame(()=>requestAnimationFrame(()=>setTimeout(done,50)))));
+      await page.evaluate(()=>{const s=document.documentElement.style;s.setProperty('--vv-bottom','280px');s.setProperty('--vv-height',(innerHeight-280)+'px');});
+    }
+    await showNotice(page,kind);
+    const l=await noticeLayout(page,kind);
+    expect(l.box.top,'abaixo da barra de cima').toBeGreaterThan(l.top.bottom);
+    expect(l.box.bottom,'acima da barra de baixo').toBeLessThan(l.bar.top);
+    for(const c of l.controls)expect(overlaps(l.box,c),'não cobre + ☰ desfazer refazer').toBe(false);
+    expect(Math.abs((l.box.top+l.box.bottom)/2-(l.top.bottom+l.bar.top)/2),'centro vertical entre as barras').toBeLessThanOrEqual(1);
+    expect(Math.abs((l.box.left+l.box.right)/2-l.width/2),'centro horizontal').toBeLessThanOrEqual(1);
+    if(keyboard){
+      expect(await page.evaluate(()=>document.documentElement.style.getPropertyValue('--vv-bottom'))).toBe('280px');
+      expect(l.box.bottom,'visível acima do teclado').toBeLessThan(568-280);
+    }
+  }
+});
+
+for(const kind of Object.keys(NOTICES))test(`toque fecha o aviso (${kind}) sem fechar o teclado; no aviso não chega ao texto`,async ({page})=>{
+  const editor=page.locator('#editor');
+  await editor.click();
+  await page.keyboard.type('texto '.repeat(80));
+  const before=await editor.textContent();
+  // Toque fora (no ☰): fecha o aviso e o ☰ abre; o editor continua ativo.
+  await showNotice(page,kind);
+  await page.locator('#exportBtn').click();
+  await expect(page.locator(NOTICES[kind])).toBeHidden();
+  await expect(page.locator('#exportMenu')).toHaveAttribute('data-menu-open','');
+  expect(await page.evaluate(()=>document.activeElement?.id)).toBe('editor');
+  await closeMenus(page);
+  expect(await page.evaluate(()=>document.activeElement?.id)).toBe('editor');
+  // Toque no próprio aviso (sobre o texto): só fecha; o cursor não vai para baixo dele.
+  await showNotice(page,kind);
+  // Toque real no centro do vidro (o mouse do Playwright, sem rolar nada antes).
+  const center=await page.locator(NOTICES[kind]).evaluate(el=>{const r=el.getBoundingClientRect();return {x:r.left+r.width/2,y:r.top+r.height/2};});
+  await page.mouse.click(center.x,center.y);
+  await expect(page.locator(NOTICES[kind])).toBeHidden();
+  expect(await page.evaluate(()=>document.activeElement?.id)).toBe('editor');
+  await page.keyboard.type('!');
+  await expect(editor).toHaveText(before+'!');
 });

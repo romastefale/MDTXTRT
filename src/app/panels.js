@@ -12,6 +12,53 @@ export function showToast(msg){
   ui.setToast({text:String(msg),visible:true});
   clearTimeout(showToast.t); showToast.t = setTimeout(()=>ui.setToast({visible:false}), 1600);
 }
+// Avisos efêmeros (toast e aviso de retrato): somem sozinhos e também com um toque
+// em qualquer ponto da tela, sem tirar o foco do campo de texto (o teclado continua
+// aberto). Um toque fora do aviso segue normalmente para o que foi tocado (o + abre,
+// o ☰ abre); um toque no próprio aviso só o fecha e não chega ao texto que está
+// embaixo dele. Nesse caso o padrão é o de holdDismissPress: o mousedown é cancelado
+// (é ele que impediria o blur) e o pointerdown de um toque não, porque cancelá-lo faz
+// o WebKit suprimir esse mousedown.
+const NOTICE_SURFACES='#toast .toast-material,#deviceGate .device-gate-card';
+export function deviceNoticeVisible(){
+  const gate=document.getElementById('deviceGate');
+  if(!gate||!document.documentElement.hasAttribute('data-device-gate'))return false;
+  const style=getComputedStyle(gate);
+  return style.display!=='none'&&style.visibility!=='hidden';
+}
+export function noticeVisible(){
+  return ui.getState().toast.visible||deviceNoticeVisible();
+}
+export function dismissNotices(){
+  clearTimeout(showToast.t);
+  if(ui.getState().toast.visible)ui.setToast({visible:false});
+  document.documentElement.removeAttribute('data-device-gate');
+}
+const NOTICE_PRESS_MS=1500;
+let noticePressAt=0;
+function noticePressActive(){return noticePressAt>0&&performance.now()-noticePressAt<NOTICE_PRESS_MS;}
+export function noticeDismissPress(event){
+  if(event.type==='pointercancel'){noticePressAt=0;return;}
+  if(event.type==='click'){
+    if(!noticePressActive())return;
+    noticePressAt=0;
+    event.preventDefault();event.stopPropagation();
+    return;
+  }
+  // pointerdown inicia o toque; mousedown sem pointerdown antes (navegadores sem
+  // Pointer Events) também.
+  const continuing=event.type==='mousedown'&&noticePressActive();
+  if(!continuing){
+    if(event.type==='pointerdown')noticePressAt=0;
+    if(!noticeVisible())return;
+    const onNotice=Boolean(event.target?.closest?.(NOTICE_SURFACES));
+    dismissNotices();
+    if(!onNotice)return;
+    noticePressAt=performance.now();
+  }
+  if(!touchPress(event))event.preventDefault();
+  event.stopPropagation();
+}
 export function panelIsOpen(panel){
   if(!panel)return false;
   if(panel.id==='dialogMenu')return ui.getState().dialog.open;

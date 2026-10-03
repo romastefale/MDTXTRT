@@ -6,7 +6,7 @@ import { applyAssets, applyScheme, setTheme } from "./theme.js";
 import { clearRuntimeMedia, decorateSpecials, installMedia, mediaDelete, mediaNode, restoreActiveMediaVisual, restoreMedia, telegramUploadLimit } from "./media.js";
 import { consumeNewDocumentToken, createNewDocumentLaunch, loadLocal, loadRemoteDraft, markDirty, offerDraftRecovery, persistRemoteDraft, recoverPersistentDraft, saveLocal, startRequestedNewDocument } from "./draft.js";
 import { handoffToken, openMiniApp, verifyTelegram } from "./telegram.js";
-import { closePanel, closePanels, focusControl, holdDismissPress, isTypingEntry, librarySubmenuOpen, openPanel, openPlusRoot, openPlusSubmenu, panelIsOpen, retainTypingFocus, showToast, syncBackButton, togglePanel } from "./panels.js";
+import { closePanel, closePanels, focusControl, holdDismissPress, isTypingEntry, librarySubmenuOpen, noticeDismissPress, openPanel, openPlusRoot, openPlusSubmenu, panelIsOpen, retainTypingFocus, showToast, syncBackButton, togglePanel } from "./panels.js";
 import { dialogFocusables, dismissDialog, finishDialog, focusDialogStart, focusLibraryStart, libraryFocusables } from "./dialog.js";
 import { commitEditorInput, exec, flashBtn, formatBlock, histRedo, histUndo, insertFeature, syncHistoryButtons, insertHTML, insertHyperlink, insertLinkButton, insertPlainText, insertVisibleLink, requireEditorCore, restoreSel, saveSel, syncEditorSelectionUI } from "./editing.js";
 import { closeLibrary, consumeLibraryView, openLibrary, setDraftsExpanded, setPublicationsExpanded } from "./library.js";
@@ -75,6 +75,7 @@ editor.addEventListener('paste', e => {
   insertPlainText(text);
 });
 document.addEventListener('selectionchange',syncEditorSelectionUI);
+for(const type of ['pointerdown','mousedown','click','pointercancel'])window.addEventListener(type,noticeDismissPress,true);
 document.addEventListener('pointerdown',retainTypingFocus,true);
 document.addEventListener('mousedown',retainTypingFocus,true);
 menuDismissLayer?.addEventListener('pointerdown',holdDismissPress);

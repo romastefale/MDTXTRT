@@ -582,23 +582,29 @@ test('toast text and visibility are React state, not DOM mutations from the edit
   assert.doesNotMatch(app,/toast\.classList|\btoastText\b|createTextNode\(''\)/);
 });
 
-test('edge fades start near transparent on the content side and reach the solid chrome only at the edge',()=>{
+test('edge fades are solid at the screen edge and ease more translucently than main under the bars',()=>{
   const css=read('styles.css'),jsx=read('src/chrome.jsx');
   const stops=JSON.parse(/export const FADE_STOPS = (\[\[.*?\]\]);/.exec(jsx)[1]);
   assert.deepEqual(stops[0],[0,100]);
   assert.deepEqual(stops.at(-1),[1,0]);
+  // Rampa (1-t)²: suave e sem degraus.
   for(let i=1;i<stops.length;i++){
     assert.ok(stops[i][0]>stops[i-1][0],'posições crescentes');
     assert.ok(stops[i][1]<stops[i-1][1],'alfa cai sem degraus');
+    assert.ok(Math.abs(stops[i][1]-100*(1-stops[i][0])**2)<=0.5,`(1-t)² em t=${stops[i][0]}`);
   }
-  // Metade da faixa do lado do conteúdo quase transparente: a translucidez aparece.
-  for(const [t,a] of stops)if(t>=0.5)assert.ok(a<=12,`alfa ${a}% em t=${t}`);
+  // Depois da faixa sólida, mais translúcida que a rampa da main (100 → 60% na metade →
+  // 26% a três quartos → 0), para o texto aparecer sob o vidro das barras.
+  const main=t=>t<=.5?100-80*t:t<=.75?60-136*(t-.5):26-104*(t-.75);
+  for(const [t,a] of stops.slice(1,-1))assert.ok(a<main(t),`alfa ${a}% em t=${t} abaixo da main (${main(t).toFixed(1)}%)`);
   // O CSS usa as mesmas paradas que o fundo das lentes (canvas).
   const ramp=/--fade-ramp:([^}]*?)transparent 100%/s.exec(css)[1];
   const cssStops=[...ramp.matchAll(/var\(--edge\) ([\d.]+)%,transparent\) calc\(var\(--fade-solid\) \+ \(100% - var\(--fade-solid\)\)\*([\d.]+)\)/g)].map(m=>[Number(m[2]),Number(m[1])]);
   assert.deepEqual(cssStops,stops.slice(1,-1));
-  assert.match(css,/\.fade-top\{[^}]*--fade-solid:var\(--safe-top\)/);
-  assert.match(css,/\.fade-bot\{[^}]*--fade-solid:var\(--safe-bottom-max\)/);
+  // Sólido na borda como na main: área segura mais a faixa acima/abaixo da barra.
+  assert.match(css,/\.fade-top\{[^}]*--fade-solid:calc\(var\(--safe-top\) \+ var\(--gap\)\)/);
+  assert.match(css,/\.fade-bot\{[^}]*--fade-solid:calc\(var\(--safe-bottom-max\) \+ var\(--gap\)\)/);
+  assert.match(css,/--fade-ramp:var\(--edge\) 0,var\(--edge\) var\(--fade-solid\),/);
 });
 
 test('platform switcher is an ephemeral choice without a persistent on state',()=>{
@@ -624,19 +630,25 @@ test('no residue of the old palette: no green accent, no stale tokens, one hairl
   assert.match(css,/\.toast-material\{\s*border-radius:22px;overflow:hidden/);
 });
 
-test('editor quotes follow the canonical platform: Telegraph aside and blockquote, Telegram link bar',()=>{
+test('editor quotes follow the canonical platform: Telegram rich-message quotes, Telegraph article quotes',()=>{
   const css=read('styles.css'),publish=read('src/app/publish.js');
-  const aside=/\n\.editor aside\{([^}]*)\}/.exec(css)[1];
-  // telegra.ph/css/core.min.css › .tl_article_content aside
-  for(const rule of ['margin:18px 21px 16px','padding:0 18px','font-size:21px','font-style:italic','text-align:center','color:var(--telegraph-aside)'])assert.ok(aside.includes(rule),'aside '+rule);
-  assert.doesNotMatch(aside,/border/);
+  const rule=sel=>{const m=new RegExp('\\n'+sel.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'\\{([^}]*)\\}').exec(css);assert.ok(m,sel);return m[1];};
+  // Telegram (Bot API 10.3; Telegram-iOS InstantPageV2Layout › layoutQuoteText).
+  const tq=rule('.editor blockquote'),ta=rule('.editor aside');
+  for(const r of ['padding:6px 16px 6px 6px','border-left:3px solid var(--link)','border-radius:6px','background:color-mix(in srgb,var(--link) 10%,transparent)','font-size:15px','font-style:normal'])assert.ok(tq.includes(r),'blockquote '+r);
+  for(const r of ['width:fit-content','margin:1em auto','padding:12px 30px','border-radius:6px','background:color-mix(in srgb,var(--link) 10%,transparent)','font-size:15px','font-style:italic','text-align:center'])assert.ok(ta.includes(r),'aside '+r);
+  assert.doesNotMatch(ta,/border:|border-(top|bottom|left|right):/);
+  // Telegraph (telegra.ph/css/core.min.css › .tl_article_content).
+  assert.match(rule('html[data-dest="telegraph"] .editor'),/font-size:18px;line-height:1\.58/);
+  const gq=rule('html[data-dest="telegraph"] .editor blockquote'),ga=rule('html[data-dest="telegraph"] .editor aside');
+  for(const r of ['margin:18px 21px 16px 0','padding:0 0 0 15px','border-left:3px solid var(--telegraph-rule)','border-radius:0','background:none','font-style:italic'])assert.ok(gq.includes(r),'telegraph blockquote '+r);
+  for(const r of ['margin:18px 21px 16px','padding:0 18px','font-size:21px','font-style:italic','text-align:center','color:var(--telegraph-aside)','background:none'])assert.ok(ga.includes(r),'telegraph aside '+r);
+  assert.match(css,/html\[data-dest="telegraph"\] \.editor blockquote\[expandable\]::after\{content:none\}/);
   // Claro: os literais do core.min.css (o texto do claro é #151515, não preto).
   // Escuro (o Telegraph não tem): derivados da cor do texto.
   assert.match(css,/html\.light\{[^}]*--telegraph-rule:#000;\s*--telegraph-aside:rgba\(0,0,0,\.6\);/);
   assert.match(css,/:root\{[^}]*--telegraph-rule:var\(--text\);\s*--telegraph-aside:color-mix\(in srgb,var\(--text\) 60%,transparent\);/);
   assert.doesNotMatch(css,/--telegraph-ink/);
-  assert.match(css,/html\[data-dest="telegraph"\] \.editor blockquote:not\(\[expandable\]\)\{[^}]*margin:18px 21px 16px 0;padding:0 0 0 15px;border-left:3px solid var\(--telegraph-rule\);font-style:italic/);
-  assert.match(css,/\.editor blockquote\{[^}]*border-left:3px solid var\(--link\)/);
   assert.match(publish,/document\.documentElement\.setAttribute\('data-dest',S\.dest\)/);
 });
 

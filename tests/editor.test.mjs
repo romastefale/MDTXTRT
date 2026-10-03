@@ -480,6 +480,8 @@ test('pointer-based editor controls keep the active typing focus while navigatin
   };
   const w=page({fetch,visualViewport:{height:360}}),d=w.document,editor=d.querySelector('#editor');
   await wait(40);
+  // Este ambiente abre com o aviso de retrato; o primeiro toque só o fecharia.
+  d.documentElement.removeAttribute('data-device-gate');
   editor.focus();
 
   const press=element=>{
@@ -2011,6 +2013,73 @@ test('React renders menu state described by app.js: anchors, dismiss layer, dest
   assert.equal(d.querySelector('#dialogOk').textContent,'Continuar');
   d.querySelector('#dialogCancel').click();
   assert.equal(await confirmation,false);
+  w.close();
+});
+
+// Avisos efêmeros: um toque em qualquer ponto fecha o aviso sem tirar o foco do editor
+// (o teclado continua aberto). Fora do aviso, o toque segue para o controle tocado; no
+// próprio aviso, só o fecha e não chega ao que está embaixo.
+test('a tap anywhere dismisses the toast or the portrait notice and keeps the typing focus; a tap on the notice reaches nothing below',async()=>{
+  const w=page({visualViewport:{height:360}}),d=w.document,root=d.documentElement,editor=d.querySelector('#editor');
+  await wait(40);
+  editor.focus();
+  const exportBtn=d.querySelector('#exportBtn'),exportMenu=d.querySelector('#exportMenu');
+  const fire=(target,type,pointerType)=>{
+    const event=new w.Event(type,{bubbles:true,cancelable:true});
+    if(pointerType)Object.defineProperty(event,'pointerType',{value:pointerType});
+    target.dispatchEvent(event);
+    return event;
+  };
+  const tap=(target,pointerType)=>{
+    const down=fire(target,'pointerdown',pointerType),mouse=fire(target,'mousedown');
+    let clicked=false;const seen=()=>{clicked=true;};
+    target.addEventListener('click',seen);target.click();target.removeEventListener('click',seen);
+    return {down:down.defaultPrevented,mouse:mouse.defaultPrevented,clicked};
+  };
+  // Toque fora (no ☰), com mouse: os dois avisos fecham e o ☰ abre, foco no editor.
+  assert.equal(root.hasAttribute('data-device-gate'),true,'este ambiente abre com o aviso de retrato');
+  w.eval('showToast("Aviso de teste")');
+  let t=tap(exportBtn,'mouse');
+  assert.equal(w.MDTXTRT_UI.getState().toast.visible,false,'o toast fecha no toque');
+  assert.equal(root.hasAttribute('data-device-gate'),false,'o aviso de retrato fecha no mesmo toque');
+  assert.equal(t.clicked,true);
+  assert.equal(exportMenu.hasAttribute('data-menu-open'),true,'o toque fora segue para o ☰');
+  assert.equal(d.activeElement,editor,'o foco continua no editor');
+  exportBtn.click();
+  // Toque fora com o dedo (no +).
+  w.eval('showToast("Outro aviso")');
+  t=tap(d.querySelector('#plusBtn'),'touch');
+  assert.equal(w.MDTXTRT_UI.getState().toast.visible,false);
+  assert.equal(d.querySelector('#plusMenu').hasAttribute('data-menu-open'),true);
+  assert.equal(d.activeElement,editor);
+  d.querySelector('#plusBtn').click();
+  // Toque no próprio toast: fecha e não chega a nada (mouse: pointerdown e mousedown
+  // cancelados; dedo: só o mousedown, o pointerdown não pode ser cancelado no WebKit).
+  for(const pointerType of ['mouse','touch']){
+    w.eval('showToast("Aviso")');
+    const material=d.querySelector('#toast .toast-material');
+    let reached=false;const below=()=>{reached=true;};
+    d.body.addEventListener('click',below);
+    t=tap(material,pointerType);
+    d.body.removeEventListener('click',below);
+    assert.equal(w.MDTXTRT_UI.getState().toast.visible,false,pointerType);
+    assert.deepEqual({down:t.down,mouse:t.mouse,reached},{down:pointerType==='mouse',mouse:true,reached:false},pointerType);
+    assert.equal(d.activeElement,editor,pointerType);
+  }
+  // Toque no cartão do aviso de retrato: fecha e não chega a nada.
+  root.setAttribute('data-device-gate','');
+  const card=d.querySelector('#deviceGate .device-gate-card');
+  t=tap(card,'touch');
+  assert.equal(root.hasAttribute('data-device-gate'),false);
+  assert.equal(t.mouse,true);
+  assert.equal(d.activeElement,editor);
+  // Depois de um toque no aviso que vira rolagem (pointercancel), o clique seguinte
+  // não é engolido.
+  w.eval('showToast("Aviso")');
+  fire(d.querySelector('#toast .toast-material'),'pointerdown','touch');
+  fire(d.querySelector('#toast .toast-material'),'pointercancel','touch');
+  exportBtn.click();
+  assert.equal(exportMenu.hasAttribute('data-menu-open'),true);
   w.close();
 });
 

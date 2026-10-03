@@ -116,9 +116,10 @@ function loadBackdrop() {
   });
 }
 // Paradas dos degradês de borda (styles.css › .fade-top/.fade-bot): [t, alfa%],
-// t de 0 (fim da faixa sólida da área segura) a 1 (lado do conteúdo).
-export const FADE_STOPS = [[0, 100], [0.04, 88], [0.1, 73], [0.18, 55], [0.28, 37], [0.4, 22], [0.52, 11], [0.64, 5], [0.76, 1.5], [0.88, 0.3], [1, 0]];
-// Altura em px da faixa sólida (--fade-solid, uma área segura em env()).
+// alfa = (1-t)², t de 0 (fim da faixa sólida: área segura + --gap) a 1 (lado do
+// conteúdo).
+export const FADE_STOPS = [[0, 100], [0.1, 81], [0.2, 64], [0.3, 49], [0.4, 36], [0.5, 25], [0.6, 16], [0.7, 9], [0.8, 4], [0.9, 1], [1, 0]];
+// Altura em px da faixa sólida (--fade-solid: área segura em env() + --gap).
 function fadeSolid(el) {
   if (!el) return 0;
   const probe = document.createElement("div");

@@ -145,20 +145,26 @@ body{
   position:fixed;top:var(--vv-top);left:0;width:100%;height:var(--vv-height);z-index:0;pointer-events:none;
   background:linear-gradient(var(--bg-shade),var(--bg-shade)),var(--bg-art) center/100% 100% no-repeat,var(--edge)
 }
-.device-gate{
-  display:none;position:fixed;
-  top:calc(var(--vv-top) + var(--safe-top) + 8px);left:50%;z-index:35;
-  width:min(360px,calc(100vw - 24px));transform:translateX(-50%);
-  padding:0;text-align:center;color:var(--text);pointer-events:none
+/* Avisos efêmeros (aviso de retrato e toast): centrados na área livre entre a barra
+   de cima e a de baixo da área visível (com o teclado aberto, acima dele), nunca
+   sobre as barras nem sobre +, ☰ e desfazer. */
+.device-gate,.toast{
+  position:fixed;left:0;right:0;
+  top:calc(var(--vv-top) + var(--safe-top) + var(--gap) + var(--topbar-h) + var(--gap));
+  bottom:calc(var(--vv-bottom) + var(--foot-inset));
+  display:none;align-items:center;justify-content:center;padding:0 12px;pointer-events:none
 }
+.device-gate{z-index:35;text-align:center;color:var(--text);-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+/* O vidro do aviso recebe o toque (que só o fecha); o resto da faixa deixa passar. */
+.device-gate-card,.toast-material{pointer-events:auto}
 .device-gate-card{
-  width:100%;padding:10px 14px;border:0;border-radius:22px;
+  width:min(360px,100%);padding:10px 14px;border:0;border-radius:22px;
   background:var(--glass-panel);-webkit-backdrop-filter:var(--blur-panel);backdrop-filter:var(--blur-panel);
   box-shadow:var(--glass-edge),var(--float)
 }
 .device-gate strong{display:block;font-size:14px;line-height:1.25;letter-spacing:-.01em}
 .device-gate p{margin:4px 0 0;color:var(--muted);font-size:12px;line-height:1.35}
-html[data-device-gate] .device-gate{display:block;animation:device-gate-out .22s ease 4s forwards}
+html[data-device-gate] .device-gate{display:flex;animation:device-gate-out .22s ease 4s forwards}
 @keyframes device-gate-out{to{opacity:0;visibility:hidden}}
 ::selection{background:color-mix(in srgb,var(--link) 38%,transparent);color:inherit}
 button,input{font:inherit;color:inherit}
@@ -201,35 +207,36 @@ button{cursor:pointer;-webkit-tap-highlight-color:transparent}
 @media (hover:hover){.seg button:hover,.bar > button:hover,.theme-switch:hover{filter:brightness(1.08)}}
 .seg,.bar{color:var(--text);border-radius:999px}
 /* Degradês de borda: o conteúdo rola por baixo das barras de vidro e só na borda
-   da tela se funde à cor sólida do cromo do navegador (--edge). A rampa começa
-   quase transparente do lado do conteúdo e sobe em curva (alfa = (1-t)³, onze
-   paradas), chegando ao sólido só na borda; a faixa sólida é apenas a área segura
-   (--fade-solid). As mesmas paradas desenham o fundo da lente em src/chrome.jsx. */
+   da tela se funde à cor sólida do cromo do navegador (--edge). A faixa sólida
+   (--fade-solid) é a da main: a área segura mais o --gap acima/abaixo da barra, então
+   nada do texto aparece colado à borda da tela. Depois dela a rampa cai em curva
+   (alfa = (1-t)², onze paradas), mais translúcida que a da main sob o vidro das
+   barras. As mesmas paradas desenham o fundo da lente em src/chrome.jsx. */
 .fade-top,.fade-bot{
   position:fixed;left:0;right:0;z-index:20;pointer-events:none;
   transform:translateZ(0);backface-visibility:hidden;contain:paint;
   background-repeat:no-repeat;
   --fade-ramp:var(--edge) 0,var(--edge) var(--fade-solid),
-    color-mix(in srgb,var(--edge) 88%,transparent) calc(var(--fade-solid) + (100% - var(--fade-solid))*0.04),
-    color-mix(in srgb,var(--edge) 73%,transparent) calc(var(--fade-solid) + (100% - var(--fade-solid))*0.1),
-    color-mix(in srgb,var(--edge) 55%,transparent) calc(var(--fade-solid) + (100% - var(--fade-solid))*0.18),
-    color-mix(in srgb,var(--edge) 37%,transparent) calc(var(--fade-solid) + (100% - var(--fade-solid))*0.28),
-    color-mix(in srgb,var(--edge) 22%,transparent) calc(var(--fade-solid) + (100% - var(--fade-solid))*0.4),
-    color-mix(in srgb,var(--edge) 11%,transparent) calc(var(--fade-solid) + (100% - var(--fade-solid))*0.52),
-    color-mix(in srgb,var(--edge) 5%,transparent) calc(var(--fade-solid) + (100% - var(--fade-solid))*0.64),
-    color-mix(in srgb,var(--edge) 1.5%,transparent) calc(var(--fade-solid) + (100% - var(--fade-solid))*0.76),
-    color-mix(in srgb,var(--edge) 0.3%,transparent) calc(var(--fade-solid) + (100% - var(--fade-solid))*0.88),
+    color-mix(in srgb,var(--edge) 81%,transparent) calc(var(--fade-solid) + (100% - var(--fade-solid))*0.1),
+    color-mix(in srgb,var(--edge) 64%,transparent) calc(var(--fade-solid) + (100% - var(--fade-solid))*0.2),
+    color-mix(in srgb,var(--edge) 49%,transparent) calc(var(--fade-solid) + (100% - var(--fade-solid))*0.3),
+    color-mix(in srgb,var(--edge) 36%,transparent) calc(var(--fade-solid) + (100% - var(--fade-solid))*0.4),
+    color-mix(in srgb,var(--edge) 25%,transparent) calc(var(--fade-solid) + (100% - var(--fade-solid))*0.5),
+    color-mix(in srgb,var(--edge) 16%,transparent) calc(var(--fade-solid) + (100% - var(--fade-solid))*0.6),
+    color-mix(in srgb,var(--edge) 9%,transparent) calc(var(--fade-solid) + (100% - var(--fade-solid))*0.7),
+    color-mix(in srgb,var(--edge) 4%,transparent) calc(var(--fade-solid) + (100% - var(--fade-solid))*0.8),
+    color-mix(in srgb,var(--edge) 1%,transparent) calc(var(--fade-solid) + (100% - var(--fade-solid))*0.9),
     transparent 100%
 }
 .fade-top{
   top:var(--vv-top);height:calc(var(--head-inset) + 50px);
-  --fade-solid:var(--safe-top);
+  --fade-solid:calc(var(--safe-top) + var(--gap));
   background-image:linear-gradient(180deg,var(--fade-ramp))
 }
 .fade-bot{
   top:auto;bottom:calc(var(--vv-bottom) + var(--safe-bottom) - var(--safe-bottom-max));
   height:calc(var(--foot-inset) + 50px + var(--safe-bottom-max));
-  --fade-solid:var(--safe-bottom-max);
+  --fade-solid:calc(var(--safe-bottom-max) + var(--gap));
   background-image:linear-gradient(0deg,var(--fade-ramp))
 }
 .app{display:contents}
@@ -319,22 +326,43 @@ button{cursor:pointer;-webkit-tap-highlight-color:transparent}
 .editor strong,.editor b{font-weight:700}
 .editor em,.editor i{font-style:italic}
 .editor u,.editor ins{text-decoration:underline;text-underline-offset:.12em}
+/* Citações canônicas por plataforma: o editor é a prévia do destino (html[data-dest]).
+   Telegram (padrão): Bot API 10.3, mensagem rica. <blockquote> é RichBlockBlockQuotation
+   (com expandable, RichBlockExpandableBlockQuotation) e <aside> é RichBlockPullQuotation,
+   "citação com texto centrado". Desenho do cliente (Telegram-iOS › InstantPageV2Layout ›
+   layoutQuoteText): texto de 15pt; citação com barra de 3px e fundo de 10% na cor de
+   destaque, cantos de 6px, texto a 9pt da borda esquerda, 16pt à direita e 6pt em cima e
+   embaixo, sem itálico; destaque numa pílula que abraça o texto, centrada, itálica, 30pt
+   dos lados e 12pt em cima e embaixo, no mesmo fundo de 10%. A cor de destaque aqui é a de
+   link do tema (--link). */
 .editor blockquote,.editor aside{box-sizing:border-box;min-height:1.55em}
-.editor blockquote{margin:1em 0;padding:.18em 0 .18em 12px;border-left:3px solid var(--link)}
-/* Telegraph (telegra.ph/css/core.min.css › .tl_article_content blockquote): serifa,
-   itálico, margem 18px 21px 16px 0, recuo de 15px e barra de 3px #000 no claro; no
-   escuro, a cor do texto. No Telegram a
-   barra segue a cor de link do tema (regra acima), como nos apps do Telegram. */
-html[data-dest="telegraph"] .editor blockquote:not([expandable]){
-  margin:18px 21px 16px 0;padding:0 0 0 15px;border-left:3px solid var(--telegraph-rule);font-style:italic
+.editor blockquote{
+  margin:1em 0;padding:6px 16px 6px 6px;border-left:3px solid var(--link);border-radius:6px;
+  background:color-mix(in srgb,var(--link) 10%,transparent);font-size:15px;font-style:normal
 }
-.editor blockquote[expandable]{position:relative;padding:.72em 34px .72em 12px;border-radius:0 12px 12px 0;background:color-mix(in srgb,var(--link) 8%,transparent)}
+.editor blockquote[expandable]{position:relative;padding-right:34px}
 .editor blockquote[expandable]::after{content:"";position:absolute;right:13px;bottom:13px;width:7px;height:7px;border-right:2px solid color-mix(in srgb,var(--link) 75%,var(--text));border-bottom:2px solid color-mix(in srgb,var(--link) 75%,var(--text));transform:rotate(45deg);pointer-events:none}
-/* Citação em destaque: só existe no Telegraph, então vale o desenho dele nos dois
-   destinos (core.min.css › .tl_article_content aside): serifa, 21px, itálico,
-   centrado, rgba(0,0,0,.6) no claro (o texto a 60% no escuro), margem 18px 21px 16px
-   e recuo 0 18px, sem linhas. */
-.editor aside{margin:18px 21px 16px;padding:0 18px;font-family:Georgia,Cambria,"Times New Roman",serif;font-size:21px;font-style:italic;font-weight:400;color:var(--telegraph-aside);text-align:center}
+.editor aside{
+  display:block;width:fit-content;max-width:100%;margin:1em auto;padding:12px 30px;border-radius:6px;
+  background:color-mix(in srgb,var(--link) 10%,transparent);font-size:15px;font-style:italic;font-weight:400;text-align:center
+}
+/* Telegraph (telegra.ph/css/core.min.css › .tl_article_content): texto do artigo 18px com
+   entrelinha 1.58; blockquote com serifa, itálico, margem 18px 21px 16px 0, recuo de 15px
+   e barra de 3px (#000 no claro, a cor do texto no escuro); aside com serifa, 21px,
+   itálico, rgba(0,0,0,.6) no claro (o texto a 60% no escuro), centrado, margem
+   18px 21px 16px e recuo 0 18px, sem linhas nem fundo. O Telegraph não tem citação
+   expansível: ela aparece como citação comum. CustomSerif é a fonte própria do
+   telegra.ph; aqui vale o resto da pilha (Georgia, Cambria, Times New Roman). */
+html[data-dest="telegraph"] .editor{font-family:Georgia,Cambria,"Times New Roman",serif;font-size:18px;line-height:1.58}
+html[data-dest="telegraph"] .editor blockquote{
+  position:relative;margin:18px 21px 16px 0;padding:0 0 0 15px;border-left:3px solid var(--telegraph-rule);border-radius:0;background:none;
+  font-family:Georgia,Cambria,"Times New Roman",serif;font-size:inherit;font-style:italic
+}
+html[data-dest="telegraph"] .editor blockquote[expandable]::after{content:none}
+html[data-dest="telegraph"] .editor aside{
+  width:auto;max-width:none;margin:18px 21px 16px;padding:0 18px;border-radius:0;background:none;
+  font-family:Georgia,Cambria,"Times New Roman",serif;font-size:21px;font-style:italic;font-weight:400;color:var(--telegraph-aside);text-align:center
+}
 .editor ul{padding-left:1.2em}
 .editor li:has(> input[type="checkbox"]){min-height:1.5em}
 .editor table{width:100%;border-collapse:collapse;font-size:14px}
@@ -461,16 +489,12 @@ html .seg #undoBtn:active .action-dot{
 .menu-list > button:hover .menu-chevron,.menu-list > button:focus-visible .menu-chevron{opacity:1}
 .plus-submenu .submenu-back{font-weight:650}
 .glass-menu .heading-list .h-opt{font-size:13px;font-weight:500;letter-spacing:0;text-transform:none}
-.toast{
-  position:fixed;left:50%;bottom:calc(var(--vv-bottom) + var(--foot-inset) + 8px);
-  transform:translateX(-50%);z-index:50;display:none;min-width:80px;max-width:min(86vw,420px);
-  padding:0;border-radius:22px;font-size:12px;line-height:1.25;color:var(--text);pointer-events:none
-}
-.toast.on{display:block}
+.toast{z-index:50;font-size:12px;line-height:1.25;color:var(--text)}
+.toast.on{display:flex}
 /* 22px (o do cartão do aviso de retrato): numa linha o raio se limita à metade da
    altura e vira cápsula; em várias linhas os cantos não cortam o texto. */
 .toast-material{
-  border-radius:22px;overflow:hidden
+  border-radius:22px;overflow:hidden;min-width:80px;max-width:min(86vw,420px)
 }
 .toast-content{
   position:relative;z-index:1;display:block;padding:8px 13px;
@@ -561,9 +585,6 @@ html .seg #undoBtn:active .action-dot{
 #findMenu .tools:last-child{flex-wrap:wrap}
 #findMenu .tools button{flex:1 1 auto;white-space:nowrap}
 @media (prefers-reduced-motion:reduce){.glass-menu{animation:none}}
-@media (orientation:landscape),(min-width:760px){
-  html[data-device-gate] .device-gate{display:block}
-}
 /* Toque na interface não seleciona texto nem abre o menu de contexto do iOS: a
    seleção sai do editor e o teclado fecharia. Campos de texto continuam selecionáveis. */
 #ux-root{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
