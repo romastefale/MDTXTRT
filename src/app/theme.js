@@ -28,12 +28,28 @@ export function syncBrowserChrome(mode,color){
     themeMeta.replaceWith(replacement);
   }
 }
+// Cor sólida da borda do tema já aplicado (--edge em styles.css), em #rrggbb, que é
+// o formato que o Telegram aceita. É a mesma cor das faixas .edge-top/.edge-bot, que
+// o Safari lê para tingir as barras dele; theme-color e Telegram recebem igual.
+const EDGE_FALLBACK={light:'#8b82e6',dark:'#151137'};
+function hexColor(value){
+  const v=String(value||'').trim().toLowerCase();
+  if(/^#[0-9a-f]{6}$/.test(v))return v;
+  const short=/^#([0-9a-f])([0-9a-f])([0-9a-f])$/.exec(v);
+  if(short)return '#'+short.slice(1).map(c=>c+c).join('');
+  const rgb=/^rgba?\(\s*(\d+)[\s,]+(\d+)[\s,]+(\d+)\s*(?:[,/]\s*1(?:\.0*)?\s*)?\)$/.exec(v);
+  return rgb?'#'+rgb.slice(1).map(n=>Math.min(255,Number(n)).toString(16).padStart(2,'0')).join(''):'';
+}
+export function edgeColor(mode){
+  return hexColor(getComputedStyle(document.documentElement).getPropertyValue('--edge'))||EDGE_FALLBACK[mode==='light'?'light':'dark'];
+}
 export function applyScheme(mode=resolvedTheme()){
   const next=mode==='light'?'light':'dark',light=next==='light';
-  const root=document.documentElement,color=light?'#8b82e6':'#151137';
+  const root=document.documentElement;
   root.classList.remove(light?'dark':'light');
   root.classList.add(next);
   root.dataset.theme=next;
+  const color=edgeColor(next);
   syncBrowserChrome(next,color);
   const statusMeta=one('#statusBarStyle');
   if(statusMeta)statusMeta.content=light?'default':'black-translucent';
@@ -52,6 +68,12 @@ export function applyScheme(mode=resolvedTheme()){
     tg.setBottomBarColor(color);
   }
 }
+// App instalado na tela de início (iOS: navigator.standalone; demais: display-mode).
+// Lá a barra de status segue o apple-mobile-web-app-status-bar-style lido na
+// abertura, então a troca de tema continua recarregando a página.
+export function isInstalledApp(){
+  return navigator.standalone===true||Boolean(window.matchMedia?.('(display-mode: standalone)').matches);
+}
 export function setTheme(mode){
   if(mode!=='light'&&mode!=='dark')throw new Error('Tema inválido');
   S.themePreference=mode;
@@ -59,5 +81,6 @@ export function setTheme(mode){
   // da sessão se perderia: o tema muda aqui mesmo, sem recarregar.
   if(storageBlocked()){applyScheme();return;}
   try{localStorage.setItem(THEME_KEY,mode);}catch{}
-  window.location.reload();
+  if(isInstalledApp()){window.location.reload();return;}
+  applyScheme(mode);
 }

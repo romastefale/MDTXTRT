@@ -6,6 +6,13 @@ const GATE='aviso de retrato';
 
 // A página roda como site estático; o SDK do Telegram fica fora do teste.
 test.beforeEach(async ({page})=>{
+  // Hora em que o index.html abriu o aviso de retrato inicial (tela larga), para os
+  // testes do aviso esperarem o prazo dele acabar (ver showNotice).
+  await page.addInitScript(()=>{
+    new MutationObserver(()=>{
+      if(window.__startupGateAt===undefined&&document.documentElement.hasAttribute('data-device-gate'))window.__startupGateAt=performance.now();
+    }).observe(document,{subtree:true,attributes:true,attributeFilter:['data-device-gate']});
+  });
   await page.route(/telegram\.org/,route=>route.fulfill({body:'',contentType:'text/javascript'}));
   // Sem backend: nenhum rascunho remoto e o resto da API indisponível.
   const cors={'access-control-allow-origin':'*','access-control-allow-headers':'content-type','access-control-allow-methods':'POST, GET, OPTIONS'};
@@ -74,10 +81,136 @@ test('menu de exportação abre e mostra as opções',async ({page})=>{
   await expect(page.locator('#exportTxtBtn')).toBeVisible();
 });
 
-test('trocar o tema recarrega a página e mantém a escolha',async ({page})=>{
+// Troca de tema ao vivo (fora do app instalado): nada recarrega, e o que o Safari, o
+// theme-color e o Telegram usam para pintar as barras é a mesma cor sólida da borda.
+// Cor computada (rgb) em #rrggbb, para comparar com o theme-color e o Telegram.
+const EDGE={light:'#8b82e6',dark:'#151137'};
+async function chromeColors(page){
+  return page.evaluate(()=>{
+    const hex=c=>{const m=/^rgba?\((\d+), (\d+), (\d+)(?:, ([\d.]+))?\)$/.exec(c);return m&&(m[4]===undefined||Number(m[4])===1)?'#'+m.slice(1,4).map(n=>Number(n).toString(16).padStart(2,'0')).join(''):c;};
+    return {theme:document.documentElement.dataset.theme,meta:document.querySelector('meta[name="theme-color"]').getAttribute('content'),
+      top:hex(getComputedStyle(document.querySelector('.edge-top')).backgroundColor),bot:hex(getComputedStyle(document.querySelector('.edge-bot')).backgroundColor)};
+  });
+}
+test('trocar o tema muda na hora, sem recarregar: texto, cursor, borda e theme-color',async ({page})=>{
+  const editor=page.locator('#editor');
+  await editor.click();
+  await page.keyboard.type('antes depois');
+  // Cursor logo depois de "antes".
+  await page.evaluate(()=>{const t=document.querySelector('#editor').querySelector('p')?.firstChild||document.querySelector('#editor').firstChild;const r=document.createRange();r.setStart(t,5);r.collapse(true);const s=getSelection();s.removeAllRanges();s.addRange(r);window.__mesmaPagina=true;});
+  const before=await chromeColors(page);
+  expect(before).toMatchObject({meta:EDGE[before.theme],top:EDGE[before.theme],bot:EDGE[before.theme]});
+  await page.locator('#themeBtn').click();
+  const after=before.theme==='light'?'dark':'light';
+  await expect(page.locator('html')).toHaveAttribute('data-theme',after);
+  expect(await page.evaluate(()=>window.__mesmaPagina),'a página não recarregou').toBe(true);
+  expect(await page.evaluate(()=>localStorage.getItem('mdtxtrt-theme'))).toBe(after);
+  // Faixas da borda, theme-color: a cor do tema novo, a mesma nos três.
+  expect(await chromeColors(page)).toEqual({theme:after,meta:EDGE[after],top:EDGE[after],bot:EDGE[after]});
+  // Texto e cursor intactos: o próximo caractere entra onde o cursor estava.
+  expect(await page.evaluate(()=>document.activeElement?.id)).toBe('editor');
+  await page.keyboard.type('X');
+  await expect(editor).toHaveText('antesX depois');
+});
+
+// O Safari do iOS 26 tinge as barras com o background-color do elemento fixo que
+// acha no meio de cada borda, a 4px da beira, ignorando pointer-events, se ele tiver
+// mais de 10px (WebKit, LocalFrameView.cpp › fixedContainerEdges). Simulado aqui com
+// pointer-events ligado em tudo: no meio de cada borda tem de estar a faixa sólida,
+// opaca e com mais de 10px, nos dois temas (e depois de trocar ao vivo).
+test('o elemento no meio de cada borda é a faixa sólida da cor da borda',async ({page})=>{
+  const probe=()=>page.evaluate(()=>{
+    const style=document.createElement('style');style.textContent='*{pointer-events:auto!important}';document.head.append(style);
+    const at=y=>{const el=document.elementFromPoint(innerWidth/2,y),r=el.getBoundingClientRect(),c=getComputedStyle(el);return {cls:el.className,h:r.height,w:r.width,bg:c.backgroundColor,pos:c.position};};
+    const out={top:at(4),bot:at(innerHeight-4)};style.remove();return out;
+  });
+  for(let round=0;round<2;round++){
+    const colors=await chromeColors(page),hit=await probe();
+    for(const [side,cls] of [['top','edge-top'],['bot','edge-bot']]){
+      expect(hit[side],`borda ${side}`).toMatchObject({cls,pos:'fixed'});
+      expect(hit[side].h,`faixa ${side} com mais de 10px`).toBeGreaterThan(10);
+      expect(hit[side].bg,`faixa ${side} opaca`).toMatch(/^rgb\(/);
+    }
+    expect(colors.top).toBe(colors.meta);
+    if(round===0)await page.locator('#themeBtn').click();
+  }
+});
+
+// As lentes das barras e dos botões congelam um quadro com o fundo e a cor do tema.
+// Depois da troca ao vivo, cada uma tem de ficar igual à de uma página aberta já no
+// tema novo (antes ficava o quadro do tema anterior).
+async function lensColors(page){
+  await expect.poll(()=>page.locator('.lens-surface').count(),{timeout:8000}).toBe(0);
+  return page.evaluate(()=>[...document.querySelectorAll('.lens > canvas')].map(c=>{
+    if(!c.width||!c.height)return null;
+    const d=c.getContext('2d').getImageData(0,0,c.width,c.height).data,sum=[0,0,0];let n=0;
+    for(let i=0;i<d.length;i+=4)if(d[i+3]>0){sum[0]+=d[i];sum[1]+=d[i+1];sum[2]+=d[i+2];n++;}
+    return n?sum.map(v=>Math.round(v/n)):null;
+  }));
+}
+const lensGap=(a,b)=>Math.max(...a.flatMap((c,i)=>c.map((v,k)=>Math.abs(v-b[i][k]))));
+test('depois da troca ao vivo, as lentes têm a cor do tema novo',async ({page})=>{
+  await expect.poll(()=>page.locator('#plusBtn').getAttribute('data-lens'),{timeout:8000}).toBe('webgl2');
+  const before=await lensColors(page);
+  expect(before.length,'lentes das barras e dos botões').toBeGreaterThanOrEqual(6);
+  expect(before.every(Boolean),'todas com quadro congelado').toBe(true);
+  await page.locator('#themeBtn').click();
+  await expect.poll(async()=>lensGap(await lensColors(page),before),{timeout:10000,message:'a lente redesenha com o tema novo'}).toBeGreaterThan(30);
+  const toggled=await lensColors(page);
+  // A mesma tela aberta do zero no tema escolhido (a preferência ficou salva).
+  await page.reload();
+  await expect.poll(()=>page.locator('#plusBtn').getAttribute('data-lens'),{timeout:8000}).toBe('webgl2');
+  await page.evaluate(()=>document.documentElement.removeAttribute('data-device-gate'));
+  const fresh=await lensColors(page);
+  expect(lensGap(toggled,fresh),'lente igual à da página aberta no tema novo').toBeLessThanOrEqual(6);
+});
+
+// Mini App: a mesma troca ao vivo pinta o cabeçalho, o fundo e a barra de baixo do
+// Telegram com a cor da borda (setHeaderColor/setBackgroundColor/setBottomBarColor).
+test('no Mini App, trocar o tema pinta o Telegram com a cor da borda, sem recarregar',async ({page})=>{
+  await page.addInitScript(()=>{
+    const noop=()=>{},button={show:noop,hide:noop,onClick:noop},calls=window.__tgCalls=[];
+    const record=name=>color=>calls.push([name,color]);
+    const webApp={initData:'query_id=test',initDataUnsafe:{},version:'7.10',platform:'ios',colorScheme:matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light',themeParams:{},
+      viewportHeight:innerHeight,viewportStableHeight:innerHeight,isExpanded:true,isFullscreen:false,isVersionAtLeast:()=>true,
+      SettingsButton:button,BackButton:button,MainButton:button,
+      setHeaderColor:record('header'),setBackgroundColor:record('background'),setBottomBarColor:record('bottomBar')};
+    window.Telegram={WebApp:new Proxy(webApp,{get:(target,key)=>key in target?target[key]:noop})};
+  });
+  await page.route(/\/api\/telegram\/session/,route=>{
+    const cors={'access-control-allow-origin':'*','access-control-allow-headers':'content-type','access-control-allow-methods':'POST, OPTIONS'};
+    if(route.request().method()==='OPTIONS')return route.fulfill({status:204,headers:cors});
+    return route.fulfill({status:200,contentType:'application/json',body:'{"ok":true}',headers:cors});
+  });
+  await page.reload();
+  await expect(page.locator('body')).toHaveClass(/\btg\b/);
+  const last=()=>page.evaluate(()=>Object.fromEntries(window.__tgCalls));
+  const before=await chromeColors(page);
+  expect(await last()).toEqual({header:EDGE[before.theme],background:EDGE[before.theme],bottomBar:EDGE[before.theme]});
+  await page.evaluate(()=>{window.__mesmaPagina=true;});
+  await page.locator('#themeBtn').click();
+  const after=before.theme==='light'?'dark':'light';
+  await expect(page.locator('html')).toHaveAttribute('data-theme',after);
+  expect(await page.evaluate(()=>window.__mesmaPagina),'a página não recarregou').toBe(true);
+  const colors=await chromeColors(page);
+  expect(colors).toMatchObject({meta:EDGE[after],top:EDGE[after]});
+  expect(await last(),'Telegram com a cor da faixa da borda').toEqual({header:colors.top,background:colors.top,bottomBar:colors.top});
+});
+
+// No app instalado na tela de início a barra de status segue o
+// apple-mobile-web-app-status-bar-style lido na abertura: lá a troca recarrega.
+for(const how of ['navigator.standalone','display-mode: standalone'])test(`no app instalado (${how}) trocar o tema recarrega e mantém a escolha`,async ({page})=>{
+  await page.addInitScript(how=>{
+    if(how==='navigator.standalone')Object.defineProperty(Navigator.prototype,'standalone',{configurable:true,get:()=>true});
+    else{const real=window.matchMedia.bind(window);window.matchMedia=q=>q.includes('display-mode: standalone')?{matches:true,media:q,addEventListener(){},removeEventListener(){},addListener(){},removeListener(){}}:real(q);}
+  },how);
+  await page.reload();
+  await expect(page.locator('#undoBtn')).toBeVisible();
   const before=await page.locator('html').getAttribute('data-theme');
+  await page.evaluate(()=>{window.__mesmaPagina=true;});
   await Promise.all([page.waitForEvent('load'),page.locator('#themeBtn').click()]);
   await expect(page.locator('#undoBtn')).toBeVisible();
+  expect(await page.evaluate(()=>window.__mesmaPagina),'recarregou').toBeUndefined();
   const after=await page.locator('html').getAttribute('data-theme');
   expect(after).not.toBe(before);
   expect(await page.evaluate(()=>localStorage.getItem('mdtxtrt-theme'))).toBe(after);
@@ -885,6 +1018,15 @@ test('borda da tela fica na cor sólida do cromo com texto rolando por baixo',as
 // sem cobrir as barras nem +, ☰ e desfazer, também com o teclado aberto.
 const NOTICES={toast:'#toast .toast-material',retrato:'#deviceGate .device-gate-card'};
 async function showNotice(page,kind){
+  // Em tela larga o index.html abre o aviso de retrato logo depois de carregar e o
+  // tira 4,3s depois. Com a máquina carregada esse prazo caía no meio do teste e o
+  // aviso sumia: o aviso do teste só aparece depois dele (ou, se o inicial não abriu,
+  // 1,5s depois do DOMContentLoaded).
+  if(kind==='retrato')await page.waitForFunction(()=>{
+    const nav=performance.getEntriesByType('navigation')[0],now=performance.now();
+    if(window.__startupGateAt!==undefined)return now>window.__startupGateAt+4400;
+    return nav&&nav.domContentLoadedEventEnd>0&&now>nav.domContentLoadedEventEnd+1500;
+  },null,{timeout:15000});
   await page.evaluate(kind=>{
     const root=document.documentElement;
     if(kind==='toast'){root.removeAttribute('data-device-gate');window.MDTXTRT_UI.setToast({text:'Link copiado',visible:true});}
@@ -972,6 +1114,9 @@ for(const kind of Object.keys(NOTICES))test(`aviso efêmero (${kind}) legível s
   // Texto corrido e denso, sem linhas em branco, atrás de todo o aviso.
   await page.evaluate(()=>{document.querySelector('#editor').innerHTML='<p>'+'<b>Mdtxtrt</b> eiusmod tempor incididunt ut labore et dolore magna aliqua quis nostrud exercitation ullamco laboris. '.repeat(120)+'</p>';});
   await showNotice(page,kind);
+  // Mede o aviso parado na tela: a saída do aviso de retrato começa 4s depois de ele
+  // aparecer, e com a máquina carregada as medições passavam disso.
+  await page.addStyleTag({content:`${sel}{animation:none!important}`});
   // Cores do texto do aviso já resolvidas em sRGB 0–255 com alfa (canvas normaliza
   // rgb(), color(srgb …) e color-mix()).
   const colors=await page.evaluate(sel=>{

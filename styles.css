@@ -274,6 +274,25 @@ html:not([data-dest="telegraph"]) .editor h6{font-size:15px}
   --fade-solid:calc(var(--safe-bottom-max) + var(--gap));
   background-image:linear-gradient(0deg,var(--fade-ramp))
 }
+/* Faixas sólidas da borda, por cima da parte sólida dos degradês (mesma geometria,
+   mesma cor, então a tela não muda). Existem para o Safari: no iOS 26 ele tinge as
+   próprias barras com a cor de fundo (background-color) do elemento fixo que
+   encontra no meio de cada borda da tela, mesmo com pointer-events:none, desde que
+   tenha mais de 10px de altura; sem cor de fundo (os degradês só têm
+   background-image), repete a cor da vez anterior para o mesmo elemento, e a troca
+   de tema ao vivo deixaria a barra com a cor velha. O recuo transparente (padding
+   com background-clip) só garante os 10px. Fonte: WebKit, LocalFrameView.cpp ›
+   fixedContainerEdges (ver o PR). */
+.edge-top,.edge-bot{
+  position:fixed;left:0;right:0;z-index:20;pointer-events:none;
+  transform:translateZ(0);backface-visibility:hidden;
+  box-sizing:content-box;background-color:var(--edge);background-clip:content-box
+}
+.edge-top{top:var(--vv-top);height:calc(var(--safe-top) + var(--gap));padding-bottom:12px}
+.edge-bot{
+  bottom:calc(var(--vv-bottom) + var(--safe-bottom) - var(--safe-bottom-max));
+  height:calc(var(--safe-bottom-max) + var(--gap));padding-top:12px
+}
 .app{display:contents}
 .topbar{
   position:fixed;z-index:30;

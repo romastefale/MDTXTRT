@@ -110,9 +110,12 @@ function loadBackdrop() {
     const img = new Image();
     img.decoding = "async";
     img.onload = () => {
-      backdrop.img = img;
-      backdrop.src = src;
-      backdrop.key = "";
+      // Se o tema mudou de novo durante o carregamento, este fundo já não serve.
+      if (backdropSource() === src) {
+        backdrop.img = img;
+        backdrop.src = src;
+        backdrop.key = "";
+      }
       resolve(img);
     };
     img.onerror = reject;
@@ -277,6 +280,19 @@ const ChromeLens = React.memo(function ChromeLens({ optics = CHROME_LENS, varian
       ready = true;
       wake();
     }).catch(() => button?.setAttribute("data-lens", "css"));
+    // Troca de tema sem recarregar (botão, tema do sistema ou do Telegram): carrega
+    // o fundo do tema novo e redesenha; sem isso o quadro congelado mantinha a cor
+    // do tema anterior.
+    let theme = backdropSource();
+    const themeObserver = new MutationObserver(() => {
+      const next = backdropSource();
+      if (next === theme) return;
+      theme = next;
+      loadBackdrop().then(() => {
+        if (backdropSource() === next) wake();
+      }).catch(() => {});
+    });
+    themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
     const viewport = window.visualViewport;
     window.addEventListener("resize", wake);
     viewport?.addEventListener("resize", wake);
@@ -285,6 +301,7 @@ const ChromeLens = React.memo(function ChromeLens({ optics = CHROME_LENS, varian
     return () => {
       cancelled = true;
       clearTimeout(timer);
+      themeObserver.disconnect();
       window.removeEventListener("resize", wake);
       viewport?.removeEventListener("resize", wake);
       viewport?.removeEventListener("scroll", wake);
