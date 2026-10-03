@@ -373,7 +373,7 @@ html:not([data-dest="telegraph"]) .editor h6{font-size:15px}
    itálico, 30pt dos lados, 5pt em cima e embaixo, entrelinha 1,42, cantos de 8pt, com as
    aspas “ (no alto à esquerda) e ” (embaixo à direita do texto) em 12×9pt na cor de
    link, a 6pt da borda (a de baixo a 4pt, acima do crédito quando há). O crédito fica numa linha própria, no mesmo tamanho, em
-   semi-negrito e na cor secundária (itálico no destaque). */
+   peso normal (400, como o "Add author" do app) e na cor secundária (itálico no destaque). */
 .editor blockquote,.editor aside{box-sizing:border-box;min-height:1.55em}
 .editor blockquote{
   margin:1em 0;padding:4px 16px 4px 6px;border-left:3px solid var(--link);border-radius:8px;
@@ -394,7 +394,7 @@ html:not([data-dest="telegraph"]) .editor h6{font-size:15px}
 .editor aside::before{left:6px;top:6px}
 .editor aside::after{right:6px;bottom:var(--pull-close-bottom,4px);transform:rotate(180deg)}
 .editor aside:has(> cite:last-child){--pull-close-bottom:calc(4px + 1.42em)}
-html:not([data-dest="telegraph"]) .editor :is(blockquote,aside) > cite:last-child{display:block;font-style:normal;font-weight:600;color:var(--muted)}
+html:not([data-dest="telegraph"]) .editor :is(blockquote,aside) > cite:last-child{display:block;font-style:normal;font-weight:400;color:var(--muted)}
 html:not([data-dest="telegraph"]) .editor aside > cite:last-child{font-style:italic}
 /* Telegraph: sem <cite>; na publicação o nome do autor vira texto comum numa linha
    própria da citação (telegraphNodes), e a prévia mostra o mesmo. */
