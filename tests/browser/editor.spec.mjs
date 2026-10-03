@@ -880,6 +880,72 @@ test('citação e citação em destaque seguem o Telegraph e o Telegram',async (
   await expect(page.locator('html')).toHaveAttribute('data-dest','telegram');
 });
 
+// Crédito vazio (<cite> vazio, só espaços, só &nbsp; ou só <br>) não vai no envio (#155:
+// textContent.trim() vazio). A prévia tem de mostrar o mesmo que sem crédito: as aspas de
+// baixo no mesmo lugar e nenhuma linha a mais, também depois de apagar o crédito no teclado.
+test('crédito vazio no destaque deixa as aspas e a altura iguais às de sem crédito',async ({page})=>{
+  const CREDITS={nenhum:'',vazio:'<cite></cite>',espacos:'<cite>   </cite>',nbsp:'<cite>&nbsp;</cite>',quebra:'<cite><br></cite>',autor:'<cite>Autor</cite>'};
+  const measure=credit=>page.evaluate(credit=>{
+    const editor=document.querySelector('#editor');
+    editor.innerHTML='<p>antes</p><aside>Destaque do autor'+credit+'</aside><p>depois</p>';
+    return new Promise(resolve=>requestAnimationFrame(()=>{
+      const aside=editor.querySelector('aside'),box=aside.getBoundingClientRect(),mark=getComputedStyle(aside,'::after');
+      const text=document.createRange();text.selectNodeContents(aside.firstChild);
+      // Topo das aspas de baixo, medido a partir da linha do texto do destaque.
+      const markTop=box.height-parseFloat(mark.bottom||'0')-parseFloat(mark.height||'0');
+      resolve({height:Math.round(box.height*2)/2,markTop:mark.content==='none'?null:Math.round((box.top+markTop-text.getBoundingClientRect().bottom)*2)/2});
+    }));
+  },credit);
+  for(const dest of ['telegram','telegraph']){
+    if(await page.locator('html').getAttribute('data-dest')!==dest)await page.locator('#destBtn').click();
+    await expect(page.locator('html')).toHaveAttribute('data-dest',dest);
+    const none=await measure(CREDITS.nenhum);
+    for(const kind of ['vazio','espacos','nbsp','quebra'])expect(await measure(CREDITS[kind]),`${dest}: crédito ${kind} igual a sem crédito`).toEqual(none);
+    // Com crédito de verdade a citação ganha a linha do autor, e as aspas continuam junto
+    // da última linha do texto, acima do crédito.
+    const real=await measure(CREDITS.autor);
+    expect(real.height,`${dest}: crédito com texto ganha linha`).toBeGreaterThan(none.height+10);
+    expect(real.markTop,`${dest}: aspas acima do crédito, junto do texto`).toEqual(none.markTop);
+  }
+  await page.locator('#destBtn').click();
+  await expect(page.locator('html')).toHaveAttribute('data-dest','telegram');
+  const none=await measure(CREDITS.nenhum);
+  // Apagar o crédito no teclado: com o cursor ainda nele, o crédito vazio guarda a linha e
+  // o que for digitado entra no crédito; quando o cursor sai, a prévia volta a "sem crédito".
+  const asideBox=()=>page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>{
+    const aside=document.querySelector('#editor aside'),box=aside.getBoundingClientRect(),mark=getComputedStyle(aside,'::after');
+    const text=document.createRange();text.selectNodeContents(aside.firstChild);
+    resolve({height:Math.round(box.height*2)/2,markTop:Math.round((box.top+box.height-parseFloat(mark.bottom)-parseFloat(mark.height)-text.getBoundingClientRect().bottom)*2)/2});
+  })));
+  await measure(CREDITS.autor);
+  await page.evaluate(()=>{
+    const cite=document.querySelector('#editor cite'),range=document.createRange();
+    range.selectNodeContents(cite);range.collapse(false);
+    document.querySelector('#editor').focus();const sel=getSelection();sel.removeAllRanges();sel.addRange(range);
+  });
+  for(let i=0;i<'Autor'.length;i++)await page.keyboard.press('Backspace');
+  await expect.poll(()=>page.evaluate(()=>document.querySelector('#editor aside')?.textContent),{message:'só o crédito foi apagado'}).toBe('Destaque do autor');
+  await page.keyboard.type('Outro');
+  await expect.poll(()=>page.evaluate(()=>document.querySelector('#editor aside cite')?.textContent),{message:'o texto digitado entra no crédito'}).toBe('Outro');
+  for(let i=0;i<'Outro'.length;i++)await page.keyboard.press('Backspace');
+  await expect.poll(()=>page.evaluate(()=>document.querySelector('#editor aside')?.textContent)).toBe('Destaque do autor');
+  await page.locator('#editor p').last().click();
+  await expect.poll(asideBox,{message:'crédito apagado no teclado, cursor fora: igual a sem crédito'}).toEqual(none);
+  // A marca é só da prévia: o rascunho salvo leva o <cite> como estava, sem ela.
+  await page.evaluate(()=>{
+    const editor=document.querySelector('#editor');
+    editor.innerHTML='<p>antes</p><aside>Destaque<cite> </cite></aside>';
+    const range=document.createRange();range.selectNodeContents(editor.firstChild);range.collapse(false);
+    editor.focus();const sel=getSelection();sel.removeAllRanges();sel.addRange(range);
+  });
+  await expect(page.locator('#editor cite'),'na prévia o crédito vazio está marcado').toHaveAttribute('data-empty-credit','');
+  await page.keyboard.type('x');
+  await expect.poll(()=>page.evaluate(()=>localStorage.getItem('rmdtxtml')||''),{message:'rascunho salvo com o destaque'}).toContain('antesx');
+  const saved=await page.evaluate(()=>JSON.parse(localStorage.getItem('rmdtxtml')).html);
+  expect(saved).toContain('<cite> </cite>');
+  expect(saved,'marca da prévia fora do rascunho').not.toContain('data-empty-credit');
+});
+
 // O seletor Telegram/Telegraph é só uma troca: nos dois estados é um botão comum da
 // barra, como o refazer, sem preenchimento nem aro de ponto estratégico.
 test('seletor de plataforma sem destaque nos dois estados',async ({page})=>{

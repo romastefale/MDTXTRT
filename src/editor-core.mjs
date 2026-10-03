@@ -54,6 +54,29 @@ function ensureCaretLine(block){
   block.replaceChildren(block.ownerDocument.createElement("br"));
 }
 
+// Crédito vazio: um <cite> sem texto (vazio, só espaços, só &nbsp; ou só <br>) sai no
+// envio, pela mesma regra de toRichHTML e telegraphNodes (#155): textContent.trim() vazio.
+// :empty não pega espaços nem <br>, então o núcleo marca esses <cite> com
+// data-empty-credit e a prévia os trata como "sem crédito" (styles.css). Enquanto o cursor
+// está dentro do crédito vazio (apagou o nome para digitar outro), ele fica sem a marca e
+// mantém a linha própria, para o texto digitado entrar no crédito. A marca é só da prévia:
+// html() e o histórico a tiram, e ela não chega ao rascunho, à exportação nem ao envio.
+export const EMPTY_CREDIT="data-empty-credit";
+export function isEmptyCredit(cite){return !cite.textContent.trim();}
+export function markEmptyCredits(root){
+  const selection=root.ownerDocument.getSelection?.(),caret=selection?.rangeCount?selection.anchorNode:null;
+  for(const cite of root.querySelectorAll("cite")){
+    const editing=Boolean(caret&&cite.contains(caret));
+    cite.toggleAttribute(EMPTY_CREDIT,isEmptyCredit(cite)&&!editing);
+  }
+}
+export function editorHTML(root){
+  if(!root.querySelector("["+EMPTY_CREDIT+"]"))return root.innerHTML;
+  const copy=root.cloneNode(true);
+  for(const node of copy.querySelectorAll("["+EMPTY_CREDIT+"]"))node.removeAttribute(EMPTY_CREDIT);
+  return copy.innerHTML;
+}
+
 function replaceBlockText(block,text){
   block.replaceChildren(block.ownerDocument.createTextNode(text));
 }
@@ -71,12 +94,21 @@ export function createEditorCore({element,onChange=()=>{},onSelectionChange=()=>
     onChange({});
   };
 
-  history=createHistory(element,{depth:120,onRestore:()=>{onChange({});notifySelection();}});
+  // Qualquer mudança no texto (digitação, colagem, setHTML, desfazer, innerHTML de fora)
+  // ou no cursor remarca os créditos vazios. Mudança de atributo não é observada: a marca
+  // não reentra.
+  const remarkCredits=()=>{if(!destroyed)markEmptyCredits(element);};
+  remarkCredits();
+  const Observer=element.ownerDocument?.defaultView?.MutationObserver;
+  const credits=typeof Observer==="function"?new Observer(remarkCredits):null;
+  credits?.observe(element,{subtree:true,childList:true,characterData:true});
+  element.ownerDocument?.addEventListener?.("selectionchange",remarkCredits);
+  history=createHistory(element,{depth:120,serialize:editorHTML,onRestore:()=>{onChange({});notifySelection();}});
   const formatting=createFormatting(element,{changed,selectionChanged:notifySelection});
   const structure=createStructure(element,{changed,selectionChanged:notifySelection});
   const search=createSearch(element,{changed,selectionChanged:notifySelection});
 
-  function html(){return element.innerHTML;}
+  function html(){return editorHTML(element);}
 
   function setHTML(value,{silent=true}={}){
     element.innerHTML=String(value||"");
@@ -329,7 +361,7 @@ export function createEditorCore({element,onChange=()=>{},onSelectionChange=()=>
     selectionMatches:search.selectionMatches,
     replaceSelection:search.replaceSelection,
     replaceAllLiteral:search.replaceAllLiteral,
-    destroy:()=>{destroyed=true;}
+    destroy:()=>{destroyed=true;credits?.disconnect();element.ownerDocument?.removeEventListener?.("selectionchange",remarkCredits);}
   };
 }
 

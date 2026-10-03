@@ -1,11 +1,11 @@
 import {saveSelection,restoreSelection} from "./editor-selection.mjs";
 
-export function createHistory(root,{depth=120,onRestore=()=>{}}={}){
+export function createHistory(root,{depth=120,serialize=node=>node.innerHTML,onRestore=()=>{}}={}){
   const stack=[];
   let index=-1,restoring=false;
 
   function snapshot(){
-    return {html:root.innerHTML,selection:saveSelection(root)};
+    return {html:serialize(root),selection:saveSelection(root)};
   }
   function same(a,b){
     return Boolean(a&&b&&a.html===b.html);

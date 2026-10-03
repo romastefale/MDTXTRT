@@ -412,12 +412,18 @@ html:not([data-dest="telegraph"]) .editor h6{font-size:15px}
 .editor aside{--pull-quote-mark:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 9'%3E%3Cpath d='M2.6 9A2.6 2.6 0 0 1 0 6.3C0 3.4 1.7 1.2 4.5 0l.5 1C3.6 1.8 2.8 2.8 2.7 3.8A2.6 2.6 0 0 1 2.6 9Zm7 0A2.6 2.6 0 0 1 7 6.3C7 3.4 8.7 1.2 11.5 0l.5 1c-1.4.8-2.2 1.8-2.3 2.8A2.6 2.6 0 0 1 9.6 9Z'/%3E%3C/svg%3E")}
 .editor aside::before{left:6px;top:6px}
 .editor aside::after{right:6px;bottom:var(--pull-close-bottom,4px);transform:rotate(180deg)}
-.editor aside:has(> cite:last-child){--pull-close-bottom:calc(4px + 1.42em)}
-html:not([data-dest="telegraph"]) .editor :is(blockquote,aside) > cite:last-child{display:block;font-style:normal;font-weight:400;color:var(--muted)}
+.editor aside:has(> cite:last-child:not([data-empty-credit])){--pull-close-bottom:calc(4px + 1.42em)}
+html:not([data-dest="telegraph"]) .editor :is(blockquote,aside) > cite:last-child:not([data-empty-credit]){display:block;font-style:normal;font-weight:400;color:var(--muted)}
 html:not([data-dest="telegraph"]) .editor aside > cite:last-child{font-style:italic}
+/* Crédito vazio (<cite> vazio, só espaços ou só <br>): o envio o tira (#155), então a
+   prévia o trata como ausente. O núcleo do editor marca esses <cite> com
+   data-empty-credit (:empty não pega espaços nem <br>): fica em linha, sem linha própria
+   (um <br> ou &nbsp; no fim da citação não cria linha nova), e as aspas de baixo não
+   sobem. Com o cursor dentro (apagou o nome para digitar outro), a marca sai e o
+   crédito volta a ter a linha dele. */
 /* Telegraph: sem <cite>; na publicação o nome do autor vira texto comum numa linha
    própria da citação (telegraphNodes), e a prévia mostra o mesmo. */
-html[data-dest="telegraph"] .editor :is(blockquote,aside) > cite{display:block;font:inherit;color:inherit}
+html[data-dest="telegraph"] .editor :is(blockquote,aside) > cite:not([data-empty-credit]){display:block;font:inherit;color:inherit}
 /* Telegraph (telegra.ph/css/core.min.css › .tl_article_content): texto do artigo 18px com
    entrelinha 1.58; blockquote com serifa, itálico, margem 18px 21px 16px 0, recuo de 15px
    e barra de 3px (#000 no claro, a cor do texto no escuro); aside com serifa, 21px,
