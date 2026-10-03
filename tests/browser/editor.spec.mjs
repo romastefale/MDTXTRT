@@ -509,3 +509,61 @@ test('o cursor continua visível acima da barra enquanto se digita com o teclado
   expect(caret.bottom,'cursor acima da barra').toBeLessThanOrEqual(bar.top+0.5);
   expect(caret.top,'cursor abaixo da barra superior').toBeGreaterThan(0);
 });
+
+// O iPhone rola a área visível (visualViewport.offsetTop > 0) para mostrar o cursor
+// com o teclado aberto. O menu tem de abrir dentro da área visível, lida na hora,
+// e continuar nela quando a área muda com o menu aberto.
+async function pannedKeyboard(page){
+  await page.addInitScript(()=>{
+    const vv=new EventTarget();let keyboard=0,top=0;
+    for(const [key,get] of Object.entries({
+      offsetLeft:()=>0,offsetTop:()=>top,pageLeft:()=>0,pageTop:()=>top,scale:()=>1,
+      width:()=>document.documentElement.clientWidth,
+      height:()=>document.documentElement.clientHeight-keyboard
+    }))Object.defineProperty(vv,key,{get});
+    Object.defineProperty(window,'visualViewport',{configurable:true,get:()=>vv});
+    window.__pan=(height,offset)=>{keyboard=height;top=offset;vv.dispatchEvent(new Event('resize'));vv.dispatchEvent(new Event('scroll'));};
+  });
+  await page.reload();
+  await expect(page.locator('#undoBtn')).toBeVisible();
+}
+async function inVisibleArea(page,sel){
+  const {box,view}=await page.evaluate(sel=>{
+    const vv=window.visualViewport,box=document.querySelector(sel).getBoundingClientRect().toJSON();
+    return {box,view:{top:vv.offsetTop,bottom:vv.offsetTop+vv.height}};
+  },sel);
+  expect(box.top,sel+' topo dentro da área visível').toBeGreaterThanOrEqual(view.top-0.5);
+  expect(box.bottom,sel+' base dentro da área visível').toBeLessThanOrEqual(view.bottom+0.5);
+  return box;
+}
+for(const mini of [false,true])test(`menu com o teclado aberto e área visível deslocada fica na área visível${mini?' (Mini App)':''}`,async ({page})=>{
+  await page.setViewportSize({width:390,height:844});
+  if(mini)await page.addInitScript(()=>{
+    const noop=()=>{},button={show:noop,hide:noop,onClick:noop};
+    // Só o que o app lê do WebApp; qualquer outro método vira no-op.
+    const webApp={initData:'query_id=test',initDataUnsafe:{},version:'6.0',platform:'ios',colorScheme:matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light',themeParams:{},
+      viewportHeight:844,viewportStableHeight:844,isExpanded:true,isFullscreen:false,isVersionAtLeast:()=>false,
+      SettingsButton:button,BackButton:button,MainButton:button};
+    window.Telegram={WebApp:new Proxy(webApp,{get:(target,key)=>key in target?target[key]:noop})};
+  });
+  if(mini)await page.route(/\/api\/telegram\/session/,route=>{
+    const cors={'access-control-allow-origin':'*','access-control-allow-headers':'content-type','access-control-allow-methods':'POST, OPTIONS'};
+    if(route.request().method()==='OPTIONS')return route.fulfill({status:204,headers:cors});
+    return route.fulfill({status:200,contentType:'application/json',body:'{"ok":true}',headers:cors});
+  });
+  await pannedKeyboard(page);
+  if(mini)await expect(page.locator('body')).toHaveClass(/\btg\b/);
+  await page.locator('#editor').click();
+  await page.evaluate(()=>window.__pan(340,120));await settle(page);
+  // No navegador a barra sobe com o teclado. No Mini App ela segue a altura do
+  // Telegram (comportamento inalterado), então só o menu é verificado.
+  if(!mini)await inVisibleArea(page,'.bar-wrap');
+  await page.locator('#headingBtn').click();
+  await expect(page.locator('#headingMenu')).toBeVisible();
+  await inVisibleArea(page,'#headingMenu');
+  // A área visível muda com o menu aberto: o menu acompanha (resize/scroll em rAF).
+  await page.evaluate(()=>window.__pan(340,200));await settle(page);await settle(page);
+  await inVisibleArea(page,'#headingMenu');
+  expect(await page.evaluate(()=>document.activeElement?.id)).toBe('editor');
+  await closeMenus(page);
+});

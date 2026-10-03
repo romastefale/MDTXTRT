@@ -22,7 +22,7 @@
   <meta name="twitter:image" content="https://romastefale.github.io/MDTXTRT/x-banner.jpg" />
   <script>(()=>{const k="mdtxtrt-theme",r=document.documentElement,m=document.querySelector("#themeColor"),c=document.querySelector("#colorScheme"),s=document.querySelector("#statusBarStyle");let p="";try{p=localStorage.getItem(k)||""}catch{}const t=p==="light"||p==="dark"?p:matchMedia("(prefers-color-scheme: light)").matches?"light":"dark",l=t==="light";r.classList.add(t);r.dataset.theme=t;r.style.colorScheme=t;m.setAttribute("content",l?"#8b82e6":"#151137");if(c)c.setAttribute("content",t);if(s)s.content=l?"default":"black-translucent";})();</script>
   <script src="https://telegram.org/js/telegram-web-app.js?63"></script>
-  <link rel="stylesheet" href="styles.css?v=51057b030abe" />
+  <link rel="stylesheet" href="styles.css?v=a123e1d24f4e" />
 </head>
 <body>
   <div class="bg" aria-hidden="true"></div>
@@ -46,7 +46,7 @@
   <script src="marked.js"></script>
   <script src="turndown.js"></script>
   <script src="editor-core.js?v=d762109f81bf"></script>
-  <script type="module" src="ui.js?v=0e17bd4ef18e"></script>
+  <script type="module" src="ui.js?v=e400853533e9"></script>
   <script>
     document.addEventListener('DOMContentLoaded',()=>{
       const root=document.documentElement;
@@ -65,7 +65,7 @@
       if(!exportHost)return;
       const exportAnchor=exportHost.firstChild;
       const sync=()=>{
-        const telegraph=destBtn.getAttribute('aria-pressed')==='true';
+        const telegraph=destBtn.getAttribute('data-dest')==='telegraph';
         if(telegraph){
           if(tools.parentElement!==slot)slot.append(tools);
           slot.hidden=false;
@@ -82,7 +82,7 @@
           input.removeAttribute('enterkeyhint');
         }
       };
-      new MutationObserver(sync).observe(destBtn,{attributes:true,attributeFilter:['aria-pressed']});
+      new MutationObserver(sync).observe(destBtn,{attributes:true,attributeFilter:['data-dest']});
       sync();
     });
   </script>

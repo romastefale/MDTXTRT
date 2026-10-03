@@ -37,41 +37,47 @@ export function closeTopLayer(){
 }
 export function clamp(value,min,max){return Math.max(min,Math.min(max,value));}
 // position:fixed e getBoundingClientRect nem sempre têm a mesma origem. Com o
-// teclado aberto o visualViewport pode estar deslocado: o retângulo do botão é
-// relativo à área visível e o `top` do menu é relativo ao viewport de layout.
-// Sem corrigir isso o menu abre longe do botão. Uma sonda em top:0 distingue
-// esse caso de um fixed já preso à área visível (o deslocamento não entra) e
-// do ambiente sem layout, que não mede a sonda.
+// teclado aberto o visualViewport pode estar deslocado: o retângulo do botão pode
+// ser relativo à área visível e o `top` do menu ao viewport de layout. Sem
+// corrigir isso o menu abre longe do botão. Uma sonda fixa de top:0 a bottom:0
+// mede as duas coisas: o topo dá a diferença entre as origens e a altura diz se o
+// fixed já acompanha a área visível (altura = área visível) ou o viewport de
+// layout (então a área visível começa em offsetTop). No ambiente sem layout a
+// sonda não mede nada.
 function probeFixedOrigin(){
   const probe=document.createElement('div');
   probe.setAttribute('data-fixed-probe','');
-  probe.style.cssText='position:fixed;top:0;left:0;width:4px;height:4px;margin:0;padding:0;border:0;pointer-events:none;visibility:hidden';
+  probe.style.cssText='position:fixed;top:0;bottom:0;left:0;width:4px;margin:0;padding:0;border:0;pointer-events:none;visibility:hidden';
   document.documentElement.appendChild(probe);
   const box=probe.getBoundingClientRect();
   probe.remove();
   return box;
 }
+// Lido na hora (sem cache): ao abrir o menu e a cada resize/scroll do
+// visualViewport com o menu aberto (main.js › scheduleBrowserViewport, em rAF).
+// No Mini App vale o mesmo deslocamento (offsetTop) do navegador: o iPhone também
+// rola a área visível para mostrar o cursor com o teclado aberto. Antes o topo
+// ficava preso em 0 e a altura era só a estável, e o menu podia abrir acima da
+// área visível. A altura é a menor entre a estável do Telegram e a área visível.
 export function fixedFrame(){
   const root=document.documentElement,viewport=window.visualViewport;
   const telegramStable=S.session==='ready'?Number(getTg()?.viewportStableHeight):NaN;
-  if(Number.isFinite(telegramStable)&&telegramStable>0){
-    const width=root.clientWidth||window.innerWidth;
-    return {shiftX:0,shiftY:0,visualFixed:false,bounds:{left:0,top:0,width,height:telegramStable,right:width,bottom:telegramStable}};
-  }
+  const stable=Number.isFinite(telegramStable)&&telegramStable>0?telegramStable:0;
   const ox=Math.max(0,viewport&&Number.isFinite(viewport.offsetLeft)?viewport.offsetLeft:0);
   const oy=Math.max(0,viewport&&Number.isFinite(viewport.offsetTop)?viewport.offsetTop:0);
   const width=viewport&&Number.isFinite(viewport.width)&&viewport.width>0?viewport.width:(root.clientWidth||window.innerWidth);
-  const height=viewport&&Number.isFinite(viewport.height)&&viewport.height>0?viewport.height:(root.clientHeight||window.innerHeight);
+  const visible=viewport&&Number.isFinite(viewport.height)&&viewport.height>0?viewport.height:0;
+  const layout=root.clientHeight||window.innerHeight||0;
+  let height=stable?(visible?Math.min(stable,visible):stable):(visible||layout);
   let shiftX=0,shiftY=0,originLeft=ox,originTop=oy,visualFixed=false;
-  const keyboardLikely=ox>0.5||oy>0.5||Math.abs((root.clientHeight||0)-height)>=1;
+  const keyboardLikely=ox>0.5||oy>0.5||(visible>0&&Math.abs((stable||layout)-visible)>=1);
   if(keyboardLikely){
     const box=probeFixedOrigin();
-    if(box.width>=1&&Math.abs(box.top+oy)<=2&&Math.abs(box.left+ox)<=2){
-      shiftX=ox;shiftY=oy;
-    }else if(box.width>=1&&Math.abs(box.top)<=2&&Math.abs(box.left)<=2){
-      visualFixed=true;originLeft=0;originTop=0;
-    }else if(box.width>=1){
-      shiftX=-box.left;shiftY=-box.top;originLeft=shiftX;originTop=shiftY;
+    if(box.width>=1){
+      shiftX=-box.left;shiftY=-box.top;
+      if(Math.abs(box.height-visible)<=2&&Math.abs(box.height-layout)>2){
+        visualFixed=true;originLeft=0;originTop=0;height=Math.min(height,box.height);
+      }
     }
   }
   return {shiftX,shiftY,visualFixed,bounds:{left:originLeft,top:originTop,width,height,right:originLeft+width,bottom:originTop+height}};

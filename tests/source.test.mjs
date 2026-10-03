@@ -290,7 +290,7 @@ test('document title is explicit in export flow and becomes the Telegraph page t
   assert.match(html,/tools\.setAttribute\('data-field-label','Título da página no Telegraph'\)/);
   assert.match(html,/input\.setAttribute\('aria-label','Título da página no Telegraph'\)/);
   assert.match(html,/slot\.append\(tools\)/);
-  assert.match(html,/new MutationObserver\(sync\)\.observe\(destBtn,\{attributes:true,attributeFilter:\['aria-pressed'\]\}\)/);
+  assert.match(html,/new MutationObserver\(sync\)\.observe\(destBtn,\{attributes:true,attributeFilter:\['data-dest'\]\}\)/);
   assert.match(src,/className="tools document-tools"/);
   assert.doesNotMatch(html,/id="telegraphTitle"/);
   assert.doesNotMatch(app,/telegraphTitle|setDocumentName/);
@@ -565,4 +565,32 @@ test('toast text and visibility are React state, not DOM mutations from the edit
   assert.match(src,/className=\{visible \? "toast on" : "toast"\}/);
   assert.match(app,/ui\.setToast\(\{text:String\(msg\),visible:true\}\)/);
   assert.doesNotMatch(app,/toast\.classList|\btoastText\b|createTextNode\(''\)/);
+});
+
+test('edge fades start near transparent on the content side and reach the solid chrome only at the edge',()=>{
+  const css=read('styles.css'),jsx=read('src/chrome.jsx');
+  const stops=JSON.parse(/export const FADE_STOPS = (\[\[.*?\]\]);/.exec(jsx)[1]);
+  assert.deepEqual(stops[0],[0,100]);
+  assert.deepEqual(stops.at(-1),[1,0]);
+  for(let i=1;i<stops.length;i++){
+    assert.ok(stops[i][0]>stops[i-1][0],'posições crescentes');
+    assert.ok(stops[i][1]<stops[i-1][1],'alfa cai sem degraus');
+  }
+  // Metade da faixa do lado do conteúdo quase transparente: a translucidez aparece.
+  for(const [t,a] of stops)if(t>=0.5)assert.ok(a<=12,`alfa ${a}% em t=${t}`);
+  // O CSS usa as mesmas paradas que o fundo das lentes (canvas).
+  const ramp=/--fade-ramp:([^}]*?)transparent 100%/s.exec(css)[1];
+  const cssStops=[...ramp.matchAll(/var\(--edge\) ([\d.]+)%,transparent\) calc\(var\(--fade-solid\) \+ \(100% - var\(--fade-solid\)\)\*([\d.]+)\)/g)].map(m=>[Number(m[2]),Number(m[1])]);
+  assert.deepEqual(cssStops,stops.slice(1,-1));
+  assert.match(css,/\.fade-top\{[^}]*--fade-solid:var\(--safe-top\)/);
+  assert.match(css,/\.fade-bot\{[^}]*--fade-solid:var\(--safe-bottom-max\)/);
+});
+
+test('platform switcher is an ephemeral choice without a persistent on state',()=>{
+  const css=read('styles.css'),jsx=read('src/chrome.jsx');
+  const dest=jsx.slice(jsx.indexOf('function DestButton()'),jsx.indexOf('function DestButton()')+900);
+  assert.doesNotMatch(dest,/aria-pressed|className=\{dest/);
+  assert.match(dest,/data-dest=\{dest\}/);
+  assert.doesNotMatch(css,/#destBtn(\.active|\[aria-pressed|\.on)/);
+  assert.doesNotMatch(css,/\.seg button\.active/);
 });

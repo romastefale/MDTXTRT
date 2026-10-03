@@ -114,21 +114,49 @@ function loadBackdrop() {
     img.src = src;
   });
 }
-function paintFade(ctx, rect, bgRect, edge, down) {
+// Paradas dos degradês de borda (styles.css › .fade-top/.fade-bot): [t, alfa%],
+// t de 0 (fim da faixa sólida da área segura) a 1 (lado do conteúdo).
+export const FADE_STOPS = [[0, 100], [0.04, 88], [0.1, 73], [0.18, 55], [0.28, 37], [0.4, 22], [0.52, 11], [0.64, 5], [0.76, 1.5], [0.88, 0.3], [1, 0]];
+// Altura em px da faixa sólida (--fade-solid, uma área segura em env()).
+function fadeSolid(el) {
+  if (!el) return 0;
+  const probe = document.createElement("div");
+  probe.style.cssText = "position:absolute;visibility:hidden;width:0;height:var(--fade-solid,0px)";
+  el.append(probe);
+  const value = probe.getBoundingClientRect().height || 0;
+  probe.remove();
+  return value;
+}
+// O canvas não entende color-mix(): a cor da borda vira rgba() com o alfa da parada.
+function edgeRGBA(ctx, edge) {
+  ctx.fillStyle = "#000";
+  ctx.fillStyle = edge;
+  const hex = String(ctx.fillStyle);
+  const m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex);
+  if (m) {
+    const [r, g, b] = [m[1], m[2], m[3]].map(v => parseInt(v, 16));
+    return a => `rgba(${r},${g},${b},${a / 100})`;
+  }
+  const rgb = /^rgba?\(([^,]+),([^,]+),([^,)]+)/.exec(hex.replace(/\s/g, ""));
+  if (rgb) return a => `rgba(${rgb[1]},${rgb[2]},${rgb[3]},${a / 100})`;
+  return a => (a > 50 ? edge : "transparent");
+}
+function paintFade(ctx, rect, bgRect, edge, down, solid) {
   if (!rect || !rect.height) return;
   const top = rect.top - bgRect.top;
-  const g = ctx.createLinearGradient(0, down ? top : top + rect.height, 0, down ? top + rect.height : top);
-  const alpha = a => `color-mix(in srgb, ${edge} ${a}%, transparent)`;
-  const stops = [[0, 100], [Math.min(0.2, 12 / rect.height), 100], [0.52, 60], [0.76, 26], [1, 0]];
-  for (const [at, a] of stops) {
-    try { g.addColorStop(at, alpha(a)); } catch { g.addColorStop(at, a > 0 ? edge : "transparent"); }
-  }
+  const g = ctx.createLinearGradient(0, down ? top + rect.height : top, 0, down ? top : top + rect.height);
+  const color = edgeRGBA(ctx, edge);
+  const s = Math.min(Math.max(0, solid), rect.height) / rect.height;
+  g.addColorStop(0, color(100));
+  for (const [t, a] of FADE_STOPS) g.addColorStop(s + (1 - s) * t, color(a));
   ctx.fillStyle = g;
   ctx.fillRect(0, top, bgRect.width, rect.height);
 }
 function backdropCanvas(bgRect) {
-  const fadeTop = document.querySelector(".fade-top")?.getBoundingClientRect();
-  const fadeBot = document.querySelector(".fade-bot")?.getBoundingClientRect();
+  const fadeTopEl = document.querySelector(".fade-top");
+  const fadeBotEl = document.querySelector(".fade-bot");
+  const fadeTop = fadeTopEl?.getBoundingClientRect();
+  const fadeBot = fadeBotEl?.getBoundingClientRect();
   const w = Math.max(1, Math.round(bgRect.width));
   const h = Math.max(1, Math.round(bgRect.height));
   const key = [backdrop.src, w, h, fadeTop?.height, fadeBot?.top, document.documentElement.className].join("|");
@@ -147,8 +175,8 @@ function backdropCanvas(bgRect) {
     ctx.fillStyle = shade;
     ctx.fillRect(0, 0, w, h);
   }
-  paintFade(ctx, fadeTop, bgRect, edge, false);
-  paintFade(ctx, fadeBot, bgRect, edge, true);
+  paintFade(ctx, fadeTop, bgRect, edge, false, fadeSolid(fadeTopEl));
+  paintFade(ctx, fadeBot, bgRect, edge, true, fadeSolid(fadeBotEl));
   backdrop.canvas = canvas;
   backdrop.key = key;
   return canvas;
@@ -807,6 +835,9 @@ function Toast() {
 
 // Controles da barra que refletem estado: cada um assina só o que usa, e o
 // Chrome (com os vidros das barras) nunca volta a renderizar.
+// O seletor de plataforma é uma escolha efêmera: só alterna entre Telegram e
+// Telegraph (o logotipo mostra o destino atual). Não tem estado "ligado" nem
+// pill selecionado persistente; o retorno é só o da pressão (:active).
 function DestButton() {
   const dest = useUI(state => state.dest);
   const destName = dest === "telegram" ? "Telegram" : "Telegraph";
@@ -814,9 +845,8 @@ function DestButton() {
     <button
       type="button"
       id="destBtn"
-      className={dest === "telegraph" ? "active" : undefined}
+      data-dest={dest}
       aria-label={"Alternar destino. Atual: " + destName}
-      aria-pressed={String(dest === "telegraph")}
       title={"Destino: " + destName}
     >
       <Icon name={dest === "telegram" ? "telegram" : "telegraph"} />

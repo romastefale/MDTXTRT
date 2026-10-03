@@ -1943,7 +1943,10 @@ test('React renders menu state described by app.js: anchors, dismiss layer, dest
   assert.equal(d.querySelector('#openAppLabel').textContent,'Abrir no Mini App');
   d.querySelector('#destBtn').click();
   assert.deepEqual([spoiler.hidden,embed.hidden,h1.hidden,h3.hidden,expand.hidden],[true,false,true,false,true]);
-  assert.equal(d.querySelector('#destBtn').getAttribute('aria-pressed'),'true');
+  // Seletor efêmero: mostra o destino, sem estado ligado/ativo persistente.
+  assert.equal(d.querySelector('#destBtn').getAttribute('data-dest'),'telegraph');
+  assert.equal(d.querySelector('#destBtn').hasAttribute('aria-pressed'),false);
+  assert.equal(d.querySelector('#destBtn').classList.contains('active'),false);
   assert.equal(d.querySelector('#openAppLabel').textContent,'Publicar no Telegraph');
   assert.equal(d.querySelector('#openAppBtn [data-icon]').getAttribute('data-icon'),'telegraph');
 

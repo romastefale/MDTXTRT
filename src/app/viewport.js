@@ -12,9 +12,11 @@ export function syncBrowserViewport(){
   const root=document.documentElement,frame=fixedFrame(),bounds=frame.bounds;
   if(S.session==='ready'){
     const stable=Number(getTg()?.viewportStableHeight);
-    root.style.setProperty('--vv-top','0px');
+    // O topo acompanha a área visível deslocada (offsetTop), como no navegador.
+    const top=frame.visualFixed?0:bounds.top;
+    root.style.setProperty('--vv-top',top+'px');
     root.style.setProperty('--vv-bottom','0px');
-    root.style.setProperty('--vv-height',Number.isFinite(stable)&&stable>0?stable+'px':'var(--tg-viewport-stable-height,100dvh)');
+    root.style.setProperty('--vv-height',top>0?bounds.height+'px':Number.isFinite(stable)&&stable>0?stable+'px':'var(--tg-viewport-stable-height,100dvh)');
     root.removeAttribute('data-keyboard');
     for(const sel of sheets){const panel=one(sel);if(panelIsOpen(panel))placePanel(panel);}
     const dialog=one('#dialogMenu');

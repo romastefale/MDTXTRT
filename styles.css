@@ -207,19 +207,37 @@ button{cursor:pointer;-webkit-tap-highlight-color:transparent}
 .seg button:active,.bar > button:active,.theme-switch:active{transform:scale(.975)}
 @media (hover:hover){.seg button:hover,.bar > button:hover,.theme-switch:hover{filter:brightness(1.08)}}
 .seg,.bar{color:var(--text);border-radius:999px}
+/* Degradês de borda: o conteúdo rola por baixo das barras de vidro e só na borda
+   da tela se funde à cor sólida do cromo do navegador (--edge). A rampa começa
+   quase transparente do lado do conteúdo e sobe em curva (alfa = (1-t)³, onze
+   paradas), chegando ao sólido só na borda; a faixa sólida é apenas a área segura
+   (--fade-solid). As mesmas paradas desenham o fundo da lente em src/chrome.jsx. */
 .fade-top,.fade-bot{
   position:fixed;left:0;right:0;z-index:20;pointer-events:none;
   transform:translateZ(0);backface-visibility:hidden;contain:paint;
-  background-repeat:no-repeat
+  background-repeat:no-repeat;
+  --fade-ramp:var(--edge) 0,var(--edge) var(--fade-solid),
+    color-mix(in srgb,var(--edge) 88%,transparent) calc(var(--fade-solid) + (100% - var(--fade-solid))*0.04),
+    color-mix(in srgb,var(--edge) 73%,transparent) calc(var(--fade-solid) + (100% - var(--fade-solid))*0.1),
+    color-mix(in srgb,var(--edge) 55%,transparent) calc(var(--fade-solid) + (100% - var(--fade-solid))*0.18),
+    color-mix(in srgb,var(--edge) 37%,transparent) calc(var(--fade-solid) + (100% - var(--fade-solid))*0.28),
+    color-mix(in srgb,var(--edge) 22%,transparent) calc(var(--fade-solid) + (100% - var(--fade-solid))*0.4),
+    color-mix(in srgb,var(--edge) 11%,transparent) calc(var(--fade-solid) + (100% - var(--fade-solid))*0.52),
+    color-mix(in srgb,var(--edge) 5%,transparent) calc(var(--fade-solid) + (100% - var(--fade-solid))*0.64),
+    color-mix(in srgb,var(--edge) 1.5%,transparent) calc(var(--fade-solid) + (100% - var(--fade-solid))*0.76),
+    color-mix(in srgb,var(--edge) 0.3%,transparent) calc(var(--fade-solid) + (100% - var(--fade-solid))*0.88),
+    transparent 100%
 }
 .fade-top{
   top:var(--vv-top);height:calc(var(--head-inset) + 50px);
-  background:linear-gradient(180deg,var(--edge) 0,var(--edge) calc(var(--safe-top) + var(--gap)),color-mix(in srgb,var(--edge) 60%,transparent) 52%,color-mix(in srgb,var(--edge) 26%,transparent) 76%,transparent 100%)
+  --fade-solid:var(--safe-top);
+  background-image:linear-gradient(180deg,var(--fade-ramp))
 }
 .fade-bot{
   top:auto;bottom:calc(var(--vv-bottom) + var(--safe-bottom) - var(--safe-bottom-max));
   height:calc(var(--foot-inset) + 50px + var(--safe-bottom-max));
-  background:linear-gradient(0deg,var(--edge) 0,var(--edge) calc(var(--safe-bottom-max) + var(--gap)),color-mix(in srgb,var(--edge) 60%,transparent) 52%,color-mix(in srgb,var(--edge) 26%,transparent) 76%,transparent 100%)
+  --fade-solid:var(--safe-bottom-max);
+  background-image:linear-gradient(0deg,var(--fade-ramp))
 }
 .app{display:contents}
 .topbar{
@@ -257,7 +275,6 @@ button{cursor:pointer;-webkit-tap-highlight-color:transparent}
   background:transparent;display:grid;place-items:center;padding:0
 }
 .seg button:active,.bar > button:active{background:var(--glass-press)}
-.seg button.active{background:var(--active-bg);box-shadow:var(--prominent-shadow)}
 .seg #destBtn{position:relative}
 .seg #destBtn .ui-icon{width:28px;height:28px}
 .seg button.is-flash{position:relative}
