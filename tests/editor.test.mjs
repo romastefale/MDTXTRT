@@ -933,6 +933,43 @@ test('Telegraph keeps the quote and caption credit as plain text, never as <cite
   w.close();
 });
 
+test('empty credit (<cite></cite> or only spaces) is dropped on the way to Telegram and Telegraph',async()=>{
+  let telegramForm=null,telegraphBody=null;
+  const fetch=async(url,options={})=>{
+    const target=String(url);
+    if(target.endsWith('/api/telegram/session'))return {ok:true,status:200,json:async()=>({ok:true})};
+    if(target.endsWith('/api/telegraph/recover'))return {ok:false,status:404,json:async()=>({error:'Página não encontrada'})};
+    if(target.endsWith('/api/telegram/send')){telegramForm=options.body;return {ok:true,status:200,json:async()=>({via:'sendRichMessage',messageId:7})};}
+    if(target.endsWith('/api/telegraph/publish')){
+      telegraphBody=JSON.parse(options.body);
+      return {ok:true,status:200,json:async()=>({path:'credito',url:'https://telegra.ph/credito',doc:telegraphBody.doc,revision:telegraphBody.revision})};
+    }
+    return {ok:false,status:404,json:async()=>({error:'not found'})};
+  };
+  const w=page({fetch,tg:{initData:'signed-payload'}}),d=w.document,e=d.querySelector('#editor');
+  await wait(20);
+  d.querySelector('#docName').value='Créditos';
+  e.innerHTML='<blockquote>Sem autor<cite></cite></blockquote><blockquote>Espaços<cite>   </cite></blockquote>'+
+    '<aside>Destaque<cite>&nbsp;</cite></aside><figure><img src="https://example.com/a.jpg"><figcaption>Legenda<cite> </cite></figcaption></figure>'+
+    '<blockquote>Com autor<cite>Ana Souza</cite></blockquote>';
+  await w.eval('publishTelegram()');
+  assert.ok(telegramForm,'o envio ao Telegram aconteceu');
+  assert.equal(telegramForm.get('html'),
+    '<blockquote>Sem autor</blockquote><blockquote>Espaços</blockquote><aside>Destaque</aside>'+
+    '<figure><img src="https://example.com/a.jpg"/><figcaption>Legenda</figcaption></figure>'+
+    '<blockquote>Com autor<cite>Ana Souza</cite></blockquote>');
+  await w.eval('publishTelegraph()');
+  assert.ok(telegraphBody,'a publicação no Telegraph aconteceu');
+  assert.deepEqual(telegraphBody.content,[
+    {tag:'blockquote',children:['Sem autor']},
+    {tag:'blockquote',children:['Espaços']},
+    {tag:'aside',children:['Destaque']},
+    {tag:'figure',children:[{tag:'img',attrs:{src:'https://example.com/a.jpg'}},{tag:'figcaption',children:['Legenda']}]},
+    {tag:'blockquote',children:['Com autor',{tag:'br'},'Ana Souza']}
+  ]);
+  w.close();
+});
+
 test('Telegraph serializer rejects non-http links locally',()=>{
   const w=page(),e=w.document.querySelector('#editor');
   e.innerHTML='<p><a href="mailto:test@example.com">mail</a></p>';

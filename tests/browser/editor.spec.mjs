@@ -841,8 +841,9 @@ test('citação e citação em destaque seguem o Telegraph e o Telegram',async (
   const [open,close]=s.marks;
   expect(open).toMatchObject({content:'""',w:'12px',h:'9px',left:'6px',top:'6px',bg:s.link,mask:true});
   expect(close).toMatchObject({content:'""',w:'12px',h:'9px',right:'6px',bottom:'4px',bg:s.link,mask:true});
-  // Crédito (<cite>, o credit da Bot API): linha própria, semi-negrito, cor secundária.
-  expect(s.cite).toMatchObject({display:'block',style:'normal',weight:'600',size:'15px',ownLine:true});
+  // Crédito (<cite>, o credit da Bot API): linha própria, peso normal (400, como no app
+  // Telegram), cor secundária.
+  expect(s.cite).toMatchObject({display:'block',style:'normal',weight:'400',size:'15px',ownLine:true});
   expect(s.cite.color,'crédito mais apagado que o texto').not.toEqual(s.quoteText);
   expect(s.a.top,'pílula sem linhas').toBe('none');
   expect(s.a.width,'a pílula abraça o texto').toBeLessThan(s.a.editorWidth-40);
