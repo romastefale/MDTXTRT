@@ -2321,3 +2321,36 @@ test('Mini App MD export uses WebApp.downloadFile with the server link; browser 
   assert.equal(b.__requests.some(r=>r.url.includes('/api/export/download')),false);
   b.close();
 });
+
+test('Telegram back button cancels a library delete confirmation without deleting or starting a new draft',async()=>{
+  let backHandler=null;
+  const doc='12121212-3434-4565-8787-909090909090';
+  const deletes=[];
+  const fetch=async(url,options={})=>{
+    const target=String(url);
+    if(target.endsWith('/api/telegram/session'))return {ok:true,status:200,json:async()=>({ok:true})};
+    if(target.endsWith('/api/library/list'))return {ok:true,status:200,json:async()=>({drafts:[{docId:doc,name:'Notas',dest:'telegram',revision:1,telegraphPath:'',preview:'Notas',createdAt:1,updatedAt:2,hasMedia:false}],telegram:[],telegraph:[]})};
+    if(target.endsWith('/api/library/delete')){deletes.push(JSON.parse(options.body));return {ok:true,status:200,json:async()=>({ok:true,kind:'draft',doc})};}
+    return {ok:false,status:404,json:async()=>({error:'not found'})};
+  };
+  const w=page({fetch,tg:{BackButton:{show(){},hide(){},onClick(handler){backHandler=handler;}}}}),d=w.document;
+  await wait(30);
+  d.querySelector('#exportBtn').click();
+  d.querySelector('#libraryBtn').click();
+  for(let i=0;i<100&&!d.querySelector('.library-delete');i++)await wait(10);
+  const remove=d.querySelector('.library-delete');
+  assert.ok(remove,'botão Excluir na entrada');
+  assert.equal(remove.getAttribute('aria-label'),'Excluir Notas');
+  const before=w.__navigations.length;
+  remove.click();
+  await wait(10);
+  assert.equal(d.querySelector('#dialogMenu').hasAttribute('data-test-popover-open'),true);
+  assert.match(d.querySelector('#dialogLabel').textContent,/Excluir o rascunho “Notas”\?/);
+  assert.equal(typeof backHandler,'function');
+  backHandler();
+  await wait(30);
+  assert.equal(d.querySelector('#dialogMenu').hasAttribute('data-test-popover-open'),false);
+  assert.deepEqual(deletes,[],'Voltar não exclui');
+  assert.equal(w.__navigations.length-before,0,'Voltar não começa rascunho novo');
+  w.close();
+});

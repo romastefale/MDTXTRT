@@ -90,8 +90,18 @@ export function markDirty(){
   clearTimeout(S.saveTimer);
   S.saveTimer = setTimeout(saveLocal, 400);
 }
+// Depois de excluir o documento aberto, o editor vazio que fica no lugar não vira rascunho
+// (nem no aparelho, nem no servidor, nem ao sair da página) até receber conteúdo.
+export function pristineAfterDelete(){
+  if(!S.blankAfterDelete||S.blankAfterDelete!==S.docId)return false;
+  const empty=!editor.textContent.trim()&&!editor.querySelector('[data-media-id],img,video,audio,iframe,hr,table,input,tg-map,tg-math-block,tg-button-row');
+  if(empty&&docName.value==='Ideia'&&!S.importedMd&&!S.importedTxt&&!S.importedHtml)return true;
+  S.blankAfterDelete='';
+  return false;
+}
 export function saveLocal(){
   clearTimeout(S.saveTimer);
+  if(pristineAfterDelete()){clearTimeout(S.remoteSaveTimer);return true;}
   if(S.draftWriteBlocked){
     if(!S.draftBlockNoticeShown){S.draftBlockNoticeShown=true;showToast('O rascunho recuperável foi preservado; alterações desta sessão não substituirão essa cópia');}
     return false;
@@ -124,6 +134,9 @@ export function reportRemoteSaveFailure(error){
 }
 export async function persistRemoteDraft(pagehide=false){
   if(S.draftWriteBlocked||!remoteDraftsAvailable())return false;
+  // Enquanto o documento aberto está sendo excluído, nenhuma gravação o recria no servidor.
+  if(S.deletingDoc&&S.deletingDoc===S.docId)return false;
+  if(pristineAfterDelete())return false;
   const snapshot=draftState();
   const form=new FormData();
   appendRemoteIdentity(form);

@@ -113,5 +113,8 @@ function watchDialogSize(dialog){
 export function ask(label,value='',rows=1,anchorOverride=null){return dialogOpen(label,value,rows,false,anchorOverride);}
 export async function approve(label){return await dialogOpen(label,'',1,true)===true;}
 export function chooseDialog(label,ok,cancel){return dialogOpen(label,'',1,true,null,{ok,cancel});}
+// Confirmação com rótulo próprio: só o botão principal devolve true. Cancelar devolve false;
+// toque fora, Esc e Voltar do Telegram (dismissDialog) devolvem null.
+export function confirmDialog(label,ok,anchor=null){return dialogOpen(label,'',1,true,anchor,{ok,cancel:'Cancelar'});}
 // Aviso com um botão só (sem Cancelar).
 export function notifyDialog(label,ok='Entendi'){return dialogOpen(label,'',1,true,null,{ok,cancel:''});}

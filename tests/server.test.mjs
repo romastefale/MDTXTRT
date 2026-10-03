@@ -1265,3 +1265,140 @@ test('webhook is idempotent by update_id and answers 200 once an update is accep
   const bad=await fetch(`http://127.0.0.1:${port}/telegram/webhook`,{method:'POST',headers:{'content-type':'application/json','x-telegram-bot-api-secret-token':createHmac('sha256',token).update('MDTXTRT_WEBHOOK').digest('hex')},body:'{'});
   assert.equal(bad.status,400);
 });
+
+function ownerDirFor(identity){
+  const key=identity.browserKey?'browser:'+createHash('sha256').update(identity.browserKey).digest('hex'):'telegram:'+identity.user;
+  return join(dir,'drafts',createHash('sha256').update(key).digest('hex'));
+}
+function fileExists(path){try{readFileSync(path);return true;}catch(error){if(error.code==='EISDIR')return true;return false;}}
+
+test('library delete removes a draft from the server, its media and the active pointer, only for its owner',async()=>{
+  const browserKey='de'.repeat(32),otherKey='df'.repeat(32);
+  const keep=randomUUID(),gone=randomUUID();
+  assert.equal((await formPost('/api/drafts/save',{browserKey,draft:JSON.stringify(draftFixture('<p>Fica</p>',keep,1,'Fica'))})).status,200);
+  const id='media1';
+  const withMedia=draftFixture(`<figure><img data-media-id="${id}"><figcaption>Foto</figcaption></figure>`,gone,1,'Sai');
+  withMedia.media=[{id,kind:'image'}];
+  const saved=await formPost('/api/drafts/save',{browserKey,id,draft:JSON.stringify(withMedia)},{name:'foto.png',blob:new Blob([new Uint8Array([0x89,0x50,0x4e,0x47])],{type:'image/png'})});
+  assert.equal(saved.status,200,saved.data.error);
+  const ownerDir=ownerDirFor({browserKey});
+  assert.equal(readFileSync(join(ownerDir,'active'),'utf8'),gone);
+  assert.ok(fileExists(join(ownerDir,gone+'.media',id+'.bin')));
+
+  // Outra identidade não exclui nem descobre o rascunho.
+  const foreign=await jsonPost('/api/library/delete',{browserKey:otherKey,kind:'draft',doc:gone});
+  assert.equal(foreign.status,404);
+  assert.equal((await jsonPost('/api/drafts/load',{browserKey,doc:gone})).status,200);
+
+  const removed=await jsonPost('/api/library/delete',{browserKey,kind:'draft',doc:gone});
+  assert.equal(removed.status,200,removed.data.error);
+  assert.deepEqual({ok:removed.data.ok,kind:removed.data.kind,doc:removed.data.doc,telegramPublication:removed.data.telegramPublication},{ok:true,kind:'draft',doc:gone,telegramPublication:false});
+  assert.equal(fileExists(join(ownerDir,gone+'.json')),false);
+  assert.equal(fileExists(join(ownerDir,gone+'.media')),false);
+  // O ponteiro apontava para o excluído: sem ele, abrir sem documento não traz o texto apagado.
+  assert.equal(fileExists(join(ownerDir,'active')),false);
+  assert.equal((await jsonPost('/api/drafts/load',{browserKey})).status,404);
+  assert.equal((await jsonPost('/api/drafts/load',{browserKey,doc:gone})).status,404);
+  const library=await jsonPost('/api/library/list',{browserKey});
+  assert.deepEqual(library.data.drafts.map(item=>item.docId),[keep]);
+  assert.equal((await jsonPost('/api/library/delete',{browserKey,kind:'draft',doc:gone})).status,404);
+
+  assert.equal((await jsonPost('/api/library/delete',{browserKey,kind:'pasta',doc:keep})).status,400);
+  assert.equal((await jsonPost('/api/library/delete',{browserKey,kind:'draft',doc:'../active'})).status,400);
+  assert.equal((await jsonPost('/api/drafts/load',{browserKey,doc:keep})).status,200);
+});
+
+test('library delete of a Telegram publication keeps the draft and the active document; deleting the draft takes the publication along',async()=>{
+  const identity={initData:init(81)};
+  const published=randomUUID(),later=randomUUID(),both=randomUUID();
+  const first=draftFixture('<p>Publicado</p>',published,1,'Publicado');
+  assert.equal((await formPost('/api/telegram/send',{...identity,html:first.html,draft:JSON.stringify(first)})).status,200);
+  assert.equal((await formPost('/api/drafts/save',{...identity,draft:JSON.stringify(draftFixture('<p>Depois</p>',later,1,'Depois'))})).status,200);
+  const sentBefore=callCount('sendRichMessage');
+
+  const forgotten=await jsonPost('/api/library/delete',{...identity,kind:'telegram',doc:published});
+  assert.equal(forgotten.status,200,forgotten.data.error);
+  let library=await jsonPost('/api/library/list',identity);
+  assert.equal(library.data.telegram.some(item=>item.docId===published),false);
+  assert.ok(library.data.drafts.some(item=>item.docId===published),'o rascunho continua');
+  const draft=await jsonPost('/api/drafts/load',{...identity,doc:published});
+  assert.equal(draft.data.publication,null);
+  assert.equal(draft.data.draft.html,'<p>Publicado</p>');
+  assert.equal((await jsonPost('/api/drafts/load',identity)).data.draft.docId,later,'o documento ativo não muda');
+  assert.equal(callCount('sendRichMessage'),sentBefore,'nada é enviado nem apagado no chat');
+  assert.equal(callCount('deleteMessage'),0);
+  assert.equal((await jsonPost('/api/library/delete',{...identity,kind:'telegram',doc:published})).status,404);
+  // O próximo envio vira mensagem nova, sem aviso de atualização.
+  const again=await formPost('/api/telegram/send',{...identity,html:'<p>Publicado de novo</p>',draft:JSON.stringify({...first,html:'<p>Publicado de novo</p>',revision:2})});
+  assert.equal(again.status,200,again.data.error);
+  assert.equal(again.data.previousMessageId,undefined);
+
+  const second=draftFixture('<p>Os dois</p>',both,1,'Os dois');
+  assert.equal((await formPost('/api/telegram/send',{...identity,html:second.html,draft:JSON.stringify(second)})).status,200);
+  const gone=await jsonPost('/api/library/delete',{...identity,kind:'draft',doc:both});
+  assert.equal(gone.status,200,gone.data.error);
+  assert.equal(gone.data.telegramPublication,true);
+  library=await jsonPost('/api/library/list',identity);
+  assert.equal(library.data.telegram.some(item=>item.docId===both),false);
+  assert.equal(library.data.drafts.some(item=>item.docId===both),false);
+});
+
+test('library delete refuses while a Telegram send is pending',async()=>{
+  const identity={initData:init(82)};
+  const doc=randomUUID();
+  const first=draftFixture('<p>Em andamento</p>',doc,1,'Em andamento');
+  assert.equal((await formPost('/api/telegram/send',{...identity,html:first.html,draft:JSON.stringify(first)})).status,200);
+  const meta=join(ownerDirFor({user:'82'}),doc+'.json');
+  const record=JSON.parse(readFileSync(meta,'utf8'));
+  record.publication.telegram={...record.publication.telegram,status:'pending',messageId:0};
+  writeFileSync(meta,JSON.stringify(record),{mode:0o600});
+  for(const kind of ['draft','telegram']){
+    const res=await jsonPost('/api/library/delete',{...identity,kind,doc});
+    assert.equal(res.status,409,kind);
+    assert.match(res.data.error,/envio ao Telegram em andamento/);
+  }
+  assert.equal((await jsonPost('/api/drafts/load',{...identity,doc})).status,200);
+});
+
+test('library delete of a Telegraph page only unlinks it: the page stays on telegra.ph and the next publish creates a new one',async()=>{
+  const browserKey='e7'.repeat(32);
+  const doc=randomUUID();
+  const page={title:'Página da lista',doc,content:[{tag:'p',children:['texto']}],browserKey,revision:1};
+  const created=await jsonPost('/api/telegraph/publish',page);
+  assert.equal(created.status,200,created.data.error);
+  const path=created.data.path;
+  const draft={...draftFixture('<p>texto</p>',doc,1,'Página da lista'),dest:'telegraph',telegraphPath:path};
+  assert.equal((await formPost('/api/drafts/save',{browserKey,draft:JSON.stringify(draft)})).status,200);
+  const telegraphCalls=()=>calls().filter(call=>['createPage','editPage'].includes(call.method)).length;
+  const before=telegraphCalls();
+
+  const removed=await jsonPost('/api/library/delete',{browserKey,kind:'telegraph',doc});
+  assert.equal(removed.status,200,removed.data.error);
+  assert.equal(removed.data.path,path);
+  assert.equal(removed.data.mode,'list');
+  assert.equal(removed.data.draftUnlinked,true);
+  assert.equal(telegraphCalls(),before,'a página não é editada nem esvaziada');
+  const library=await jsonPost('/api/library/list',{browserKey});
+  assert.equal(library.data.telegraph.some(item=>item.docId===doc),false);
+  assert.ok(library.data.drafts.some(item=>item.docId===doc),'o rascunho continua');
+  const saved=await jsonPost('/api/drafts/load',{browserKey,doc});
+  assert.equal(saved.data.draft.telegraphPath,'','o rascunho esquece o caminho da página');
+  assert.equal((await jsonPost('/api/telegraph/recover',{browserKey,doc,revision:1})).status,404);
+  assert.equal((await jsonPost('/api/library/delete',{browserKey,kind:'telegraph',doc})).status,404);
+
+  const creates=()=>calls().filter(call=>call.method==='createPage').length;
+  const createsBefore=creates();
+  const republished=await jsonPost('/api/telegraph/publish',page);
+  assert.equal(republished.status,200,republished.data.error);
+  assert.equal(creates(),createsBefore+1,'publicar de novo cria uma página nova');
+
+  // Mapeamento ainda sem confirmação (createPage incerto): não sai da lista às cegas.
+  const pending=randomUUID();
+  const pagesFile=join(dir,'telegraph-token-pages.json');
+  const pages=JSON.parse(readFileSync(pagesFile,'utf8'));
+  pages['browser:'+createHash('sha256').update(browserKey).digest('hex')+':'+pending]={status:'pending'};
+  writeFileSync(pagesFile,JSON.stringify(pages),{mode:0o600});
+  const refused=await jsonPost('/api/library/delete',{browserKey,kind:'telegraph',doc:pending});
+  assert.equal(refused.status,409);
+  assert.match(refused.data.error,/espera confirmação/);
+});

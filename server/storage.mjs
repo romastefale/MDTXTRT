@@ -313,6 +313,50 @@ export function listTelegraphPages(owner,drafts=[]){
   return items.sort((a,b)=>b.updatedAt-a.updatedAt||a.name.localeCompare(b.name));
 }
 
+// Exclusão pela biblioteca. Um envio ao Telegram em andamento grava o registro de novo
+// quando termina; por isso não se exclui nada enquanto ele está pendente.
+function telegramSendInFlight(publication){
+  return publication?.status==="pending"||publication?.pendingUpdate?.status==="pending";
+}
+function rewritePersistentRecord(owner,record){
+  // Igual ao writePersistentRecord, mas sem mudar o rascunho ativo (o ponteiro "active"):
+  // mexer num item da lista não faz dele o documento que abre na próxima vez.
+  persistentRecordValid(record,owner,record.draft.docId);
+  atomicWrite(persistentDraftPaths(owner,record.draft.docId).meta,JSON.stringify(record));
+}
+export function deletePersistentDraft(owner,doc){
+  if(!/^[a-f0-9-]{36}$/i.test(String(doc||"")))throw new HttpError(400,"Documento inválido");
+  const record=readPersistentDraft(owner,doc);
+  if(!record)throw new HttpError(404,"Rascunho não encontrado");
+  if(telegramSendInFlight(record.publication.telegram))throw new HttpError(409,"Há um envio ao Telegram em andamento neste rascunho; espere terminar para excluir");
+  const paths=persistentDraftPaths(owner,doc);
+  rmSync(paths.meta,{force:true});
+  rmSync(paths.mediaDir,{recursive:true,force:true});
+  rmSync(paths.single,{force:true});
+  if(existsSync(paths.active)&&readFileSync(paths.active,"utf8").trim()===doc)rmSync(paths.active,{force:true});
+  return {telegramPublication:Boolean(record.publication.telegram)};
+}
+// A publicação Telegram mora no registro do rascunho: sai da lista, o rascunho fica e as
+// mensagens continuam no chat. O próximo envio deste rascunho vira uma mensagem nova.
+export function forgetTelegramPublication(owner,doc){
+  if(!/^[a-f0-9-]{36}$/i.test(String(doc||"")))throw new HttpError(400,"Documento inválido");
+  const record=readPersistentDraft(owner,doc);
+  if(!record?.publication?.telegram)throw new HttpError(404,"Publicação Telegram não encontrada");
+  if(telegramSendInFlight(record.publication.telegram))throw new HttpError(409,"Há um envio ao Telegram em andamento nesta publicação; espere terminar para tirá-la da lista");
+  record.publication={...record.publication,telegram:null};
+  rewritePersistentRecord(owner,record);
+  return {};
+}
+// Depois de tirar uma página Telegraph da lista, o rascunho salvo esquece o caminho dela;
+// senão o próximo envio tentaria editar uma página que não pertence mais ao documento.
+export function clearDraftTelegraphPath(owner,doc,path){
+  const record=readPersistentDraft(owner,doc);
+  if(!record||!path||record.draft.telegraphPath!==path)return false;
+  record.draft={...record.draft,telegraphPath:""};
+  rewritePersistentRecord(owner,record);
+  return true;
+}
+
 export function savePersistentDraft(owner,draft,files=[]){
   draftValid(draft);
   if(!/^[a-f0-9-]{36}$/i.test(String(draft.docId||"")))throw new HttpError(400,"Documento inválido");
