@@ -2030,16 +2030,27 @@ test('a tap anywhere dismisses the toast or the portrait notice and keeps the ty
     target.dispatchEvent(event);
     return event;
   };
+  const noticeShown=()=>w.MDTXTRT_UI.getState().toast.visible||root.hasAttribute('data-device-gate');
+  // A ordem real dos eventos: mouse (pointerdown, mousedown, pointerup, mouseup) e
+  // dedo (pointerdown, pointerup e só então os de compatibilidade), depois o click.
+  // atPress = o aviso continuava na tela logo depois do pointerdown (ele só some
+  // quando o toque termina, então nada se mexe no meio do gesto).
   const tap=(target,pointerType)=>{
-    const down=fire(target,'pointerdown',pointerType),mouse=fire(target,'mousedown');
+    const order=pointerType==='touch'?['pointerdown','pointerup','mousedown','mouseup']:['pointerdown','mousedown','pointerup','mouseup'];
+    const prevented={};let atPress=null;
+    for(const type of order){
+      prevented[type]=fire(target,type,type.startsWith('pointer')?pointerType:undefined).defaultPrevented;
+      if(type==='pointerdown')atPress=noticeShown();
+    }
     let clicked=false;const seen=()=>{clicked=true;};
     target.addEventListener('click',seen);target.click();target.removeEventListener('click',seen);
-    return {down:down.defaultPrevented,mouse:mouse.defaultPrevented,clicked};
+    return {down:prevented.pointerdown,mouse:prevented.mousedown,clicked,atPress};
   };
   // Toque fora (no ☰), com mouse: os dois avisos fecham e o ☰ abre, foco no editor.
   assert.equal(root.hasAttribute('data-device-gate'),true,'este ambiente abre com o aviso de retrato');
   w.eval('showToast("Aviso de teste")');
   let t=tap(exportBtn,'mouse');
+  assert.equal(t.atPress,true,'nada some no começo do toque');
   assert.equal(w.MDTXTRT_UI.getState().toast.visible,false,'o toast fecha no toque');
   assert.equal(root.hasAttribute('data-device-gate'),false,'o aviso de retrato fecha no mesmo toque');
   assert.equal(t.clicked,true);
@@ -2062,6 +2073,7 @@ test('a tap anywhere dismisses the toast or the portrait notice and keeps the ty
     d.body.addEventListener('click',below);
     t=tap(material,pointerType);
     d.body.removeEventListener('click',below);
+    assert.equal(t.atPress,true,'no próprio aviso também só some ao soltar ('+pointerType+')');
     assert.equal(w.MDTXTRT_UI.getState().toast.visible,false,pointerType);
     assert.deepEqual({down:t.down,mouse:t.mouse,reached},{down:pointerType==='mouse',mouse:true,reached:false},pointerType);
     assert.equal(d.activeElement,editor,pointerType);
@@ -2073,6 +2085,17 @@ test('a tap anywhere dismisses the toast or the portrait notice and keeps the ty
   assert.equal(root.hasAttribute('data-device-gate'),false);
   assert.equal(t.mouse,true);
   assert.equal(d.activeElement,editor);
+  // Toque que começa dentro de um diálogo aberto: o aviso não some nem mexe na tela,
+  // e o botão tocado dispara.
+  const confirmation=w.eval('approve("Apagar?")');
+  w.eval('showToast("Aviso por cima")');
+  root.setAttribute('data-device-gate','');
+  t=tap(d.querySelector('#dialogOk'),'touch');
+  assert.equal(t.clicked,true);
+  assert.equal(await confirmation,true,'o botão do diálogo dispara');
+  assert.equal(w.MDTXTRT_UI.getState().toast.visible,true,'o toast continua: o toque era no diálogo');
+  assert.equal(root.hasAttribute('data-device-gate'),true,'o aviso de retrato também');
+  w.eval('dismissNotices()');
   // Depois de um toque no aviso que vira rolagem (pointercancel), o clique seguinte
   // não é engolido.
   w.eval('showToast("Aviso")');

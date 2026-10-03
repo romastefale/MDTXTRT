@@ -19,8 +19,8 @@ test.beforeEach(async ({page})=>{
   if(test.info().titlePath.includes(OFFLINE))return;
   await page.goto('/index.html');
   await expect(page.locator('#undoBtn')).toBeVisible();
-  // Em 1280px o aviso de retrato abre por 4s e o primeiro toque só o fecharia: os
-  // testes de interface começam sem ele (os do aviso o mostram de novo).
+  // Em 1280px o aviso de retrato abre por 4s por cima do texto: os testes de
+  // interface começam sem ele (os do aviso o mostram de novo).
   await page.evaluate(()=>document.documentElement.removeAttribute('data-device-gate'));
 });
 
@@ -39,12 +39,20 @@ test('texto longo quebra dentro da largura da tela',async ({page})=>{
   const editor=page.locator('#editor');
   await editor.click();
   await page.keyboard.type('palavra '.repeat(60)+'x'.repeat(120));
-  const {scrollWidth,innerWidth,editorOverflow}=await page.evaluate(()=>{
-    const el=document.querySelector('#editor');
-    return {scrollWidth:document.documentElement.scrollWidth,innerWidth,editorOverflow:el.scrollWidth-el.clientWidth};
+  // Mede onde termina cada caractere visível. O scrollWidth não serve: o WebKit
+  // conta nele o espaço que sobra no fim de cada linha (pendurado, invisível), e
+  // isso depende só da largura da fonte.
+  const {scrollWidth,innerWidth,inkOverflow}=await page.evaluate(()=>{
+    const el=document.querySelector('#editor'),right=el.getBoundingClientRect().right-parseFloat(getComputedStyle(el).paddingRight);
+    const walk=document.createTreeWalker(el,NodeFilter.SHOW_TEXT),range=document.createRange();let ink=-Infinity;
+    for(let t=walk.nextNode();t;t=walk.nextNode())for(let i=0;i<t.length;i++){
+      if(/\s/.test(t.data[i]))continue;
+      range.setStart(t,i);range.setEnd(t,i+1);ink=Math.max(ink,range.getBoundingClientRect().right);
+    }
+    return {scrollWidth:document.documentElement.scrollWidth,innerWidth,inkOverflow:ink-right};
   });
   expect(scrollWidth).toBeLessThanOrEqual(innerWidth);
-  expect(editorOverflow).toBeLessThanOrEqual(1);
+  expect(inkOverflow).toBeLessThanOrEqual(1);
 });
 
 test('desfazer e refazer funcionam por clique real',async ({page})=>{
@@ -358,6 +366,28 @@ test.describe(OFFLINE,()=>{
     expect(saves).not.toContain(remoteDoc);
     expect(new Set(saves)).toEqual(new Set([docId]));
   });
+
+  // Aviso e diálogo abertos juntos (o aviso de retrato abre com a página em 1280px):
+  // o toque no botão do diálogo dispara esse botão, e o aviso não some nem mexe na
+  // tela no meio do gesto, porque o toque começou dentro do diálogo.
+  test('com aviso e diálogo abertos, o toque no botão do diálogo dispara o botão',async ({page})=>{
+    await page.goto('/index.html');
+    await expect(page.locator('#dialogOk')).toHaveText('Tentar de novo');
+    await page.evaluate(()=>{
+      window.MDTXTRT_UI.setToast({text:'Aviso por cima',visible:true});
+      const root=document.documentElement;root.removeAttribute('data-device-gate');void root.offsetWidth;root.setAttribute('data-device-gate','');
+    });
+    await expect(page.locator('#toast .toast-material')).toBeVisible();
+    await expect(page.locator('#deviceGate .device-gate-card')).toBeVisible();
+    page.volumeUp=true;
+    // Clique real do mouse no centro do botão (o Playwright confere que é o botão
+    // que recebe o toque, não o aviso).
+    await page.locator('#dialogOk').click();
+    await expect(page.locator('#editor')).toHaveAttribute('contenteditable','true');
+    await expect(page.locator('#dialogMenu')).toBeHidden();
+    expect(await page.evaluate(()=>({toast:window.MDTXTRT_UI.getState().toast.visible,gate:document.documentElement.hasAttribute('data-device-gate')})),
+      'os avisos continuam: o toque era no diálogo').toEqual({toast:true,gate:true});
+  });
 });
 
 // Toque real (iPhone/Telegram): o teclado continua aberto e cada toque ainda ativa o controle.
@@ -579,12 +609,13 @@ for(const mini of [false,true])test(`menu com o teclado aberto e área visível 
   await closeMenus(page);
 });
 
-// Citações como a plataforma de destino as mostra. Telegram: Bot API 10.3 (aside é a
-// RichBlockPullQuotation, citação com texto centrado) desenhada como o cliente
-// (Telegram-iOS › InstantPageV2Layout › layoutQuoteText). Telegraph: core.min.css.
+// Citações e títulos como a plataforma de destino os mostra. Telegram: Bot API 10.3
+// (RichBlockBlockQuotation, RichBlockExpandableBlockQuotation e RichBlockPullQuotation,
+// "citação com texto centrado", cada uma com o crédito opcional em <cite>), medidos no
+// app (referência: app Telegram iOS, print do Pi, 2026-10-03). Telegraph: core.min.css.
 test('citação e citação em destaque seguem o Telegraph e o Telegram',async ({page},info)=>{
   const light=info.project.use.colorScheme==='light';
-  await page.evaluate(()=>{document.querySelector('#editor').innerHTML='<blockquote>Citação</blockquote><aside>Destaque do autor</aside><blockquote expandable="">Longa</blockquote><p>texto</p>';});
+  await page.evaluate(()=>{document.querySelector('#editor').innerHTML='<h1>Título 1</h1><h6>Título 6</h6><blockquote>Citação<cite>Autor</cite></blockquote><aside>Destaque do autor</aside><blockquote expandable="">Longa</blockquote><p>texto <a href="https://telegra.ph">link</a></p>';});
   const read=()=>page.evaluate(()=>{
     // color-mix() sai como rgba() ou color(srgb …) conforme o motor: compara por canais.
     const rgba=value=>{
@@ -600,7 +631,16 @@ test('citação e citação em destaque seguem o Telegraph e o Telegram',async (
     const er=ed.getBoundingClientRect(),ar=ae.getBoundingClientRect();
     const pick=c=>({bw:c.borderLeftWidth,bs:c.borderLeftStyle,bc:rgba(c.borderLeftColor),style:c.fontStyle,size:c.fontSize,
       pad:c.paddingTop+' '+c.paddingRight+' '+c.paddingBottom+' '+c.paddingLeft,margin:c.margin,radius:c.borderTopRightRadius,bg:rgba(c.backgroundColor),family:c.fontFamily});
+    const an=getComputedStyle(ed.querySelector('a')),title=document.querySelector('#docName');
+    const marks=['::before','::after'].map(pseudo=>{const m=getComputedStyle(ae,pseudo);return {content:m.content,w:m.width,h:m.height,left:m.left,right:m.right,top:m.top,bottom:m.bottom,bg:rgba(m.backgroundColor),mask:(m.maskImage||m.webkitMaskImage||'').startsWith('url(')};});
+    const head=sel=>{const h=getComputedStyle(ed.querySelector(sel));return {size:h.fontSize,family:h.fontFamily,weight:h.fontWeight,color:rgba(h.color)};};
+    const cite=getComputedStyle(qe.querySelector('cite')),citeBox=qe.querySelector('cite').getBoundingClientRect(),firstLine=qe.firstChild;
+    const range=document.createRange();range.selectNodeContents(firstLine);
     return {link,editor:{size:e.fontSize,lh:Math.round(parseFloat(e.lineHeight)/parseFloat(e.fontSize)*100)/100},
+      text:rgba(e.color),quoteText:rgba(q.color),family:e.fontFamily,qlh:Math.round(parseFloat(q.lineHeight)/parseFloat(q.fontSize)*100)/100,
+      alh:Math.round(parseFloat(a.lineHeight)/parseFloat(a.fontSize)*100)/100,marks,h1:head('h1'),h6:head('h6'),
+      cite:{display:cite.display,style:cite.fontStyle,weight:cite.fontWeight,color:rgba(cite.color),size:cite.fontSize,ownLine:citeBox.top>=range.getBoundingClientRect().bottom-0.5},title:title?rgba(getComputedStyle(title).color):null,
+      anchor:{color:rgba(an.color),line:an.textDecorationLine,bw:an.borderBottomWidth,bs:an.borderBottomStyle,bc:rgba(an.borderBottomColor),size:parseFloat(an.fontSize)},
       q:pick(q),x:{...pick(x),chevron:getComputedStyle(xe,'::after').content},
       a:{...pick(a),weight:a.fontWeight,align:a.textAlign,color:rgba(a.color),lh:Math.round(parseFloat(a.lineHeight)/parseFloat(a.fontSize)*100)/100,
         top:a.borderTopStyle,bottom:a.borderBottomStyle,width:ar.width,editorWidth:er.width,leftGap:ar.left-er.left,rightGap:er.right-ar.right}};
@@ -608,10 +648,27 @@ test('citação e citação em destaque seguem o Telegraph e o Telegram',async (
   const tint=s=>[...s.link.slice(0,3),0.1];
   // Telegram (padrão).
   let s=await read();
-  expect(s.q).toMatchObject({bw:'3px',bs:'solid',bc:s.link,style:'normal',size:'15px',pad:'6px 16px 6px 6px',radius:'6px',bg:tint(s)});
-  expect(s.x).toMatchObject({bw:'3px',bc:s.link,style:'normal',size:'15px',radius:'6px',bg:tint(s)});
+  // Texto e citações na fonte do sistema; títulos com serifa, H1 22pt e H6 15pt.
+  const sans=/^-apple-system, BlinkMacSystemFont/;
+  expect(s.family,'texto sem serifa').toMatch(sans);
+  expect(s.q.family,'citação sem serifa').toMatch(sans);
+  for(const [h,size] of [[s.h1,'22px'],[s.h6,'15px']]){
+    expect(h).toMatchObject({size,weight:'600',color:s.text});
+    expect(h.family,'título com serifa').toMatch(/^ui-serif, "?New York"?, Georgia/);
+  }
+  expect(s.q).toMatchObject({bw:'3px',bs:'solid',bc:s.link,style:'normal',size:'15px',pad:'4px 16px 4px 6px',radius:'8px',bg:tint(s)});
+  expect(s.qlh).toBe(1.25);
+  expect(s.x).toMatchObject({bw:'3px',bc:s.link,style:'normal',size:'15px',radius:'8px',bg:tint(s)});
   expect(s.x.chevron).not.toBe('none');
-  expect(s.a).toMatchObject({style:'italic',weight:'400',align:'center',size:'15px',pad:'12px 30px 12px 30px',radius:'6px',bg:tint(s),bw:'0px'});
+  expect(s.a).toMatchObject({style:'italic',weight:'400',align:'center',size:'15px',pad:'5px 30px 5px 30px',radius:'8px',bg:tint(s),bw:'0px'});
+  expect(s.alh).toBe(1.42);
+  // Aspas do destaque: “ no alto à esquerda e ” embaixo à direita, 12×9 na cor de link.
+  const [open,close]=s.marks;
+  expect(open).toMatchObject({content:'""',w:'12px',h:'9px',left:'6px',top:'6px',bg:s.link,mask:true});
+  expect(close).toMatchObject({content:'""',w:'12px',h:'9px',right:'6px',bottom:'4px',bg:s.link,mask:true});
+  // Crédito (<cite>, o credit da Bot API): linha própria, semi-negrito, cor secundária.
+  expect(s.cite).toMatchObject({display:'block',style:'normal',weight:'600',size:'15px',ownLine:true});
+  expect(s.cite.color,'crédito mais apagado que o texto').not.toEqual(s.quoteText);
   expect(s.a.top,'pílula sem linhas').toBe('none');
   expect(s.a.width,'a pílula abraça o texto').toBeLessThan(s.a.editorWidth-40);
   expect(Math.abs(s.a.leftGap-s.a.rightGap),'pílula centrada').toBeLessThanOrEqual(1);
@@ -620,6 +677,16 @@ test('citação e citação em destaque seguem o Telegraph e o Telegram',async (
   await expect(page.locator('html')).toHaveAttribute('data-dest','telegraph');
   s=await read();
   expect(s.editor).toEqual({size:'18px',lh:1.58});
+  // Cores do texto do core.min.css (claro; no escuro, as mesmas proporções do texto).
+  const ink=alpha=>light?[0,0,0,alpha]:[245,245,247,alpha];
+  expect(s.text,'texto do artigo').toEqual(ink(0.8));
+  expect(s.quoteText,'citação herda o texto').toEqual(ink(0.8));
+  expect(s.title,'título da página').toEqual(ink(0.8));
+  expect(s.anchor).toMatchObject({color:ink(0.8),line:'none',bs:'solid',bc:ink(0.7)});
+  // .1em de borda; o motor arredonda a espessura para pixels de tela (mínimo 1).
+  const dpr=await page.evaluate(()=>devicePixelRatio),em=s.anchor.size*0.1;
+  expect(parseFloat(s.anchor.bw),'borda do link de .1em').toBeGreaterThanOrEqual(Math.max(1/dpr,Math.floor(em*dpr)/dpr)-0.01);
+  expect(parseFloat(s.anchor.bw),'borda do link de .1em').toBeLessThanOrEqual(em+0.01);
   const rule=light?[0,0,0,1]:[245,245,247,1];
   const plain={bw:'3px',bs:'solid',bc:rule,style:'italic',size:'18px',pad:'0px 0px 0px 15px',margin:'18px 21px 16px 0px',radius:'0px',bg:[0,0,0,0]};
   expect(s.q).toMatchObject(plain);
@@ -629,6 +696,7 @@ test('citação e citação em destaque seguem o Telegraph e o Telegram',async (
   expect(s.a).toMatchObject({style:'italic',weight:'400',align:'center',size:'21px',lh:1.58,color:light?[0,0,0,0.6]:[245,245,247,0.6],
     margin:'18px 21px 16px',pad:'0px 18px 0px 18px',radius:'0px',bg:[0,0,0,0],bw:'0px',top:'none',bottom:'none'});
   expect(s.a.family).toMatch(/^Georgia, Cambria/);
+  expect(s.marks.map(m=>m.content),'sem aspas no Telegraph').toEqual(['none','none']);
   expect(s.a.width,'destaque do Telegraph ocupa a coluna').toBeGreaterThan(s.a.editorWidth-50);
   await page.locator('#destBtn').click();
   await expect(page.locator('html')).toHaveAttribute('data-dest','telegram');

@@ -75,7 +75,7 @@ editor.addEventListener('paste', e => {
   insertPlainText(text);
 });
 document.addEventListener('selectionchange',syncEditorSelectionUI);
-for(const type of ['pointerdown','mousedown','click','pointercancel'])window.addEventListener(type,noticeDismissPress,true);
+for(const type of ['pointerdown','mousedown','pointerup','mouseup','click','pointercancel'])window.addEventListener(type,noticeDismissPress,true);
 document.addEventListener('pointerdown',retainTypingFocus,true);
 document.addEventListener('mousedown',retainTypingFocus,true);
 menuDismissLayer?.addEventListener('pointerdown',holdDismissPress);

@@ -96,10 +96,10 @@ test('MDTXTRT contains no bespoke Liquid Glass renderer or implicit browser fall
   assert.match(server,/"ui\.js"/);
 });
 
-test('editorial document typography uses the Telegraph serif family without changing app chrome',()=>{
+// As famílias do documento (sem serifa no Telegram, títulos com serifa; Georgia no
+// Telegraph) são medidas no navegador, no teste das citações e títulos.
+test('app chrome keeps the system font and the Telegraph title keeps its serif',()=>{
   const html=page();
-  assert.match(html,/\.editor\{[\s\S]*?font-family:Georgia,"Times New Roman",serif;/);
-  assert.match(html,/\.editor h1,\.editor h2,\.editor h3,\.editor h4,\.editor h5,\.editor h6\{font-family:inherit;/);
   assert.match(html,/body\{[\s\S]*?font:16px\/1\.45 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif/);
   assert.match(html,/\.telegraph-title \.document-tools input\{[\s\S]*?Georgia,"Times New Roman",serif/);
 });

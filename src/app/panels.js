@@ -14,11 +14,15 @@ export function showToast(msg){
 }
 // Avisos efêmeros (toast e aviso de retrato): somem sozinhos e também com um toque
 // em qualquer ponto da tela, sem tirar o foco do campo de texto (o teclado continua
-// aberto). Um toque fora do aviso segue normalmente para o que foi tocado (o + abre,
-// o ☰ abre); um toque no próprio aviso só o fecha e não chega ao texto que está
-// embaixo dele. Nesse caso o padrão é o de holdDismissPress: o mousedown é cancelado
-// (é ele que impediria o blur) e o pointerdown de um toque não, porque cancelá-lo faz
-// o WebKit suprimir esse mousedown.
+// aberto). O aviso só some quando o toque TERMINA (pointerup ou click), nunca no
+// começo: sumir no pointerdown mexia na tela no meio do gesto, e um botão de diálogo
+// tocado nesse instante às vezes não disparava. Um toque fora do aviso segue
+// normalmente para o que foi tocado (o + abre, o ☰ abre) e fecha o aviso no click.
+// Um toque que começa dentro de um diálogo ou menu aberto não fecha nem mexe em
+// nada. Um toque no próprio aviso só o fecha e não chega ao texto embaixo dele: o
+// padrão de holdDismissPress, com o mousedown cancelado (é ele que impediria o blur)
+// e o pointerdown de um toque não, porque cancelá-lo faz o WebKit suprimir esse
+// mousedown; o click que vem depois também é engolido.
 const NOTICE_SURFACES='#toast .toast-material,#deviceGate .device-gate-card';
 export function deviceNoticeVisible(){
   const gate=document.getElementById('deviceGate');
@@ -35,28 +39,39 @@ export function dismissNotices(){
   document.documentElement.removeAttribute('data-device-gate');
 }
 const NOTICE_PRESS_MS=1500;
-let noticePressAt=0;
-function noticePressActive(){return noticePressAt>0&&performance.now()-noticePressAt<NOTICE_PRESS_MS;}
+// Gesto em curso enquanto havia aviso: onNotice = começou no vidro do aviso (só o
+// fecha); senão começou fora (fecha no click e o click segue).
+let noticePress=null;
+function noticePressActive(){return Boolean(noticePress)&&performance.now()-noticePress.at<NOTICE_PRESS_MS;}
+function startsInOpenLayer(target){
+  const layer=target?.closest?.('.glass-menu');
+  if(!layer)return false;
+  if(layer.hasAttribute('data-menu-open'))return true;
+  try{return panelIsOpen(layer);}catch{return false;}
+}
 export function noticeDismissPress(event){
-  if(event.type==='pointercancel'){noticePressAt=0;return;}
-  if(event.type==='click'){
-    if(!noticePressActive())return;
-    noticePressAt=0;
-    event.preventDefault();event.stopPropagation();
+  const type=event.type;
+  if(type==='pointercancel'){noticePress=null;return;}
+  // pointerdown inicia o gesto; mousedown sem pointerdown antes (navegadores sem
+  // Pointer Events) também.
+  if(type==='pointerdown'||(type==='mousedown'&&!noticePressActive())){
+    noticePress=null;
+    if(!noticeVisible()||startsInOpenLayer(event.target))return;
+    noticePress={at:performance.now(),onNotice:Boolean(event.target?.closest?.(NOTICE_SURFACES))};
+  }
+  if(!noticePressActive()){noticePress=null;return;}
+  const {onNotice}=noticePress;
+  if(type==='click'){
+    noticePress=null;
+    dismissNotices();
+    if(onNotice){event.preventDefault();event.stopPropagation();}
     return;
   }
-  // pointerdown inicia o toque; mousedown sem pointerdown antes (navegadores sem
-  // Pointer Events) também.
-  const continuing=event.type==='mousedown'&&noticePressActive();
-  if(!continuing){
-    if(event.type==='pointerdown')noticePressAt=0;
-    if(!noticeVisible())return;
-    const onNotice=Boolean(event.target?.closest?.(NOTICE_SURFACES));
-    dismissNotices();
-    if(!onNotice)return;
-    noticePressAt=performance.now();
-  }
-  if(!touchPress(event))event.preventDefault();
+  if(!onNotice)return;
+  // No próprio aviso: nada chega embaixo dele. Some ao soltar (pointerup); o
+  // mousedown/click de compatibilidade que vêm depois continuam engolidos.
+  if(type==='pointerup'){dismissNotices();event.stopPropagation();return;}
+  if(type==='mousedown'||!touchPress(event))event.preventDefault();
   event.stopPropagation();
 }
 export function panelIsOpen(panel){
