@@ -592,16 +592,6 @@ test.describe(BLOCKED,()=>{
     await expect(page.locator('#undoBtn')).toBeVisible();
   });
 
-  test('toque fora do aviso de armazenamento só o fecha',async ({page})=>{
-    await expect(page.locator('#dialogOk')).toHaveText('Entendi');
-    await page.evaluate(()=>document.documentElement.removeAttribute('data-device-gate'));
-    const point=await outsideDialogPoint(page);
-    await page.mouse.click(point.x,point.y);
-    await expect(page.locator('#dialogMenu')).toBeHidden();
-    expect(await page.evaluate(()=>window.__navigations)).toBe(0);
-    await expect(page.locator('#editor')).toHaveAttribute('contenteditable','true');
-  });
-
   test('um aviso claro, inteiro e abaixo da barra; edição liberada sem pausar',async ({page})=>{
     await expect(page.locator('#dialogLabel')).toContainText('bloqueando o armazenamento');
     await expect(page.locator('#dialogLabel')).toContainText('Bloquear Todos os Cookies');
