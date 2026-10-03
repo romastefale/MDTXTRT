@@ -520,7 +520,7 @@ test('step 6 persists drafts on the Railway volume, binds Telegram publication p
 test('step 5 overlays use the visual viewport',()=>{
   const html=page(),app=appSource(),src=uiSource();
   assert.match(html,/\.menu-list\{[\s\S]*?flex:1 1 auto[\s\S]*?max-height:none[\s\S]*?overflow-y:auto/);
-  assert.match(html,/\.dialog\{[\s\S]*?max-height:100%[\s\S]*?overflow-y:auto/);
+  assert.match(html,/\.dialog\{[^}]*flex:1 1 auto[^}]*min-height:0[^}]*overflow-y:auto/);
   assert.match(html,/#dialogMenu:popover-open::backdrop\{background:transparent;pointer-events:auto\}/);
   assert.match(app,/function visualViewportBounds\(\)/);
   assert.match(app,/function panelViewportBounds\(base=visualViewportBounds\(\)\)[\s\S]*?\.bar-wrap/);

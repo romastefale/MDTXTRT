@@ -1827,7 +1827,9 @@ test('viewport resize repositions an open dialog using the current visual area',
   w.visualViewport.height=280;
   w.eval('syncBrowserViewport()');
   assert.equal(parseFloat(dialog.style.getPropertyValue('--menu-top')),170);
-  assert.equal(parseFloat(dialog.style.getPropertyValue('--menu-max-height')),154);
+  // O diálogo pode ocupar toda a área livre (280px menos 8px de cada lado) para
+  // mostrar o texto inteiro; os menus continuam com o teto de 55%.
+  assert.equal(parseFloat(dialog.style.getPropertyValue('--menu-max-height')),264);
   d.querySelector('#dialogCancel').click();
   await prompt;
   w.close();

@@ -1,6 +1,8 @@
 import {test,expect} from '@playwright/test';
 
 const OFFLINE='servidor fora do ar no primeiro acesso';
+const BLOCKED='Safari com Bloquear Todos os Cookies';
+const GATE='aviso de retrato';
 
 // A página roda como site estático; o SDK do Telegram fica fora do teste.
 test.beforeEach(async ({page})=>{
@@ -16,7 +18,7 @@ test.beforeEach(async ({page})=>{
   page.errors=[];
   page.on('pageerror',error=>page.errors.push(error.message));
   // O grupo do servidor fora do ar troca a resposta antes de abrir a página.
-  if(test.info().titlePath.includes(OFFLINE))return;
+  if([OFFLINE,BLOCKED,GATE].some(group=>test.info().titlePath.includes(group)))return;
   await page.goto('/index.html');
   await expect(page.locator('#undoBtn')).toBeVisible();
 });
@@ -314,6 +316,13 @@ test.describe(OFFLINE,()=>{
     await expect(page.locator('#editor')).toHaveAttribute('contenteditable','true');
   });
 
+  for(const size of [{width:390,height:844},{width:320,height:568}])test(`o aviso cabe inteiro abaixo da barra superior em ${size.width}x${size.height}`,async ({page})=>{
+    await page.setViewportSize(size);
+    await page.goto('/index.html');
+    await expect(page.locator('#dialogOk')).toHaveText('Tentar de novo');
+    await expectDialogFits(page);
+  });
+
   test('começar rascunho novo libera a edição sem tocar na cópia do servidor',async ({page})=>{
     // A cópia do servidor tem um docId conhecido. Depois da escolha, o volume volta
     // e oferece essa cópia: nenhum save pode sair com o docId dela.
@@ -508,4 +517,129 @@ test('o cursor continua visível acima da barra enquanto se digita com o teclado
   });
   expect(caret.bottom,'cursor acima da barra').toBeLessThanOrEqual(bar.top+0.5);
   expect(caret.top,'cursor abaixo da barra superior').toBeGreaterThan(0);
+});
+
+// Diálogo: texto inteiro visível (sem corte nem rolagem), abaixo da barra superior,
+// acima da inferior e dentro da área visível.
+async function expectDialogFits(page){
+  await expect(page.locator('#dialogMenu')).toBeVisible();
+  await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+  const m=await page.evaluate(()=>{
+    const rect=el=>document.querySelector(el).getBoundingClientRect().toJSON();
+    const body=document.querySelector('#dialogMenu .dialog'),label=document.querySelector('#dialogLabel');
+    const vv=window.visualViewport;
+    return {dialog:rect('#dialogMenu'),content:rect('#dialogMenu .glass-menu-content'),label:rect('#dialogLabel'),actions:rect('#dialogMenu .dialog-actions'),
+      top:rect('.topbar'),bar:rect('.bar-wrap'),view:{top:vv.offsetTop,bottom:vv.offsetTop+vv.height},
+      bodyOverflow:body.scrollHeight-body.clientHeight,labelOverflow:label.scrollHeight-label.clientHeight};
+  });
+  expect(m.dialog.top,'abaixo da barra superior').toBeGreaterThanOrEqual(m.top.bottom-0.5);
+  expect(m.dialog.bottom,'acima da barra inferior').toBeLessThanOrEqual(m.bar.top+0.5);
+  expect(m.dialog.top).toBeGreaterThanOrEqual(m.view.top-0.5);
+  expect(m.dialog.bottom).toBeLessThanOrEqual(m.view.bottom+0.5);
+  expect(m.bodyOverflow,'conteúdo sem rolagem escondida').toBeLessThanOrEqual(1);
+  expect(m.labelOverflow,'texto sem corte').toBeLessThanOrEqual(1);
+  expect(m.label.bottom,'texto dentro do diálogo').toBeLessThanOrEqual(m.content.bottom+0.5);
+  expect(m.actions.bottom,'botões dentro do diálogo').toBeLessThanOrEqual(m.content.bottom+0.5);
+}
+
+// Safari com "Bloquear Todos os Cookies": ler o localStorage lança SecurityError e
+// o IndexedDB também fica bloqueado. O app continua editável nesta sessão.
+test.describe(BLOCKED,()=>{
+  test.beforeEach(async ({page})=>{
+    page.loads=0;
+    page.on('request',request=>{if(request.url().endsWith('/api/drafts/load'))page.loads++;});
+    await page.addInitScript(()=>{
+      const deny=()=>{throw new DOMException('The operation is insecure.','SecurityError');};
+      for(const key of ['localStorage','sessionStorage'])Object.defineProperty(window,key,{configurable:true,get:deny});
+      Object.defineProperty(IDBFactory.prototype,'open',{configurable:true,value:deny});
+      window.__navigations=0;
+      addEventListener('pagehide',()=>{window.__navigations++;});
+    });
+    await page.goto('/index.html');
+    await expect(page.locator('#undoBtn')).toBeVisible();
+  });
+
+  test('um aviso claro, inteiro e abaixo da barra; edição liberada sem pausar',async ({page})=>{
+    await expect(page.locator('#dialogLabel')).toContainText('bloqueando o armazenamento');
+    await expect(page.locator('#dialogLabel')).toContainText('Bloquear Todos os Cookies');
+    await expect(page.locator('#dialogOk')).toHaveText('Entendi');
+    await expect(page.locator('#dialogCancel')).toBeHidden();
+    await expectDialogFits(page);
+    await expect(page.locator('#editor')).toHaveAttribute('contenteditable','true');
+    expect(page.loads,'sem busca de cópia no servidor com identidade de uma sessão só').toBe(0);
+    await page.locator('#dialogOk').click();
+    await expect(page.locator('#dialogMenu')).toBeHidden();
+    await expect(page.locator('#toast')).not.toContainText('rascunho local');
+    await page.locator('#editor').click();
+    await page.keyboard.type('Texto desta sessão');
+    await expect(page.locator('#editor')).toContainText('Texto desta sessão');
+    await page.waitForTimeout(800);
+    await expect(page.locator('#toast')).not.toContainText('Não foi possível');
+  });
+
+  test('trocar o tema não recarrega nem perde o texto',async ({page})=>{
+    await page.locator('#dialogOk').click();
+    await page.locator('#editor').click();
+    await page.keyboard.type('Continua aqui');
+    const before=await page.evaluate(()=>document.documentElement.classList.contains('dark'));
+    await page.locator('#themeBtn').click();
+    await expect.poll(()=>page.evaluate(()=>document.documentElement.classList.contains('dark'))).toBe(!before);
+    await expect(page.locator('#editor')).toContainText('Continua aqui');
+    expect(await page.evaluate(()=>window.__navigations)).toBe(0);
+  });
+
+  test('rascunho novo começa na mesma página depois de confirmar',async ({page})=>{
+    await page.locator('#dialogOk').click();
+    await page.locator('#editor').click();
+    await page.keyboard.type('Texto antigo');
+    await page.locator('#exportBtn').click();
+    await page.locator('#libraryBtn').click();
+    await page.locator('#libraryNew').click();
+    await expect(page.locator('#dialogLabel')).toContainText('não pode ser guardado');
+    await expectDialogFits(page);
+    await page.locator('#dialogOk').click();
+    await expect(page.locator('#editor')).not.toContainText('Texto antigo');
+    await expect(page.locator('#editor')).toHaveAttribute('contenteditable','true');
+    expect(await page.evaluate(()=>window.__navigations)).toBe(0);
+  });
+});
+
+// O aviso de retrato só aparece em paisagem de verdade, por alguns segundos.
+test.describe(GATE,()=>{
+  const touchPhone=orientation=>({orientation,script:o=>{
+    const real=window.matchMedia.bind(window);
+    // Primeira leitura com medidas provisórias de paisagem (como o iPhone às vezes
+    // entrega no DOMContentLoaded); depois do primeiro quadro, as medidas reais.
+    let provisional=true;
+    document.addEventListener('DOMContentLoaded',()=>requestAnimationFrame(()=>{provisional=false;}));
+    window.matchMedia=query=>{
+      if(query==='(pointer:coarse)')return {matches:true,media:query,addEventListener(){},removeEventListener(){}};
+      if(provisional&&o==='portrait'&&query==='(orientation:landscape)')return {matches:true,media:query,addEventListener(){},removeEventListener(){}};
+      return real(query);
+    };
+    Object.defineProperty(screen,'orientation',{configurable:true,value:{type:o==='portrait'?'portrait-primary':'landscape-primary',angle:o==='portrait'?0:90,addEventListener(){},removeEventListener(){}}});
+    window.__gateSeen=false;
+    new MutationObserver(()=>{if(document.documentElement.hasAttribute('data-device-gate'))window.__gateSeen=true;}).observe(document,{subtree:true,attributes:true,attributeFilter:['data-device-gate']});
+  }});
+
+  test('iPhone em retrato com medida provisória de paisagem: sem aviso',async ({page})=>{
+    await page.setViewportSize({width:390,height:844});
+    const phone=touchPhone('portrait');
+    await page.addInitScript(phone.script,phone.orientation);
+    await page.goto('/index.html');
+    await expect(page.locator('#undoBtn')).toBeVisible();
+    await page.waitForTimeout(500);
+    expect(await page.evaluate(()=>window.__gateSeen)).toBe(false);
+    await expect(page.locator('#deviceGate')).toBeHidden();
+  });
+
+  test('iPhone em paisagem: aviso aparece e some sozinho',async ({page})=>{
+    await page.setViewportSize({width:844,height:390});
+    const phone=touchPhone('landscape');
+    await page.addInitScript(phone.script,phone.orientation);
+    await page.goto('/index.html');
+    await expect(page.locator('#deviceGate')).toBeVisible();
+    await expect(page.locator('#deviceGateTitle')).toHaveText('Melhor em modo retrato');
+    await expect(page.locator('#deviceGate')).toBeHidden({timeout:7000});
+  });
 });

@@ -132,6 +132,22 @@ export function placePanel(panel,anchorRect=null){
   const anchor=panelAnchor(panel);
   const rect=shiftToFixed(anchorRect||anchor?.getBoundingClientRect()||null,frame);
   let box=panel.getBoundingClientRect();
+  if(id==='dialogMenu'&&!usableAnchorRect(rect,viewport)){
+    // Diálogo sem âncora: centrado na área livre abaixo da barra superior e acima
+    // da inferior, com altura para o texto inteiro (sem o teto de 55% dos menus).
+    const head=shiftToFixed(one('.topbar')?.getBoundingClientRect?.()||null,frame);
+    const top=head&&Number.isFinite(head.bottom)&&head.bottom>bounds.top&&head.bottom<bounds.bottom?head.bottom:bounds.top;
+    const free={...bounds,top,height:Math.max(0,bounds.bottom-top)};
+    ui.setMenu(id,{maxHeight:Math.max(0,free.height-edge*2)});
+    box=panel.getBoundingClientRect();
+    const minLeft=free.left+edge,maxLeft=Math.max(minLeft,free.right-edge-box.width);
+    const minTop=free.top+edge,maxTop=Math.max(minTop,free.bottom-edge-box.height);
+    ui.setMenu(id,{
+      left:clamp(free.left+(free.width-box.width)/2,minLeft,maxLeft),
+      top:clamp(free.top+(free.height-box.height)/2,minTop,maxTop)
+    });
+    return;
+  }
   if(!usableAnchorRect(rect,viewport)){
     const minLeft=bounds.left+edge,maxLeft=Math.max(minLeft,bounds.right-edge-box.width);
     const minTop=bounds.top+edge,maxTop=Math.max(minTop,bounds.bottom-edge-box.height);

@@ -628,7 +628,7 @@ function DialogBody() {
         aria-labelledby="dialogLabel"
       />
       <div className="dialog-actions">
-        <button type="button" id="dialogCancel">{dialog.cancel}</button>
+        <button type="button" id="dialogCancel" hidden={!dialog.cancel}>{dialog.cancel}</button>
         <button type="button" id="dialogOk">{dialog.ok}</button>
       </div>
     </div>
