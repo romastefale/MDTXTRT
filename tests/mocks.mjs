@@ -35,6 +35,9 @@ globalThis.fetch = async (url,options={}) => {
       if(probe.rich_message?.html?.includes('UPSTREAM_TIMEOUT'))throw new TypeError('simulated transport timeout');
       if(probe.rich_message?.html?.includes('UPSTREAM_DELAY'))await new Promise(resolve=>setTimeout(resolve,150));
       if(probe.rich_message?.html?.includes('UPSTREAM_REJECT'))return Response.json({ok:false,description:'test rejection'},{status:400});
+      if(probe.rich_message?.html?.includes('UPSTREAM_RATE_LIMIT'))return Response.json({ok:false,error_code:429,description:'Too Many Requests: retry after 7',parameters:{retry_after:7}},{status:429});
+      if(probe.rich_message?.html?.includes('UPSTREAM_BLOCKED'))return Response.json({ok:false,error_code:403,description:'Forbidden: bot was blocked by the user'},{status:403});
+      if(probe.rich_message?.html?.includes('UPSTREAM_NOT_STARTED'))return Response.json({ok:false,error_code:403,description:"Forbidden: bot can't initiate conversation with a user"},{status:403});
       if(method==='sendRichMessage'){
         const html=String(probe.rich_message?.html||'');
         if(html.includes('Atualização de publicação'))return Response.json({ok:true,result:{message_id:43}});

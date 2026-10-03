@@ -10,17 +10,23 @@ import { telegramCall, webhookSecret } from "./telegram.mjs";
 import { readPages, telegraphContentHTML, verifyTelegraphPage } from "./telegraph.mjs";
 
 export let botLink;
+// Nome de usuário confirmado pelo getMe: comandos "/cmd@outro_bot" não são para nós.
+let botUsername="";
 const BOT_COMMANDS = [
   { command: "start", description: "Abrir o MDTXTRT" },
   { command: "app", description: "Abrir o Mini App" },
   { command: "novo", description: "Criar um documento" },
   { command: "rascunhos", description: "Listar e editar rascunhos salvos" },
   { command: "telegraph", description: "Abrir o editor Telegraph" },
-  { command: "ajuda", description: "Ver os comandos" },
   { command: "enviar", description: "Escolher e enviar um rascunho" },
   { command: "exportar", description: "Escolher e exportar conteúdo" },
   { command: "importar", description: "Importar Markdown ou TXT" },
+  { command: "ajuda", description: "Ver os comandos" },
 ];
+// /help é um dos comandos globais que todo bot deve atender (Bot API, "Global Commands");
+// fica fora do menu porque /ajuda já ocupa esse lugar em português.
+const HELP_COMMANDS=new Set(["ajuda","help"]);
+const KNOWN_COMMANDS=new Set([...BOT_COMMANDS.map(item=>item.command),"help"]);
 
 const PORTABLE_TAGS=new Set("a b strong i em u ins s strike del code mark sub sup tg-spoiler tg-reference tg-emoji tg-time tg-math h1 h2 h3 h4 h5 h6 p pre footer hr ul ol li input blockquote aside cite img video audio tg-document figure figcaption iframe tg-map tg-collage tg-slideshow table caption thead tbody tfoot tr th td details summary tg-math-block tg-button tg-button-row br div".split(" "));
 const PORTABLE_ATTRS=new Set("href name class style src alt tg-spoiler start type reversed value checked disabled controls expandable unix format emoji-id lat long zoom width height bordered striped compact colspan rowspan align valign open url data query text forward-text request-write-access allow-user-chats allow-bot-chats allow-group-chats allow-channel-chats".split(" "));
@@ -103,7 +109,7 @@ async function downloadTelegramFile(filePath){
     throw new DeliveryError("A resposta de download do Telegram não pôde ser lida","uncertain");
   }
   if(bytes.length>BOT_IMPORT_DOWNLOAD_MAX)throw new Error("Arquivo acima do limite de 20 MB do Telegram Bot API");
-  if(bytes.length>BOT_IMPORT_SOURCE_MAX)throw new Error("Arquivo grande demais para o contrato de importação do MDTXTRT");
+  if(bytes.length>BOT_IMPORT_SOURCE_MAX)throw new Error("Arquivo acima do limite de 240 KB do MDTXTRT para importação");
   return bytes;
 }
 
@@ -114,7 +120,7 @@ async function importTelegramDocument(document,chatId){
   if(document.file_size!==undefined){
     if(!Number.isSafeInteger(document.file_size)||document.file_size<0)throw new Error("Tamanho de arquivo inválido");
     if(document.file_size>BOT_IMPORT_DOWNLOAD_MAX)throw new Error("Arquivo acima do limite de 20 MB do Telegram Bot API");
-    if(document.file_size>BOT_IMPORT_SOURCE_MAX)throw new Error("Arquivo grande demais para o contrato de importação do MDTXTRT");
+    if(document.file_size>BOT_IMPORT_SOURCE_MAX)throw new Error("Arquivo acima do limite de 240 KB do MDTXTRT para importação");
   }
   const remote=await telegramCall("getFile",{file_id:document.file_id},{
     connection:"Falha de rede ao solicitar o arquivo ao Telegram",
@@ -125,7 +131,7 @@ async function importTelegramDocument(document,chatId){
   if(remote.file_size!==undefined){
     if(!Number.isSafeInteger(remote.file_size)||remote.file_size<0)throw new Error("Tamanho de arquivo retornado pelo Telegram inválido");
     if(remote.file_size>BOT_IMPORT_DOWNLOAD_MAX)throw new Error("Arquivo acima do limite de 20 MB do Telegram Bot API");
-    if(remote.file_size>BOT_IMPORT_SOURCE_MAX)throw new Error("Arquivo grande demais para o contrato de importação do MDTXTRT");
+    if(remote.file_size>BOT_IMPORT_SOURCE_MAX)throw new Error("Arquivo acima do limite de 240 KB do MDTXTRT para importação");
   }
   const bytes=await downloadTelegramFile(remote.file_path);
   const expected=document.file_size??remote.file_size;
@@ -223,7 +229,7 @@ async function sendBotRichPages(chatId,pages,replyTo=0){
 
 function botDraftListPages(owner){
   const drafts=listPersistentDrafts(owner);
-  if(!drafts.length)return ["<h1>Rascunhos</h1><p>Nenhum rascunho persistido foi encontrado. Use <b>/novo</b> para começar.</p>"+appButton()];
+  if(!drafts.length)return ["<h1>Rascunhos</h1><p>Nenhum rascunho salvo foi encontrado. Use <b>/novo</b> para começar.</p>"+appButton()];
   const items=drafts.map(item=>({
     label:"Editar · "+item.name,
     url:draftLaunchURL(MINI_APP_URL,item.docId)
@@ -238,7 +244,7 @@ function botDraftListPages(owner){
 
 function botSendListPages(owner){
   const drafts=listPersistentDrafts(owner);
-  if(!drafts.length)return ["<h1>Enviar rascunho</h1><p>Nenhum rascunho persistido foi encontrado.</p>"+appButton()];
+  if(!drafts.length)return ["<h1>Enviar rascunho</h1><p>Nenhum rascunho salvo foi encontrado.</p>"+appButton()];
   const items=drafts.map(item=>({
     label:"Enviar · "+item.name,
     url:botActionLaunchURL(MINI_APP_URL,"send","d",item.docId),
@@ -316,19 +322,32 @@ async function replyImportResult(message,document){
   }
 }
 
+const BOT_COMMAND_PATTERN=/^\/([a-z0-9_]+)(?:@([a-z0-9_]+))?(?:\s+[\s\S]*)?$/i;
+
+function addressedToThisBot(match){
+  const target=match?.[2]||"";
+  if(!target||!botUsername)return true;
+  return target.toLowerCase()===botUsername.toLowerCase();
+}
+
 export async function handleBotUpdate(update) {
   const message = update.message;
   if (!message || !message.chat) return;
   const text=typeof message.text==="string"?message.text:"";
   const caption=typeof message.caption==="string"?message.caption:"";
-  const textMatch = /^\/([a-z0-9_]+)(?:@[a-z0-9_]+)?(?:\s+[\s\S]*)?$/i.exec(text);
-  const captionMatch = /^\/([a-z0-9_]+)(?:@[a-z0-9_]+)?(?:\s+[\s\S]*)?$/i.exec(caption);
+  const textMatch = BOT_COMMAND_PATTERN.exec(text);
+  const captionMatch = BOT_COMMAND_PATTERN.exec(caption);
+  // O backend precisa conferir a quem o comando se dirige (Bot API, "Global Commands"):
+  // "/app@outro_bot" num grupo é do outro bot e fica sem resposta.
+  if(!addressedToThisBot(textMatch||captionMatch))return;
   const command=(textMatch?.[1]||captionMatch?.[1]||"").toLowerCase();
   const directDocument=message.document&&(!captionMatch||command==="importar");
   const importIntent=Boolean(directDocument)||command==="importar";
   const chatId = message.chat.id;
   if (message.chat.type !== "private") {
-    if(importIntent||textMatch)await sendBotRich(chatId, "<p>Abra o chat privado do MDTXTRT para usar o Mini App, importar e exportar arquivos.</p>");
+    // Em grupos só respondemos a comandos nossos; arquivos e conversa não são conosco
+    // (com o modo de privacidade desligado, o bot recebe todas as mensagens).
+    if(textMatch&&KNOWN_COMMANDS.has(command))await sendBotRich(chatId, "<p>Abra o chat privado do MDTXTRT para usar o Mini App, importar e exportar arquivos.</p>");
     return;
   }
   if(importIntent){
@@ -341,7 +360,7 @@ export async function handleBotUpdate(update) {
     return;
   }
   if(message.document&&captionMatch){
-    await sendBotRich(chatId,"<p>O documento anexado só pode ser usado com <b>/importar</b>. <b>/enviar</b> e <b>/exportar</b> trabalham exclusivamente com rascunhos e publicações persistidos.</p>",message.message_id);
+    await sendBotRich(chatId,"<p>O documento anexado só pode ser usado com <b>/importar</b>. <b>/enviar</b> e <b>/exportar</b> trabalham só com rascunhos e publicações já salvos.</p>",message.message_id);
     return;
   }
   if(!textMatch)return;
@@ -363,7 +382,7 @@ export async function handleBotUpdate(update) {
     await sendBotRich(chatId,"<h1>Telegraph</h1><p>Abra o Mini App já no editor configurado para Telegraph.</p>"+telegraphEditorButton(),message.message_id);
     return;
   }
-  if (command === "ajuda") {
+  if (HELP_COMMANDS.has(command)) {
     const html = "<h1>Comandos</h1><p><b>/app</b> abre o Mini App.</p><p><b>/novo</b> cria outro documento sem substituir o rascunho local atual.</p><p><b>/rascunhos</b> lista os rascunhos no chat e abre o documento escolhido diretamente no Mini App.</p><p><b>/telegraph</b> abre o Mini App já no editor Telegraph.</p><p><b>/enviar</b> lista os rascunhos para escolher qual será enviado.</p><p><b>/exportar</b> lista rascunhos e publicações para escolher o que exportar em TXT ou Markdown.</p><p><b>/importar</b> importa um documento .md ou .txt anexado ou respondido e continua diretamente no Mini App.</p>" + appButton();
     await sendBotRich(chatId, html, message.message_id);
     return;
@@ -378,11 +397,14 @@ export async function handleBotUpdate(update) {
     await sendBotRichPages(chatId,botExportListPages(owner),message.message_id);
     return;
   }
+  // Comando desconhecido no privado: uma resposta curta em vez de silêncio. Texto comum segue sem resposta.
+  await sendBotRich(chatId,"<p>Não conheço o comando <b>/"+htmlEscape(command)+"</b>. Use <b>/ajuda</b> para ver os comandos.</p>",message.message_id);
 }
 
 export async function configureBot(){
   const bot=await telegramCall("getMe",{});
   if(!/^[A-Za-z0-9_]{5,32}$/.test(bot.username||""))throw new Error("Bot sem nome de usuário");
+  botUsername=bot.username;
   botLink="https://t.me/"+bot.username;
   const secret=webhookSecret();
   await telegramCall("setMyCommands",{commands:BOT_COMMANDS,scope:{type:"all_private_chats"}});
