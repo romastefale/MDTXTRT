@@ -32,7 +32,8 @@ export function storageRemove(key){
   if(memory){memory.delete(key);return;}
   window.localStorage.removeItem(key);
 }
-// Caminho do ajuste conforme o suporte da Apple: Ajustes › Apps › Safari › Avançado
-// no iOS 18.2 ou mais novo (inclui o iOS 26); Ajustes › Safari › Avançado do iOS 17
-// ao 18.1.
-export const STORAGE_BLOCKED_NOTICE='Este navegador está bloqueando o armazenamento de dados dos sites. Dá para escrever, publicar e exportar normalmente, mas o texto não fica salvo ao fechar ou recarregar a página. No iPhone, desative Bloquear Todos os Cookies em Ajustes › Apps › Safari › Avançado (até o iOS 18.1: Ajustes › Safari › Avançado).';
+// Caminho do ajuste conforme o suporte da Apple ("Enable cookies on iPhone"):
+// Ajustes › Apps › Safari › Avançado › Bloquear Todos os Cookies no iOS 18 e no
+// iOS 26 (a seção Apps dos Ajustes chegou no iOS 18); no iOS 17 o mesmo item fica
+// em Ajustes › Safari › Avançado.
+export const STORAGE_BLOCKED_NOTICE='Este navegador está bloqueando o armazenamento de dados dos sites. Dá para escrever, publicar e exportar normalmente, mas o texto não fica salvo ao fechar ou recarregar a página. No iPhone, desative Bloquear Todos os Cookies em Ajustes › Apps › Safari › Avançado (no iOS 17: Ajustes › Safari › Avançado).';

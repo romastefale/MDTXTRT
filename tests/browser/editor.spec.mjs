@@ -577,6 +577,25 @@ test.describe(BLOCKED,()=>{
     await expect(page.locator('#toast')).not.toContainText('Não foi possível');
   });
 
+  test('o aviso cabe inteiro numa tela de 320x568',async ({page})=>{
+    await page.setViewportSize({width:320,height:568});
+    await page.reload();
+    await expect(page.locator('#dialogLabel')).toContainText('Bloquear Todos os Cookies');
+    await expectDialogFits(page);
+  });
+
+  test('anexo fica em memória e aparece no texto sem erro de armazenamento',async ({page})=>{
+    await page.locator('#dialogOk').click();
+    await page.locator('#editor').click();
+    // PNG 1x1 transparente.
+    const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=','base64');
+    await page.locator('#mediaInput').setInputFiles({name:'ponto.png',mimeType:'image/png',buffer:png});
+    await expect(page.locator('#editor img[data-media-id]')).toHaveCount(1);
+    await expect(page.locator('#editor img[data-media-id]')).toHaveAttribute('src',/^blob:/);
+    await page.waitForTimeout(400);
+    await expect(page.locator('#toast')).not.toContainText(/Não foi possível|armazenamento/);
+  });
+
   test('trocar o tema não recarrega nem perde o texto',async ({page})=>{
     await page.locator('#dialogOk').click();
     await page.locator('#editor').click();

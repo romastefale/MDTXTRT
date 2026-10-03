@@ -31,6 +31,21 @@ test('browser bundle cache busters follow the committed Git blob SHAs',()=>{
   }
 });
 
+// Safari com "Bloquear Todos os Cookies": tocar no localStorage lança erro. Todo
+// acesso do editor passa por src/app/storage.js, que tem a reserva em memória. A
+// exceção é setTheme (theme.js), que só grava o tema depois de saber que o
+// armazenamento funciona e antes de recarregar a página.
+test('editor modules reach local storage only through storage.js',()=>{
+  const theme=read('src/app/theme.js');
+  assert.match(theme,/if\(storageBlocked\(\)\)\{applyScheme\(\);return;\}\s*try\{localStorage\.setItem\(THEME_KEY,mode\);\}catch\{\}/);
+  for(const name of readdirSync(new URL('src/app/',root)).filter(name=>name.endsWith('.js')&&name!=='storage.js'&&name!=='theme.js')){
+    assert.doesNotMatch(read('src/app/'+name),/\b(?:localStorage|sessionStorage)\b/,name+' must use storage.js');
+  }
+  const storage=read('src/app/storage.js');
+  assert.match(storage,/memory=new Map\(\)/);
+  assert.match(storage,/Bloquear Todos os Cookies em Ajustes › Apps › Safari › Avançado/);
+});
+
 test('official Liquid Glass React dependencies and deterministic build are pinned',()=>{
   const pkg=JSON.parse(read('package.json'));
   const lock=JSON.parse(read('package-lock.json'));
