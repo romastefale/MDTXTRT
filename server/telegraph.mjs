@@ -178,6 +178,37 @@ async function publishTelegraphOne(title, content, path = "", owner = "", doc = 
   return { ...page, url: verified.url, path: verified.path };
 }
 
+// Como uma página sai da biblioteca. O Telegraph não tem método para apagar páginas
+// (https://telegra.ph/api lista createAccount, createPage, editAccountInfo, editPage,
+// getAccountInfo, getPage, getPageList, getViews e revokeAccessToken), então o único modo
+// é "list": desfaz o vínculo documento → página e a página continua no telegra.ph.
+// Um modo futuro que esvazie a página (editPage) entraria neste conjunto e em
+// removeTelegraphPageOne; por decisão do Pi, ele ainda não existe.
+export const TELEGRAPH_REMOVAL_MODES = new Set(["list"]);
+
+function removeTelegraphPageOne(owner, doc, mode) {
+  if (!TELEGRAPH_REMOVAL_MODES.has(mode)) throw new HttpError(400,"Modo de remoção do Telegraph inválido");
+  if (!/^[a-f0-9-]{36}$/i.test(String(doc||""))) throw new HttpError(400,"Documento inválido");
+  const pages = readPages();
+  const key = owner + ":" + doc;
+  const known = pages[key];
+  if (!known) throw new HttpError(404,"Publicação Telegraph não encontrada");
+  if (typeof known !== "string") {
+    if (known.status === "pending") throw new HttpError(409,"A publicação no Telegraph ainda espera confirmação; confira a página antes de tirá-la da lista");
+    throw new Error("Mapeamento de páginas do Telegraph inválido");
+  }
+  delete pages[key];
+  writePages(pages);
+  return { path: known, mode };
+}
+
+// Na mesma fila das publicações, para não correr junto com um createPage/editPage.
+export function removeTelegraphPage(owner, doc, mode = "list") {
+  const next = telegraphQueue.then(() => removeTelegraphPageOne(owner, doc, mode));
+  telegraphQueue=next.catch(error=>{console.error("Telegraph queue",error);});
+  return next;
+}
+
 export function publishTelegraph(...args) {
   const next = telegraphQueue.then(() => publishTelegraphOne(...args));
   telegraphQueue=next.catch(error=>{console.error("Telegraph queue",error);});

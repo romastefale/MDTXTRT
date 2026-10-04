@@ -1,11 +1,13 @@
 // Biblioteca de rascunhos e publicações.
 import { S } from "./state.js";
-import { API } from "./constants.js";
+import { API, DRAFT_ARCHIVE_PREFIX, DRAFT_KEY } from "./constants.js";
 import { docName, editor, one, ui } from "./dom.js";
-import { clearRuntimeMedia } from "./media.js";
-import { cleanDraftHTML, loadRemoteDraft, normalizedRevision, remoteDraftIdentity, saveLocal } from "./draft.js";
+import { clearRuntimeMedia, mediaDelete } from "./media.js";
+import { cleanDraftHTML, loadRemoteDraft, normalizedRevision, remoteDraftIdentity, resetToNewDocument, saveLocal } from "./draft.js";
 import { closePanel, focusControl, focusMenuControl, openPanel, panelIsOpen, showToast, syncBackButton } from "./panels.js";
-import { focusLibraryStart } from "./dialog.js";
+import { confirmDialog, focusLibraryStart } from "./dialog.js";
+import { syncEditorSelectionUI } from "./editing.js";
+import { storageRemove } from "./storage.js";
 import { readResponse, setDestination } from "./publish.js";
 
 export function libraryViewParam(){
@@ -83,7 +85,9 @@ export async function renderLibrary(preferred=''){
   ui.setLibrary({status:'Carregando…',publicationCount:0,draftCount:0,drafts:pending,telegram:pending,telegraph:pending});
   try{
     const data=await fetchLibrary();
+    const telegramDocs=new Set(data.telegram.map(item=>item.docId));
     const drafts=libraryList(data.drafts,item=>({
+      onDelete:()=>void deleteLibraryItem('draft',item,{telegramPublication:telegramDocs.has(item.docId)}),
       meta:['rev. '+item.revision,item.hasMedia?'com anexo':''].filter(Boolean).join(' · '),
       platform:item.dest==='telegraph'?'Telegraph':'Telegram',onSelect:()=>void openLibraryDraft(item.docId),label:'Editar'
     }),'Nenhum rascunho salvo.');
@@ -91,14 +95,16 @@ export async function renderLibrary(preferred=''){
       const state=item.status==='succeeded'?'publicada':item.status==='pending'?'pendente':'confirmação necessária';
       return {
         meta:['rev. '+item.revision,item.messageId?'mensagem #'+item.messageId:'',item.historyCount>1?item.historyCount+' versões':'',state].filter(Boolean).join(' · '),
-        platform:'Telegram',onSelect:()=>void openLibraryDraft(item.docId),label:'Editar texto'
+        platform:'Telegram',onSelect:()=>void openLibraryDraft(item.docId),label:'Editar texto',
+        onDelete:()=>void deleteLibraryItem('telegram',item),deleteDisabled:item.status==='pending'
       };
     },'Nenhuma publicação Telegram vinculada.');
     const telegraph=libraryList(data.telegraph,item=>{
       const pending=item.status!=='succeeded';
       return {
         meta:pending?'Publicação pendente de confirmação':['rev. '+item.revision,item.path].filter(Boolean).join(' · '),
-        platform:'Telegraph',disabled:pending,onSelect:()=>void openTelegraphDocument(item.docId),label:'Editar página'
+        platform:'Telegraph',disabled:pending,onSelect:()=>void openTelegraphDocument(item.docId),label:'Editar página',
+        onDelete:()=>void deleteLibraryItem('telegraph',item),deleteDisabled:pending
       };
     },'Nenhuma publicação Telegraph vinculada.');
     const publicationTotal=data.telegram.length+data.telegraph.length;
@@ -112,6 +118,81 @@ export async function renderLibrary(preferred=''){
   }catch(error){
     const unavailable={items:[],empty:'Biblioteca indisponível.'};
     ui.setLibrary({status:error.message||'Não foi possível carregar a biblioteca',drafts:unavailable,telegram:unavailable,telegraph:unavailable});
+  }
+}
+// Exclusão pela biblioteca, sempre depois de confirmar. Rascunho: sai do servidor e não
+// volta. Publicações: saem só da lista; as mensagens continuam no chat do bot e a página
+// continua no telegra.ph (o Telegraph não tem como apagar páginas).
+function quotedName(item){return '“'+(String(item?.name||'').trim()||'Sem título')+'”';}
+export function libraryDeleteMessage(kind,item,{telegramPublication=false}={}){
+  const name=quotedName(item);
+  if(kind==='draft'){
+    const open=S.docId===item.docId?'Este rascunho está aberto no editor; o texto será apagado. ':'';
+    const telegram=telegramPublication?' A publicação no Telegram também sai da lista; as mensagens continuam no chat do bot.':'';
+    return {label:open+'Excluir o rascunho '+name+'? Ele sai do servidor e não pode ser recuperado.'+telegram,ok:'Excluir'};
+  }
+  if(kind==='telegram')return {label:'Tirar '+name+' da lista de publicações do Telegram? As mensagens continuam no chat do bot e o rascunho continua salvo. Um novo envio deste rascunho sai como mensagem nova.',ok:'Tirar da lista'};
+  return {label:'Tirar '+name+' da lista de publicações do Telegraph? A página continua no telegra.ph, porque o Telegraph não permite apagar páginas. Publicar este documento de novo cria uma página nova.',ok:'Tirar da lista'};
+}
+async function requestLibraryDelete(kind,doc){
+  const res=await fetch(API+'/api/library/delete',{
+    method:'POST',signal:AbortSignal.timeout(20000),
+    headers:{'content-type':'application/json'},
+    body:JSON.stringify({...remoteDraftIdentity(),kind,doc})
+  });
+  const data=await readResponse(res);
+  if(!res.ok)throw new Error(data.error||'Não foi possível excluir');
+  if(data.ok!==true||data.kind!==kind||data.doc!==doc)throw new Error('Resposta da exclusão inválida');
+  return data;
+}
+// O documento aberto foi excluído: o editor vai para um rascunho novo e vazio, sem cópia
+// local do texto apagado e sem criar rascunho no servidor até receber conteúdo.
+function replaceDeletedOpenDocument(){
+  const mediaIds=[...S.mediaFiles.keys()];
+  resetToNewDocument();
+  S.blankAfterDelete=S.docId;
+  try{storageRemove(DRAFT_KEY);}catch(error){console.error('Local draft removal',error);}
+  for(const id of mediaIds)void mediaDelete(id).catch(error=>console.error('Local media removal',error));
+  editor.setAttribute('contenteditable','true');
+  setDestination(S.dest,false,false);
+  syncEditorSelectionUI();
+}
+// Depois da confirmação (ou de cancelar), a biblioteca volta com a mesma seção aberta.
+function reopenLibrary(preferred,draftsOpen){
+  openLibrary(preferred);
+  if(draftsOpen)setDraftsExpanded(true);
+}
+export async function deleteLibraryItem(kind,item,options={}){
+  const doc=String(item?.docId||'');
+  if(!['draft','telegram','telegraph'].includes(kind)||!/^[a-f0-9-]{36}$/i.test(doc))return false;
+  const preferred=kind==='draft'?'':kind,draftsOpen=kind==='draft';
+  const message=libraryDeleteMessage(kind,item,options);
+  const choice=await confirmDialog(message.label,message.ok,one('#exportBtn'));
+  // Só o botão principal exclui. Cancelar, toque fora, Esc e Voltar do Telegram não mudam nada.
+  if(choice!==true){reopenLibrary(preferred,draftsOpen);return false;}
+  try{
+    if(kind==='draft'&&S.docId===doc){
+      // Nenhuma gravação pendente do documento pode chegar depois da exclusão e recriá-lo.
+      S.deletingDoc=doc;
+      clearTimeout(S.saveTimer);clearTimeout(S.remoteSaveTimer);
+      await S.remoteSaveQueue.catch(()=>{});
+    }
+    await requestLibraryDelete(kind,doc);
+    if(kind==='draft'){
+      try{storageRemove(DRAFT_ARCHIVE_PREFIX+doc.toLowerCase());}catch(error){console.error('Local archive removal',error);}
+      if(S.docId===doc)replaceDeletedOpenDocument();
+      showToast('Rascunho excluído.');
+    }else{
+      if(kind==='telegraph'&&S.docId===doc&&S.telegraphPath===item.path){S.telegraphPath='';saveLocal();}
+      showToast('Publicação tirada da lista.');
+    }
+    return true;
+  }catch(error){
+    showToast(error.message||'Não foi possível excluir');
+    return false;
+  }finally{
+    if(S.deletingDoc===doc)S.deletingDoc='';
+    reopenLibrary(preferred,draftsOpen);
   }
 }
 export function setPublicationsExpanded(expanded){ui.setLibrary({publicationsOpen:Boolean(expanded)});}

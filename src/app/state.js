@@ -36,4 +36,7 @@ export const S={
   inset:0,
   caretFrame:0,
   draftRecoveryPending:false,
+  // Exclusão do documento aberto: o id em exclusão e o rascunho vazio que entra no lugar.
+  deletingDoc:'',
+  blankAfterDelete:'',
 };

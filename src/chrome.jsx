@@ -741,9 +741,22 @@ function LibraryEntry({ entry }) {
           <span>{"Modificado: " + (libraryTime(entry.updatedAt) || "—")}</span>
         </div>
       </div>
-      <button type="button" disabled={Boolean(entry.disabled)} onClick={entry.onSelect}>
-        {entry.label || "Editar"}
-      </button>
+      <div className="library-entry-actions">
+        <button type="button" disabled={Boolean(entry.disabled)} onClick={entry.onSelect}>
+          {entry.label || "Editar"}
+        </button>
+        {entry.onDelete ? (
+          <button
+            type="button"
+            className="library-delete"
+            disabled={Boolean(entry.deleteDisabled)}
+            aria-label={"Excluir " + (entry.title || "Sem título")}
+            onClick={entry.onDelete}
+          >
+            Excluir
+          </button>
+        ) : null}
+      </div>
     </article>
   );
 }

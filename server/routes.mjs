@@ -5,9 +5,9 @@ import { DeliveryError, HttpError, WEBHOOK_BASE, asHttpError } from "./config.mj
 import { cleanupIncomingMedia, readJson, readMedia, setCors } from "./http.mjs";
 import { draftOwner, telegraphOwner, telegraphRevision, userFromInitData } from "./identity.mjs";
 import { serveStatic } from "./static.mjs";
-import { bindDraftFiles, handoffActionView, handoffFiles, handoffMediaPath, listPersistentDrafts, listTelegramPublications, listTelegraphPages, persistentDraftPaths, persistentDraftView, persistentMediaPath, publishHandoff, readHandoff, readPersistentDraft, saveHandoff, savePersistentDraft, writeHandoff } from "./storage.mjs";
+import { bindDraftFiles, clearDraftTelegraphPath, deletePersistentDraft, forgetTelegramPublication, handoffActionView, handoffFiles, handoffMediaPath, listPersistentDrafts, listTelegramPublications, listTelegraphPages, persistentDraftPaths, persistentDraftView, persistentMediaPath, publishHandoff, readHandoff, readPersistentDraft, saveHandoff, savePersistentDraft, writeHandoff, telegraphOwnerFromDraftOwner } from "./storage.mjs";
 import { publishTelegramPersistent, sameSecret, webhookSecret } from "./telegram.mjs";
-import { publishTelegraph, readPages, telegraphContentHTML, verifyTelegraphPage } from "./telegraph.mjs";
+import { publishTelegraph, readPages, removeTelegraphPage, telegraphContentHTML, verifyTelegraphPage } from "./telegraph.mjs";
 import { acceptUpdate, botLink, handleBotUpdate, selectedExportDocument } from "./bot.mjs";
 import { prepareDownload, serveDownload } from "./download.mjs";
 
@@ -96,6 +96,38 @@ export const server = createServer(async (req, res) => {
         const code=err instanceof HttpError?err.status:500;
         res.writeHead(code,{"content-type":"application/json; charset=utf-8","cache-control":"no-store"});
         res.end(JSON.stringify({error:err instanceof Error?err.message:"Não foi possível carregar a biblioteca"}));
+      }
+      return;
+    }
+
+    // Exclusão pela biblioteca: rascunho sai do servidor; publicações saem só da lista
+    // (as mensagens ficam no chat e a página fica no telegra.ph).
+    if (url.pathname === "/api/library/delete" && req.method === "POST") {
+      if (!setCors(req, res)) {
+        res.writeHead(403, { "content-type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ error: "Acesso não autorizado" }));
+        return;
+      }
+      try{
+        const body=await readJson(req,20000);
+        const owner=draftOwner(body);
+        const kind=String(body?.kind||"");
+        const doc=String(body?.doc||"");
+        if(!/^[a-f0-9-]{36}$/i.test(doc))throw new HttpError(400,"Documento inválido");
+        let result;
+        if(kind==="draft")result=deletePersistentDraft(owner,doc);
+        else if(kind==="telegram")result=forgetTelegramPublication(owner,doc);
+        else if(kind==="telegraph"){
+          const removed=await removeTelegraphPage(telegraphOwnerFromDraftOwner(owner),doc,"list");
+          result={path:removed.path,mode:removed.mode,draftUnlinked:clearDraftTelegraphPath(owner,doc,removed.path)};
+        }
+        else throw new HttpError(400,"Tipo de item da biblioteca inválido");
+        res.writeHead(200,{"content-type":"application/json; charset=utf-8","cache-control":"no-store"});
+        res.end(JSON.stringify({ok:true,kind,doc,...result}));
+      }catch(err){
+        const code=err instanceof HttpError?err.status:500;
+        res.writeHead(code,{"content-type":"application/json; charset=utf-8","cache-control":"no-store"});
+        res.end(JSON.stringify({error:err instanceof Error?err.message:"Não foi possível excluir o item"}));
       }
       return;
     }

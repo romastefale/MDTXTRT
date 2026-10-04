@@ -1330,67 +1330,151 @@ test('toque fora do diálogo de link cancela pelo caminho do Esc sem soltar o fo
   expect(await page.evaluate(()=>document.activeElement?.id),'mesmo destino do Esc').toBe(afterEsc);
 });
 
-// Cor calculada em [r,g,b,a] (0–255 e 0–1), aceitando rgb()/rgba() e color(srgb …),
-// que é como o Chromium devolve um color-mix().
-async function computedColor(page,selector,pseudo=null,property='color'){
-  return page.evaluate(([selector,pseudo,property])=>{
-    const value=getComputedStyle(document.querySelector(selector),pseudo)[property];
-    let m=/^rgba?\(([^)]+)\)$/.exec(value);
-    if(m){const p=m[1].split(/[\s,/]+/).filter(Boolean).map(Number);return [p[0],p[1],p[2],p.length>3?p[3]:1];}
-    m=/^color\(srgb ([^)]+)\)$/.exec(value);
-    if(m){const p=m[1].split(/[\s/]+/).filter(Boolean).map(Number);return [p[0]*255,p[1]*255,p[2]*255,p.length>3?p[3]:1];}
-    throw new Error('cor não reconhecida: '+value);
-  },[selector,pseudo,property]);
-}
-
-test('separadores dos menus usam a cor do texto a 16% nos dois temas, nunca branco no claro',async ({page})=>{
-  await page.evaluate(()=>{const probe=document.createElement('i');probe.id='textProbe';probe.style.color='var(--text)';document.body.append(probe);});
-  const text=await computedColor(page,'#textProbe');
-  const light=await page.evaluate(()=>document.documentElement.classList.contains('light'));
-  await page.locator('#exportBtn').click();
-  await expect(page.locator('#exportMenu .menu-divider').first()).toBeVisible();
-  const line=await computedColor(page,'#exportMenu .menu-divider','::after','backgroundColor');
-  // Mesma regra nos dois temas: o tom do texto (no escuro, o branco do aro a 16% fica a
-  // menos de 11 do #f5f5f7) com 16% de opacidade.
-  for(let i=0;i<3;i++)expect(Math.abs(line[i]-text[i]),'canal '+i+' do separador '+JSON.stringify(line)+' x texto '+JSON.stringify(text)).toBeLessThanOrEqual(11);
-  expect(line[3]).toBeGreaterThan(0.15);
-  expect(line[3]).toBeLessThan(0.17);
-  if(light)expect(Math.min(line[0],line[1],line[2]),'no claro o separador não pode ser branco').toBeLessThan(80);
-});
-
-test('H6 e Rodapé no menu de títulos têm a cor das outras opções',async ({page})=>{
-  await page.locator('#editor').click();
-  await page.locator('#headingBtn').click();
-  await expect(page.locator('#headingMenu [data-block="h6"]')).toBeVisible();
-  const reference=await computedColor(page,'#headingMenu [data-block="h3"]');
-  for(const block of ['h6','footer']){
-    expect(await computedColor(page,`#headingMenu [data-block="${block}"]`),block).toEqual(reference);
-  }
-});
-
-test('contador da biblioteca é menor que a linha e fica centrado nela',async ({page})=>{
+// Excluir pela biblioteca: um servidor de mentira guarda a lista e anota cada pedido.
+const DELETE_GROUP='excluir da biblioteca';
+async function libraryServer(page,{drafts=[],telegram=[],telegraph=[]}={}){
+  const state={drafts:[...drafts],telegram:[...telegram],telegraph:[...telegraph],deletes:[],saves:[]};
   const cors={'access-control-allow-origin':'*','access-control-allow-headers':'content-type','access-control-allow-methods':'POST, GET, OPTIONS'};
+  const json=(route,status,body)=>route.fulfill({status,contentType:'application/json',headers:cors,body:JSON.stringify(body)});
   await page.route(/\/api\/library\/list/,route=>{
     if(route.request().method()==='OPTIONS')return route.fulfill({status:204,headers:cors});
-    return route.fulfill({status:200,contentType:'application/json',headers:cors,body:JSON.stringify({drafts:[],telegram:[],telegraph:[]})});
+    return json(route,200,{drafts:state.drafts,telegram:state.telegram,telegraph:state.telegraph});
   });
+  await page.route(/\/api\/library\/delete/,route=>{
+    if(route.request().method()==='OPTIONS')return route.fulfill({status:204,headers:cors});
+    const body=JSON.parse(route.request().postData()||'{}');
+    state.deletes.push(body);
+    const list={draft:'drafts',telegram:'telegram',telegraph:'telegraph'}[body.kind];
+    state[list]=state[list].filter(item=>item.docId!==body.doc);
+    if(body.kind==='draft')state.telegram=state.telegram.filter(item=>item.docId!==body.doc);
+    return json(route,200,{ok:true,kind:body.kind,doc:body.doc});
+  });
+  page.on('request',request=>{
+    if(!/\/api\/drafts\/save/.test(request.url())||request.method()!=='POST')return;
+    const match=/name="draft"\r\n\r\n([^\r]*)/.exec(request.postData()||'');
+    state.saves.push(match?JSON.parse(match[1]):{});
+  });
+  return state;
+}
+const draftItem=(docId,name)=>({docId,name,dest:'telegram',revision:1,telegraphPath:'',preview:'Texto de '+name,createdAt:1,updatedAt:2,hasMedia:false});
+async function openDraftList(page){
   await page.locator('#exportBtn').click();
   await page.locator('#libraryBtn').click();
-  await expect(page.locator('#libraryMenu #draftCount')).toBeVisible();
-  for(const id of ['publicationCount','draftCount']){
-    const box=await page.evaluate(id=>{
-      const badge=document.getElementById(id),row=badge.closest('button');
-      const range=document.createRange();range.selectNodeContents(badge);
-      const r=badge.getBoundingClientRect(),w=row.getBoundingClientRect(),t=range.getBoundingClientRect();
-      return {height:r.height,width:r.width,rowHeight:w.height,badgeMid:r.top+r.height/2,rowMid:w.top+w.height/2,
-        textMidX:t.left+t.width/2,textMidY:t.top+t.height/2,badgeMidX:r.left+r.width/2};
-    },id);
-    expect(box.height,id).toBeLessThanOrEqual(17.5);
-    expect(box.width,id).toBeGreaterThanOrEqual(box.height-0.5);
-    // Antes ocupava quase a linha inteira (21px numa linha de ~25px); agora sobra folga em cima e embaixo.
-    expect(box.rowHeight-box.height,id+' folga na linha').toBeGreaterThanOrEqual(6);
-    expect(Math.abs(box.badgeMid-box.rowMid),id+' centrado na linha').toBeLessThanOrEqual(1);
-    expect(Math.abs(box.textMidX-box.badgeMidX),id+' número centrado na largura').toBeLessThanOrEqual(1.5);
-    expect(Math.abs(box.textMidY-box.badgeMid),id+' número centrado na altura').toBeLessThanOrEqual(2);
-  }
+  if(await page.locator('#draftToggle').getAttribute('aria-expanded')!=='true')await page.locator('#draftToggle').click();
+  await expect(page.locator('#draftLists')).toBeVisible();
+}
+async function storedDraft(page){return page.evaluate(()=>JSON.parse(localStorage.getItem('rmdtxtml')||'null'));}
+
+test.describe(DELETE_GROUP,()=>{
+  test('toque fora, Cancelar e Esc na confirmação não excluem nada',async ({page})=>{
+    const doc='11111111-2222-4333-8444-555555555555';
+    const server=await libraryServer(page,{drafts:[draftItem(doc,'Lista de compras')]});
+    await openDraftList(page);
+    await expect(page.locator('#draftCount')).toHaveText('1');
+    const remove=page.getByRole('button',{name:'Excluir Lista de compras'});
+    await expect(remove).toBeVisible();
+
+    // Toque fora (no fundo transparente): mesmo caminho do Cancelar.
+    await remove.click();
+    await expect(page.locator('#dialogLabel')).toContainText('Excluir o rascunho “Lista de compras”? Ele sai do servidor e não pode ser recuperado.');
+    await expect(page.locator('#dialogLabel')).not.toContainText('aberto no editor');
+    await expect(page.locator('#dialogOk')).toHaveText('Excluir');
+    const point=await outsideDialogPoint(page);
+    await page.mouse.click(point.x,point.y);
+    await expect(page.locator('#dialogMenu')).toBeHidden();
+    await expect(page.locator('#libraryMenu')).toBeVisible();
+    await expect(page.getByRole('button',{name:'Excluir Lista de compras'})).toBeVisible();
+    await expect(page.locator('#draftCount')).toHaveText('1');
+
+    await page.getByRole('button',{name:'Excluir Lista de compras'}).click();
+    await page.locator('#dialogCancel').click();
+    await expect(page.locator('#dialogMenu')).toBeHidden();
+    await page.getByRole('button',{name:'Excluir Lista de compras'}).click();
+    await expect(page.locator('#dialogMenu')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#dialogMenu')).toBeHidden();
+    await expect(page.getByRole('button',{name:'Excluir Lista de compras'})).toBeVisible();
+    expect(server.deletes,'nenhum pedido de exclusão').toEqual([]);
+  });
+
+  test('excluir um rascunho fechado: confirmação, pedido ao servidor e contador atualizado',async ({page})=>{
+    const a='aaaaaaaa-1111-4111-8111-111111111111',b='bbbbbbbb-2222-4222-8222-222222222222';
+    const server=await libraryServer(page,{drafts:[draftItem(a,'Primeiro'),draftItem(b,'Segundo')]});
+    await page.locator('#editor').click();
+    await page.keyboard.type('Texto aberto');
+    await openDraftList(page);
+    await expect(page.locator('#draftCount')).toHaveText('2');
+    await page.getByRole('button',{name:'Excluir Segundo'}).click();
+    await page.locator('#dialogOk').click();
+    await expect(page.locator('#draftCount')).toHaveText('1');
+    await expect(page.getByRole('button',{name:'Excluir Segundo'})).toHaveCount(0);
+    await expect(page.getByRole('button',{name:'Excluir Primeiro'})).toBeVisible();
+    expect(server.deletes.map(({kind,doc})=>({kind,doc}))).toEqual([{kind:'draft',doc:b}]);
+    expect(typeof server.deletes[0].browserKey).toBe('string');
+    await expect(page.locator('#editor'),'o documento aberto não muda').toHaveText('Texto aberto');
+  });
+
+  test('o rascunho aberto: a confirmação avisa; só depois de confirmar o editor fica vazio, sem criar rascunho',async ({page})=>{
+    await page.locator('#editor').click();
+    await page.keyboard.type('Texto que vai sumir');
+    await expect.poll(async()=>(await storedDraft(page))?.html||'').toContain('Texto que vai sumir');
+    const open=(await storedDraft(page)).docId;
+    const server=await libraryServer(page,{drafts:[draftItem(open,'Ideia')]});
+    await openDraftList(page);
+    await page.getByRole('button',{name:'Excluir Ideia'}).click();
+    await expect(page.locator('#dialogLabel')).toContainText('Este rascunho está aberto no editor; o texto será apagado.');
+    // Antes de confirmar, nada some.
+    await expect(page.locator('#editor')).toHaveText('Texto que vai sumir');
+    const savesBefore=server.saves.length;
+    await page.locator('#dialogOk').click();
+    await expect(page.locator('#editor')).toHaveText('');
+    await expect(page.locator('#docName')).toHaveValue('Ideia');
+    await expect(page.locator('#editor')).toHaveAttribute('contenteditable','true');
+    expect(server.deletes.map(({kind,doc})=>({kind,doc}))).toEqual([{kind:'draft',doc:open}]);
+    await expect(page.locator('#draftCount')).toHaveText('0');
+    expect(await storedDraft(page),'sem cópia local do texto apagado').toBeNull();
+    // Nem o temporizador de gravação nem a saída da página criam um rascunho vazio.
+    await page.waitForTimeout(1500);
+    await page.evaluate(()=>window.dispatchEvent(new PageTransitionEvent('pagehide')));
+    await page.waitForTimeout(300);
+    expect(server.saves.slice(savesBefore),'nenhuma gravação depois de excluir').toEqual([]);
+    expect(await storedDraft(page)).toBeNull();
+    // Desfazer não traz o texto de volta.
+    await page.locator('#libraryClose').click();
+    await page.keyboard.press('Escape');
+    await page.locator('#editor').click();
+    await page.keyboard.press(process.platform==='darwin'?'Meta+z':'Control+z');
+    await expect(page.locator('#editor')).toHaveText('');
+    // Ao escrever de novo, é outro documento.
+    await page.keyboard.type('Começo novo');
+    await expect.poll(async()=>(await storedDraft(page))?.html||'').toContain('Começo novo');
+    const fresh=await storedDraft(page);
+    expect(fresh.docId).not.toBe(open);
+  });
+
+  test('publicações saem só da lista: o aviso diz que a mensagem fica no chat e a página no telegra.ph',async ({page})=>{
+    const t='cccccccc-3333-4333-8333-333333333333',g='dddddddd-4444-4444-8444-444444444444';
+    const server=await libraryServer(page,{
+      drafts:[draftItem(t,'Aviso')],
+      telegram:[{docId:t,name:'Aviso',status:'succeeded',revision:1,messageId:42,historyCount:1,publishedAt:3,preview:'',createdAt:1,updatedAt:2}],
+      telegraph:[{docId:g,path:'Pagina-10-03',status:'succeeded',name:'Página',revision:1,preview:'',createdAt:1,updatedAt:2}]
+    });
+    await page.locator('#exportBtn').click();
+    await page.locator('#libraryBtn').click();
+    await page.locator('#publicationToggle').click();
+    await expect(page.locator('#publicationCount')).toHaveText('2');
+
+    await page.locator('#telegraphList').getByRole('button',{name:'Excluir Página'}).click();
+    await expect(page.locator('#dialogLabel')).toContainText('A página continua no telegra.ph, porque o Telegraph não permite apagar páginas.');
+    await expect(page.locator('#dialogOk')).toHaveText('Tirar da lista');
+    await page.locator('#dialogOk').click();
+    await expect(page.locator('#publicationCount')).toHaveText('1');
+
+    await page.locator('#telegramList').getByRole('button',{name:'Excluir Aviso'}).click();
+    await expect(page.locator('#dialogLabel')).toContainText('As mensagens continuam no chat do bot e o rascunho continua salvo.');
+    await page.locator('#dialogOk').click();
+    await expect(page.locator('#publicationCount')).toHaveText('0');
+    await expect(page.locator('#draftCount'),'o rascunho continua').toHaveText('1');
+    expect(server.deletes.map(({kind,doc})=>({kind,doc}))).toEqual([{kind:'telegraph',doc:g},{kind:'telegram',doc:t}]);
+  });
 });

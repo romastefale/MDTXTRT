@@ -32,7 +32,9 @@ one('#dialogOk').addEventListener('click',()=>finishDialog(S.dialogConfirm?true:
 one('#dialogCancel').addEventListener('click',()=>finishDialog(S.dialogConfirm?false:null));
 one('#dialogInput').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&e.currentTarget.rows===1){e.preventDefault();finishDialog(e.currentTarget.value);}});
 one('#dialogMenu').addEventListener('keydown',event=>{
-  if(event.key==='Escape'){event.preventDefault();dismissDialog();return;}
+  // Um Esc fecha só o diálogo: sem parar aqui, o mesmo Esc chegava ao document e fechava
+  // também o que o diálogo devolve à tela (a biblioteca, depois de cancelar uma exclusão).
+  if(event.key==='Escape'){event.preventDefault();event.stopPropagation();dismissDialog();return;}
   if(event.key!=='Tab')return;
   const items=dialogFocusables();
   if(!items.length){event.preventDefault();return;}
