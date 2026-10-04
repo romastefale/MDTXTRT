@@ -491,12 +491,14 @@ test('optional fullscreen unavailable does not block Mini App editing',async()=>
     platform:'ios',isFullscreen:false,viewportStableHeight:600,
     isVersionAtLeast:()=>false,onEvent(type,fn){handlers.set(type,fn);}
   }});
-  await wait(40);
+  // Com a máquina carregada a inicialização do Telegram pode passar de 40ms: espera o estado, não um prazo fixo.
+  const root=w.document.documentElement;
+  for(let i=0;i<200&&!(handlers.has('fullscreenFailed')&&root.style.getPropertyValue('--vv-height')==='600px'&&w.document.body.classList.contains('tg'));i++)await wait(10);
   assert.equal(w.document.documentElement.hasAttribute('data-device-gate'),false);
   assert.equal(w.document.body.classList.contains('tg'),true);
   assert.equal(w.document.documentElement.style.getPropertyValue('--vv-height'),'600px');
   handlers.get('fullscreenFailed')({error:'UNSUPPORTED'});
-  assert.match(w.document.querySelector('#toast').textContent,/Fullscreen indisponível/);
+  assert.match(w.document.querySelector('#toast').textContent,/Tela cheia indisponível/);
   w.close();
 });
 
@@ -520,7 +522,7 @@ test('Telegram launch already fullscreen and a rejected optional request keep th
   await wait(40);
   assert.equal(requests,1);
   assert.equal(rejected.document.body.classList.contains('tg'),true);
-  assert.match(rejected.document.querySelector('#toast').textContent,/Não foi possível abrir em fullscreen/);
+  assert.match(rejected.document.querySelector('#toast').textContent,/Não foi possível abrir em tela cheia/);
   rejected.close();
 });
 
@@ -1874,7 +1876,7 @@ test('link actions distinguish hyperlink, visible URL and Telegram URL button th
 
   w.eval("currentEditorCore().resetHTML('<p>alpha beta</p>',{silent:true})");
   w.eval("(()=>{const r=currentEditorCore().findLiteral('alpha')[0];currentEditorCore().selectRange({from:r.from,to:r.to},{focus:true});saveSel()})()");
-  await choose('hyperlink','URL do hyperlink');
+  await choose('hyperlink','URL do hiperlink');
   dialog.value='https://example.com/hyper';
   ok.click();
   for(let i=0;i<10&&e.querySelector('a')?.textContent!=='alpha';i++)await wait(0);

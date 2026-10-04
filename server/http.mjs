@@ -53,7 +53,7 @@ export async function readMedia(req) {
       const task=new Promise((done,stop)=>{
         const out=createWriteStream(path,{mode:0o600});
         stream.on("data",chunk=>{file.size+=chunk.length;});
-        stream.on("limit",()=>{out.destroy();stop(new Error("Arquivo acima do limite de 50 MB para upload multipart do Telegram"));});
+        stream.on("limit",()=>{out.destroy();stop(new Error("Arquivo acima do limite de 50 MB do Telegram"));});
         stream.on("error",error=>{out.destroy();stop(error);});
         out.on("error",stop);
         out.on("finish",done);
@@ -61,7 +61,7 @@ export async function readMedia(req) {
       });
       pending.push(task);
     });
-    bus.on("filesLimit",()=>fail(new Error("O Telegram aceita no máximo 50 mídias por Rich Message")));
+    bus.on("filesLimit",()=>fail(new Error("O Telegram aceita no máximo 50 mídias por mensagem")));
     bus.on("error",fail);
     bus.on("close",async()=>{
       if(failed)return;
