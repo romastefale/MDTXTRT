@@ -198,13 +198,13 @@ one('#mediaInput').addEventListener('change',async()=>{
   S.mediaChoice=null;
   if(!files.length)return;
   const currentMedia=[...editor.querySelectorAll('img,video,audio,tg-document')].filter(node=>!(node.localName==='img'&&/^tg:\/\/emoji\?id=\d+$/.test(node.getAttribute('src')||''))).length;
-  if(currentMedia+files.length>50){showToast('O Telegram aceita no máximo 50 mídias por Rich Message');return;}
+  if(currentMedia+files.length>50){showToast('O Telegram aceita no máximo 50 mídias por mensagem');return;}
   for(const file of files){
     let kind=requestedKind;
     if(kind==='voice'&&!file.type.startsWith('audio/')){showToast('Escolha arquivos de áudio para mensagens de voz');continue;}
     if(!kind)kind=file.type.startsWith('image/')?'image':file.type.startsWith('video/')?'video':file.type.startsWith('audio/')?'audio':'document';
     const limit=telegramUploadLimit(kind);
-    if(file.size>limit){showToast(kind==='image'?'Fotos enviadas por multipart podem ter até 10 MB':'Arquivos enviados por multipart podem ter até 50 MB');continue;}
+    if(file.size>limit){showToast(kind==='image'?'Fotos podem ter até 10 MB':'Arquivos podem ter até 50 MB');continue;}
     const id=crypto.randomUUID().replace(/-/g,'');
     const tag={image:'img',video:'video',audio:'audio',voice:'audio',document:'tg-document'}[kind];
     try{

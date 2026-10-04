@@ -79,7 +79,7 @@ async function formPost(path,fields,file){
     form.set('upload_'+id,file.blob,file.name);
   }
   const res=await fetch(`http://127.0.0.1:${port}${path}`,{method:'POST',headers:{origin},body:form});
-  return {status:res.status,data:await res.json()};
+  return {status:res.status,headers:res.headers,data:await res.json()};
 }
 async function jsonPost(path,body){
   const res=await fetch(`http://127.0.0.1:${port}${path}`,{method:'POST',headers:{origin,'content-type':'application/json'},body:JSON.stringify(body)});
@@ -322,6 +322,31 @@ test('Telegram request errors are typed independently from upstream failures',as
   const timeout=await formPost('/api/telegram/send',{initData:init(),html:'<p>UPSTREAM_TIMEOUT</p>'});
   assert.equal(timeout.status,409);
   assert.equal(timeout.data.outcome,'uncertain');
+});
+
+test('Telegram 429 surfaces retry_after and 403 explains a blocked or never-started bot',async()=>{
+  const limited=await formPost('/api/telegram/send',{initData:init(),html:'<p>UPSTREAM_RATE_LIMIT</p>'});
+  assert.equal(limited.status,429);
+  assert.equal(limited.headers.get('retry-after'),'7');
+  assert.equal(limited.data.retryAfter,7);
+  assert.equal(limited.data.outcome,'failed');
+  assert.match(limited.data.error,/tente de novo em 7 s/);
+
+  const blocked=await formPost('/api/telegram/send',{initData:init(),html:'<p>UPSTREAM_BLOCKED</p>'});
+  assert.equal(blocked.status,502);
+  assert.equal(blocked.data.outcome,'failed');
+  assert.match(blocked.data.error,/Você bloqueou o bot MDTXTRT/);
+
+  const notStarted=await formPost('/api/telegram/send',{initData:init(),html:'<p>UPSTREAM_NOT_STARTED</p>'});
+  assert.equal(notStarted.status,502);
+  assert.match(notStarted.data.error,/toque em Iniciar/);
+
+  // A recusa é definitiva (nada foi entregue): o mesmo documento pode ser enviado de novo.
+  const doc=randomUUID();
+  const first=await formPost('/api/telegram/send',{initData:init(),html:'<p>UPSTREAM_RATE_LIMIT</p>',draft:JSON.stringify(draftFixture('<p>UPSTREAM_RATE_LIMIT</p>',doc,1))});
+  assert.equal(first.status,429);
+  const retry=await formPost('/api/telegram/send',{initData:init(),html:'<p>Agora vai</p>',draft:JSON.stringify(draftFixture('<p>Agora vai</p>',doc,2))});
+  assert.equal(retry.status,200,retry.data.error);
 });
 
 test('local attachment is represented as attach upload and stale tg media is rejected',async()=>{
@@ -923,7 +948,7 @@ test('bot import rejects invalid file input before creating a continuation',asyn
 
   res=await webhook({message:{message_id:588,chat:{id:7,type:'private'},document:{file_id:'product-too-large',file_name:'origem.txt',file_size:240_001}}});
   assert.equal(res.status,200);
-  assert.match(lastBotHTML(),/contrato de importação/);
+  assert.match(lastBotHTML(),/limite de 240 KB do MDTXTRT/);
   assert.equal(callCount('getFile'),beforeGet);
 });
 
@@ -944,7 +969,7 @@ test('bot import reports missing paths, confirmed download failures, network fai
 test('webhook authentication and bot command responses retain their contracts',async()=>{
   assert.equal((await webhook({message:{text:'/start',message_id:1,chat:{id:7,type:'private'}}},false)).status,401);
   const registered=lastCall('setMyCommands')?.body?.commands?.map(item=>item.command)||[];
-  for(const name of ['start','app','novo','rascunhos','telegraph','ajuda','enviar','exportar','importar'])assert.ok(registered.includes(name),name);
+  assert.deepEqual(registered,['start','app','novo','rascunhos','telegraph','enviar','exportar','importar','ajuda']);
   assert.deepEqual(lastCall('setMyCommands').body.scope,{type:'all_private_chats'});
   assert.deepEqual(lastCall('deleteMyCommands').body.scope,{type:'default'});
 
@@ -995,6 +1020,53 @@ test('webhook authentication and bot command responses retain their contracts',a
 
   const help=sent.ajuda.map(call=>call.body.rich_message.html).join('');
   for(const command of ['/rascunhos','/telegraph','/exportar','/importar'])assert.match(help,new RegExp(command.replace('/','\\/')));
+});
+
+test('bot answers /help, ignores commands for other bots and keeps groups quiet',async()=>{
+  const replies=async(message,id)=>{
+    const before=callCount('sendRichMessage');
+    const res=await webhook({update_id:9_000_000+id,message:{message_id:id,...message}});
+    assert.equal(res.status,200);
+    return calls().filter(call=>call.method==='sendRichMessage').slice(before).map(call=>call.body);
+  };
+  const priv={chat:{id:7,type:'private'}};
+  const group={chat:{id:-2,type:'supergroup'}};
+
+  // /help é comando global obrigatório e responde como /ajuda.
+  const help=await replies({...priv,text:'/help'},701);
+  assert.equal(help.length,1);
+  assert.match(help[0].rich_message.html,/<h1>Comandos<\/h1>/);
+  assert.match(help[0].rich_message.html,/\/importar/);
+  assert.equal(help[0].reply_parameters.message_id,701);
+
+  // Endereçado a este bot (nome do getMe, sem diferenciar maiúsculas) continua valendo.
+  const mine=await replies({...priv,text:'/app@MDTXTRT_test_bot'},702);
+  assert.equal(mine.length,1);
+  assert.match(mine[0].rich_message.html,/Mini App MDTXTRT/);
+
+  // Endereçado a outro bot: nenhuma resposta, nem no privado nem no grupo.
+  assert.equal((await replies({...priv,text:'/app@outro_bot'},703)).length,0);
+  assert.equal((await replies({...group,text:'/start@outro_bot'},704)).length,0);
+  assert.equal((await replies({...group,text:'/qualquer'},705)).length,0);
+  assert.equal((await replies({...group,text:'conversa comum'},706)).length,0);
+  assert.equal((await replies({...group,document:{file_id:'valid-txt',file_name:'notas.txt'}},707)).length,0);
+  const groupDocumentsBefore=callCount('getFile');
+  assert.equal((await replies({...group,caption:'/importar@outro_bot',document:{file_id:'valid-txt',file_name:'notas.txt'}},708)).length,0);
+  assert.equal(callCount('getFile'),groupDocumentsBefore);
+
+  // Comando nosso no grupo aponta para o chat privado, com ou sem @.
+  for(const [text,id] of [['/app',709],['/ajuda@mdtxtrt_test_bot',710]]){
+    const sent=await replies({...group,text},id);
+    assert.equal(sent.length,1,text);
+    assert.match(sent[0].rich_message.html,/chat privado/);
+  }
+
+  // Comando desconhecido no privado recebe uma indicação curta; texto comum segue sem resposta.
+  const unknown=await replies({...priv,text:'/xyz'},711);
+  assert.equal(unknown.length,1);
+  assert.match(unknown[0].rich_message.html,/Não conheço o comando <b>\/xyz<\/b>/);
+  assert.match(unknown[0].rich_message.html,/\/ajuda/);
+  assert.equal((await replies({...priv,text:'olá, tudo bem?'},712)).length,0);
 });
 
 test('enviar and exportar always use canonical Mini App selectors without legacy direct actions',async()=>{
@@ -1055,7 +1127,7 @@ test('replies do not reactivate legacy enviar or exportar behavior',async()=>{
   res=await webhook({message:{caption:'/exportar md',message_id:28,chat:{id:7,type:'private'},document:{file_id:'valid-txt',file_name:'notas.txt'}}});
   assert.equal(res.status,200);
   assert.equal(callCount('sendDocument'),documentsBefore);
-  assert.match(lastBotHTML(),/trabalham exclusivamente com rascunhos e publicações persistidos/);
+  assert.match(lastBotHTML(),/só com rascunhos e publicações já salvos/);
 });
 
 test('Telegraph request errors are typed independently from upstream failures',async()=>{

@@ -71,7 +71,8 @@ Exercise:
 - Web/PWA export Markdown and TXT;
 - Mini App export Markdown and TXT;
 - bot private-chat `/importar` for Markdown and TXT;
-- bot `/exportar txt` and `/exportar md`;
+- bot `/exportar`: pick a saved draft or publication from the list in the chat, then export it as TXT or Markdown in the Mini App;
+- bot `/enviar`: pick a saved draft from the list in the chat; the Mini App sends it as a Rich Message;
 - one edited Markdown export → new import round trip;
 - TXT lossy-warning path with structured content.
 

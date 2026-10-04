@@ -90,7 +90,7 @@ export async function renderLibrary(preferred=''){
       onDelete:()=>void deleteLibraryItem('draft',item,{telegramPublication:telegramDocs.has(item.docId)}),
       meta:['rev. '+item.revision,item.hasMedia?'com anexo':''].filter(Boolean).join(' · '),
       platform:item.dest==='telegraph'?'Telegraph':'Telegram',onSelect:()=>void openLibraryDraft(item.docId),label:'Editar'
-    }),'Nenhum rascunho persistido.');
+    }),'Nenhum rascunho salvo.');
     const telegram=libraryList(data.telegram,item=>{
       const state=item.status==='succeeded'?'publicada':item.status==='pending'?'pendente':'confirmação necessária';
       return {

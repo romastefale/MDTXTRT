@@ -50,14 +50,14 @@ The bot advertises these commands only in private chats:
 | `/start` | opens MDTXTRT entry points |
 | `/app` | opens the active document in the Mini App |
 | `/novo` | creates a one-shot new-document launch token |
-| `/rascunhos` | opens the owner-scoped draft/publication library in Mini App/browser |
-| `/telegraph` | opens the Telegraph publication library for editing |
-| `/ajuda` | documents registered command paths |
-| `/enviar` | sends command/replied text as a Rich Message |
-| `/exportar` | exports replied/inline text as TXT or Markdown |
+| `/rascunhos` | lists the owner's saved drafts in the chat, each opening in the Mini App editor |
+| `/telegraph` | opens the Mini App in the Telegraph editor |
+| `/enviar` | lists saved drafts; the chosen one is sent from the Mini App |
+| `/exportar` | lists saved drafts and publications; the chosen one is exported as TXT or Markdown |
 | `/importar` | validates/downloads a private .md/.txt document and creates a passive import handoff |
+| `/ajuda` | documents registered command paths (`/help`, the Bot API global command, answers the same and is not listed) |
 
-Unsupported attachment/command combinations are rejected with guidance rather than silently interpreted.
+Unsupported attachment/command combinations are rejected with guidance rather than silently interpreted. An unknown command in the private chat gets a short pointer to `/ajuda`; plain text gets no reply. Commands addressed to another bot (`/cmd@other_bot`) are ignored. In groups the bot answers only its own commands, pointing to the private chat, and ignores documents and plain messages.
 
 ## Destination-scoped editor controls
 

@@ -548,6 +548,7 @@ test.describe(OFFLINE,()=>{
   test('com aviso e diálogo abertos, o toque no botão do diálogo dispara o botão',async ({page})=>{
     await page.goto('/index.html');
     await expect(page.locator('#dialogOk')).toHaveText('Tentar de novo');
+    await waitStartupGateEnd(page);
     await page.evaluate(()=>{
       window.MDTXTRT_UI.setToast({text:'Aviso por cima',visible:true});
       const root=document.documentElement;root.removeAttribute('data-device-gate');void root.offsetWidth;root.setAttribute('data-device-gate','');
@@ -1017,16 +1018,19 @@ test('borda da tela fica na cor sólida do cromo com texto rolando por baixo',as
 // Avisos efêmeros (toast e aviso de retrato): centrados na área livre entre as barras,
 // sem cobrir as barras nem +, ☰ e desfazer, também com o teclado aberto.
 const NOTICES={toast:'#toast .toast-material',retrato:'#deviceGate .device-gate-card'};
-async function showNotice(page,kind){
-  // Em tela larga o index.html abre o aviso de retrato logo depois de carregar e o
-  // tira 4,3s depois. Com a máquina carregada esse prazo caía no meio do teste e o
-  // aviso sumia: o aviso do teste só aparece depois dele (ou, se o inicial não abriu,
-  // 1,5s depois do DOMContentLoaded).
-  if(kind==='retrato')await page.waitForFunction(()=>{
+// Em tela larga o index.html abre o aviso de retrato logo depois de carregar e o
+// tira 4,3s depois. Com a máquina carregada esse prazo caía no meio do teste e o
+// aviso sumia: quem abre o próprio aviso de retrato espera o prazo do inicial acabar
+// (ou, se o inicial não abriu, 1,5s depois do DOMContentLoaded).
+async function waitStartupGateEnd(page){
+  await page.waitForFunction(()=>{
     const nav=performance.getEntriesByType('navigation')[0],now=performance.now();
     if(window.__startupGateAt!==undefined)return now>window.__startupGateAt+4400;
     return nav&&nav.domContentLoadedEventEnd>0&&now>nav.domContentLoadedEventEnd+1500;
   },null,{timeout:15000});
+}
+async function showNotice(page,kind){
+  if(kind==='retrato')await waitStartupGateEnd(page);
   await page.evaluate(kind=>{
     const root=document.documentElement;
     if(kind==='toast'){root.removeAttribute('data-device-gate');window.MDTXTRT_UI.setToast({text:'Link copiado',visible:true});}

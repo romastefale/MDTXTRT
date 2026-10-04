@@ -24,9 +24,32 @@ export async function telegramCall(method, body, messages={}) {
   try { json = await res.json(); } catch { throw new DeliveryError(messages.invalidResponse||"O Telegram retornou uma resposta inválida","uncertain"); }
   if (!json.ok) {
     console.error("Telegram", method, json.description || "Falha na chamada");
-    throw new DeliveryError(messages.failed||"O Telegram não aceitou a publicação","failed");
+    throw telegramRejection(json,messages.failed||"O Telegram não aceitou a publicação");
   }
   return json.result;
+}
+
+// Recusas que a pessoa consegue resolver ganham mensagem própria (Bot API, ResponseParameters):
+// 429 traz parameters.retry_after, em segundos, e nada foi entregue; 403 significa que o bot
+// não pode escrever no chat, quase sempre porque foi bloqueado ou nunca foi iniciado.
+export function telegramRejection(json,fallback){
+  const code=Number(json?.error_code||0);
+  const description=String(json?.description||"");
+  if(code===429){
+    const wait=Number(json?.parameters?.retry_after);
+    const seconds=Number.isSafeInteger(wait)&&wait>0?wait:0;
+    const error=new DeliveryError(seconds
+      ?"O Telegram limitou os envios por um momento; tente de novo em "+seconds+" s"
+      :"O Telegram limitou os envios por um momento; tente de novo daqui a pouco","failed");
+    error.retryAfter=seconds||1;
+    return error;
+  }
+  if(code===403){
+    return new DeliveryError(/blocked/i.test(description)
+      ?"Você bloqueou o bot MDTXTRT no Telegram; desbloqueie-o no chat do bot e tente de novo"
+      :"O bot MDTXTRT não pode escrever nesta conversa; abra o chat do bot, toque em Iniciar e tente de novo","failed");
+  }
+  return new DeliveryError(fallback,"failed");
 }
 
 function richEmojiImage(value){

@@ -18,7 +18,7 @@ export function validateTelegramUpload(file,kind){
   }[kind];
   if(!mimeContract?.test(file.mime||""))throw new Error("Tipo de mídia inválido");
   const max=kind==="image"?10_000_000:50_000_000;
-  if(!Number.isInteger(file.size)||file.size<1||file.size>max)throw new Error(kind==="image"?"Fotos enviadas por multipart podem ter até 10 MB":"Arquivos enviados por multipart podem ter até 50 MB");
+  if(!Number.isInteger(file.size)||file.size<1||file.size>max)throw new Error(kind==="image"?"Fotos podem ter até 10 MB":"Arquivos podem ter até 50 MB");
   return file;
 }
 export function bindDraftFiles(files,draft){

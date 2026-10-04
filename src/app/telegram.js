@@ -214,7 +214,7 @@ export function setupTelegram(){
   tg.onEvent('fullscreenChanged',()=>{syncTelegramSafeAreas();scheduleBrowserViewport();});
   tg.onEvent('fullscreenFailed',event=>{
     if(event?.error==='ALREADY_FULLSCREEN'&&tg.isFullscreen)return;
-    showToast(event?.error==='UNSUPPORTED'?'Fullscreen indisponível neste Telegram':'Não foi possível abrir em fullscreen');
+    showToast(event?.error==='UNSUPPORTED'?'Tela cheia indisponível neste Telegram':'Não foi possível abrir em tela cheia');
   });
   tg.ready();
   tg.expand();
@@ -222,7 +222,7 @@ export function setupTelegram(){
   syncTelegramSafeAreas();
   if(typeof tg.isVersionAtLeast==='function'&&tg.isVersionAtLeast('8.0')&&typeof tg.requestFullscreen==='function'&&!tg.isFullscreen){
     try{tg.requestFullscreen();}
-    catch(error){console.error('Telegram fullscreen',error);showToast('Não foi possível abrir em fullscreen');}
+    catch(error){console.error('Telegram fullscreen',error);showToast('Não foi possível abrir em tela cheia');}
   }
   // O editor rola e seleciona texto com gestos verticais; o swipe de fechar/minimizar
   // do Telegram (Bot API 7.7+) conflita com eles. O cabeçalho continua fechando o app.
