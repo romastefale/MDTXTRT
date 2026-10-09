@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="MDTXTRT" />
+  <meta name="apple-mobile-web-app-status-bar-style" id="statusBarStyle" content="default" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-visual" />
+  <meta name="color-scheme" id="colorScheme" content="light dark" />
+  <meta name="theme-color" id="themeColor" content="#8b82e6" />
+  <title>MDTXTRT</title>
+  <meta name="description" content="Editor de texto para Telegram e Telegraph." />
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="apple-touch-icon" href="logo.svg" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <meta property="og:title" content="MDTXTRT" />
+  <meta property="og:description" content="Editor de texto para Telegram e Telegraph" />
+  <meta property="og:image" content="https://romastefale.github.io/MDTXTRT/og.jpg" />
+  <meta property="og:url" content="https://romastefale.github.io/MDTXTRT/" />
+  <meta property="og:type" content="website" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:image" content="https://romastefale.github.io/MDTXTRT/x-banner.jpg" />
+  <script>(()=>{const k="mdtxtrt-theme",r=document.documentElement,m=document.querySelector("#themeColor"),c=document.querySelector("#colorScheme"),s=document.querySelector("#statusBarStyle");let p="";try{p=localStorage.getItem(k)||""}catch{}const t=p==="light"||p==="dark"?p:matchMedia("(prefers-color-scheme: light)").matches?"light":"dark",l=t==="light";r.classList.add(t);r.dataset.theme=t;r.style.colorScheme=t;m.setAttribute("content",l?"#8b82e6":"#151137");if(c)c.setAttribute("content",t);if(s)s.content=l?"default":"black-translucent";})();</script>
+  <script src="https://telegram.org/js/telegram-web-app.js?63"></script>
+  <link rel="stylesheet" href="styles.css?v=48866be6f0be" />
+</head>
+<body>
+  <div class="bg" aria-hidden="true"></div>
+  <div class="device-gate" id="deviceGate" role="status" aria-live="polite" aria-labelledby="deviceGateTitle" aria-describedby="deviceGateText">
+    <div class="device-gate-card">
+      <strong id="deviceGateTitle">Melhor em modo retrato</strong>
+      <p id="deviceGateText">Para uma melhor experiência, use um smartphone no modo retrato. Você pode continuar nesta tela.</p>
+    </div>
+  </div>
+  <div class="fade-top" aria-hidden="true"></div>
+  <div class="fade-bot" aria-hidden="true"></div>
+  <div class="edge-top" aria-hidden="true"></div>
+  <div class="edge-bot" aria-hidden="true"></div>
+  <div class="app">
+    <div id="ux-root"></div>
+    <div class="canvas" id="canvas">
+      <div class="scroll" id="scroll">
+        <div class="telegraph-title" id="telegraphTitleSlot" hidden></div>
+        <article id="editor" class="editor" contenteditable="true" spellcheck="true" inputmode="text" enterkeyhint="enter" aria-label="Editor" data-placeholder="Escreva aqui…"></article>
+      </div>
+    </div>
+  </div>
+  <script src="marked.js"></script>
+  <script src="turndown.js"></script>
+  <script src="editor-core.js?v=cd434a1c5fa9"></script>
+  <script type="module" src="ui.js?v=800f69334428"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded',()=>{
+      const root=document.documentElement;
+      const telegramMiniApp=Boolean(window.Telegram?.WebApp?.initData);
+      
+      
+      
+      
+      
+      
+      const wideOrLandscape=()=>{
+        const mediaLandscape=matchMedia('(orientation:landscape)').matches;
+        if(matchMedia('(pointer:coarse)').matches){
+          const type=String(screen.orientation?.type||'');
+          const deviceLandscape=type?type.startsWith('landscape'):typeof window.orientation==='number'?Math.abs(window.orientation)===90:mediaLandscape;
+          const shortSide=Math.min(screen.width||0,screen.height||0);
+          return deviceLandscape&&mediaLandscape||shortSide>=760&&matchMedia('(min-width:760px)').matches;
+        }
+        return mediaLandscape||matchMedia('(min-width:760px)').matches;
+      };
+      if(!telegramMiniApp&&wideOrLandscape()){
+        requestAnimationFrame(()=>requestAnimationFrame(()=>{
+          if(!wideOrLandscape())return;
+          root.setAttribute('data-device-gate','');
+          setTimeout(()=>root.removeAttribute('data-device-gate'),4300);
+        }));
+      }
+      const destBtn=document.querySelector('#destBtn');
+      const tools=document.querySelector('.document-tools');
+      const slot=document.querySelector('#telegraphTitleSlot');
+      const input=tools?.querySelector('#docName');
+      if(!destBtn||!tools||!slot||!input)return;
+      const exportHost=document.querySelector('#exportMenu .glass-menu-content')||document.querySelector('#exportMenu');
+      if(!exportHost)return;
+      const exportAnchor=exportHost.firstChild;
+      const sync=()=>{
+        const telegraph=destBtn.getAttribute('data-dest')==='telegraph';
+        if(telegraph){
+          if(tools.parentElement!==slot)slot.append(tools);
+          slot.hidden=false;
+          
+          
+          tools.removeAttribute('data-field-label');
+          input.setAttribute('aria-label','Título da página no Telegraph');
+          input.setAttribute('placeholder','Título');
+          input.setAttribute('enterkeyhint','next');
+        }else{
+          if(tools.parentElement!==exportHost)exportHost.insertBefore(tools,exportAnchor);
+          slot.hidden=true;
+          tools.setAttribute('data-field-label','Título do documento');
+          input.setAttribute('aria-label','Título do documento');
+          input.setAttribute('placeholder','Título do documento');
+          input.removeAttribute('enterkeyhint');
+        }
+      };
+      new MutationObserver(sync).observe(destBtn,{attributes:true,attributeFilter:['data-dest']});
+      sync();
+    });
+  </script>
+</body>
+</html>

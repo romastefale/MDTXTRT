@@ -1,0 +1,36 @@
+{
+  "name": "mdtxtrt",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    
+    "build": "npm run build:editor && npm run build:ui",
+    "build:editor": "esbuild src/editor-core.mjs --bundle --format=iife --global-name=MDTXTRTEditorCore --platform=browser --target=es2022 --minify --legal-comments=eof --outfile=editor-core.js",
+    "build:ui": "esbuild src/liquid-glass-ui.jsx --bundle --format=esm --platform=browser --target=es2022 --define:process.env.NODE_ENV='\"production\"' --minify-syntax --minify-whitespace --legal-comments=eof --outfile=ui.js",
+    
+  },
+  "engines": {
+    "node": "24.21.0"
+  },
+  "dependencies": {
+    "busboy": "^1.6.0",
+    "htmlparser2": "^10.0.0",
+    "marked": "^18.0.14",
+    "turndown": "^7.2.2"
+  },
+  "devDependencies": {
+    "@samasante/liquid-glass": "github:romastefale/liquid-glass#9df1c6b91f569bfc8e4904e9686af640acc1f6be",
+    "esbuild": "0.28.2",
+    "jsdom": "^27.0.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  },
+  "devEngines": {
+    "runtime": {
+      "name": "node",
+      "version": "24.21.0",
+      "onFail": "22.9.0"
+    }
+  }
+}
