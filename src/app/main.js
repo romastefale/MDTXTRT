@@ -4,7 +4,7 @@ import { THEME_KEY, sheets } from "./constants.js";
 import { all, docName, editor, fileInput, linkBtn, menuDismissLayer, one, ui } from "./dom.js";
 import { applyAssets, applyScheme, setTheme } from "./theme.js";
 import { clearRuntimeMedia, decorateSpecials } from "./media.js";
-import { advanceDocumentGeneration, archiveStoredDraftForNew, consumeNewDocumentToken, createNewDocumentLaunch, loadLocal, loadRemoteDraft, markDirty, offerDraftRecovery, persistRemoteDraft, recoverPersistentDraft, remoteDraftsAvailable, saveLocal, startRequestedNewDocument } from "./draft.js";
+import { advanceDocumentGeneration, archiveStoredDraftForNew, consumeNewDocumentToken, createNewDocumentLaunch, loadLocal, loadRemoteDraft, markDirty, offerDraftRecovery, persistRemoteDraft, recoverPersistentDraft, remoteDraftsAvailable, saveLocal, startRequestedNewDocument, syncDocMeta } from "./draft.js";
 import { verifyTelegram } from "./telegram.js";
 import { call } from "./serverless.js";
 import { closePanel, closePanels, focusControl, holdDismissPress, isTypingEntry, librarySubmenuOpen, noticeDismissPress, openPanel, openPlusRoot, openPlusSubmenu, panelIsOpen, retainTypingFocus, showToast, syncBackButton, togglePanel } from "./panels.js";
@@ -172,7 +172,7 @@ all('#linkMenu [data-link-kind]').forEach(btn=>btn.addEventListener('click',()=>
 one('#undoBtn').addEventListener('click', ()=>{ if(histUndo())flashBtn(one('#undoBtn')); });
 one('#redoBtn').addEventListener('click', ()=>{ histRedo(); flashBtn(one('#redoBtn')); });
 one('#themeBtn').addEventListener('click',()=>setTheme(document.documentElement.classList.contains('light')?'dark':'light'));
-one('#openAppBtn').addEventListener('click',()=>{void publishCurrent();});
+one('#publishBtn').addEventListener('click',()=>{void publishCurrent();});
 one('#destBtn').addEventListener('click', ()=>setDestination(S.dest === 'telegram' ? 'telegraph' : 'telegram'));
 one('#exportBtn').addEventListener('click', ()=>{
   if(S.session==='pending'){showToast('Aguarde a validação da sessão Telegram');return;}
@@ -316,6 +316,7 @@ export function boot(){
   const blocked=storageBlocked();
   if(blocked)void notifyDialog(STORAGE_BLOCKED_NOTICE);
   else if(notice)showToast(notice);
+  syncDocMeta(true);
   const recoverVolume=!createdNew&&!loadedLocal&&remoteDraftsAvailable();
   if(recoverVolume)editor.setAttribute('contenteditable','false');
   void (async()=>{

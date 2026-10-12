@@ -1,7 +1,7 @@
 
 import { S } from "./state.js";
 import { DRAFT_ARCHIVE_PREFIX, DRAFT_KEY, NEW_DOCUMENT_PARAM, STATE_VERSION } from "./constants.js";
-import { docName, editor } from "./dom.js";
+import { docName, editor, ui } from "./dom.js";
 import { getTg } from "./theme.js";
 import { clearRuntimeMedia, decorateSpecials, setMediaRefs } from "./media.js";
 import { showToast } from "./panels.js";
@@ -89,9 +89,13 @@ export function cleanDraftHTML(html){
   }
   return box.innerHTML;
 }
+export function syncDocMeta(saved){
+  ui.update({docMeta:'rev. '+S.docRevision+' · '+(saved?'salvo':'salvando…')});
+}
 export function markDirty(){
   S.exportOverride=null;
   bumpDocumentRevision();
+  syncDocMeta(false);
   decorateSpecials();
   clearTimeout(S.saveTimer);
   const generation=S.docGeneration,doc=S.docId;
@@ -118,6 +122,7 @@ export function saveLocal(){
   try{
     storageSet(DRAFT_KEY,JSON.stringify(draftState()));
     scheduleRemoteDraftSave();
+    syncDocMeta(true);
     return true;
   }catch{
     showToast('Não foi possível salvar neste dispositivo');

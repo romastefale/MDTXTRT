@@ -9,6 +9,8 @@ const CLOSED_MENU = Object.freeze({ open: false, anchor: null });
 let state = Object.freeze({
   dest: "telegram",
   publishLabel: "Publicar no Telegram",
+  docTitle: "Ideia",
+  docMeta: "",
   blockKind: "",
   menus: Object.freeze({}),
   dialog: Object.freeze({

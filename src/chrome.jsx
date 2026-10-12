@@ -496,25 +496,18 @@ function QuoteMenu() {
   );
 }
 
-function PublishItem() {
-  const dest = useUI(state => state.dest);
-  const publishLabel = useUI(state => state.publishLabel);
-  return (
-    <MenuItem icon={dest === "telegram" ? "telegram" : "telegraph"} id="openAppBtn" aria-label={publishLabel} title={publishLabel}>
-      <span id="openAppLabel">{publishLabel}</span>
-    </MenuItem>
-  );
-}
-
 function ExportMenu() {
   return (
     <GlassContextMenu id="exportMenu" className="wide-menu export-menu" anchorId="exportBtn" placement="auto">
       <div className="menu-list">
         <MenuItem icon="file" id="libraryBtn">Rascunhos e publicações</MenuItem>
         <div className="menu-divider" role="separator" />
-        <PublishItem />
-        <MenuItem icon="markdown" id="exportMdBtn">Baixar Markdown</MenuItem>
-        <MenuItem icon="text_fields" id="exportTxtBtn">Baixar TXT</MenuItem>
+        <MenuItem icon="markdown" id="exportMdBtn">Enviar Markdown no chat</MenuItem>
+        <MenuItem icon="text_fields" id="exportTxtBtn">Enviar TXT no chat</MenuItem>
+        <div className="menu-divider" role="separator" />
+        <MenuItem icon="light_mode" id="themeBtn" aria-label="Ativar modo claro" title="Ativar modo claro">
+          <span id="themeLabel">Tema</span>
+        </MenuItem>
       </div>
     </GlassContextMenu>
   );
@@ -862,29 +855,13 @@ function Toast() {
 
 
 
-function DestButton() {
-  const dest = useUI(state => state.dest);
-  const destName = dest === "telegram" ? "Telegram" : "Telegraph";
-  return (
-    <button
-      type="button"
-      id="destBtn"
-      data-dest={dest}
-      aria-label={"Alternar destino. Atual: " + destName}
-      title={"Destino: " + destName}
-    >
-      <Icon name={dest === "telegram" ? "telegram" : "telegraph"} />
-    </button>
-  );
-}
-
-const EXPORT_LABEL = "Abrir menu de publicação, exportação e biblioteca";
+const EXPORT_LABEL = "Abrir menu do documento";
 
 function ExportButton() {
   const expanded = useAnchorExpanded("exportBtn");
   return (
     <button type="button" className="export" id="exportBtn" aria-label={EXPORT_LABEL} title={EXPORT_LABEL} aria-expanded={expanded}>
-      <span className="action-dot"><ChromeLens /><Icon name="menu" /></span>
+      <Icon name="menu" />
     </button>
   );
 }
@@ -911,32 +888,52 @@ function AnchorButton({ id, icon, ...props }) {
   );
 }
 
+function DocBlock() {
+  const title = useUI(state => state.docTitle);
+  const meta = useUI(state => state.docMeta);
+  const dest = useUI(state => state.dest);
+  const destName = dest === "telegram" ? "Telegram" : "Telegraph";
+  return (
+    <div className="doc-block">
+      <div className="doc-title" id="docTitle">{title || "Sem título"}</div>
+      <div className="doc-sub">
+        <button
+          type="button"
+          id="destBtn"
+          className="dest-chip"
+          data-dest={dest}
+          aria-label={"Alternar destino. Atual: " + destName}
+          title={"Destino: " + destName}
+        >
+          {destName}<Icon name="chevron_right" />
+        </button>
+        <span className="doc-meta" id="docMeta">{meta}</span>
+      </div>
+    </div>
+  );
+}
+
+function PublishButton() {
+  const publishLabel = useUI(state => state.publishLabel);
+  return (
+    <button type="button" className="strategic" id="publishBtn" aria-label={publishLabel} title={publishLabel}>
+      <span className="action-dot"><ChromeLens /><Icon name="export" /></span>
+    </button>
+  );
+}
+
 function Chrome() {
   return (
     <>
       <header className="topbar">
-        <div className="top-slot top-left">
+        <div className="top-slot top-doc">
           <GlassControl className="seg top-pill">
             <ChromeLens optics={BAR_REFRACTION} variant="bar" />
-            <button type="button" className="strategic" id="undoBtn" aria-label="Desfazer" title="Desfazer">
-              <span className="action-dot"><ChromeLens /><Icon name="undo" /></span>
-            </button>
-            <button type="button" id="redoBtn" aria-label="Refazer" title="Refazer"><Icon name="redo" /></button>
-          </GlassControl>
-        </div>
-
-        <div className="top-center">
-          <button type="button" className="theme-switch" id="themeBtn" aria-label="Ativar modo claro" title="Ativar modo claro">
-            <span className="app-title">MDTXTRT</span>
-            <Icon name="light_mode" />
-          </button>
-        </div>
-
-        <div className="top-slot top-right">
-          <GlassControl className="seg top-pill">
-            <ChromeLens optics={BAR_REFRACTION} variant="bar" />
-            <DestButton />
             <ExportButton />
+            <DocBlock />
+            <button type="button" id="undoBtn" aria-label="Desfazer" title="Desfazer"><Icon name="undo" /></button>
+            <button type="button" id="redoBtn" aria-label="Refazer" title="Refazer"><Icon name="redo" /></button>
+            <PublishButton />
           </GlassControl>
         </div>
       </header>

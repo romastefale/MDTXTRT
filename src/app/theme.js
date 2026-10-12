@@ -59,6 +59,7 @@ export function applyScheme(mode=resolvedTheme()){
     if(icon)icon.setAttribute('data-icon',light?'dark_mode':'light_mode');
     const label=light?'Ativar modo escuro':'Ativar modo claro';
     btn.setAttribute('aria-label',label);btn.title=label;
+    const text=one('#themeLabel');if(text)text.textContent=light?'Tema escuro':'Tema claro';
   }
   applyAssets();
   const tg=getTg();

@@ -52,9 +52,9 @@ export async function exportFile(format) {
 
 export async function publishCurrent(){
   if(S.busy)return;
-  S.busy=true;one('#exportBtn').disabled=true;
+  S.busy=true;one('#exportBtn').disabled=true;one('#publishBtn').disabled=true;
   try{if(S.dest==='telegram')await publishTelegram();else await publishTelegraph();}
-  finally{S.busy=false;one('#exportBtn').disabled=false;}
+  finally{S.busy=false;one('#exportBtn').disabled=false;one('#publishBtn').disabled=false;}
 }
 export async function publishTelegram(){
   if(!editor.childNodes.length){ showToast('Escreva algo antes de enviar'); return; }

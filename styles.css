@@ -253,7 +253,7 @@ html:not([data-dest="telegraph"]) .editor h6{font-size:15px}
   top:calc(var(--vv-top) + var(--safe-top) + var(--gap));
   left:max(20px,var(--safe-left));right:max(20px,var(--safe-right));
   height:var(--topbar-h);margin:0;padding:0;
-  display:grid;grid-template-columns:1fr auto 1fr;align-items:start;
+  display:grid;grid-template-columns:minmax(0,1fr);align-items:start;
   pointer-events:none;backface-visibility:hidden
 }
 .top-slot{
@@ -283,8 +283,18 @@ html:not([data-dest="telegraph"]) .editor h6{font-size:15px}
   background:transparent;display:grid;place-items:center;padding:0
 }
 .seg button:active,.bar > button:active{background:var(--glass-press)}
-.seg #destBtn{position:relative}
-.seg #destBtn .ui-icon{width:28px;height:28px}
+.top-doc{width:100%;min-width:0}
+.top-doc .seg{width:100%;box-sizing:border-box}
+.doc-block{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:3px;padding:0 4px;text-align:left}
+.doc-title{font-size:15px;font-weight:700;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text)}
+.doc-sub{display:flex;align-items:center;gap:6px;min-width:0;font-size:11px;line-height:1;color:var(--muted)}
+.doc-meta{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.seg .dest-chip{
+  width:auto;height:18px;flex:0 0 auto;border-radius:9px;padding:0 5px 0 7px;display:inline-flex;align-items:center;gap:2px;
+  background:var(--toggle-on);color:var(--text);font-family:inherit;font-weight:600;font-size:11px;line-height:1
+}
+.seg .dest-chip .ui-icon{width:10px;height:10px;transform:rotate(90deg)}
+.seg .export[aria-expanded="true"]{background:var(--toggle-on)}
 .seg button.is-flash{position:relative}
 .seg button.is-flash::before{
   content:"";position:absolute;inset:0;border-radius:50%;
