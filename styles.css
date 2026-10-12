@@ -622,7 +622,15 @@ html .seg #undoBtn:active .action-dot{
 #ux-root input,#ux-root textarea{-webkit-user-select:text;user-select:text}
 
 /* Folha "Inserir": blocos em grade, no lugar dos submenus */
-.glass-menu.insert-sheet{--menu-w:360px}
+.glass-menu.insert-sheet{
+  /* mesma largura e mesma família de cantos da barra inferior: lê como uma segunda camada dela */
+  --menu-w:calc(100vw - max(var(--bar-side-inset),var(--safe-left)) - max(var(--bar-side-inset),var(--safe-right)));
+  --menu-radius:26px;
+  translate:0 -4px
+}
+.glass-menu.insert-sheet[data-anchor]{left:max(var(--bar-side-inset),var(--safe-left))}
+.bar > button.more .ui-icon{transition:transform .26s var(--glass-ease)}
+.bar > button.more.on .ui-icon{transform:rotate(45deg)}
 .insert-sheet .glass-menu-content{padding:4px 8px 8px}
 .insert-body{padding:0 2px}
 .insert-section[hidden]{display:none}
