@@ -141,11 +141,11 @@ body{
 
 html.light .bg{
   background:
-    radial-gradient(48% 26% at 30% 30%,rgba(255,179,217,.5),rgba(255,179,217,0) 72%),
-    radial-gradient(48% 26% at 72% 42%,rgba(158,203,255,.5),rgba(158,203,255,0) 72%),
-    radial-gradient(48% 24% at 68% 80%,rgba(201,164,255,.45),rgba(201,164,255,0) 72%),
-    radial-gradient(48% 24% at 30% 84%,rgba(143,240,208,.45),rgba(143,240,208,0) 72%),
-    radial-gradient(44% 24% at 50% 58%,rgba(255,225,168,.4),rgba(255,225,168,0) 75%),
+    radial-gradient(34% 22% at 34% 28%,rgba(255,179,217,.5),rgba(255,179,217,0) 72%),
+    radial-gradient(34% 22% at 66% 40%,rgba(158,203,255,.5),rgba(158,203,255,0) 72%),
+    radial-gradient(34% 20% at 64% 80%,rgba(201,164,255,.45),rgba(201,164,255,0) 72%),
+    radial-gradient(34% 20% at 36% 84%,rgba(143,240,208,.45),rgba(143,240,208,0) 72%),
+    radial-gradient(34% 20% at 50% 58%,rgba(255,225,168,.4),rgba(255,225,168,0) 75%),
     var(--bg-art) center/100% 100% no-repeat,var(--edge)
 }
 
