@@ -11,7 +11,7 @@ export const FORMAT_CONTRACT=Object.freeze({
     telegraph:Object.freeze({publish:true,unsupported:"reject"})
   })
 });
-export const plusSubmenus=['#plus-file-menu','#plus-format-menu','#plus-structure-menu','#plus-media-menu','#plus-interaction-menu'];
+export const plusSubmenus=[];
 export const sheets=['#plusMenu',...plusSubmenus,'#linkMenu','#headingMenu','#quoteMenu','#listMenu','#exportMenu','#libraryMenu','#findMenu'];
 export const THEME_KEY='mdtxtrt-theme';
 export const DRAFT_KEY='rmdtxtml';

@@ -152,8 +152,6 @@ document.querySelectorAll('[data-table-action]').forEach(btn=>btn.addEventListen
     closePanels();syncEditorSelectionUI();
   }catch(err){showToast(err.message||'Não foi possível alterar a tabela');}
 }));
-all('#plusMenu [data-plus-category]').forEach(btn=>btn.addEventListener('click',()=>openPlusSubmenu(btn.dataset.plusCategory)));
-all('[data-plus-submenu] [data-plus-back]').forEach(btn=>btn.addEventListener('click',()=>openPlusRoot()));
 export const linkActions=Object.freeze({
   hyperlink:insertHyperlink,
   url:insertVisibleLink,

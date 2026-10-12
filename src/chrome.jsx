@@ -586,51 +586,30 @@ const plusSections = [
   },
 ];
 
-function PlusCategory({ section }) {
-  const categoryProps = section.telegramOnly ? { "data-telegram-only": "" } : {};
+function InsertSection({ section }) {
+  const telegraph = useUI(state => state.dest === "telegraph");
   return (
-    <MenuItem icon={section.icon} data-plus-category={section.id} {...categoryProps}>
-      <span className="menu-label">{section.label}</span>
-      <span className="menu-chevron"><Icon name="chevron_right" /></span>
-    </MenuItem>
-  );
-}
-
-function PlusSubmenu({ section }) {
-  return (
-    <GlassContextMenu
-      id={`plus-${section.id}-menu`}
-      className="wide-menu plus-submenu"
-      anchorId="plusBtn"
-      placement="top"
-      data-plus-submenu={section.id}
-    >
-      <div className="menu-list">
-        <MenuItem icon="arrow_back" className="submenu-back" data-plus-back="">
-          <span className="menu-label">{section.label}</span>
-        </MenuItem>
-        <div className="menu-divider" role="separator" />
+    <section className="insert-section" data-plus-submenu={section.id} hidden={Boolean(section.telegramOnly) && telegraph}>
+      <h3 className="insert-label">{section.label}</h3>
+      <div className="insert-grid">
         {section.items.map(([icon, label, props]) => (
           <MenuItem key={label} icon={icon} {...props}>{label}</MenuItem>
         ))}
       </div>
-    </GlassContextMenu>
+    </section>
   );
 }
 
 function PlusMenu() {
   return (
-    <>
-      <GlassContextMenu id="plusMenu" className="wide-menu" anchorId="plusBtn" placement="top">
-        <div className="tools document-tools">
-          <input id="docName" defaultValue="Ideia" aria-label="Nome do documento" maxLength={256} />
-        </div>
-        <div className="menu-list">
-          {plusSections.map(section => <PlusCategory key={section.id} section={section} />)}
-        </div>
-      </GlassContextMenu>
-      {plusSections.map(section => <PlusSubmenu key={section.id} section={section} />)}
-    </>
+    <GlassContextMenu id="plusMenu" className="wide-menu insert-sheet" anchorId="plusBtn" placement="top">
+      <div className="tools document-tools" data-field-label="Nome do documento">
+        <input id="docName" defaultValue="Ideia" aria-label="Nome do documento" maxLength={256} />
+      </div>
+      <div className="menu-list insert-body">
+        {plusSections.map(section => <InsertSection key={section.id} section={section} />)}
+      </div>
+    </GlassContextMenu>
   );
 }
 
