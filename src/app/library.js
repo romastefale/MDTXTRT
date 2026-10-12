@@ -1,14 +1,15 @@
 
 import { S } from "./state.js";
-import { API, DRAFT_ARCHIVE_PREFIX, DRAFT_KEY } from "./constants.js";
+import { DRAFT_ARCHIVE_PREFIX, DRAFT_KEY } from "./constants.js";
 import { docName, editor, one, ui } from "./dom.js";
-import { clearRuntimeMedia, mediaDelete } from "./media.js";
-import { advanceDocumentGeneration, cleanDraftHTML, loadRemoteDraft, normalizedRevision, remoteDraftIdentity, resetToNewDocument, saveLocal, waitForRemoteDraftSaves } from "./draft.js";
+import { clearRuntimeMedia } from "./media.js";
+import { advanceDocumentGeneration, cleanDraftHTML, loadRemoteDraft, normalizedRevision, resetToNewDocument, saveLocal, waitForRemoteDraftSaves } from "./draft.js";
 import { closePanel, focusControl, focusMenuControl, openPanel, panelIsOpen, showToast, syncBackButton } from "./panels.js";
 import { confirmDialog, focusLibraryStart } from "./dialog.js";
 import { syncEditorSelectionUI } from "./editing.js";
 import { storageRemove } from "./storage.js";
-import { readResponse, setDestination } from "./publish.js";
+import { setDestination } from "./publish.js";
+import { call } from "./serverless.js";
 
 export function libraryViewParam(){
   let value='';
@@ -26,13 +27,7 @@ export function consumeLibraryView(){
   return value;
 }
 export async function fetchLibrary(){
-  const identity=remoteDraftIdentity();
-  const res=await fetch(API+'/api/library/list',{
-    method:'POST',signal:AbortSignal.timeout(10000),
-    headers:{'content-type':'application/json'},body:JSON.stringify(identity)
-  });
-  const data=await readResponse(res);
-  if(!res.ok)throw new Error(data.error||'Não foi possível carregar a biblioteca');
+  const data=await call('libraryList');
   if(!Array.isArray(data.drafts)||!Array.isArray(data.telegram)||!Array.isArray(data.telegraph))throw new Error('Resposta da biblioteca inválida');
   return data;
 }
@@ -50,15 +45,8 @@ export async function openTelegraphDocument(doc){
   const generation=advanceDocumentGeneration();
   ui.setLibrary({status:'Carregando página do Telegraph…'});
   try{
-    const identity=remoteDraftIdentity();
-    const res=await fetch(API+'/api/telegraph/load',{
-      method:'POST',signal:AbortSignal.timeout(20000),
-      headers:{'content-type':'application/json'},
-      body:JSON.stringify({...identity,doc})
-    });
-    const data=await readResponse(res);
+    const data=await call('telegraphLoad',{doc});
     if(S.docGeneration!==generation)return;
-    if(!res.ok)throw new Error(data.error||'Não foi possível carregar a página do Telegraph');
     if(data.doc!==doc||typeof data.path!=='string'||!data.path||typeof data.title!=='string'||typeof data.html!=='string')throw new Error('Resposta do Telegraph inválida');
     const html=cleanDraftHTML(data.html);
     clearRuntimeMedia();
@@ -69,7 +57,6 @@ export async function openTelegraphDocument(doc){
     S.docRevision=normalizedRevision(data.revision);
     S.telegraphPath=data.path;
     S.importedMd='';S.importedTxt='';S.importedHtml=html;
-    S.activeHandoff='';S.handoffAction=null;
     S.draftWriteBlocked=false;
     setDestination('telegraph',false,false);
     saveLocal();
@@ -137,24 +124,16 @@ export function libraryDeleteMessage(kind,item,{telegramPublication=false}={}){
   return {label:'Tirar '+name+' da lista de publicações do Telegraph? A página continua no telegra.ph, porque o Telegraph não permite apagar páginas. Publicar este documento de novo cria uma página nova.',ok:'Tirar da lista'};
 }
 async function requestLibraryDelete(kind,doc){
-  const res=await fetch(API+'/api/library/delete',{
-    method:'POST',signal:AbortSignal.timeout(20000),
-    headers:{'content-type':'application/json'},
-    body:JSON.stringify({...remoteDraftIdentity(),kind,doc})
-  });
-  const data=await readResponse(res);
-  if(!res.ok)throw new Error(data.error||'Não foi possível excluir');
+  const data=await call('libraryDelete',{kind,doc});
   if(data.ok!==true||data.kind!==kind||data.doc!==doc)throw new Error('Resposta da exclusão inválida');
   return data;
 }
 
 
 function replaceDeletedOpenDocument(){
-  const mediaIds=[...S.mediaFiles.keys()];
   resetToNewDocument();
   S.blankAfterDelete=S.docId;
   try{storageRemove(DRAFT_KEY);}catch(error){console.error('Local draft removal',error);}
-  for(const id of mediaIds)void mediaDelete(id).catch(error=>console.error('Local media removal',error));
   editor.setAttribute('contenteditable','true');
   setDestination(S.dest,false,false);
   syncEditorSelectionUI();

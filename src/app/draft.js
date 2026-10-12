@@ -1,13 +1,14 @@
 
 import { S } from "./state.js";
-import { API, BROWSER_OWNER_KEY, DRAFT_ARCHIVE_PREFIX, DRAFT_KEY, NEW_DOCUMENT_PARAM, STATE_VERSION } from "./constants.js";
+import { DRAFT_ARCHIVE_PREFIX, DRAFT_KEY, NEW_DOCUMENT_PARAM, STATE_VERSION } from "./constants.js";
 import { docName, editor } from "./dom.js";
 import { getTg } from "./theme.js";
-import { clearRuntimeMedia, decorateSpecials, installMedia } from "./media.js";
+import { clearRuntimeMedia, decorateSpecials, setMediaRefs } from "./media.js";
 import { showToast } from "./panels.js";
 import { approve, chooseDialog } from "./dialog.js";
 import { requireEditorCore, syncEditorSelectionUI } from "./editing.js";
-import { readResponse, setDestination } from "./publish.js";
+import { setDestination } from "./publish.js";
+import { call } from "./serverless.js";
 import { storageBlocked, storageGet, storageSet } from "./storage.js";
 
 const activeRemoteDraftSaves=new Set();
@@ -34,19 +35,6 @@ export function bumpDocumentRevision(){
   S.docRevision++;
 }
 export function requestMatchesDocument(doc,revision){return S.docId===doc&&S.docRevision===revision;}
-export function browserOwnerKey(){
-  let key='';
-  try{key=storageGet(BROWSER_OWNER_KEY)||'';}
-  catch{throw new Error('Não foi possível acessar a identidade persistente do navegador');}
-  if(/^[a-f0-9]{64}$/.test(key))return key;
-  const bytes=crypto.getRandomValues(new Uint8Array(32));
-  key=Array.from(bytes,byte=>byte.toString(16).padStart(2,'0')).join('');
-  try{
-    storageSet(BROWSER_OWNER_KEY,key);
-    if(storageGet(BROWSER_OWNER_KEY)!==key)throw new Error('A identidade não permaneceu armazenada');
-  }catch{throw new Error('Não foi possível persistir a identidade do navegador');}
-  return key;
-}
 export function sanitizeDraftRuntimeDOM(box){
   for(const el of [...box.querySelectorAll('*')]){
     for(const name of ['contenteditable','draggable','spellcheck','tabindex','aria-selected'])el.removeAttribute(name);
@@ -137,15 +125,6 @@ export function saveLocal(){
     return false;
   }
 }
-export function remoteDraftIdentity(){
-  const initData=getTg()?.initData;
-  if(typeof initData==='string'&&initData)return {initData};
-  return {browserKey:browserOwnerKey()};
-}
-export function appendRemoteIdentity(target,identity=remoteDraftIdentity()){
-  for(const [key,value] of Object.entries(identity))target.set(key,value);
-  return identity;
-}
 export function reportRemoteSaveFailure(error){
   console.error('Persistent draft',error);
   if(!S.remoteSaveNoticeShown){
@@ -156,26 +135,13 @@ export function reportRemoteSaveFailure(error){
 export async function persistRemoteDraft(pagehide=false,generation=S.docGeneration,doc=S.docId){
   if(!currentDocumentGeneration(generation,doc))return false;
   if(S.draftWriteBlocked||!remoteDraftsAvailable())return false;
-  
   if(S.deletingDoc&&S.deletingDoc===S.docId)return false;
   if(pristineAfterDelete())return false;
   const snapshot=draftState();
-  const form=new FormData();
-  appendRemoteIdentity(form);
-  form.set('draft',JSON.stringify(snapshot));
-  const active=activeMedia();
-  const pending=active.filter(media=>!S.remoteMediaSyncedIds.has(media.id));
-  for(const media of pending)form.set('upload_'+media.id,media.file,media.file.name);
-  const options={method:'POST',body:form};
-  if(!pagehide)options.signal=AbortSignal.timeout(60000);
-  else if(!pending.length&&JSON.stringify(snapshot).length<60000)options.keepalive=true;
   const save=(async()=>{
-    const res=await fetch(API+'/api/drafts/save',options);
-    const data=await readResponse(res);
+    const data=await call('draftSave',{draft:snapshot});
     if(!currentDocumentGeneration(generation,doc))return false;
-    if(!res.ok)throw new Error(data.error||'Não foi possível salvar o rascunho no servidor');
     if(data?.draft?.docId!==snapshot.docId||data?.draft?.revision!==snapshot.revision)throw new Error('Confirmação de persistência inválida');
-    S.remoteMediaSyncedIds=new Set(active.map(media=>media.id));
     S.remoteSaveNoticeShown=false;
     return true;
   })();
@@ -187,8 +153,8 @@ export async function persistRemoteDraft(pagehide=false,generation=S.docGenerati
 
 
 export function remoteDraftsAvailable(){
-  const initData=getTg()?.initData;
-  return Boolean(typeof initData==='string'&&initData)||!storageBlocked();
+  const tg=getTg();
+  return Boolean(tg?.initData&&tg.Serverless);
 }
 export function scheduleRemoteDraftSave(delay=650){
   clearTimeout(S.remoteSaveTimer);
@@ -198,12 +164,12 @@ export function scheduleRemoteDraftSave(delay=650){
     S.remoteSaveQueue=S.remoteSaveQueue.then(()=>persistRemoteDraft(false,generation,doc)).catch(error=>{reportRemoteSaveFailure(error);});
   },delay);
 }
-export async function applyPersistentDraftData(data,identity,generation=S.docGeneration){
+export async function applyPersistentDraftData(data,generation=S.docGeneration){
   S.exportOverride=null;
   const d=data.draft;
   if(!d||d.version!==STATE_VERSION||typeof d.html!=='string'||typeof d.name!=='string'||d.name.length>256||!['telegram','telegraph'].includes(d.dest)||typeof d.telegraphPath!=='string'||!/^[a-f0-9-]{36}$/i.test(d.docId)||(d.revision!==undefined&&(!Number.isSafeInteger(d.revision)||d.revision<0))||typeof d.importedMd!=='string'||typeof d.importedTxt!=='string'||typeof d.importedHtml!=='string'||!Array.isArray(d.media))throw new Error('Rascunho persistido incompatível');
   const html=cleanDraftHTML(d.html);
-  clearRuntimeMedia();
+  setMediaRefs(d.media);
   requireEditorCore().resetHTML(html,{silent:true});
   docName.value=d.name;
   S.telegraphPath=d.telegraphPath;
@@ -213,31 +179,11 @@ export async function applyPersistentDraftData(data,identity,generation=S.docGen
   S.importedTxt=d.importedTxt;
   S.importedHtml=d.importedHtml;
   S.dest=d.dest;
-  S.activeHandoff='';S.handoffAction=null;
   S.draftWriteBlocked=false;
   const media=Array.isArray(data.media)?data.media:[];
   if(media.length!==d.media.length)throw new Error('Anexos persistidos incompatíveis');
   for(const meta of media){
-    const expected=d.media.find(item=>item.id===meta.id&&item.kind===meta.kind);
-    if(!expected||typeof meta.name!=='string'||typeof meta.mime!=='string')throw new Error('Anexo persistido incompatível');
-    const fileRes=await fetch(API+'/api/drafts/file',{
-      method:'POST',
-      signal:AbortSignal.timeout(60000),
-      headers:{'content-type':'application/json'},
-      body:JSON.stringify({...identity,doc:d.docId,id:meta.id})
-    });
-    if(!currentDocumentGeneration(generation,d.docId))return false;
-    if(!fileRes.ok){
-      let msg='Não foi possível recuperar o anexo persistido';
-      try{msg=(await fileRes.json()).error||msg;}catch{}
-      throw new Error(msg);
-    }
-    const blob=await fileRes.blob();
-    if(!currentDocumentGeneration(generation,d.docId))return false;
-    const file=new File([blob],meta.name,{type:meta.mime,lastModified:0});
-    await installMedia(file,meta.id,meta.kind);
-    if(!currentDocumentGeneration(generation,d.docId))return false;
-    S.remoteMediaSyncedIds.add(meta.id);
+    if(!d.media.some(item=>item.id===meta.id&&item.kind===meta.kind))throw new Error('Anexo persistido incompatível');
   }
   setDestination(S.dest,false,false);
   syncEditorSelectionUI();
@@ -246,18 +192,14 @@ export async function applyPersistentDraftData(data,identity,generation=S.docGen
 }
 export async function loadRemoteDraft(doc=''){
   const generation=advanceDocumentGeneration();
-  const identity=remoteDraftIdentity();
-  const res=await fetch(API+'/api/drafts/load',{
-    method:'POST',
-    signal:AbortSignal.timeout(5000),
-    headers:{'content-type':'application/json'},
-    body:JSON.stringify({...identity,...(doc?{doc}:{})})
-  });
-  if(res.status===404)return false;
-  const data=await readResponse(res);
+  let data;
+  try{data=await call('draftLoad',doc?{doc}:{});}
+  catch(error){
+    if(error.code==='NOT_FOUND')return false;
+    throw error;
+  }
   if(!currentDocumentGeneration(generation,S.docId))return false;
-  if(!res.ok)throw new Error(data.error||'Não foi possível recuperar o rascunho do servidor');
-  return applyPersistentDraftData(data,identity,generation);
+  return applyPersistentDraftData(data,generation);
 }
 export async function createNewDocumentLaunch(){
   
@@ -316,7 +258,7 @@ export function resetToNewDocument(){
   advanceDocumentGeneration();
   S.exportOverride=null;
   clearRuntimeMedia();
-  S.mediaChoice=null;S.savedRange=null;S.activeHandoff='';S.handoffAction=null;
+  S.mediaChoice=null;S.savedRange=null;
   requireEditorCore().resetHTML('',{silent:true});docName.value='Ideia';S.dest='telegram';S.telegraphPath='';
   S.docId=crypto.randomUUID();S.docRevision=0;S.importedMd='';S.importedTxt='';S.importedHtml='';
   S.draftWriteBlocked=false;S.draftBlockNoticeShown=false;
@@ -343,6 +285,7 @@ export function loadLocal(){
   try{html=cleanDraftHTML(d.html);}
   catch(error){S.draftWriteBlocked=true;throw new Error((error.message||'Rascunho local inválido')+'. A cópia local foi preservada para recuperação');}
   advanceDocumentGeneration();
+  setMediaRefs(d.media);
   requireEditorCore().resetHTML(html,{silent:true});docName.value=d.name;S.telegraphPath=d.telegraphPath;S.docId=d.docId;S.docRevision=normalizedRevision(d.revision);S.importedMd=d.importedMd;S.importedTxt=d.importedTxt;S.importedHtml=d.importedHtml;S.dest=d.dest;
   S.draftWriteBlocked=false;
   return true;

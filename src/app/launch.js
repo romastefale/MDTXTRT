@@ -1,11 +1,10 @@
 
 import { S } from "./state.js";
-import { API } from "./constants.js";
 import { one } from "./dom.js";
-import { getTg } from "./theme.js";
 import { loadRemoteDraft } from "./draft.js";
 import { closePanels, focusMenuControl, openPanel, showToast, syncBackButton } from "./panels.js";
-import { publishTelegram, readResponse } from "./publish.js";
+import { publishTelegram } from "./publish.js";
+import { call } from "./serverless.js";
 
 export function consumeLaunchDocument(){
   let value='';
@@ -48,16 +47,7 @@ export function consumeBotLaunchAction(){
 }
 export async function loadBotExportSource(selection){
   if(S.session!=='ready')throw new Error('A exportação selecionada exige uma sessão Telegram válida');
-  const initData=getTg()?.initData;
-  if(!initData)throw new Error('Sessão Telegram ausente');
-  const res=await fetch(API+'/api/export/source',{
-    method:'POST',
-    signal:AbortSignal.timeout(20000),
-    headers:{'content-type':'application/json'},
-    body:JSON.stringify({initData,kind:selection.source,doc:selection.doc})
-  });
-  const data=await readResponse(res);
-  if(!res.ok)throw new Error(data.error||'Não foi possível preparar a exportação selecionada');
+  const data=await call('exportSource',{source:selection.source,doc:selection.doc});
   if(data.doc!==selection.doc||data.kind!==selection.source||typeof data.name!=='string'||typeof data.html!=='string')throw new Error('Resposta de exportação inválida');
   S.exportOverride={name:data.name||'MDTXTRT',html:data.html,kind:data.kind,doc:data.doc};
   closePanels();

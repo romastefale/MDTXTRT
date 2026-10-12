@@ -14,12 +14,9 @@ export const FORMAT_CONTRACT=Object.freeze({
 export const plusSubmenus=['#plus-file-menu','#plus-format-menu','#plus-structure-menu','#plus-media-menu','#plus-interaction-menu'];
 export const sheets=['#plusMenu',...plusSubmenus,'#linkMenu','#headingMenu','#quoteMenu','#listMenu','#exportMenu','#libraryMenu','#findMenu'];
 export const THEME_KEY='mdtxtrt-theme';
-export const BROWSER_OWNER_KEY='mdtxtrt-browser-owner';
 export const DRAFT_KEY='rmdtxtml';
 export const DRAFT_ARCHIVE_PREFIX='rmdtxtml-document:';
 export const NEW_DOCUMENT_PARAM='new';
-export const API = 'https://mdtxtrt.up.railway.app';
-export const DB_NAME='mdtxtrt',DB_STORE='media';
 export const telegramInsetFields=['top','right','bottom','left'];
 export const panelAnchors=new WeakMap(),panelOpeners=new WeakMap();
 export const PORTABLE_TAGS=new Set('a b strong i em u ins s strike del code mark sub sup tg-spoiler tg-reference tg-emoji tg-time tg-math h1 h2 h3 h4 h5 h6 p pre footer hr ul ol li input blockquote aside cite img video audio tg-document figure figcaption iframe tg-map tg-collage tg-slideshow table caption thead tbody tfoot tr th td details summary tg-math-block tg-button tg-button-row br div'.split(' '));

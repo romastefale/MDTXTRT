@@ -21,8 +21,6 @@ export const S={
   mediaChoice:null,
   draftWriteBlocked:false,
   draftBlockNoticeShown:false,
-  activeHandoff:'',
-  handoffAction:null,
   exportOverride:null,
   themePreference:'',
   dialogReturnFocus:null,

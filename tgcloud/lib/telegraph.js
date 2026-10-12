@@ -1,7 +1,7 @@
 import { db, fetch, EndpointError } from 'sdk';
 import { and, eq } from 'sdk/db';
 import { telegraphAccount, telegraphPages } from '../schema.js';
-import { docId } from './common.js';
+import { docId, escapeHtml } from './common.js';
 
 const API = 'https://api.telegra.ph/';
 const TAGS = new Set('a aside b blockquote br code em figcaption figure h3 h4 hr i iframe img li ol p pre s strong u ul video'.split(' '));
@@ -101,4 +101,26 @@ export async function publishPage(owner, { title, content, path = '', doc }) {
   }
   const verified = await getPage(page.path);
   return { ...page, url: verified.url, path: verified.path };
+}
+
+// Nós da Telegraph API -> HTML (para edição/exportação). URLs só http/https; relativas resolvem em telegra.ph.
+const VOID = new Set(['br', 'hr', 'img']);
+function readUrl(value) {
+  if (typeof value !== 'string' || !value.trim() || value.trim().startsWith('#')) return '';
+  try { const url = new URL(value.trim(), 'https://telegra.ph/'); return ['http:', 'https:'].includes(url.protocol) ? url.href : ''; } catch { return ''; }
+}
+export function contentHtml(content) {
+  if (!Array.isArray(content) || !content.length) throw new EndpointError('Conteúdo do Telegraph inválido', { code: 'BAD_CONTENT' });
+  const render = (node) => {
+    if (typeof node === 'string') return escapeHtml(node);
+    if (!node || typeof node !== 'object' || Array.isArray(node) || !TAGS.has(node.tag)) throw new EndpointError('Elemento do Telegraph inválido', { code: 'BAD_CONTENT' });
+    const inner = () => (node.children || []).map(render).join('');
+    const key = node.tag === 'a' ? 'href' : ['img', 'video', 'iframe'].includes(node.tag) ? 'src' : '';
+    const value = key ? readUrl(node.attrs?.[key]) : '';
+    if (node.tag === 'a' && !value) return inner();
+    if (key === 'src' && !value) return '';
+    const open = `<${node.tag}${value ? ` ${key}="${escapeHtml(value)}"` : ''}>`;
+    return VOID.has(node.tag) ? open : `${open}${inner()}</${node.tag}>`;
+  };
+  return content.map(render).join('');
 }

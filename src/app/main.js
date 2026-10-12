@@ -3,9 +3,10 @@ import { S } from "./state.js";
 import { THEME_KEY, sheets } from "./constants.js";
 import { all, docName, editor, fileInput, linkBtn, menuDismissLayer, one, ui } from "./dom.js";
 import { applyAssets, applyScheme, setTheme } from "./theme.js";
-import { clearRuntimeMedia, decorateSpecials, installMedia, mediaDelete, mediaNode, restoreActiveMediaVisual, restoreMedia, telegramUploadLimit } from "./media.js";
-import { advanceDocumentGeneration, consumeNewDocumentToken, createNewDocumentLaunch, loadLocal, loadRemoteDraft, markDirty, offerDraftRecovery, persistRemoteDraft, recoverPersistentDraft, remoteDraftsAvailable, saveLocal, startRequestedNewDocument } from "./draft.js";
-import { handoffToken, openMiniApp, verifyTelegram } from "./telegram.js";
+import { clearRuntimeMedia, decorateSpecials } from "./media.js";
+import { advanceDocumentGeneration, archiveStoredDraftForNew, consumeNewDocumentToken, createNewDocumentLaunch, loadLocal, loadRemoteDraft, markDirty, offerDraftRecovery, persistRemoteDraft, recoverPersistentDraft, remoteDraftsAvailable, saveLocal, startRequestedNewDocument } from "./draft.js";
+import { verifyTelegram } from "./telegram.js";
+import { call } from "./serverless.js";
 import { closePanel, closePanels, focusControl, holdDismissPress, isTypingEntry, librarySubmenuOpen, noticeDismissPress, openPanel, openPlusRoot, openPlusSubmenu, panelIsOpen, retainTypingFocus, showToast, syncBackButton, togglePanel } from "./panels.js";
 import { dialogFocusables, dismissDialog, finishDialog, focusDialogStart, focusLibraryStart, libraryFocusables, notifyDialog } from "./dialog.js";
 import { commitEditorInput, exec, flashBtn, formatBlock, histRedo, histUndo, insertFeature, syncHistoryButtons, insertHTML, insertHyperlink, insertLinkButton, insertPlainText, insertVisibleLink, requireEditorCore, restoreSel, saveSel, syncEditorSelectionUI } from "./editing.js";
@@ -171,7 +172,7 @@ all('#linkMenu [data-link-kind]').forEach(btn=>btn.addEventListener('click',()=>
 one('#undoBtn').addEventListener('click', ()=>{ if(histUndo())flashBtn(one('#undoBtn')); });
 one('#redoBtn').addEventListener('click', ()=>{ histRedo(); flashBtn(one('#redoBtn')); });
 one('#themeBtn').addEventListener('click',()=>setTheme(document.documentElement.classList.contains('light')?'dark':'light'));
-one('#openAppBtn').addEventListener('click',()=>{if(S.dest==='telegram'&&S.session!=='ready')void openMiniApp();else void publishCurrent();});
+one('#openAppBtn').addEventListener('click',()=>{void publishCurrent();});
 one('#destBtn').addEventListener('click', ()=>setDestination(S.dest === 'telegram' ? 'telegraph' : 'telegram'));
 one('#exportBtn').addEventListener('click', ()=>{
   if(S.session==='pending'){showToast('Aguarde a validação da sessão Telegram');return;}
@@ -189,35 +190,24 @@ one('#importMdBtn').addEventListener('click', ()=>{ fileInput.accept='.md,text/m
 one('#importTxtBtn').addEventListener('click', ()=>{ fileInput.accept='.txt,text/plain'; fileInput.click(); closePanels(); });
 one('#exportTxtBtn').addEventListener('click', ()=>exportFile('txt'));
 one('#exportMdBtn').addEventListener('click', ()=>exportFile('md'));
-one('#mediaBtn').addEventListener('click',()=>{S.mediaChoice=null;one('#mediaInput').accept='image/*,video/*,audio/*,.pdf,.zip';one('#mediaInput').click();closePanels();});
-one('#voiceBtn').addEventListener('click',()=>{S.mediaChoice='voice';one('#mediaInput').accept='audio/*,.ogg,.oga,.opus';one('#mediaInput').click();closePanels();});
-one('#mediaInput').addEventListener('change',async()=>{
-  const input=one('#mediaInput'),files=[...(input.files||[])];
-  input.value='';
-  const requestedKind=S.mediaChoice;
-  S.mediaChoice=null;
-  if(!files.length)return;
-  const currentMedia=[...editor.querySelectorAll('img,video,audio,tg-document')].filter(node=>!(node.localName==='img'&&/^tg:\/\/emoji\?id=\d+$/.test(node.getAttribute('src')||''))).length;
-  if(currentMedia+files.length>50){showToast('O Telegram aceita no máximo 50 mídias por mensagem');return;}
-  for(const file of files){
-    let kind=requestedKind;
-    if(kind==='voice'&&!file.type.startsWith('audio/')){showToast('Escolha arquivos de áudio para mensagens de voz');continue;}
-    if(!kind)kind=file.type.startsWith('image/')?'image':file.type.startsWith('video/')?'video':file.type.startsWith('audio/')?'audio':'document';
-    const limit=telegramUploadLimit(kind);
-    if(file.size>limit){showToast(kind==='image'?'Fotos podem ter até 10 MB':'Arquivos podem ter até 50 MB');continue;}
-    const id=crypto.randomUUID().replace(/-/g,'');
-    const tag={image:'img',video:'video',audio:'audio',voice:'audio',document:'tg-document'}[kind];
-    try{
-      insertHTML('<figure><'+tag+' data-media-id="'+id+'"></'+tag+'><figcaption>'+escapeHTML(file.name)+'</figcaption></figure>',true);
-      await installMedia(file,id,kind);
-    }catch(err){
-      mediaNode(id)?.closest('figure')?.remove();
-      try{await mediaDelete(id);}catch{}
-      showToast(err.message||'Não foi possível salvar um anexo');
-    }
-  }
-  saveLocal();
-});
+// Anexo = mídia que o usuário enviou ao bot (o Telegram só aceita file_id existente no envio).
+async function attachBotMedia(kinds){
+  closePanels();
+  try{
+    const {media}=await call('mediaList');
+    const used=new Set([...editor.querySelectorAll('[data-media-id]')].map(node=>node.getAttribute('data-media-id')));
+    if(used.size>=50){showToast('O Telegram aceita no máximo 50 mídias por mensagem');return;}
+    const item=media.find(entry=>kinds.includes(entry.kind)&&!used.has(entry.id));
+    if(!item){showToast('Envie a mídia ao bot, no chat, e toque aqui de novo');return;}
+    const tag={image:'img',video:'video',audio:'audio',voice:'audio',document:'tg-document'}[item.kind];
+    insertHTML('<figure><'+tag+' data-media-id="'+item.id+'"></'+tag+'><figcaption>'+escapeHTML(item.name||'')+'</figcaption></figure>',true);
+    S.mediaFiles.set(item.id,{id:item.id,kind:item.kind});
+    saveLocal();
+    showToast('Última mídia enviada ao bot anexada');
+  }catch(err){showToast(err.message||'Não foi possível anexar a mídia');}
+}
+one('#mediaBtn').addEventListener('click',()=>void attachBotMedia(['image','video','audio','document']));
+one('#voiceBtn').addEventListener('click',()=>void attachBotMedia(['voice']));
 one('#libraryBtn')?.addEventListener('click',()=>openLibrary());
 one('#libraryClose')?.addEventListener('click',closeLibrary);
 one('#libraryNew')?.addEventListener('click',()=>{if(storageBlocked())closePanels();void createNewDocumentLaunch();});
@@ -250,29 +240,35 @@ one('#replaceAll').addEventListener('click',()=>{
   const count=term?requireEditorCore().replaceAllLiteral(term,replace):0;
   showToast(count+' substituições');
 });
+async function importText(fileName,text){
+  if(!/\.(md|txt)$/i.test(fileName)) throw new Error('Escolha um arquivo Markdown ou TXT');
+  const normalized=text.replace(/^\uFEFF/,'');
+  const html = /\.md$/i.test(fileName) ? mdToBasicHTML(normalized) : '<p>'+escapeHTML(normalized).replace(/\n/g,'<br>')+'</p>';
+  const nextName=fileName.replace(/\.(md|txt)$/i,'').slice(0,256);
+  clearRuntimeMedia();
+  docName.value=nextName;
+  if(!S.editorCore)throw new Error('Núcleo de edição indisponível');
+  S.editorCore.resetHTML(html,{silent:true});
+  S.importedMd=/\.md$/i.test(fileName)?normalized:'';
+  S.importedTxt=/\.txt$/i.test(fileName)?normalized:'';
+  S.importedHtml=requireEditorCore().html();
+  advanceDocumentGeneration();
+  S.telegraphPath='';S.docId=crypto.randomUUID();S.docRevision=0;S.savedRange=null;
+  decorateSpecials();saveLocal();closePanels();syncEditorSelectionUI();
+}
 fileInput.addEventListener('change', async ()=>{
   const file = fileInput.files?.[0]; if(!file) return;
-  try{
-    if(!/\.(md|txt)$/i.test(file.name)) throw new Error('Escolha um arquivo Markdown ou TXT');
-    const text = await file.text();
-    const normalized=text.replace(/^\uFEFF/,'');
-    const html = /\.md$/i.test(file.name) ? mdToBasicHTML(normalized) : '<p>'+escapeHTML(normalized).replace(/\n/g,'<br>')+'</p>';
-    const nextName=file.name.replace(/\.(md|txt)$/i,'').slice(0,256);
-    const priorMediaIds=[...S.mediaFiles.keys()];
-    for(const id of priorMediaIds)await mediaDelete(id);
-    clearRuntimeMedia();
-    docName.value=nextName;
-    if(!S.editorCore)throw new Error('Núcleo de edição indisponível');
-    S.editorCore.resetHTML(html,{silent:true});
-    S.importedMd=/\.md$/i.test(file.name)?normalized:'';
-    S.importedTxt=/\.txt$/i.test(file.name)?normalized:'';
-    S.importedHtml=requireEditorCore().html();
-    advanceDocumentGeneration();
-    S.telegraphPath='';S.docId=crypto.randomUUID();S.docRevision=0;S.savedRange=null;
-    decorateSpecials();saveLocal();closePanels();syncEditorSelectionUI();
-  }catch(err){ showToast(err.message || 'Não foi possível importar o arquivo'); }
+  try{ await importText(file.name,await file.text()); }
+  catch(err){ showToast(err.message || 'Não foi possível importar o arquivo'); }
   fileInput.value='';
 });
+function consumeImportParam(){
+  let value='';
+  try{value=new URL(location.href).searchParams.get('import')||'';}catch{}
+  if(!/^\d+$/.test(value))return 0;
+  try{const url=new URL(location.href);url.searchParams.delete('import');history.replaceState(history.state,'',url.href);}catch{}
+  return Number(value);
+}
 if(window.visualViewport){
   window.visualViewport.addEventListener('resize',scheduleBrowserViewport);
   window.visualViewport.addEventListener('scroll',scheduleBrowserViewport);
@@ -287,7 +283,7 @@ export function boot(){
   if(typeof factory!=='function')throw new Error('Núcleo de edição indisponível');
   S.editorCore=factory({
     element:editor,
-    onChange:()=>{markDirty();restoreActiveMediaVisual();syncHistoryButtons();},
+    onChange:()=>{markDirty();syncHistoryButtons();},
     onSelectionChange:()=>queueMicrotask(syncEditorSelectionUI)
   });
 
@@ -296,6 +292,7 @@ export function boot(){
   const botLaunch=consumeBotLaunchAction();
   const requestedDoc=botLaunch?'':consumeLaunchDocument();
   const requestedDest=consumeLaunchDestination();
+  const requestedImport=consumeImportParam();
   const newToken=consumeNewDocumentToken();
   if(newToken){
     try{preservedPrevious=startRequestedNewDocument(newToken);createdNew=true;}
@@ -319,14 +316,19 @@ export function boot(){
   const blocked=storageBlocked();
   if(blocked)void notifyDialog(STORAGE_BLOCKED_NOTICE);
   else if(notice)showToast(notice);
-  const recoverVolume=!createdNew&&!loadedLocal&&!handoffToken()&&remoteDraftsAvailable();
+  const recoverVolume=!createdNew&&!loadedLocal&&remoteDraftsAvailable();
   if(recoverVolume)editor.setAttribute('contenteditable','false');
   void (async()=>{
     try{
       if(recoverVolume)await recoverPersistentDraft();
-      await restoreMedia();
       await verifyTelegram();
       if(botLaunch)await runBotLaunchAction(botLaunch);
+      if(requestedImport){
+        const opened=await call('importOpen',{id:requestedImport});
+        archiveStoredDraftForNew(String(requestedImport));
+        await importText(opened.fileName,opened.text);
+        showToast('Arquivo importado aberto como novo documento');
+      }
       if(requestedDoc){
         const loaded=await loadRemoteDraft(requestedDoc);
         if(!loaded)throw new Error('O rascunho selecionado não foi encontrado para esta conta Telegram');

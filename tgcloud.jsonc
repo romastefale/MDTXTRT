@@ -1,0 +1,7 @@
+{
+  // Mini App hospedado pela plataforma em https://app<app_id>.tgcloud.ai/ — gerado por `npm run build`.
+  "static": {
+    "source": "dist"
+  },
+  "$schema": "./node_modules/@tgcloud/cli/schema/tgcloud.json"
+}

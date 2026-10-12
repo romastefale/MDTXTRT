@@ -1,7 +1,6 @@
 
 import { S } from "./state.js";
 import { all, editor, linkBtn, one, ui } from "./dom.js";
-import { restoreActiveMediaVisual } from "./media.js";
 import { closePanels, panelIsOpen, showToast } from "./panels.js";
 import { approve, ask } from "./dialog.js";
 import { escapeHTML } from "./convert.js";
@@ -23,8 +22,8 @@ export function restoreSel(){
   if(current){S.savedRange=current;core.rememberSelection?.();return true;}
   return S.savedRange?core.restoreSelection(S.savedRange):false;
 }
-export function histUndo(){const done=requireEditorCore().undo();if(done){restoreActiveMediaVisual();syncEditorSelectionUI();}return done;}
-export function histRedo(){if(requireEditorCore().redo()){restoreActiveMediaVisual();syncEditorSelectionUI();}}
+export function histUndo(){const done=requireEditorCore().undo();if(done){syncEditorSelectionUI();}return done;}
+export function histRedo(){if(requireEditorCore().redo()){syncEditorSelectionUI();}}
 export function expandWord(){
   const sel = window.getSelection();
   if(!sel || !sel.rangeCount || !sel.isCollapsed) return;

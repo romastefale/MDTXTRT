@@ -2,8 +2,6 @@
 import { S } from "./state.js";
 import { PORTABLE_ATTRS, PORTABLE_TAGS } from "./constants.js";
 import { docName, editor } from "./dom.js";
-import { getTg } from "./theme.js";
-import { browserOwnerKey } from "./draft.js";
 import { requireEditorCore } from "./editing.js";
 
 export function escapeHTML(s){ return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
@@ -160,8 +158,7 @@ export function buildRich(){
 export function buildTelegraph(){
   const title=docName.value.trim();
   if(!title) throw new Error('Dê um nome à página antes de publicar');
-  const identity=S.session==='ready'?{initData:getTg().initData}:{browserKey:browserOwnerKey()};
-  return {title, content: telegraphNodes(editor), path: S.telegraphPath, doc: S.docId, revision: S.docRevision, ...identity};
+  return {title, content: telegraphNodes(editor), path: S.telegraphPath, doc: S.docId, revision: S.docRevision};
 }
 export function exportDocumentHTML(){
   return S.exportOverride?.html??requireEditorCore().html();
