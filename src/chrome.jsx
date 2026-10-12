@@ -603,9 +603,6 @@ function InsertSection({ section }) {
 function PlusMenu() {
   return (
     <GlassContextMenu id="plusMenu" className="wide-menu insert-sheet" anchorId="plusBtn" placement="top">
-      <div className="tools document-tools" data-field-label="Nome do documento">
-        <input id="docName" defaultValue="Ideia" aria-label="Nome do documento" maxLength={256} />
-      </div>
       <div className="menu-list insert-body">
         {plusSections.map(section => <InsertSection key={section.id} section={section} />)}
       </div>
@@ -874,7 +871,12 @@ function DocBlock() {
   const destName = dest === "telegram" ? "Telegram" : "Telegraph";
   return (
     <div className="doc-block">
-      <div className="doc-title" id="docTitle">{title || "Sem título"}</div>
+      <div className="doc-title-host" id="docTitleHost">
+        <div className="tools document-tools" data-field-label="Título do documento">
+          <input id="docName" defaultValue="Ideia" aria-label="Título do documento" placeholder="Título do documento" maxLength={256} />
+        </div>
+      </div>
+      <button type="button" className="doc-title-mirror" id="docTitleMirror" aria-label="Editar o título da página">{title || "Sem título"}</button>
       <div className="doc-sub">
         <button
           type="button"

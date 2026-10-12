@@ -184,6 +184,8 @@ one('#exportBtn').addEventListener('click', ()=>{
   togglePanel('#exportMenu',one('#exportBtn'));
 });
 docName.addEventListener('input',markDirty);
+docName.addEventListener('keydown',event=>{if(event.key==='Enter'&&S.dest==='telegram'){event.preventDefault();docName.blur();}});
+one('#docTitleMirror').addEventListener('click',()=>{one('#scroll')?.scrollTo?.({top:0});docName.focus();});
 one('#importMdBtn').addEventListener('click', ()=>{ fileInput.accept='.md,text/markdown'; fileInput.click(); closePanels(); });
 one('#importTxtBtn').addEventListener('click', ()=>{ fileInput.accept='.txt,text/plain'; fileInput.click(); closePanels(); });
 one('#exportTxtBtn').addEventListener('click', ()=>exportFile('txt'));
