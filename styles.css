@@ -109,8 +109,8 @@ html.light{
   --telegraph-link-rule:rgba(0,0,0,.7);
   --telegraph-placeholder:rgba(0,0,0,.44);
   --glass:rgba(238,240,245,.3);
-  --glass-panel:rgba(238,240,245,.3);
-  --blur-panel:blur(5px) saturate(1.15);
+  --glass-panel:rgba(238,240,245,.46);
+  --blur-panel:blur(9px) saturate(1.15);
   --glass-notice:rgba(242,243,247,.9);
   --glass-strong:rgba(255,255,255,.42);
   --glass-press:rgba(28,28,30,.08);
