@@ -27,6 +27,24 @@ function listPages(title, intro, items, empty) {
   return pages;
 }
 
+const COMMANDS = [
+  { command: 'start', description: 'Abrir o MDTXTRT' },
+  { command: 'app', description: 'Abrir o Mini App' },
+  { command: 'novo', description: 'Criar um documento' },
+  { command: 'rascunhos', description: 'Listar e editar rascunhos salvos' },
+  { command: 'telegraph', description: 'Abrir o editor Telegraph' },
+  { command: 'enviar', description: 'Escolher e enviar um rascunho' },
+  { command: 'exportar', description: 'Escolher e exportar conteúdo' },
+  { command: 'importar', description: 'Importar Markdown ou TXT' },
+  { command: 'ajuda', description: 'Ver os comandos' },
+];
+
+// Configuração idempotente do bot (comandos e botão de menu), feita no /start.
+async function configureBot() {
+  await api.setMyCommands({ commands: COMMANDS, scope: { type: 'all_private_chats' } });
+  await api.setChatMenuButton({ menu_button: { type: 'web_app', text: 'Mini App MDTXTRT', web_app: { url: miniAppUrl() } } });
+}
+
 const HELP = '<h1>Comandos</h1><p><b>/app</b> abre o Mini App.</p><p><b>/novo</b> cria outro documento.</p><p><b>/rascunhos</b> lista os rascunhos e abre o escolhido no Mini App.</p><p><b>/telegraph</b> abre o Mini App no editor Telegraph.</p><p><b>/enviar</b> lista os rascunhos para escolher qual enviar.</p><p><b>/exportar</b> lista rascunhos e publicações para exportar em TXT ou Markdown.</p><p><b>/importar</b> importa um documento .md ou .txt anexado ou respondido.</p>';
 
 async function importFile(message, document) {
@@ -76,6 +94,7 @@ export default async function (message) {
   }
   if (!text || !match) return;
   const owner = message.from?.id ?? chatId;
+  if (command === 'start') await configureBot();
   if (command === 'start' || command === 'app') return void await sendRich(chatId, appMessage('Edite, publique e exporte seus textos do Telegram.'), { replyTo: reply });
   if (command === 'novo') return void await sendRich(chatId, appMessage('Crie outro documento sem substituir o rascunho atual.', { new: crypto.randomUUID() }), { replyTo: reply });
   if (command === 'telegraph') return void await sendRich(chatId, `<h1>Telegraph</h1><p>Abra o Mini App já no editor Telegraph.</p>${button('Abrir editor Telegraph', miniAppUrl({ dest: 'telegraph' }))}`, { replyTo: reply });

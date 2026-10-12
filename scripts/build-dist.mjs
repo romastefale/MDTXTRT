@@ -2,7 +2,7 @@
 import { cpSync, existsSync, mkdirSync, rmSync } from "node:fs";
 
 const FILES = ["index.html", "styles.css", "ui.js", "editor-core.js", "marked.js", "turndown.js", "favicon.svg", "logo.svg", "og.jpg", "x-banner.jpg"];
-const DIRS = ["icons"];
+const DIRS = ["icons", "produto"];
 rmSync("dist", { recursive: true, force: true });
 mkdirSync("dist", { recursive: true });
 for (const name of FILES) {

@@ -1,0 +1,37 @@
+import assert from 'node:assert/strict';
+const sdk = await import('sdk'); import { cpSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+// Cópia do tgcloud/ com MINI_APP_URL preenchida (a original falha de propósito enquanto vazia).
+const dir = mkdtempSync(tmpdir() + '/tgcloud-sim-');
+cpSync(new URL('../../tgcloud/', import.meta.url).pathname, dir, { recursive: true });
+const cfg = dir + '/lib/config.js';
+writeFileSync(cfg, readFileSync(cfg, 'utf8').replace("MINI_APP_URL = ''", "MINI_APP_URL = 'https://app1.tgcloud.ai/'"));
+const C = dir + '/';
+const h = (await import(C + 'handlers/message.js')).default;
+const ep = async (n) => (await import(C + 'endpoints/' + n + '.js')).default;
+const msg = (text, extra = {}) => ({ chat: { id: 7, type: 'private' }, from: { id: 7 }, message_id: 5, text, ...extra });
+const last = () => sdk.calls.filter((c) => c.method === 'sendRichMessage').at(-1).params;
+await h(msg('/app')); assert.match(last().rich_message.html, /type="web_app"[^>]*url="https:\/\/app1\.tgcloud\.ai\/"/); console.log('ok /app');
+await h(msg('/novo')); assert.match(last().rich_message.html, /\?new=[0-9a-f-]{36}/); console.log('ok /novo');
+await h(msg('/rascunhos')); assert.match(last().rich_message.html, /Nenhum rascunho/); console.log('ok /rascunhos vazio');
+await (await ep('draftSave'))({ draft: { version: 2, name: 'A & B', html: '<p>x</p>', dest: 'telegram', telegraphPath: '', docId: '22222222-2222-2222-2222-222222222222', revision: 0, importedMd: '', importedTxt: '', importedHtml: '', media: [] } }, { initData: { user: { id: 7 } } });
+await h(msg('/rascunhos')); assert.match(last().rich_message.html, /Editar · A &amp; B/); assert.match(last().rich_message.html, /doc=2222/); console.log('ok /rascunhos lista');
+await h(msg('/enviar')); assert.match(last().rich_message.html, /botAction=send/); console.log('ok /enviar');
+await h(msg('/exportar')); assert.match(last().rich_message.html, /botAction=export/); console.log('ok /exportar');
+await h(msg('/xyz')); assert.match(last().rich_message.html, /Não conheço/); console.log('ok comando desconhecido');
+await h(msg('', { text: undefined, document: { file_id: 'F1', file_name: 'nota.md', file_size: 10 } })); assert.match(last().rich_message.html, /import=1/); console.log('ok import .md');
+const o = await (await ep('importOpen'))({}, { initData: { user: { id: 7 } } }); assert.equal(o.text, '# Olá\n'); assert.equal(o.fileName, 'nota.md'); console.log('ok importOpen');
+await h(msg('', { text: undefined, document: { file_id: 'F2', file_name: 'x.pdf' } })); assert.match(last().rich_message.html, /Mídia recebida/); console.log('ok .pdf vira mídia, não import');
+await h({ chat: { id: -5, type: 'group' }, from: { id: 7 }, message_id: 1, text: '/app' }); assert.match(last().rich_message.html, /chat privado/); console.log('ok grupo');
+// mídia
+await h(msg('', { text: undefined, photo: [{ file_id: 'S', file_size: 10 }, { file_id: 'BIG', file_size: 99 }] })); assert.match(last().rich_message.html, /Mídia recebida/);
+const ml = await (await ep('mediaList'))({}, { initData: { user: { id: 7 } } }); assert.equal(ml.media.length, 2); assert.ok(ml.media.some((m) => m.kind === 'document')); console.log('ok foto vira mídia (maior tamanho)');
+const mid = ml.media.find((m) => m.kind === 'image').id;
+const dr = { version: 2, name: 'M', html: `<figure><img src="tg://photo?id=${mid}"></figure>`, dest: 'telegram', telegraphPath: '', docId: '33333333-3333-3333-3333-333333333333', revision: 0, importedMd: '', importedTxt: '', importedHtml: '', media: [{ id: mid, kind: 'image' }] };
+const r = await (await ep('telegramPublish'))({ draft: dr, html: dr.html }, { initData: { user: { id: 7 } } });
+const p = last(); assert.deepEqual(p.rich_message.media, [{ id: mid, media: { type: 'photo', media: 'BIG' } }]); console.log('ok publicação com media/file_id');
+const L = await (await ep('draftLoad'))({ doc: dr.docId }, { initData: { user: { id: 7 } } }); assert.equal(L.media[0].id, mid); console.log('ok draftLoad devolve mídia');
+try { await (await ep('telegramPublish'))({ draft: { ...dr, docId: '44444444-4444-4444-4444-444444444444' }, html: '<p>sem</p>' }, { initData: { user: { id: 7 } } }); assert.fail(); } catch (e) { assert.equal(e.parameters.code, 'BAD_MEDIA'); } console.log('ok mídia anexada fora do documento recusada');
+sdk.calls.length = 0; await h(msg('/start'));
+const names = sdk.calls.map((c) => c.method); assert.deepEqual(names.slice(0, 3), ['setMyCommands', 'setChatMenuButton', 'sendRichMessage']);
+assert.equal(sdk.calls[1].params.menu_button.web_app.url, 'https://app1.tgcloud.ai/'); assert.equal(sdk.calls[0].params.commands.length, 9); console.log('ok /start configura comandos e menu');
