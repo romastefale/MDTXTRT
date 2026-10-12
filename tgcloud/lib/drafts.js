@@ -1,7 +1,7 @@
 import { db, EndpointError } from 'sdk';
 import { and, eq, desc } from 'sdk/db';
-import { drafts } from '../schema.js';
-import { DRAFT_MAX_BYTES, HTML_MAX_BYTES, IMPORT_SOURCE_MAX, byteLength, docId } from './common.js';
+import { drafts, media as mediaTable } from '../schema.js';
+import { MEDIA_ID_RE, MEDIA_KINDS, DRAFT_MAX_BYTES, HTML_MAX_BYTES, IMPORT_SOURCE_MAX, byteLength, docId } from './common.js';
 
 // Validação de contrato do rascunho (v2). A validade do HTML Rich é decidida pelo Telegram
 // no envio (BotApiError), não duplicada aqui.
@@ -21,10 +21,15 @@ export function draftChecked(draft) {
     throw new EndpointError('Origem importada do rascunho grande demais', { code: 'TOO_LARGE' });
   }
   if (!Array.isArray(draft.media)) throw new EndpointError('Metadados de mídia inválidos', { code: 'BAD_DRAFT' });
-  if (draft.media.length) {
-    throw new EndpointError('Mídia local ainda não é suportada no armazenamento Serverless', { code: 'MEDIA_UNSUPPORTED' });
+  if (draft.media.length > 50) throw new EndpointError('O Telegram aceita no máximo 50 mídias por mensagem', { code: 'BAD_DRAFT' });
+  const seen = new Set();
+  for (const item of draft.media) {
+    if (!item || typeof item !== 'object' || !MEDIA_ID_RE.test(String(item.id || '')) || !MEDIA_KINDS.includes(item.kind) || seen.has(item.id)) {
+      throw new EndpointError('Metadados de mídia inválidos', { code: 'BAD_DRAFT' });
+    }
+    seen.add(item.id);
   }
-  return { ...draft, docId: docId(draft.docId) };
+  return { ...draft, docId: docId(draft.docId), media: draft.media.map((item) => ({ id: item.id, kind: item.kind })) };
 }
 
 export function rowToDraft(row) {
@@ -39,7 +44,7 @@ export function rowToDraft(row) {
     importedMd: row.importedMd,
     importedTxt: row.importedTxt,
     importedHtml: row.importedHtml,
-    media: [],
+    media: Array.isArray(row.media) ? row.media : [],
   };
 }
 
@@ -51,8 +56,21 @@ export async function latestDraft(owner) {
   return db.select().from(drafts).where(eq(drafts.ownerId, owner)).orderBy(desc(drafts.updatedAt)).limit(1).get();
 }
 
+// Cada mídia do rascunho precisa existir (e ser do dono) na tabela `media`.
+export async function mediaRows(owner, refs) {
+  if (!refs.length) return [];
+  const rows = await db.select().from(mediaTable).where(eq(mediaTable.ownerId, owner));
+  const byId = new Map(rows.map((row) => [row.mediaId, row]));
+  return refs.map((ref) => {
+    const row = byId.get(ref.id);
+    if (!row || row.kind !== ref.kind) throw new EndpointError('Mídia não encontrada: envie o arquivo ao bot novamente', { code: 'MEDIA_MISSING' });
+    return row;
+  });
+}
+
 export async function saveDraft(owner, input) {
   const draft = draftChecked(input);
+  await mediaRows(owner, draft.media);
   const now = Date.now();
   const existing = await getDraft(owner, draft.docId);
   const revision = draft.revision ?? 0;
@@ -61,7 +79,7 @@ export async function saveDraft(owner, input) {
   }
   const values = {
     name: draft.name, dest: draft.dest, revision, telegraphPath: draft.telegraphPath, html: draft.html,
-    importedMd: draft.importedMd, importedTxt: draft.importedTxt, importedHtml: draft.importedHtml, updatedAt: now,
+    importedMd: draft.importedMd, importedTxt: draft.importedTxt, importedHtml: draft.importedHtml, media: draft.media, updatedAt: now,
   };
   if (existing) {
     await db.update(drafts).set(values).where(and(eq(drafts.ownerId, owner), eq(drafts.docId, draft.docId)));

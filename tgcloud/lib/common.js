@@ -1,6 +1,8 @@
 import { EndpointError } from 'sdk';
 
 export const DOC_ID_RE = /^[a-f0-9-]{36}$/i;
+export const MEDIA_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
+export const MEDIA_KINDS = ['image', 'video', 'audio', 'voice', 'document'];
 export const DRAFT_MAX_BYTES = 350_000;
 export const HTML_MAX_BYTES = 160_000;
 export const IMPORT_SOURCE_MAX = 240_000;

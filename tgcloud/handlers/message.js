@@ -1,6 +1,7 @@
 import { api, db } from 'sdk';
 import { desc, eq } from 'sdk/db';
-import { drafts, imports } from '../schema.js';
+import { drafts, imports, media } from '../schema.js';
+import { mediaFromMessage } from '../lib/media.js';
 import { escapeHtml } from '../lib/common.js';
 import { sendRich } from '../lib/chat.js';
 import { miniAppUrl } from '../lib/config.js';
@@ -57,7 +58,17 @@ export default async function (message) {
     if (text && match) await sendRich(chatId, '<p>Abra o chat privado do MDTXTRT para usar o Mini App, importar e exportar arquivos.</p>');
     return;
   }
-  if (message.document && (!caption || command === 'importar')) return importFile(message, message.document);
+  const isText = /\.(md|txt)$/i.test(String(message.document?.file_name || ''));
+  if (message.document && (isText || command === 'importar')) return importFile(message, message.document);
+  const incoming = mediaFromMessage(message);
+  if (incoming && !(command && command !== 'importar')) {
+    if (incoming.size > (incoming.kind === 'image' ? 10_000_000 : 50_000_000)) {
+      return void await sendRich(chatId, '<p>Arquivo acima do limite do Telegram (fotos até 10 MB, demais até 50 MB).</p>', { replyTo: reply });
+    }
+    const mediaId = crypto.randomUUID().replace(/-/g, '');
+    await db.insert(media).values({ ownerId: message.from?.id ?? chatId, mediaId, ...incoming, createdAt: Date.now() });
+    return void await sendRich(chatId, `<h1>Mídia recebida</h1><p>Ela já pode ser anexada a um documento no Mini App.</p>${button('Abrir Mini App', miniAppUrl())}`, { replyTo: reply });
+  }
   if (command === 'importar') {
     const document = message.reply_to_message?.document;
     if (document) return importFile(message, document);

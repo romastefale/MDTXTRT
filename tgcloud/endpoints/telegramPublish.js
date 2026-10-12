@@ -2,7 +2,8 @@ import { db, EndpointError } from 'sdk';
 import { and, eq } from 'sdk/db';
 import { drafts } from '../schema.js';
 import { ownerId } from '../lib/common.js';
-import { getDraft, saveDraft } from '../lib/drafts.js';
+import { getDraft, mediaRows, saveDraft } from '../lib/drafts.js';
+import { richMedia } from '../lib/media.js';
 import { revisionNoticeHtml } from '../lib/chat.js';
 import { sendRich } from '../lib/chat.js';
 
@@ -20,6 +21,7 @@ export default async function (input, ctx) {
   const saved = await saveDraft(owner, input.draft);
   const doc = saved.docId;
   const html = String(input.html || '');
+  const media = richMedia(html, await mediaRows(owner, saved.media || []));
   const prior = (await getDraft(owner, doc)).publication;
   if (prior && (prior.status === 'pending' || prior.status === 'uncertain' || prior.pendingUpdate?.status === 'pending' || prior.pendingUpdate?.status === 'uncertain')) {
     throw new EndpointError(prior.error || prior.pendingUpdate?.error || 'O resultado da publicação anterior é incerto; confira o chat antes de publicar novamente', { code: 'UNCERTAIN' });
@@ -42,7 +44,7 @@ export default async function (input, ctx) {
   }
   let messageId;
   try {
-    messageId = await sendRich(owner, html, { replyTo });
+    messageId = await sendRich(owner, html, { replyTo, media });
   } catch (error) {
     if (prior?.status === 'succeeded') {
       await setPublication(owner, doc, { ...prior, history, pendingUpdate: { status: certain(error) ? 'failed' : 'uncertain', phase: 'content', revision, noticeMessageId, startedAt: Date.now(), error: error.message } });

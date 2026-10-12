@@ -13,6 +13,7 @@ export const drafts = table('drafts', {
   importedMd:   text('imported_md').notNull().default(''),
   importedTxt:  text('imported_txt').notNull().default(''),
   importedHtml: text('imported_html').notNull().default(''),
+  media:        json('media'),                  // [{id, kind}] referências a `media`
   publication:  json('publication'),            // proveniência do envio ao chat (ou null)
   createdAt:    integer('created_at').notNull(),
   updatedAt:    integer('updated_at').notNull(),
@@ -45,4 +46,19 @@ export const imports = table('imports', {
   createdAt:integer('created_at').notNull(),
 }, (t) => ({
   ownerIdx: index('idx_imports_owner').on(t.ownerId, t.createdAt),
+}));
+
+// Mídias enviadas ao bot (file_id do Bot API). Referenciadas nos rascunhos por `mediaId`.
+export const media = table('media', {
+  id:        integer('id').primaryKey({ autoIncrement: true }),
+  ownerId:   integer('owner_id').notNull(),
+  mediaId:   text('media_id').notNull(),
+  kind:      text('kind').notNull(),            // image | video | audio | voice | document
+  fileId:    text('file_id').notNull(),
+  fileName:  text('file_name').notNull().default(''),
+  mime:      text('mime').notNull().default(''),
+  size:      integer('size').notNull().default(0),
+  createdAt: integer('created_at').notNull(),
+}, (t) => ({
+  ownerMedia: uniqueIndex('uidx_media_owner_media').on(t.ownerId, t.mediaId),
 }));

@@ -12,7 +12,7 @@ export default async function (_input, ctx) {
   const byDoc = new Map(rows.map((row) => [row.docId, row]));
   const items = rows.map((row) => ({
     docId: row.docId, name: row.name, dest: row.dest, revision: row.revision, telegraphPath: row.telegraphPath,
-    preview: preview(row.html), createdAt: row.createdAt, updatedAt: row.updatedAt, hasMedia: false,
+    preview: preview(row.html), createdAt: row.createdAt, updatedAt: row.updatedAt, hasMedia: Array.isArray(row.media) && row.media.length > 0,
   }));
   const telegram = rows.filter((row) => row.publication).map((row) => {
     const history = Array.isArray(row.publication.history) ? row.publication.history : [];
