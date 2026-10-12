@@ -29,7 +29,7 @@
   
   --toggle-on:rgba(255,255,255,.16);
   --float:0 10px 28px rgba(30,20,90,.16),0 2px 6px rgba(30,20,90,.08);
-  --blur:blur(6px) saturate(1.15);
+  --blur:blur(5px) saturate(1.15);
   --blur-panel:blur(22px) saturate(1.4);
   --glass-ease:cubic-bezier(.34,1.36,.42,1);
   --glass-edge:0 0 0 var(--rim-w) var(--rim);
@@ -89,15 +89,15 @@ html.light{
   --edge:#8b82e6; --bg-art:url("produto/fundo-claro.svg"); --bg-shade:transparent;
   
   
-  --prominent:rgba(255,255,255,.86);
-  --prominent-rim:rgba(0,0,0,.12);
-  --strategic-ink:#0a0b0d;
-  --strategic-open:rgba(10,11,13,.72);
-  --strategic-open-rim:rgba(0,0,0,.12);
+  --prominent:rgba(24,20,56,.86);
+  --prominent-rim:transparent;
+  --strategic-ink:#fff;
+  --strategic-open:rgba(24,20,56,.96);
+  --strategic-open-rim:transparent;
   --strategic-open-ink:#fff;
   --prominent-shadow:0 1px 2px rgba(20,16,60,.08),0 2px 6px rgba(20,16,60,.08);
   --active-bg:rgba(255,255,255,.9);
-  --toggle-on:rgba(10,11,13,.1);
+  --toggle-on:rgba(238,240,245,.55);
   --muted:color-mix(in srgb,var(--text) 66%,transparent);
   --text:#151515;
   --link:var(--tg-theme-link-color,#2B88D8);
@@ -108,8 +108,8 @@ html.light{
   --telegraph-text:rgba(0,0,0,.8);
   --telegraph-link-rule:rgba(0,0,0,.7);
   --telegraph-placeholder:rgba(0,0,0,.44);
-  --glass:rgba(255,255,255,.5);
-  --glass-panel:rgba(255,255,255,.52);
+  --glass:rgba(238,240,245,.3);
+  --glass-panel:rgba(238,240,245,.5);
   --glass-notice:rgba(242,243,247,.9);
   --glass-strong:rgba(255,255,255,.42);
   --glass-press:rgba(28,28,30,.08);
@@ -136,6 +136,16 @@ body{
 .bg{
   position:fixed;top:var(--vv-top);left:0;width:100%;height:var(--vv-height);z-index:0;pointer-events:none;
   background:linear-gradient(var(--bg-shade),var(--bg-shade)),var(--bg-art) center/100% 100% no-repeat,var(--edge)
+}
+
+html.light .bg{
+  background:
+    radial-gradient(70% 45% at 0% 30%,rgba(255,179,217,.55),rgba(255,179,217,0) 70%),
+    radial-gradient(70% 45% at 100% 38%,rgba(158,203,255,.55),rgba(158,203,255,0) 70%),
+    radial-gradient(70% 40% at 100% 88%,rgba(201,164,255,.5),rgba(201,164,255,0) 70%),
+    radial-gradient(70% 40% at 0% 92%,rgba(143,240,208,.5),rgba(143,240,208,0) 70%),
+    radial-gradient(55% 30% at 50% 60%,rgba(255,225,168,.45),rgba(255,225,168,0) 75%),
+    var(--bg-art) center/100% 100% no-repeat,var(--edge)
 }
 
 .device-gate,.toast{
@@ -298,11 +308,11 @@ html:not([data-dest="telegraph"]) .editor h6{font-size:15px}
 .seg button.is-flash{position:relative}
 .seg button.is-flash::before{
   content:"";position:absolute;inset:0;border-radius:50%;
-  background:var(--glass-strong);box-shadow:var(--glass-edge);z-index:0;animation:flash-out 1.4s ease forwards
+  background:var(--glass-strong);z-index:0;animation:flash-out 1.4s ease forwards
 }
 .seg button.is-flash > *{position:relative;z-index:1}
 
-@keyframes flash-out{0%,35%{background-color:var(--glass-strong);box-shadow:var(--glass-edge)}100%{background-color:transparent;box-shadow:0 0 0 var(--rim-w) transparent}}
+@keyframes flash-out{0%,35%{background-color:var(--glass-strong)}100%{background-color:transparent}}
 .bar > button{position:relative}
 .bar > button.on{background:transparent}
 .bar > button.on::before{
