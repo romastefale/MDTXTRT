@@ -675,3 +675,7 @@ html .seg #undoBtn:active .action-dot{
   --strategic-ink:var(--text);
   --strategic-open:var(--glass-field);--strategic-open-rim:transparent;--strategic-open-ink:var(--text)
 }
+
+/* Digitando: o topo recolhe a linha de destino/status e deixa só o título. */
+html[data-keyboard] .doc-sub{display:none}
+html[data-keyboard] .doc-block{justify-content:center}
