@@ -141,6 +141,8 @@ body{
 
 html.light .bg{
   background:
+    radial-gradient(70% 14% at 42% 17%,rgba(255,196,230,.5),rgba(255,196,230,0) 72%),
+    radial-gradient(70% 14% at 58% 94%,rgba(170,235,215,.5),rgba(170,235,215,0) 72%),
     radial-gradient(34% 22% at 34% 28%,rgba(255,179,217,.5),rgba(255,179,217,0) 72%),
     radial-gradient(34% 22% at 66% 40%,rgba(158,203,255,.5),rgba(158,203,255,0) 72%),
     radial-gradient(34% 20% at 64% 80%,rgba(201,164,255,.45),rgba(201,164,255,0) 72%),
@@ -237,13 +239,13 @@ html:not([data-dest="telegraph"]) .editor h6{font-size:15px}
     transparent 100%
 }
 .fade-top{
-  top:var(--vv-top);height:calc(var(--head-inset) + 50px);
+  top:var(--vv-top);height:calc(var(--head-inset) + 0px);
   --fade-solid:calc(var(--safe-top) + var(--gap));
   background-image:linear-gradient(180deg,var(--fade-ramp))
 }
 .fade-bot{
   top:auto;bottom:calc(var(--vv-bottom) + var(--safe-bottom) - var(--safe-bottom-max));
-  height:calc(var(--foot-inset) + 50px + var(--safe-bottom-max));
+  height:calc(var(--foot-inset) + 0px + var(--safe-bottom-max));
   --fade-solid:calc(var(--safe-bottom-max) + var(--gap));
   background-image:linear-gradient(0deg,var(--fade-ramp))
 }
