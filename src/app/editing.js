@@ -335,6 +335,8 @@ export function syncEditorSelectionUI(){
 export function syncHistoryButtons(core=S.editorCore){
   const undo=one('#undoBtn');
   if(undo&&typeof core?.canUndo==='function')undo.setAttribute('aria-disabled',String(!core.canUndo()));
+  const redo=one('#redoBtn');
+  if(redo&&typeof core?.canRedo==='function')redo.setAttribute('aria-disabled',String(!core.canRedo()));
 }
 export function flashBtn(btn){
   if(!btn) return;

@@ -21,13 +21,20 @@ function viaServerless(serverless,name,input){
 }
 
 // Chamada via HTTP ao servidor do Railway (mesma origem do Mini App): o servidor valida o initData.
-async function viaHttp(name,input,initData){
+async function viaHttp(name,input,initData,unload=false){
   let res;
+  const body=JSON.stringify({initData,input});
+  const bytes=new Blob([body]).size;
+  const url=new URL('api/call/'+encodeURIComponent(name),document.baseURI);
+  // Ao fechar a página só sendBeacon garante o envio; a resposta não existe, então devolve {queued:true}.
+  if(unload&&bytes<60000&&typeof navigator.sendBeacon==='function'&&navigator.sendBeacon(url,new Blob([body],{type:'application/json'})))return {queued:true};
   try{
-    res=await fetch(new URL('api/call/'+encodeURIComponent(name),document.baseURI),{
+    res=await fetch(url,{
       method:'POST',
       headers:{'content-type':'application/json'},
-      body:JSON.stringify({initData,input}),
+      body,
+      // keepalive deixa o salvamento ao fechar a página terminar (limite de 64 KB do navegador).
+      keepalive:bytes<60000,
       signal:AbortSignal.timeout(130000)
     });
   }catch{
@@ -39,10 +46,11 @@ async function viaHttp(name,input,initData){
   return json.result;
 }
 
-export function call(name,input={}){
+// opções.unload: chamada feita ao fechar a página (só tem efeito na rota HTTP).
+export function call(name,input={},options={}){
   const tg=getTg();
   if(!tg?.initData)return Promise.reject(new Error('Abra pelo bot no Telegram'));
   const serverless=tg.Serverless;
   if(serverless&&typeof serverless.call==='function')return viaServerless(serverless,name,input);
-  return viaHttp(name,input,tg.initData);
+  return viaHttp(name,input,tg.initData,Boolean(options.unload));
 }

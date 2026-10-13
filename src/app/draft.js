@@ -144,7 +144,8 @@ export async function persistRemoteDraft(pagehide=false,generation=S.docGenerati
   if(pristineAfterDelete())return false;
   const snapshot=draftState();
   const save=(async()=>{
-    const data=await call('draftSave',{draft:snapshot});
+    const data=await call('draftSave',{draft:snapshot},{unload:pagehide});
+    if(data?.queued)return true;
     if(!currentDocumentGeneration(generation,doc))return false;
     if(data?.draft?.docId!==snapshot.docId||data?.draft?.revision!==snapshot.revision)throw new Error('Confirmação de persistência inválida');
     S.remoteSaveNoticeShown=false;

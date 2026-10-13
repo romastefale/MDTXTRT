@@ -10,6 +10,8 @@ export function keyboardTarget(){
 }
 export function syncBrowserViewport(){
   const root=document.documentElement,frame=fixedFrame(),bounds=frame.bounds;
+  // Digitando (editor ou campo de texto em foco): vale dentro do Telegram, onde data-keyboard nunca é marcado.
+  root.toggleAttribute('data-typing',typingFocusActive());
   if(S.session==='ready'){
     const stable=Number(getTg()?.viewportStableHeight);
     

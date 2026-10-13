@@ -9,7 +9,7 @@ import { api, BotApiError, EndpointError } from './sdk.mjs';
 import { dbFile, flush } from './store.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
-const DIST = resolve(ROOT, 'dist');
+const DIST = resolve(process.env.DIST_DIR || resolve(ROOT, 'dist'));
 const ENDPOINTS = resolve(ROOT, 'tgcloud/endpoints');
 const BODY_MAX = 2_000_000;
 const AUTH_MAX_AGE = 86400;

@@ -298,7 +298,7 @@ html:not([data-dest="telegraph"]) .editor h6{font-size:15px}
 .seg button:active,.bar > button:active{background:var(--glass-press)}
 .top-doc{width:100%;min-width:0}
 .top-doc .seg{width:100%;box-sizing:border-box}
-.doc-block{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:3px;padding:0 4px;text-align:left}
+.doc-block{position:relative;z-index:1;flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:3px;padding:0 4px;text-align:left}
 .doc-title-host{min-width:0}
 .doc-title-host .document-tools{display:block;padding:0;max-width:100%}
 .doc-title-host .document-tools::before{content:none}
@@ -467,7 +467,7 @@ html .bar > button.more.on,html .export[aria-expanded="true"] .action-dot{
 html .seg #undoBtn:active .action-dot{
   --prominent:var(--strategic-open);--prominent-rim:var(--strategic-open-rim);color:var(--strategic-open-ink)
 }
-.seg #undoBtn[aria-disabled="true"]{opacity:.4}
+.seg #undoBtn[aria-disabled="true"],.seg #redoBtn[aria-disabled="true"]{opacity:.4}
 .action-dot{
   width:var(--control-size);height:var(--control-size);border-radius:50%;display:grid;place-items:center;
   position:relative;background:var(--prominent);color:inherit;box-shadow:0 0 0 var(--rim-w) var(--prominent-rim),var(--prominent-shadow)
@@ -678,9 +678,9 @@ html .seg #undoBtn:active .action-dot{
   --strategic-open:var(--glass-field);--strategic-open-rim:transparent;--strategic-open-ink:var(--text)
 }
 
-/* Digitando: o topo recolhe a linha de destino/status e deixa só o título. */
-html[data-keyboard] .doc-sub{display:none}
-html[data-keyboard] .doc-block{justify-content:center}
+/* Digitando (data-typing): o topo recolhe a linha de destino/status e deixa só o título. */
+html[data-typing] .doc-sub{display:none}
+html[data-typing] .doc-block{justify-content:center}
 
 /* Folhas de 3 itens: dividem a largura da barra em 3 colunas */
 #listMenu .insert-grid,#quoteMenu .insert-grid,#linkMenu .insert-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
