@@ -1,6 +1,7 @@
-// URL pública do Mini App hospedado pela plataforma: https://app<app_id>.tgcloud.ai/
-// O app_id é a parte pública do token (app<id>:<secret>). Preencher após o primeiro `tgcloud push`.
-export const MINI_APP_URL = '';
+// URL pública do Mini App. tgcloud: preencha CONFIGURED com https://app<app_id>.tgcloud.ai/ após o primeiro `tgcloud push`.
+// No Railway a URL vem da variável de ambiente MINI_APP_URL (a plataforma tgcloud não tem `process`).
+const CONFIGURED = '';
+export const MINI_APP_URL = CONFIGURED || (typeof process !== 'undefined' && process.env?.MINI_APP_URL) || '';
 
 export function miniAppUrl(params = {}) {
   if (!MINI_APP_URL) throw new Error('MINI_APP_URL não configurada em tgcloud/lib/config.js');

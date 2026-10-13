@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""Publica o MDTXTRT no Telegram Serverless em uma única execução.
+"""Publica o MDTXTRT no Telegram Serverless (tgcloud) em uma única execução.
+
+Alternativa ao Railway, que é o hospedeiro principal (ver DEPLOY.md).
 
 Uso (na raiz do repositório):  python3 deploy.py
 
@@ -45,15 +47,15 @@ def rodar(args, capturar=False, interativo=False):
 
 
 def ler_url_configurada():
-    m = re.search(r"MINI_APP_URL\s*=\s*'([^']*)'", CONFIG.read_text(encoding="utf-8"))
+    m = re.search(r"CONFIGURED\s*=\s*'([^']*)'", CONFIG.read_text(encoding="utf-8"))
     return m.group(1) if m else ""
 
 
 def gravar_url(url):
     texto = CONFIG.read_text(encoding="utf-8")
-    novo, n = re.subn(r"(MINI_APP_URL\s*=\s*)'[^']*'", lambda m: f"{m.group(1)}'{url}'", texto, count=1)
+    novo, n = re.subn(r"(CONFIGURED\s*=\s*)'[^']*'", lambda m: f"{m.group(1)}'{url}'", texto, count=1)
     if n != 1:
-        falhar(f"não achei MINI_APP_URL em {CONFIG}")
+        falhar(f"não achei CONFIGURED em {CONFIG}")
     CONFIG.write_text(novo, encoding="utf-8")
 
 

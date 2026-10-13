@@ -23,11 +23,11 @@ export async function recoverTelegraph(){
   saveLocal();
   return true;
 }
-// O Mini App só funciona dentro do Telegram: sem initData não há sessão. A plataforma valida
-// o initData em cada chamada (401 UNAUTHORIZED), então não há endpoint de sessão.
+// O Mini App só funciona dentro do Telegram: sem initData não há sessão. O backend (plataforma ou
+// servidor do Railway) valida o initData em cada chamada (401 UNAUTHORIZED), então não há endpoint de sessão.
 export async function verifyTelegram(){
   const tg=getTg();
-  if(!tg?.initData||!tg.Serverless){
+  if(!tg?.initData){
     S.session='invalid';
     showToast('Abra o MDTXTRT pelo bot no Telegram');
     return;

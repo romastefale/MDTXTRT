@@ -10,7 +10,8 @@
     "deploy": "npm run build && tgcloud push",
     "status": "tgcloud status",
     "migrate": "tgcloud migrate",
-    "test": "node --import ./tests/tgcloud-sim/register.mjs tests/tgcloud-sim/endpoints.test.mjs && node --import ./tests/tgcloud-sim/register.mjs tests/tgcloud-sim/handler.test.mjs"
+    "test": "node --import ./tests/tgcloud-sim/register.mjs tests/tgcloud-sim/endpoints.test.mjs && node --import ./tests/tgcloud-sim/register.mjs tests/tgcloud-sim/handler.test.mjs && node --import ./railway/register.mjs tests/railway/server.test.mjs",
+    "start": "node --import ./railway/register.mjs server.mjs"
   },
   "engines": {
     "node": "24.21.0"

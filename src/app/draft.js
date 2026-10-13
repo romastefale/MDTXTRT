@@ -159,7 +159,7 @@ export async function persistRemoteDraft(pagehide=false,generation=S.docGenerati
 
 export function remoteDraftsAvailable(){
   const tg=getTg();
-  return Boolean(tg?.initData&&tg.Serverless);
+  return Boolean(tg?.initData);
 }
 export function scheduleRemoteDraftSave(delay=650){
   clearTimeout(S.remoteSaveTimer);

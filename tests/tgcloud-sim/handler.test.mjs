@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 const dir = mkdtempSync(tmpdir() + '/tgcloud-sim-');
 cpSync(new URL('../../tgcloud/', import.meta.url).pathname, dir, { recursive: true });
 const cfg = dir + '/lib/config.js';
-writeFileSync(cfg, readFileSync(cfg, 'utf8').replace("MINI_APP_URL = ''", "MINI_APP_URL = 'https://app1.tgcloud.ai/'"));
+writeFileSync(cfg, readFileSync(cfg, 'utf8').replace("CONFIGURED = ''", "CONFIGURED = 'https://app1.tgcloud.ai/'"));
 const C = dir + '/';
 const h = (await import(C + 'handlers/message.js')).default;
 const ep = async (n) => (await import(C + 'endpoints/' + n + '.js')).default;
