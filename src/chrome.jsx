@@ -911,7 +911,7 @@ function DocBlock() {
   const dest = useUI(state => state.dest);
   const destName = dest === "telegram" ? "Telegram" : "Telegraph";
   const empty = !title || !title.trim();
-  const shown = empty ? (dest === "telegraph" ? "Dê um título à página" : "Sem título") : title.trim();
+  const shown = empty ? (dest === "telegraph" ? "Adicionar título" : "Sem título") : title.trim();
   useFittedTitle(mirror, shown, [shown]);
   return (
     <div className="doc-block">
