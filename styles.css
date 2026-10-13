@@ -322,7 +322,6 @@ html[data-dest="telegraph"] .doc-title-host{display:none}
   background:var(--toggle-on);color:var(--text);font-family:inherit;font-weight:600;font-size:11px;line-height:1
 }
 .seg .dest-chip .ui-icon{width:10px;height:10px;transform:rotate(90deg)}
-.seg .export[aria-expanded="true"]{background:var(--toggle-on)}
 .seg button.is-flash{position:relative}
 .seg button.is-flash::before{
   content:"";position:absolute;inset:0;border-radius:50%;
@@ -663,3 +662,7 @@ html .seg #undoBtn:active .action-dot{
 .insert-grid .sheet-ico .ui-icon{width:22px;height:22px}
 .insert-grid > button:active .sheet-ico{background:var(--glass-press)}
 @media (hover:hover){.insert-grid > button:hover .sheet-ico{background:var(--glass-strong)}}
+
+/* Botão do menu (☰): pastilha de vidro esmaecida, como os botões de vidro do HTML */
+.seg button.export{background:var(--glass-field-soft)}
+.seg button.export[aria-expanded="true"]{background:var(--glass-field)}
