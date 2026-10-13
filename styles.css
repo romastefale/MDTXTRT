@@ -321,8 +321,9 @@ html[data-dest="telegraph"] .doc-title-host{display:none}
 .doc-meta{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .seg .dest-chip{
   width:auto;height:18px;flex:0 0 auto;border-radius:9px;padding:0 5px 0 7px;display:inline-flex;align-items:center;gap:2px;
-  background:var(--toggle-on);color:var(--text);font-family:inherit;font-weight:600;font-size:11px;line-height:1
+  background:var(--glass-field-soft);color:var(--text);font-family:inherit;font-weight:600;font-size:11px;line-height:1
 }
+.seg .dest-chip:active{background:var(--glass-field)}
 .seg .dest-chip .ui-icon{width:10px;height:10px;transform:rotate(90deg)}
 .seg button.is-flash{position:relative}
 .seg button.is-flash::before{
