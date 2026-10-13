@@ -86,7 +86,7 @@ html.tg-shell{
   --safe-bottom-max:0px;
 }
 html.light{
-  --edge:#8b82e6; --bg-art:url("produto/fundo-claro.svg"); --bg-shade:transparent;
+  --edge:#d9d2f6; --bg-art:url("produto/fundo-claro.svg"); --bg-shade:transparent;
   
   
   --prominent:rgba(24,20,56,.86);
@@ -223,7 +223,7 @@ html:not([data-dest="telegraph"]) .editor h6{font-size:15px}
 .seg,.bar{color:var(--text);border-radius:999px}
 
 .fade-top,.fade-bot{
-  position:fixed;left:0;right:0;z-index:20;pointer-events:none;
+  display:none;position:fixed;left:0;right:0;z-index:20;pointer-events:none;
   transform:translateZ(0);backface-visibility:hidden;contain:paint;
   background-repeat:no-repeat;
   --fade-ramp:var(--edge) 0,var(--edge) var(--fade-solid),
