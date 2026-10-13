@@ -2,13 +2,13 @@
 :root{
   
   
-  --edge:#151137;
-  --bg-shade:rgba(6,4,20,.3);
+  --edge:#171a26;
+  --bg-shade:rgba(6,8,14,.3);
   --bg-art:url("produto/fundo-escuro.svg");
   --text:#f5f5f7;
   
-  --glass:rgba(30,26,64,.4);
-  --glass-panel:rgba(18,15,46,.44);
+  --glass:rgba(22,24,32,.4);
+  --glass-panel:rgba(18,20,28,.5);
   
   --glass-notice:rgba(22,22,26,.88);
   --glass-strong:rgba(255,255,255,.12);

@@ -168,7 +168,7 @@ function backdropCanvas(bgRect) {
   canvas.width = w;
   canvas.height = h;
   const ctx = canvas.getContext("2d");
-  const edge = getComputedStyle(document.documentElement).getPropertyValue("--edge").trim() || "#151137";
+  const edge = getComputedStyle(document.documentElement).getPropertyValue("--edge").trim() || "#171a26";
   ctx.fillStyle = edge;
   ctx.fillRect(0, 0, w, h);
   ctx.drawImage(backdrop.img, 0, 0, w, h);

@@ -31,7 +31,7 @@ export function syncBrowserChrome(mode,color){
 
 
 
-const EDGE_FALLBACK={light:'#8b82e6',dark:'#151137'};
+const EDGE_FALLBACK={light:'#8b82e6',dark:'#171a26'};
 function hexColor(value){
   const v=String(value||'').trim().toLowerCase();
   if(/^#[0-9a-f]{6}$/.test(v))return v;
