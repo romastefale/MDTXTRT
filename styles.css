@@ -663,6 +663,12 @@ html .seg #undoBtn:active .action-dot{
 .insert-grid > button:active .sheet-ico{background:var(--glass-press)}
 @media (hover:hover){.insert-grid > button:hover .sheet-ico{background:var(--glass-strong)}}
 
-/* Botões neutros: pastilha de vidro esmaecida, como os botões de vidro do HTML (＋ e publicar seguem em tinta) */
-.seg button.export,.seg button#undoBtn,.seg button#redoBtn,.bar > button:not(.more){background:var(--glass-field-soft)}
+/* ☰, ＋ e publicar: pastilhas de vidro esmaecidas, como os botões de vidro do HTML.
+   Os demais botões ficam sem fundo. */
+.seg button.export{background:var(--glass-field-soft)}
 .seg button.export[aria-expanded="true"]{background:var(--glass-field)}
+.bar > button.more,.seg button.strategic{
+  --prominent:var(--glass-field-soft);--prominent-rim:transparent;--prominent-shadow:none;
+  --strategic-ink:var(--text);
+  --strategic-open:var(--glass-field);--strategic-open-rim:transparent;--strategic-open-ink:var(--text)
+}
