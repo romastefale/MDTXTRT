@@ -663,6 +663,8 @@ html .seg #undoBtn:active .action-dot{
 .insert-grid > button[hidden]{display:none}
 .insert-grid .sheet-ico{width:48px;height:48px;border-radius:16px;background:var(--glass-field)}
 .insert-grid .sheet-ico .ui-icon{width:22px;height:22px}
+.insert-grid > button.is-current .sheet-ico{background:var(--glass-strong)}
+.insert-grid > button.is-current{background:transparent;font-weight:650}
 .insert-grid > button:active .sheet-ico{background:var(--glass-press)}
 @media (hover:hover){.insert-grid > button:hover .sheet-ico{background:var(--glass-strong)}}
 
@@ -679,3 +681,6 @@ html .seg #undoBtn:active .action-dot{
 /* Digitando: o topo recolhe a linha de destino/status e deixa só o título. */
 html[data-keyboard] .doc-sub{display:none}
 html[data-keyboard] .doc-block{justify-content:center}
+
+/* Folhas de 3 itens: dividem a largura da barra em 3 colunas */
+#listMenu .insert-grid,#quoteMenu .insert-grid,#linkMenu .insert-grid{grid-template-columns:repeat(3,minmax(0,1fr))}

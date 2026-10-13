@@ -445,53 +445,53 @@ function GlassControl({ className = "", children, style, ...props }) {
 
 function LinkMenu() {
   return (
-    <GlassContextMenu id="linkMenu" anchorId="linkBtn" placement="top">
-      <div className="menu-list">
+    <GlassContextMenu id="linkMenu" className="wide-menu insert-sheet" anchorId="linkBtn" placement="top">
+      <div className="menu-list insert-body"><div className="insert-grid">
         <MenuItem icon="link" data-link-kind="hyperlink">Hiperlink</MenuItem>
         <MenuItem icon="link" data-link-kind="url">Link</MenuItem>
         <MenuItem icon="buttons" data-link-kind="button" data-telegram-only="">Botão com link</MenuItem>
-      </div>
+      </div></div>
     </GlassContextMenu>
   );
 }
 
 function HeadingMenu() {
   return (
-    <GlassContextMenu id="headingMenu" className="heading-menu" anchorId="headingBtn" placement="top">
-      <div className="menu-list heading-list">
-        <MenuItem icon="h1" className="h-opt h1" data-block="h1" currentKey="h1" hideOnTelegraph>Título H1</MenuItem>
-        <MenuItem icon="h2" className="h-opt h2" data-block="h2" currentKey="h2" hideOnTelegraph>Título H2</MenuItem>
-        <MenuItem icon="h3" className="h-opt h3" data-block="h3" currentKey="h3">Título H3</MenuItem>
-        <MenuItem icon="h4" className="h-opt h4" data-block="h4" currentKey="h4">Título H4</MenuItem>
-        <MenuItem icon="h5" className="h-opt h5" data-block="h5" currentKey="h5" hideOnTelegraph>Título H5</MenuItem>
-        <MenuItem icon="h6" className="h-opt h6" data-block="h6" currentKey="h6" hideOnTelegraph>Título H6</MenuItem>
+    <GlassContextMenu id="headingMenu" className="heading-menu wide-menu insert-sheet" anchorId="headingBtn" placement="top">
+      <div className="menu-list insert-body"><div className="insert-grid">
+        <MenuItem icon="h1" data-block="h1" currentKey="h1" hideOnTelegraph>Título H1</MenuItem>
+        <MenuItem icon="h2" data-block="h2" currentKey="h2" hideOnTelegraph>Título H2</MenuItem>
+        <MenuItem icon="h3" data-block="h3" currentKey="h3">Título H3</MenuItem>
+        <MenuItem icon="h4" data-block="h4" currentKey="h4">Título H4</MenuItem>
+        <MenuItem icon="h5" data-block="h5" currentKey="h5" hideOnTelegraph>Título H5</MenuItem>
+        <MenuItem icon="h6" data-block="h6" currentKey="h6" hideOnTelegraph>Título H6</MenuItem>
         <MenuItem icon="paragraph" data-block="p" currentKey="p">Corpo</MenuItem>
-        <MenuItem icon="footer" className="h-opt footer" data-block="footer" currentKey="footer" hideOnTelegraph>Rodapé</MenuItem>
-      </div>
+        <MenuItem icon="footer" data-block="footer" currentKey="footer" hideOnTelegraph>Rodapé</MenuItem>
+      </div></div>
     </GlassContextMenu>
   );
 }
 
 function ListMenu() {
   return (
-    <GlassContextMenu id="listMenu" anchorId="listBtn" placement="top">
-      <div className="menu-list">
+    <GlassContextMenu id="listMenu" className="wide-menu insert-sheet" anchorId="listBtn" placement="top">
+      <div className="menu-list insert-body"><div className="insert-grid">
         <MenuItem icon="list" data-cmd="insertUnorderedList">Lista com marcadores</MenuItem>
         <MenuItem icon="format_list_numbered" data-insert="ordered">Lista ordenada</MenuItem>
         <MenuItem icon="task" data-insert="task" data-telegram-only="">Checklist</MenuItem>
-      </div>
+      </div></div>
     </GlassContextMenu>
   );
 }
 
 function QuoteMenu() {
   return (
-    <GlassContextMenu id="quoteMenu" anchorId="quoteBtn" placement="top">
-      <div className="menu-list">
+    <GlassContextMenu id="quoteMenu" className="wide-menu insert-sheet" anchorId="quoteBtn" placement="top">
+      <div className="menu-list insert-body"><div className="insert-grid">
         <MenuItem icon="quote" data-block="blockquote" currentKey="blockquote">Citação</MenuItem>
         <MenuItem icon="pullquote" data-insert="pullquote" currentKey="pullquote">Citação em destaque</MenuItem>
         <MenuItem icon="expandquote" data-insert="expandquote" currentKey="expandquote" hideOnTelegraph>Citação expansível</MenuItem>
-      </div>
+      </div></div>
     </GlassContextMenu>
   );
 }
