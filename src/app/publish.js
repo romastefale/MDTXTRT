@@ -1,7 +1,7 @@
 
 import { S } from "./state.js";
 import { FORMAT_CONTRACT } from "./constants.js";
-import { editor, one, ui } from "./dom.js";
+import { docName, editor, one, ui } from "./dom.js";
 import { applyAssets } from "./theme.js";
 import { bumpDocumentRevision, draftState, requestMatchesDocument, saveLocal } from "./draft.js";
 import { call } from "./serverless.js";
@@ -52,6 +52,11 @@ export async function exportFile(format) {
 
 export async function publishCurrent(){
   if(S.busy)return;
+  if(S.dest==='telegraph'&&!docName.value.trim()){
+    one('#scroll')?.scrollTo?.({top:0});docName.focus();
+    showToast('O Telegraph precisa de um título');
+    return;
+  }
   S.busy=true;one('#exportBtn').disabled=true;one('#publishBtn').disabled=true;
   try{if(S.dest==='telegram')await publishTelegram();else await publishTelegraph();}
   finally{S.busy=false;one('#exportBtn').disabled=false;one('#publishBtn').disabled=false;}

@@ -305,12 +305,15 @@ html:not([data-dest="telegraph"]) .editor h6{font-size:15px}
   color:var(--text);font-family:inherit;font-size:15px;font-weight:700;line-height:1.1;text-overflow:ellipsis;caret-color:var(--link);outline:0
 }
 .doc-block .doc-title-host .document-tools input::placeholder{color:var(--muted);opacity:1}
-.doc-title-mirror{display:none}
+.doc-title-host{position:absolute;width:1px;height:1px;margin:0;padding:0;opacity:0;overflow:hidden;pointer-events:none}
+.doc-title-host:focus-within{position:static;width:auto;height:auto;opacity:1;overflow:visible;pointer-events:auto}
+.doc-title-host:focus-within + .doc-title-mirror{display:none}
 html[data-dest="telegraph"] .doc-title-host{display:none}
-html[data-dest="telegraph"] .seg .doc-title-mirror{
-  display:block;width:100%;height:auto;border:0;border-radius:0;background:transparent;padding:0;text-align:left;color:var(--text);
-  font-family:inherit;font-size:15px;font-weight:700;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis
+.seg .doc-title-mirror{
+  display:block;width:100%;height:auto;min-width:0;border:0;border-radius:0;background:transparent;padding:0;text-align:left;color:var(--text);
+  font-family:inherit;font-size:15px;font-weight:700;line-height:1.1;white-space:nowrap;overflow:hidden
 }
+.seg .doc-title-mirror[data-empty]{color:var(--muted);font-weight:600}
 .doc-title{font-size:15px;font-weight:700;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text)}
 .doc-sub{display:flex;align-items:center;gap:6px;min-width:0;font-size:11px;line-height:1;color:var(--muted)}
 .doc-meta{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}

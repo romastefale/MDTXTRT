@@ -864,11 +864,55 @@ function AnchorButton({ id, icon, ...props }) {
   );
 }
 
+let measureCanvas = null;
+function textWidth(text, font) {
+  if (!measureCanvas) measureCanvas = document.createElement("canvas");
+  const context = measureCanvas.getContext("2d");
+  context.font = font;
+  return context.measureText(text).width;
+}
+
+// Título do topo: se não couber, corta na última palavra inteira que cabe e põe reticências.
+export function fitTitle(text, width, font) {
+  if (!text || !(width > 0) || textWidth(text, font) <= width) return text;
+  const words = text.split(/\s+/);
+  while (words.length > 1 && textWidth(words.join(" ") + "…", font) > width) words.pop();
+  let out = words.join(" ");
+  if (textWidth(out + "…", font) > width) {
+    // uma única palavra maior que a linha: corta nos caracteres
+    const chars = Array.from(out);
+    while (chars.length > 1 && textWidth(chars.join("") + "…", font) > width) chars.pop();
+    out = chars.join("");
+  }
+  return out + "…";
+}
+
+function useFittedTitle(ref, text, deps) {
+  useLayoutEffect(() => {
+    const node = ref.current;
+    if (!node) return undefined;
+    const apply = () => {
+      const style = getComputedStyle(node);
+      const font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+      node.textContent = fitTitle(text, node.clientWidth, font);
+    };
+    apply();
+    if (typeof ResizeObserver === "undefined") return undefined;
+    const observer = new ResizeObserver(apply);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, deps);
+}
+
 function DocBlock() {
+  const mirror = useRef(null);
   const title = useUI(state => state.docTitle);
   const meta = useUI(state => state.docMeta);
   const dest = useUI(state => state.dest);
   const destName = dest === "telegram" ? "Telegram" : "Telegraph";
+  const empty = !title || !title.trim();
+  const shown = empty ? (dest === "telegraph" ? "Dê um título à página" : "Sem título") : title.trim();
+  useFittedTitle(mirror, shown, [shown]);
   return (
     <div className="doc-block">
       <div className="doc-title-host" id="docTitleHost">
@@ -876,7 +920,7 @@ function DocBlock() {
           <input id="docName" defaultValue="Ideia" aria-label="Título do documento" placeholder="Título do documento" maxLength={256} />
         </div>
       </div>
-      <button type="button" className="doc-title-mirror" id="docTitleMirror" aria-label="Editar o título da página">{title || "Sem título"}</button>
+      <button type="button" className="doc-title-mirror" id="docTitleMirror" ref={mirror} data-empty={empty ? "" : undefined} aria-label={dest === "telegraph" ? "Editar o título da página" : "Editar o título do documento"} title={shown} />
       <div className="doc-sub">
         <button
           type="button"
