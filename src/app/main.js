@@ -171,8 +171,8 @@ all('#linkMenu [data-link-kind]').forEach(btn=>btn.addEventListener('click',()=>
 one('#undoBtn').addEventListener('click', ()=>{ if(histUndo())flashBtn(one('#undoBtn')); });
 one('#redoBtn').addEventListener('click', ()=>{ histRedo(); flashBtn(one('#redoBtn')); });
 one('#themeBtn').addEventListener('click',()=>setTheme(document.documentElement.classList.contains('light')?'dark':'light'));
-// Versão estática: não há publicação; o botão principal abre o menu de exportação (baixar .md/.txt).
-one('#publishBtn').addEventListener('click',()=>{if(STATIC)one('#exportBtn').click();else void publishCurrent();});
+// Versão estática: não há publicação; o botão principal abre o menu de encaminhar/baixar (o ☰ fica com rascunhos e tema).
+one('#publishBtn').addEventListener('click',()=>{if(STATIC)togglePanel('#forwardMenu',one('#publishBtn'));else void publishCurrent();});
 one('#destBtn').addEventListener('click', ()=>setDestination(S.dest === 'telegram' ? 'telegraph' : 'telegram'));
 one('#exportBtn').addEventListener('click', ()=>{
   if(S.session==='pending'){showToast('Aguarde a validação da sessão Telegram');return;}

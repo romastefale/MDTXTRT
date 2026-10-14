@@ -12,7 +12,7 @@ export const FORMAT_CONTRACT=Object.freeze({
   })
 });
 export const plusSubmenus=[];
-export const sheets=['#plusMenu',...plusSubmenus,'#linkMenu','#headingMenu','#quoteMenu','#listMenu','#exportMenu','#libraryMenu','#findMenu'];
+export const sheets=['#plusMenu',...plusSubmenus,'#linkMenu','#headingMenu','#quoteMenu','#listMenu','#exportMenu','#forwardMenu','#libraryMenu','#findMenu'];
 export const THEME_KEY='mdtxtrt-theme';
 export const DRAFT_KEY='rmdtxtml';
 export const DRAFT_ARCHIVE_PREFIX='rmdtxtml-document:';

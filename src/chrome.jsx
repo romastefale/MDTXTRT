@@ -504,21 +504,33 @@ function ExportMenu() {
       <div className="menu-list">
         <MenuItem icon="file" id="libraryBtn">{STATIC_SITE ? "Meus rascunhos" : "Rascunhos e publicações"}</MenuItem>
         <div className="menu-divider" role="separator" />
-        {STATIC_SITE && (
+        {!STATIC_SITE && (
           <>
-            <MenuItem icon="telegram" id="fwdTelegramBtn">Encaminhar ao Telegram</MenuItem>
-            <MenuItem icon="telegraph" id="fwdTelegraphBtn">Encaminhar ao Telegraph</MenuItem>
-            <MenuItem icon="export" id="fwdShareBtn">Compartilhar…</MenuItem>
-            <MenuItem icon="markdown" id="fwdCopyBtn">Copiar Markdown</MenuItem>
+            <MenuItem icon="markdown" id="exportMdBtn">Enviar Markdown no chat</MenuItem>
+            <MenuItem icon="text_fields" id="exportTxtBtn">Enviar TXT no chat</MenuItem>
             <div className="menu-divider" role="separator" />
           </>
         )}
-        <MenuItem icon="markdown" id="exportMdBtn">{STATIC_SITE ? "Baixar Markdown (.md)" : "Enviar Markdown no chat"}</MenuItem>
-        <MenuItem icon="text_fields" id="exportTxtBtn">{STATIC_SITE ? "Baixar texto (.txt)" : "Enviar TXT no chat"}</MenuItem>
-        <div className="menu-divider" role="separator" />
         <MenuItem icon="light_mode" id="themeBtn" aria-label="Ativar modo claro" title="Ativar modo claro">
           <span id="themeLabel">Tema</span>
         </MenuItem>
+      </div>
+    </GlassContextMenu>
+  );
+}
+
+// Versão estática: o botão da direita abre este menu (encaminhar e baixar); o ☰ fica só com rascunhos e tema.
+function ForwardMenu() {
+  return (
+    <GlassContextMenu id="forwardMenu" className="wide-menu export-menu" anchorId="publishBtn" placement="auto">
+      <div className="menu-list">
+        <MenuItem icon="telegram" id="fwdTelegramBtn">Encaminhar ao Telegram</MenuItem>
+        <MenuItem icon="telegraph" id="fwdTelegraphBtn">Encaminhar ao Telegraph</MenuItem>
+        <MenuItem icon="export" id="fwdShareBtn">Compartilhar…</MenuItem>
+        <MenuItem icon="markdown" id="fwdCopyBtn">Copiar Markdown</MenuItem>
+        <div className="menu-divider" role="separator" />
+        <MenuItem icon="markdown" id="exportMdBtn">Baixar Markdown (.md)</MenuItem>
+        <MenuItem icon="text_fields" id="exportTxtBtn">Baixar texto (.txt)</MenuItem>
       </div>
     </GlassContextMenu>
   );
@@ -951,8 +963,9 @@ function DocBlock() {
 
 function PublishButton() {
   const publishLabel = useUI(state => state.publishLabel);
+  const expanded = useAnchorExpanded("publishBtn");
   return (
-    <button type="button" className="strategic" id="publishBtn" aria-label={publishLabel} title={publishLabel}>
+    <button type="button" className="strategic" id="publishBtn" aria-label={publishLabel} title={publishLabel} aria-expanded={expanded}>
       <span className="action-dot"><ChromeLens /><Icon name="export" /></span>
     </button>
   );
@@ -980,6 +993,7 @@ function Chrome() {
       <ListMenu />
       <QuoteMenu />
       <ExportMenu />
+      {STATIC_SITE && <ForwardMenu />}
       <LibrarySubmenu />
       <PlusMenu />
       <input id="fileInput" type="file" accept=".txt,.md,text/plain,text/markdown" hidden />
