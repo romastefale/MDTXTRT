@@ -190,9 +190,27 @@ export function focusMenuControl(element,outsidePanel=null){
 export function usableAnchorRect(rect,bounds){
   return Boolean(rect&&(rect.width>0||rect.height>0)&&rect.right>bounds.left&&rect.left<bounds.right&&rect.bottom>bounds.top&&rect.top<bounds.bottom);
 }
+// Versão estática: cada seção de uma folha reparte os seus itens em linhas equilibradas (6 viram 3+3, 8 viram 4+4,
+// 10 viram 5+5), com a última linha centralizada. Conta só os itens visíveis; roda a cada abertura.
+function sheetColumns(n){
+  if(n<=4)return Math.max(1,n);
+  let best=3,bestScore=Infinity;
+  for(const cols of [3,4,5]){
+    const rows=Math.ceil(n/cols),score=rows*100+(cols*rows-n)*30+(cols===5?150:0);
+    if(score<bestScore){bestScore=score;best=cols;}
+  }
+  return best;
+}
+function balanceSheetGrids(panel){
+  for(const grid of panel.querySelectorAll('.insert-grid')){
+    const n=[...grid.children].filter(el=>!el.hidden&&getComputedStyle(el).display!=='none').length;
+    if(n)grid.style.setProperty('--cols',String(sheetColumns(n)));
+  }
+}
 export function placePanel(panel,anchorRect=null){
   if(!panel)return;
   const id=panel.id;
+  if(STATIC&&panel.classList.contains('insert-sheet'))balanceSheetGrids(panel);
   const frame=fixedFrame(),viewport=frame.bounds,bounds=panelViewportBounds(viewport),edge=8;
   let gap=8;
   const fullHeight=Math.max(0,bounds.height-edge*2);

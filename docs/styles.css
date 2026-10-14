@@ -786,8 +786,9 @@ html[data-static] #exportMenu[data-menu-open],html[data-static] #forwardMenu[dat
 html[data-static] #exportMenu[data-menu-open] .glass-menu-material,html[data-static] #exportMenu[data-menu-open] .glass-menu-content,
 html[data-static] #forwardMenu[data-menu-open] .glass-menu-material,html[data-static] #forwardMenu[data-menu-open] .glass-menu-content{border-radius:var(--r) var(--r) 26px 26px!important}
 html[data-static] #exportMenu[data-menu-open] .glass-menu-content,html[data-static] #forwardMenu[data-menu-open] .glass-menu-content{padding-top:var(--r2)}
-html[data-static] #exportMenu .insert-grid,html[data-static] #forwardMenu .insert-grid{display:flex;gap:4px}
-html[data-static] #exportMenu .insert-grid > button,html[data-static] #forwardMenu .insert-grid > button{flex:1 1 0;min-width:0}
+/* Seções equilibradas (colunas calculadas em placePanel -> --cols); a última linha fica centralizada. */
+html[data-static] .glass-menu.insert-sheet .insert-grid{display:flex;flex-wrap:wrap;justify-content:center;gap:4px}
+html[data-static] .glass-menu.insert-sheet .insert-grid > button{flex:0 0 calc((100% - 4px*(var(--cols,4) - 1))/var(--cols,4));min-width:0}
 /* As barras passam por cima da folha aberta; tocar nelas continua fechando o menu (o toque atravessa até a camada de fechar). */
 html[data-static]:has(.glass-menu.insert-sheet[data-menu-open]) .bar-wrap,html[data-static]:has(.glass-menu.insert-sheet[data-menu-open]) .topbar{z-index:41}
 html[data-static]:has(.glass-menu.insert-sheet[data-menu-open]) :is(.bar-wrap,.topbar),html[data-static]:has(.glass-menu.insert-sheet[data-menu-open]) :is(.bar-wrap,.topbar) *{pointer-events:none!important}
