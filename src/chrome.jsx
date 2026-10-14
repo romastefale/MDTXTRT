@@ -504,6 +504,15 @@ function ExportMenu() {
       <div className="menu-list">
         <MenuItem icon="file" id="libraryBtn">{STATIC_SITE ? "Meus rascunhos" : "Rascunhos e publicações"}</MenuItem>
         <div className="menu-divider" role="separator" />
+        {STATIC_SITE && (
+          <>
+            <MenuItem icon="telegram" id="fwdTelegramBtn">Encaminhar ao Telegram</MenuItem>
+            <MenuItem icon="telegraph" id="fwdTelegraphBtn">Encaminhar ao Telegraph</MenuItem>
+            <MenuItem icon="export" id="fwdShareBtn">Compartilhar…</MenuItem>
+            <MenuItem icon="markdown" id="fwdCopyBtn">Copiar Markdown</MenuItem>
+            <div className="menu-divider" role="separator" />
+          </>
+        )}
         <MenuItem icon="markdown" id="exportMdBtn">{STATIC_SITE ? "Baixar Markdown (.md)" : "Enviar Markdown no chat"}</MenuItem>
         <MenuItem icon="text_fields" id="exportTxtBtn">{STATIC_SITE ? "Baixar texto (.txt)" : "Enviar TXT no chat"}</MenuItem>
         <div className="menu-divider" role="separator" />

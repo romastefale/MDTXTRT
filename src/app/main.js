@@ -13,7 +13,7 @@ import { commitEditorInput, exec, flashBtn, formatBlock, histRedo, histUndo, ins
 import { closeLibrary, consumeLibraryView, openLibrary, setDraftsExpanded, setPublicationsExpanded } from "./library.js";
 import { consumeBotLaunchAction, consumeLaunchDestination, consumeLaunchDocument, runBotLaunchAction } from "./launch.js";
 import { escapeHTML, mdToBasicHTML } from "./convert.js";
-import { exportFile, publishCurrent, setDestination } from "./publish.js";
+import { exportFile, forwardTo, publishCurrent, setDestination } from "./publish.js";
 import { scheduleBrowserViewport, scheduleCaretVisible, syncBrowserViewport } from "./viewport.js";
 import { STORAGE_BLOCKED_NOTICE, storageBlocked, storageGet } from "./storage.js";
 import { STATIC } from "./mode.js";
@@ -191,6 +191,7 @@ one('#docTitleMirror').addEventListener('click',()=>{if(S.dest==='telegraph')one
 one('#importMdBtn').addEventListener('click', ()=>{ fileInput.accept='.md,text/markdown'; fileInput.click(); closePanels(); });
 one('#importTxtBtn').addEventListener('click', ()=>{ fileInput.accept='.txt,text/plain'; fileInput.click(); closePanels(); });
 one('#exportTxtBtn').addEventListener('click', ()=>exportFile('txt'));
+for(const [id,kind] of [['#fwdTelegramBtn','telegram'],['#fwdTelegraphBtn','telegraph'],['#fwdShareBtn','share'],['#fwdCopyBtn','copy']])one(id)?.addEventListener('click',()=>void forwardTo(kind));
 one('#exportMdBtn').addEventListener('click', ()=>exportFile('md'));
 // Anexo = mídia que o usuário enviou ao bot (o Telegram só aceita file_id existente no envio).
 async function attachBotMedia(kinds){

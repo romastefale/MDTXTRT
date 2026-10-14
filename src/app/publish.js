@@ -14,7 +14,7 @@ export function setDestination(value, notify=true, persist=true){
   const changed=S.dest!==value;
   S.dest = value;
   const name = S.dest === 'telegram' ? 'Telegram' : 'Telegraph';
-  const publishLabel=STATIC?'Exportar':'Publicar no '+name;
+  const publishLabel=STATIC?'Encaminhar':'Publicar no '+name;
   
   ui.update({dest:S.dest,publishLabel});
   
@@ -98,4 +98,46 @@ export async function publishTelegraph(){
     if(S.session==='ready'&&typeof getTg()?.openLink==='function')getTg().openLink(result.url,{try_instant_view:true});
     else window.location.assign(result.url);
   }catch(err){ showToast(err.message || 'Não foi possível publicar no Telegraph'); }
+}
+
+// Versão estática: "publicar" vira encaminhar o texto a um destino pelo navegador. Não há token nem servidor:
+// o app só abre o endereço público de compartilhamento do Telegram, o editor do Telegraph (texto copiado) ou o
+// compartilhamento do sistema. Quem confirma o envio é o próprio destino.
+const TELEGRAM_SHARE_LIMIT=3000;
+function forwardText(){
+  const html=exportDocumentHTML();
+  if(!html.trim()||!editor.textContent.trim()&&!editor.querySelector('img,video,hr,table'))throw new Error('Escreva algo antes de encaminhar');
+  return htmlToMarkdown(html);
+}
+async function copyText(text){
+  try{await navigator.clipboard.writeText(text);return true;}catch{return false;}
+}
+export async function forwardTo(kind){
+  let text;
+  try{text=forwardText();}catch(err){showToast(err.message||'Não foi possível preparar o texto');return;}
+  closePanels();
+  if(kind==='copy'){
+    showToast(await copyText(text)?'Markdown copiado':'Não foi possível copiar neste navegador');
+    return;
+  }
+  if(kind==='share'){
+    if(typeof navigator.share!=='function'){showToast('Este navegador não tem compartilhamento do sistema');return;}
+    try{await navigator.share({title:docName.value.trim()||'MDTXTRT',text});}
+    catch(err){if(err?.name!=='AbortError')showToast('Não foi possível compartilhar');}
+    return;
+  }
+  if(kind==='telegram'){
+    const link='https://t.me/share/url?url=%20&text='+encodeURIComponent(text);
+    if(link.length<=TELEGRAM_SHARE_LIMIT){window.open(link,'_blank','noopener');return;}
+    const copied=await copyText(text);
+    window.open('https://t.me/','_blank','noopener');
+    showToast(copied?'Texto longo: copiado. Cole na conversa do Telegram':'Texto longo demais para o link e a cópia falhou');
+    return;
+  }
+  if(kind==='telegraph'){
+    const copied=await copyText(text);
+    window.open('https://telegra.ph/','_blank','noopener');
+    showToast(copied?'Texto copiado. Cole no editor do Telegraph':'Abra o Telegraph e cole o texto (a cópia falhou)');
+    return;
+  }
 }

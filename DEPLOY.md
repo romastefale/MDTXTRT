@@ -9,7 +9,7 @@ O cliente escolhe sozinho: dentro do tgcloud usa `Telegram.WebApp.Serverless.cal
 
 ## Versão estática (GitHub Pages)
 
-Existe também uma versão **sem Telegram e sem servidor**, só arquivos estáticos na pasta `docs/`. Ela guarda os rascunhos no próprio aparelho (`localStorage`), importa `.md`/`.txt` e exporta baixando `.md`/`.txt`. Não publica no Telegram nem no Telegraph, não usa o bot e não faz nenhuma requisição a servidor próprio.
+Existe também uma versão **sem Telegram e sem servidor**, só arquivos estáticos na pasta `docs/`. Ela guarda os rascunhos no próprio aparelho (`localStorage`), importa `.md`/`.txt` e exporta baixando `.md`/`.txt`. Não publica por API, não usa o bot nem token e não faz nenhuma requisição a servidor próprio. O botão **Encaminhar** só entrega o texto aos destinos pelo navegador: abre o compartilhamento do Telegram (`t.me/share/url`; texto longo é copiado para colar), copia o texto e abre o editor do `telegra.ph`, usa o compartilhamento do sistema ou copia o Markdown. Quem confirma o envio é o próprio destino.
 
 Para publicar: no GitHub, **Settings → Pages → Build and deployment → Deploy from a branch**, escolha a branch (por exemplo `migracao-tgcloud` ou `main`) e a pasta **`/docs`**. O endereço fica `https://romastefale.github.io/MDTXTRT/`.
 
