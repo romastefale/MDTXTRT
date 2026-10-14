@@ -515,20 +515,29 @@ function ExportMenu() {
   return (
     <GlassContextMenu id="exportMenu" className="wide-menu insert-sheet" anchorId="exportBtn" placement="bottom">
       <div className="menu-list insert-body">
-        <SheetSection label="Documento">
-          <MenuItem icon="file" id="libraryBtn">{STATIC_SITE ? "Rascunhos" : "Rascunhos e publicações"}</MenuItem>
-        </SheetSection>
-        {!STATIC_SITE && (
-          <SheetSection label="Enviar no chat">
-            <MenuItem icon="markdown" id="exportMdBtn">Markdown</MenuItem>
-            <MenuItem icon="text_fields" id="exportTxtBtn">TXT</MenuItem>
+        {STATIC_SITE ? (
+          <SheetSection label="Menu">
+            <MenuItem icon="file" id="libraryBtn">Rascunhos</MenuItem>
+            <MenuItem icon="light_mode" id="themeBtn" aria-label="Ativar modo claro" title="Ativar modo claro">
+              <span id="themeLabel">Tema</span>
+            </MenuItem>
           </SheetSection>
+        ) : (
+          <>
+            <SheetSection label="Documento">
+              <MenuItem icon="file" id="libraryBtn">Rascunhos e publicações</MenuItem>
+            </SheetSection>
+            <SheetSection label="Enviar no chat">
+              <MenuItem icon="markdown" id="exportMdBtn">Markdown</MenuItem>
+              <MenuItem icon="text_fields" id="exportTxtBtn">TXT</MenuItem>
+            </SheetSection>
+            <SheetSection label="Aparência">
+              <MenuItem icon="light_mode" id="themeBtn" aria-label="Ativar modo claro" title="Ativar modo claro">
+                <span id="themeLabel">Tema</span>
+              </MenuItem>
+            </SheetSection>
+          </>
         )}
-        <SheetSection label="Aparência">
-          <MenuItem icon="light_mode" id="themeBtn" aria-label="Ativar modo claro" title="Ativar modo claro">
-            <span id="themeLabel">Tema</span>
-          </MenuItem>
-        </SheetSection>
       </div>
     </GlassContextMenu>
   );
@@ -878,7 +887,7 @@ function ExportButton() {
   const expanded = useAnchorExpanded("exportBtn");
   return (
     <button type="button" className="export" id="exportBtn" aria-label={EXPORT_LABEL} title={EXPORT_LABEL} aria-expanded={expanded}>
-      <Icon name="menu" />
+      <span className="action-dot"><ChromeLens /><Icon name="menu" /></span>
     </button>
   );
 }

@@ -198,7 +198,10 @@ export function placePanel(panel,anchorRect=null){
   const maxWidth=Math.max(0,bounds.width-edge*2);
   ui.setMenu(id,{positioned:true,maxHeight:baseMax,maxWidth});
   const anchor=panelAnchor(panel);
-  const rect=shiftToFixed(anchorRect||anchor?.getBoundingClientRect()||null,frame);
+  // Folhas (insert-sheet) medem a distância a partir da pílula (barra de baixo ou de cima), não do botão: assim ＋, ☰ e
+  // encaminhar abrem com o mesmo espaço entre a folha e a barra.
+  const pill=panel.classList.contains('insert-sheet')?anchor?.closest?.('.bar,.seg'):null;
+  const rect=shiftToFixed(pill?.getBoundingClientRect()||anchorRect||anchor?.getBoundingClientRect()||null,frame);
   let box=panel.getBoundingClientRect();
   if(id==='dialogMenu'&&!usableAnchorRect(rect,viewport)){
     
@@ -234,12 +237,18 @@ export function placePanel(panel,anchorRect=null){
   else if(preference==='bottom')side=belowSpace>=wanted||belowSpace>=aboveSpace?'bottom':'top';
   else side=aboveSpace>=wanted?'top':belowSpace>=wanted?'bottom':aboveSpace>=belowSpace?'top':'bottom';
   const available=side==='top'?aboveSpace:belowSpace;
-  ui.setMenu(id,{maxHeight:Math.max(0,Math.min(baseMax,available))});
+  const limit=Math.max(0,Math.min(baseMax,available));
+  ui.setMenu(id,{maxHeight:limit});
   box=panel.getBoundingClientRect();
+  // O DOM ainda pode ter a altura de antes do novo limite: a altura real nunca passa do limite aplicado.
+  const boxHeight=Math.min(box.height,limit);
   const minLeft=bounds.left+edge,maxLeft=Math.max(minLeft,bounds.right-edge-box.width);
   const left=clamp(rect.left+rect.width/2-box.width/2,minLeft,maxLeft);
-  const proposed=side==='top'?rect.top-gap-box.height:rect.bottom+gap;
-  const minTop=bounds.top+edge,maxTop=Math.max(minTop,bounds.bottom-edge-box.height);
+  const proposed=side==='top'?rect.top-gap-boxHeight:rect.bottom+gap;
+  // bounds.bottom já deixa 8px acima da barra de baixo; uma folha que abre para cima a partir da própria barra não
+  // precisa de mais 8px de margem, senão ficaria a 16px da barra enquanto as do topo ficam a 8px.
+  const bottomPad=pill&&side==='top'?0:edge;
+  const minTop=bounds.top+edge,maxTop=Math.max(minTop,bounds.bottom-bottomPad-boxHeight);
   ui.setMenu(id,{left,top:clamp(proposed,minTop,maxTop)});
 }
 export function setMenuPanelOpen(panel,open){

@@ -644,8 +644,7 @@ html .seg #undoBtn:active .action-dot{
 .glass-menu.insert-sheet{
   /* mesma largura e mesma família de cantos da barra inferior: lê como uma segunda camada dela */
   --menu-w:calc(100vw - max(var(--bar-side-inset),var(--safe-left)) - max(var(--bar-side-inset),var(--safe-right)));
-  --menu-radius:26px;
-  translate:0 -4px
+  --menu-radius:26px
 }
 .glass-menu.insert-sheet[data-anchor]{left:max(var(--bar-side-inset),var(--safe-left))}
 .bar > button.more .ui-icon{transition:transform .26s var(--glass-ease)}
@@ -670,9 +669,7 @@ html .seg #undoBtn:active .action-dot{
 
 /* ☰, ＋ e publicar: pastilhas de vidro esmaecidas, como os botões de vidro do HTML.
    Os demais botões ficam sem fundo. */
-.seg button.export{background:var(--glass-field-soft)}
-.seg button.export[aria-expanded="true"]{background:var(--glass-field)}
-.bar > button.more,.seg button.strategic{
+.bar > button.more,.seg button.strategic,.seg button.export{
   --prominent:var(--glass-field-soft);--prominent-rim:transparent;--prominent-shadow:none;
   --strategic-ink:var(--text);
   --strategic-open:var(--glass-field);--strategic-open-rim:transparent;--strategic-open-ink:var(--text)
@@ -683,7 +680,7 @@ html[data-typing] .doc-sub{display:none}
 html[data-typing] .doc-block{justify-content:center}
 
 /* Folhas de 3 itens: dividem a largura da barra em 3 colunas */
-#listMenu .insert-grid,#quoteMenu .insert-grid,#linkMenu .insert-grid,#exportMenu .insert-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+#listMenu .insert-grid,#quoteMenu .insert-grid,#linkMenu .insert-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
 
 
 /* Versão estática (GitHub Pages): sem Telegram nem servidor, então saem os controles que dependem do bot. */
@@ -719,3 +716,13 @@ html[data-static] .bg,html[data-static].light .bg{
     :root[data-chrome-sample-refresh] .safari-chrome-sample{height:12px}
   }
 }
+
+/* Versão estática: o mesmo esmaecimento do topo do HTML (da cor da borda para transparente) também embaixo.
+   As camadas .fade-top/.fade-bot já existem; a lente desenha as mesmas rampas na cópia do fundo que refrata. */
+html[data-static] .fade-top,html[data-static] .fade-bot{display:block}
+
+/* Folhas do topo (☰ e encaminhar): estreitas, duas colunas, coladas ao botão que as abre. */
+html[data-static] #exportMenu,html[data-static] #forwardMenu,#exportMenu,#forwardMenu{--menu-w:236px}
+#exportMenu .insert-grid,#forwardMenu .insert-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+.glass-menu.insert-sheet#exportMenu[data-anchor]{left:max(var(--bar-side-inset),var(--safe-left))}
+.glass-menu.insert-sheet#forwardMenu[data-anchor]{left:auto;right:max(var(--bar-side-inset),var(--safe-right))}
