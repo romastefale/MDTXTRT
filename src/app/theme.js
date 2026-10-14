@@ -32,7 +32,7 @@ export function syncBrowserChrome(mode,color){
 
 
 
-const EDGE_FALLBACK=STATIC?{light:'#8b82e6',dark:'#1b1646'}:{light:'#d9d2f6',dark:'#171a26'};
+const EDGE_FALLBACK=STATIC?{light:'#4a78e8',dark:'#0d1838'}:{light:'#d9d2f6',dark:'#171a26'};
 function hexColor(value){
   const v=String(value||'').trim().toLowerCase();
   if(/^#[0-9a-f]{6}$/.test(v))return v;
@@ -73,7 +73,7 @@ export function applyScheme(mode=resolvedTheme()){
   const color=edgeColor(next);
   syncBrowserChrome(next,color);
   const statusMeta=one('#statusBarStyle');
-  // Versão estática: a borda clara é roxa (#8b82e6), então a barra de status fica translúcida/branca nos dois modos.
+  // Versão estática: a borda clara é azul (#4a78e8), então a barra de status fica translúcida/branca nos dois modos.
   if(statusMeta)statusMeta.content=light&&!STATIC?'default':'black-translucent';
   const btn=one('#themeBtn');
   if(btn){

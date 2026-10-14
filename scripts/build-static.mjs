@@ -37,9 +37,9 @@ if (!html.includes(TELEGRAM_SCRIPT)) throw new Error("Script do Telegram não en
 html = html.replace(TELEGRAM_SCRIPT, "<script>window.MDTXTRT_STATIC=true;document.documentElement.setAttribute('data-static','')</script>");
 html = html.replace('content="Editor de texto para Telegram e Telegraph."', 'content="Editor de texto com Markdown, direto no navegador. Os rascunhos ficam no seu aparelho."');
 html = html.replace('content="Editor de texto para Telegram e Telegraph"', 'content="Editor de texto com Markdown, direto no navegador"');
-// Cores de borda da versão estática (as do repositório HTML): #8b82e6 no claro e #1b1646 no escuro, iguais ao
+// Cores de borda da versão estática (as do repositório loggerview): #4a78e8 no claro e #0d1838 no escuro, iguais ao
 // theme-color. Primeira pintura: o body já nasce na cor do canvas, antes do CSS carregar.
-const EDGE_LIGHT = "#8b82e6", EDGE_DARK = "#1b1646";
+const EDGE_LIGHT = "#4a78e8", EDGE_DARK = "#0d1838";
 const EARLY = ['m.setAttribute("content",l?"#d9d2f6":"#171a26")', 's.content=l?"default":"black-translucent"'];
 for (const piece of EARLY) if (!html.includes(piece)) throw new Error("Script de tema inicial mudou: " + piece);
 html = html.replace(EARLY[0], `m.setAttribute("content",l?"${EDGE_LIGHT}":"${EDGE_DARK}")`).replace(EARLY[1], 's.content="black-translucent"');

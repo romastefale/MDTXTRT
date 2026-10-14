@@ -697,8 +697,8 @@ html[data-static] [data-insert="map"],html[data-static] [data-insert="collage"],
      com o teclado nem quando as barras do navegador recolhem.
    - O SVG começa e termina em --edge, que é a cor da barra do navegador (theme-color) no modo.
    - O html não tem fundo; a cor do body vira a cor do canvas e cobre também o overscroll. */
-html[data-static]{--edge:#1b1646;--bg-art:url("produto/fundo-organico-escuro.svg");background:none}
-html[data-static].light{--edge:#8b82e6;--bg-art:url("produto/fundo-organico-claro.svg")}
+html[data-static]{--edge:#0d1838;--bg-art:url("produto/fundo-organico-escuro.svg");background:none}
+html[data-static].light{--edge:#4a78e8;--bg-art:url("produto/fundo-organico-claro.svg")}
 html[data-static] body{background-color:var(--edge)}
 html[data-static] .bg,html[data-static].light .bg{
   top:0;height:100vh;height:100lvh;
@@ -751,7 +751,7 @@ html[data-static] #plusBtn:active{background:var(--chip-tint-on)}
 
 /* Ícones de duas tintas (inline SVG): mesmo tamanho dos de máscara; o detalhe usa o accent do app. */
 :root{--icon-accent:color-mix(in srgb,var(--link) 78%,#fff)}
-html.light{--icon-accent:color-mix(in srgb,var(--link) 80%,#06122e)}
+html.light{--icon-accent:color-mix(in srgb,var(--link) 58%,#06122e)}
 .ui-svg{display:block;width:18px;height:18px;flex:none;overflow:visible}
 .seg button .ui-svg,.action-dot .ui-svg,.sheet-ico .ui-svg{width:16px;height:16px}
 .theme-switch .ui-svg{width:12px;height:12px}
