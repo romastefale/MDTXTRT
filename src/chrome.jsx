@@ -496,14 +496,16 @@ function QuoteMenu() {
   );
 }
 
+const STATIC_SITE = typeof window !== "undefined" && window.MDTXTRT_STATIC === true;
+
 function ExportMenu() {
   return (
     <GlassContextMenu id="exportMenu" className="wide-menu export-menu" anchorId="exportBtn" placement="auto">
       <div className="menu-list">
-        <MenuItem icon="file" id="libraryBtn">Rascunhos e publicações</MenuItem>
+        <MenuItem icon="file" id="libraryBtn">{STATIC_SITE ? "Meus rascunhos" : "Rascunhos e publicações"}</MenuItem>
         <div className="menu-divider" role="separator" />
-        <MenuItem icon="markdown" id="exportMdBtn">Enviar Markdown no chat</MenuItem>
-        <MenuItem icon="text_fields" id="exportTxtBtn">Enviar TXT no chat</MenuItem>
+        <MenuItem icon="markdown" id="exportMdBtn">{STATIC_SITE ? "Baixar Markdown (.md)" : "Enviar Markdown no chat"}</MenuItem>
+        <MenuItem icon="text_fields" id="exportTxtBtn">{STATIC_SITE ? "Baixar texto (.txt)" : "Enviar TXT no chat"}</MenuItem>
         <div className="menu-divider" role="separator" />
         <MenuItem icon="light_mode" id="themeBtn" aria-label="Ativar modo claro" title="Ativar modo claro">
           <span id="themeLabel">Tema</span>
@@ -771,7 +773,7 @@ function LibrarySubmenu() {
     >
       <div className="menu-list library-menu-list">
         <MenuItem icon="arrow_back" className="submenu-back" id="libraryClose">
-          <span className="menu-label">Rascunhos e publicações</span>
+          <span className="menu-label">{STATIC_SITE ? "Meus rascunhos" : "Rascunhos e publicações"}</span>
         </MenuItem>
         <MenuItem icon="sticky_note_2" id="libraryNew">Novo documento</MenuItem>
         <div className="menu-divider" role="separator" />

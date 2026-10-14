@@ -32,6 +32,15 @@ export function storageRemove(key){
   if(memory){memory.delete(key);return;}
   window.localStorage.removeItem(key);
 }
+export function storageKeys(prefix=''){
+  if(memory)return [...memory.keys()].filter(key=>key.startsWith(prefix));
+  const keys=[];
+  for(let i=0;i<window.localStorage.length;i++){
+    const key=window.localStorage.key(i);
+    if(key&&key.startsWith(prefix))keys.push(key);
+  }
+  return keys;
+}
 
 
 

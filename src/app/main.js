@@ -16,6 +16,7 @@ import { escapeHTML, mdToBasicHTML } from "./convert.js";
 import { exportFile, publishCurrent, setDestination } from "./publish.js";
 import { scheduleBrowserViewport, scheduleCaretVisible, syncBrowserViewport } from "./viewport.js";
 import { STORAGE_BLOCKED_NOTICE, storageBlocked, storageGet } from "./storage.js";
+import { STATIC } from "./mode.js";
 
 applyAssets();
 export const scheme=window.matchMedia('(prefers-color-scheme: light)');
@@ -170,7 +171,8 @@ all('#linkMenu [data-link-kind]').forEach(btn=>btn.addEventListener('click',()=>
 one('#undoBtn').addEventListener('click', ()=>{ if(histUndo())flashBtn(one('#undoBtn')); });
 one('#redoBtn').addEventListener('click', ()=>{ histRedo(); flashBtn(one('#redoBtn')); });
 one('#themeBtn').addEventListener('click',()=>setTheme(document.documentElement.classList.contains('light')?'dark':'light'));
-one('#publishBtn').addEventListener('click',()=>{void publishCurrent();});
+// Versão estática: não há publicação; o botão principal abre o menu de exportação (baixar .md/.txt).
+one('#publishBtn').addEventListener('click',()=>{if(STATIC)one('#exportBtn').click();else void publishCurrent();});
 one('#destBtn').addEventListener('click', ()=>setDestination(S.dest === 'telegram' ? 'telegraph' : 'telegram'));
 one('#exportBtn').addEventListener('click', ()=>{
   if(S.session==='pending'){showToast('Aguarde a validação da sessão Telegram');return;}

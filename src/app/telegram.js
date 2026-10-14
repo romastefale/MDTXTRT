@@ -6,6 +6,7 @@ import { requestMatchesDocument, saveLocal } from "./draft.js";
 import { closeTopLayer, openPlusRoot, showToast } from "./panels.js";
 import { setDestination } from "./publish.js";
 import { call } from "./serverless.js";
+import { STATIC } from "./mode.js";
 import { scheduleBrowserViewport } from "./viewport.js";
 
 export async function recoverTelegraph(){
@@ -26,6 +27,7 @@ export async function recoverTelegraph(){
 // O Mini App só funciona dentro do Telegram: sem initData não há sessão. O backend (plataforma ou
 // servidor do Railway) valida o initData em cada chamada (401 UNAUTHORIZED), então não há endpoint de sessão.
 export async function verifyTelegram(){
+  if(STATIC)return;
   const tg=getTg();
   if(!tg?.initData){
     S.session='invalid';

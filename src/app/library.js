@@ -3,13 +3,15 @@ import { S } from "./state.js";
 import { DRAFT_ARCHIVE_PREFIX, DRAFT_KEY } from "./constants.js";
 import { docName, editor, one, ui } from "./dom.js";
 import { clearRuntimeMedia } from "./media.js";
-import { advanceDocumentGeneration, cleanDraftHTML, loadRemoteDraft, normalizedRevision, resetToNewDocument, saveLocal, waitForRemoteDraftSaves } from "./draft.js";
+import { advanceDocumentGeneration, archiveStoredDraftForNew, cleanDraftHTML, loadLocal, loadRemoteDraft, normalizedRevision, resetToNewDocument, saveLocal, waitForRemoteDraftSaves } from "./draft.js";
 import { closePanel, focusControl, focusMenuControl, openPanel, panelIsOpen, showToast, syncBackButton } from "./panels.js";
 import { confirmDialog, focusLibraryStart } from "./dialog.js";
 import { syncEditorSelectionUI } from "./editing.js";
-import { storageRemove } from "./storage.js";
+import { storageRemove, storageSet } from "./storage.js";
 import { setDestination } from "./publish.js";
 import { call } from "./serverless.js";
+import { STATIC } from "./mode.js";
+import { archivedDraftKey, listLocalDrafts, readStoredDraft, removeStoredDraft } from "./localdocs.js";
 
 export function libraryViewParam(){
   let value='';
@@ -27,6 +29,7 @@ export function consumeLibraryView(){
   return value;
 }
 export async function fetchLibrary(){
+  if(STATIC)return {drafts:listLocalDrafts(),telegram:[],telegraph:[]};
   const data=await call('libraryList');
   if(!Array.isArray(data.drafts)||!Array.isArray(data.telegram)||!Array.isArray(data.telegraph))throw new Error('Resposta da biblioteca inválida');
   return data;
@@ -34,11 +37,29 @@ export async function fetchLibrary(){
 export async function openLibraryDraft(doc){
   ui.setLibrary({status:'Abrindo rascunho…'});
   try{
-    const loaded=await loadRemoteDraft(doc);
+    const loaded=STATIC?openLocalDraft(doc):await loadRemoteDraft(doc);
     if(!loaded)throw new Error('Rascunho não encontrado');
     dismissLibraryMenu();
     showToast('Rascunho aberto');
   }catch(error){ui.setLibrary({status:error.message||'Não foi possível abrir o rascunho'});}
+}
+// Versão estática: arquiva o documento aberto (se tiver conteúdo), traz o escolhido para DRAFT_KEY e carrega.
+export function openLocalDraft(doc){
+  const target=String(doc).toLowerCase();
+  if(S.docId===target)return true;
+  const raw=readStoredDraft(target);
+  if(raw===null)return false;
+  saveLocal();
+  const empty=!editor.textContent.trim()&&!editor.querySelector('img,video,audio,iframe,hr,table');
+  if(!empty)archiveStoredDraftForNew(S.docId);
+  storageSet(DRAFT_KEY,raw);
+  storageRemove(archivedDraftKey(target));
+  S.exportOverride=null;
+  S.draftWriteBlocked=false;
+  if(!loadLocal())return false;
+  setDestination(S.dest,false,false);
+  syncEditorSelectionUI();
+  return true;
 }
 export async function openTelegraphDocument(doc){
   S.exportOverride=null;
@@ -97,10 +118,12 @@ export async function renderLibrary(preferred=''){
       };
     },'Nenhuma publicação Telegraph vinculada.');
     const publicationTotal=data.telegram.length+data.telegraph.length;
+    const draftsLabel=data.drafts.length+' '+(data.drafts.length===1?'rascunho':'rascunhos');
     ui.setLibrary({
       publicationCount:publicationTotal,draftCount:data.drafts.length,drafts,telegram,telegraph,
-      status:publicationTotal+' '+(publicationTotal===1?'publicação':'publicações')+' · '+data.drafts.length+' '+(data.drafts.length===1?'rascunho':'rascunhos')
+      status:STATIC?draftsLabel+' neste aparelho':publicationTotal+' '+(publicationTotal===1?'publicação':'publicações')+' · '+draftsLabel
     });
+    if(STATIC)setDraftsExpanded(true);
     if(preferred==='telegram'||preferred==='telegraph')setPublicationsExpanded(true);
     if(preferred==='telegram')one('#telegramLibrarySection')?.scrollIntoView({block:'nearest'});
     if(preferred==='telegraph')one('#telegraphLibrarySection')?.scrollIntoView({block:'nearest'});
@@ -118,12 +141,20 @@ export function libraryDeleteMessage(kind,item,{telegramPublication=false}={}){
   if(kind==='draft'){
     const open=S.docId===item.docId?'Este rascunho está aberto no editor; o texto será apagado. ':'';
     const telegram=telegramPublication?' A publicação no Telegram também sai da lista; as mensagens continuam no chat do bot.':'';
+    if(STATIC)return {label:open+'Excluir o rascunho '+name+'? Ele é apagado deste aparelho e não pode ser recuperado.',ok:'Excluir'};
     return {label:open+'Excluir o rascunho '+name+'? Ele sai do servidor e não pode ser recuperado.'+telegram,ok:'Excluir'};
   }
   if(kind==='telegram')return {label:'Tirar '+name+' da lista de publicações do Telegram? As mensagens continuam no chat do bot e o rascunho continua salvo. Um novo envio deste rascunho sai como mensagem nova.',ok:'Tirar da lista'};
   return {label:'Tirar '+name+' da lista de publicações do Telegraph? A página continua no telegra.ph, porque o Telegraph não permite apagar páginas. Publicar este documento de novo cria uma página nova.',ok:'Tirar da lista'};
 }
 async function requestLibraryDelete(kind,doc){
+  if(STATIC){
+    if(kind!=='draft')throw new Error('Recurso indisponível na versão estática');
+    // O documento aberto é tratado depois por replaceDeletedOpenDocument; aqui só saem as cópias guardadas.
+    storageRemove(archivedDraftKey(doc));
+    if(S.docId!==doc.toLowerCase())removeStoredDraft(doc);
+    return {ok:true,kind,doc};
+  }
   const data=await call('libraryDelete',{kind,doc});
   if(data.ok!==true||data.kind!==kind||data.doc!==doc)throw new Error('Resposta da exclusão inválida');
   return data;

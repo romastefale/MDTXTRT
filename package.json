@@ -7,6 +7,7 @@
     "build:editor": "esbuild src/editor-core.mjs --bundle --format=iife --global-name=MDTXTRTEditorCore --platform=browser --target=es2022 --minify --legal-comments=eof --outfile=editor-core.js",
     "build:ui": "esbuild src/liquid-glass-ui.jsx --bundle --format=esm --platform=browser --target=es2022 --define:process.env.NODE_ENV='\"production\"' --minify-syntax --minify-whitespace --legal-comments=eof --outfile=ui.js",
     "build:dist": "node scripts/build-dist.mjs",
+    "build:static": "npm run build:editor && npm run build:ui && node scripts/build-static.mjs",
     "deploy": "npm run build && tgcloud push",
     "status": "tgcloud status",
     "migrate": "tgcloud migrate",

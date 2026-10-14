@@ -1,4 +1,5 @@
 import { getTg } from "./theme.js";
+import { STATIC } from "./mode.js";
 
 // Backend: o Telegram Serverless (tgcloud) ou, quando o Mini App é servido pelo Railway,
 // a API HTTP do mesmo servidor. As duas rotas chamam os mesmos endpoints de tgcloud/endpoints.
@@ -48,6 +49,7 @@ async function viaHttp(name,input,initData,unload=false){
 
 // opções.unload: chamada feita ao fechar a página (só tem efeito na rota HTTP).
 export function call(name,input={},options={}){
+  if(STATIC)return Promise.reject(new Error('Recurso indisponível na versão estática'));
   const tg=getTg();
   if(!tg?.initData)return Promise.reject(new Error('Abra pelo bot no Telegram'));
   const serverless=tg.Serverless;

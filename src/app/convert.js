@@ -72,7 +72,8 @@ export function download(name,content,type){
   const url=URL.createObjectURL(new Blob([content],{type}));
   const a=document.createElement('a');
   a.href=url;a.download=name;a.hidden=true;document.body.append(a);a.click();a.remove();
-  setTimeout(()=>URL.revokeObjectURL(url),0);
+  // Revogar na hora faz alguns navegadores (Safari/iOS) perderem o arquivo e o nome; espera o download começar.
+  setTimeout(()=>URL.revokeObjectURL(url),60000);
 }
 export function telegraphURL(value){
   let url;try{url=new URL(value,location.href);}catch{throw new Error('Link do Telegraph inválido');}

@@ -7,13 +7,14 @@ import { bumpDocumentRevision, draftState, requestMatchesDocument, saveLocal } f
 import { call } from "./serverless.js";
 import { closePanels, showToast } from "./panels.js";
 import { approve } from "./dialog.js";
-import { buildRich, buildTelegraph, conversionWarning, exportDocumentHTML, exportName, htmlToMarkdown, htmlToText } from "./convert.js";
+import { buildRich, buildTelegraph, conversionWarning, download, exportDocumentHTML, exportName, htmlToMarkdown, htmlToText } from "./convert.js";
+import { STATIC } from "./mode.js";
 
 export function setDestination(value, notify=true, persist=true){
   const changed=S.dest!==value;
   S.dest = value;
   const name = S.dest === 'telegram' ? 'Telegram' : 'Telegraph';
-  const publishLabel='Publicar no '+name;
+  const publishLabel=STATIC?'Exportar':'Publicar no '+name;
   
   ui.update({dest:S.dest,publishLabel});
   
@@ -41,6 +42,12 @@ export async function exportFile(format) {
       ext = "txt";
     }
     const name=exportName(ext);
+    if(STATIC){
+      download(name,content,ext==='md'?'text/markdown;charset=utf-8':'text/plain;charset=utf-8');
+      showToast('Arquivo '+name+' baixado');
+      closePanels();
+      return;
+    }
     await call('exportSend',{format:ext,name,content});
     showToast('Arquivo enviado no chat do bot');
     closePanels();

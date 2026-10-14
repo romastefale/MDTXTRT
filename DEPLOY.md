@@ -7,6 +7,16 @@ O Mini App tem dois hospedeiros que rodam **o mesmo backend** (`tgcloud/endpoint
 
 O cliente escolhe sozinho: dentro do tgcloud usa `Telegram.WebApp.Serverless.call`; servido pelo Railway usa `POST /api/call/<nome>` na mesma origem.
 
+## Versão estática (GitHub Pages)
+
+Existe também uma versão **sem Telegram e sem servidor**, só arquivos estáticos na pasta `docs/`. Ela guarda os rascunhos no próprio aparelho (`localStorage`), importa `.md`/`.txt` e exporta baixando `.md`/`.txt`. Não publica no Telegram nem no Telegraph, não usa o bot e não faz nenhuma requisição a servidor próprio.
+
+Para publicar: no GitHub, **Settings → Pages → Build and deployment → Deploy from a branch**, escolha a branch (por exemplo `migracao-tgcloud` ou `main`) e a pasta **`/docs`**. O endereço fica `https://romastefale.github.io/MDTXTRT/`.
+
+`docs/` é gerado, não se edita à mão. Depois de mudar o código, no computador: `npm ci && npm run build:static` e faça commit de `docs/`. (A versão que está commitada agora foi compilada com o `bun`, porque o `esbuild` não rodou no ambiente onde foi gerada; o resultado funciona, mas os arquivos podem diferir byte a byte dos que o `esbuild` gera.)
+
+Na versão estática o fundo vai até as bordas da tela: `viewport-fit=cover`, `env(safe-area-inset-*)`, `theme-color` igual à cor da borda do tema e `manifest.webmanifest` com `display: standalone` (instalado na tela inicial, abre em tela cheia).
+
 ## Railway
 
 Nada precisa ser instalado no seu computador: o Railway faz `npm ci` e `npm run build` (o Railpack detecta o script `build`) e inicia com `node --import ./railway/register.mjs server.mjs` (veja `railway.json`).

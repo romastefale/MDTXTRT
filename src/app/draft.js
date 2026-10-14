@@ -120,7 +120,7 @@ export function saveLocal(){
     return false;
   }
   try{
-    storageSet(DRAFT_KEY,JSON.stringify(draftState()));
+    storageSet(DRAFT_KEY,JSON.stringify({...draftState(),savedAt:Date.now()}));
     scheduleRemoteDraftSave();
     syncDocMeta(true);
     return true;

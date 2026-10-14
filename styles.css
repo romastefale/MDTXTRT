@@ -684,3 +684,13 @@ html[data-typing] .doc-block{justify-content:center}
 
 /* Folhas de 3 itens: dividem a largura da barra em 3 colunas */
 #listMenu .insert-grid,#quoteMenu .insert-grid,#linkMenu .insert-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+
+
+/* Versão estática (GitHub Pages): sem Telegram nem servidor, então saem os controles que dependem do bot. */
+html[data-static] #destBtn,
+html[data-static] #mediaBtn,html[data-static] #voiceBtn,
+html[data-static] #publicationToggle,html[data-static] #publicationLists,
+html[data-static] [data-plus-submenu="interaction"],
+html[data-static] [data-insert="audio"],html[data-static] [data-insert="document"],
+html[data-static] [data-link-kind="button"],
+html[data-static] [data-insert="map"],html[data-static] [data-insert="collage"],html[data-static] [data-insert="slideshow"]{display:none}
