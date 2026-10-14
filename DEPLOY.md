@@ -15,7 +15,7 @@ Para publicar: no GitHub, **Settings → Pages → Build and deployment → Depl
 
 `docs/` é gerado, não se edita à mão. Depois de mudar o código, no computador: `npm ci && npm run build:static` e faça commit de `docs/`. (A versão que está commitada agora foi compilada com o `bun`, porque o `esbuild` não rodou no ambiente onde foi gerada; o resultado funciona, mas os arquivos podem diferir byte a byte dos que o `esbuild` gera.)
 
-Na versão estática o fundo vai até as bordas da tela: `viewport-fit=cover`, `env(safe-area-inset-*)`, `theme-color` igual à cor da borda do tema e `manifest.webmanifest` com `display: standalone` (instalado na tela inicial, abre em tela cheia).
+Na versão estática o fundo segue o conceito do repositório [`romastefale/HTML`](https://github.com/romastefale/HTML) (`docs/TELA-CHEIA-E-BARRAS.md` de lá): `produto/fundo-organico-*.svg` são cópias exatas dos SVGs de `src/assets/fundo-*.svg` desse repositório (o `scripts/make-organic-bg.py` dele está desatualizado e gera outro arquivo, por isso copiei os SVGs reais); a camada do fundo é fixa, com `100lvh`, e começa e termina em `--edge` (`#8b82e6` no claro, `#1b1646` no escuro), a mesma cor do `theme-color`; o `html` não tem fundo e o `body` tem a cor do canvas; há o elemento de amostra de cor das barras do Safari 26. Também usa `viewport-fit=cover`, `env(safe-area-inset-*)` e `manifest.webmanifest` com `display: standalone` (instalado na tela inicial, abre em tela cheia).
 
 ## Railway
 

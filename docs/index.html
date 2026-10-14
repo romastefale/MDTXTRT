@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" id="statusBarStyle" content="default" />
   <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-visual" />
   <meta name="color-scheme" id="colorScheme" content="light dark" />
-  <meta name="theme-color" id="themeColor" content="#d9d2f6" />
+  <meta name="theme-color" id="themeColor" content="#8b82e6" />
   <title>MDTXTRT</title>
   <meta name="description" content="Editor de texto com Markdown, direto no navegador. Os rascunhos ficam no seu aparelho." />
   <link rel="manifest" href="manifest.webmanifest" />
@@ -20,9 +20,10 @@
   <meta property="og:type" content="website" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:image" content="https://romastefale.github.io/MDTXTRT/x-banner.jpg" />
-  <script>(()=>{const k="mdtxtrt-theme",r=document.documentElement,m=document.querySelector("#themeColor"),c=document.querySelector("#colorScheme"),s=document.querySelector("#statusBarStyle");let p="";try{p=localStorage.getItem(k)||""}catch{}const t=p==="light"||p==="dark"?p:matchMedia("(prefers-color-scheme: light)").matches?"light":"dark",l=t==="light";r.classList.add(t);r.dataset.theme=t;r.style.colorScheme=t;m.setAttribute("content",l?"#d9d2f6":"#171a26");if(c)c.setAttribute("content",t);if(s)s.content=l?"default":"black-translucent";})();</script>
+  <script>(()=>{const k="mdtxtrt-theme",r=document.documentElement,m=document.querySelector("#themeColor"),c=document.querySelector("#colorScheme"),s=document.querySelector("#statusBarStyle");let p="";try{p=localStorage.getItem(k)||""}catch{}const t=p==="light"||p==="dark"?p:matchMedia("(prefers-color-scheme: light)").matches?"light":"dark",l=t==="light";r.classList.add(t);r.dataset.theme=t;r.style.colorScheme=t;m.setAttribute("content",l?"#8b82e6":"#1b1646");if(c)c.setAttribute("content",t);if(s)s.content="black-translucent";})();</script>
   <script>window.MDTXTRT_STATIC=true;document.documentElement.setAttribute('data-static','')</script>
-  <link rel="stylesheet" href="styles.css?v=7c2cb9d28c1e" />
+  <style>html,body{margin:0}body{background-color:#8b82e6}html[data-theme=dark] body{background-color:#1b1646}</style>
+  <link rel="stylesheet" href="styles.css?v=0333b14fc8dc" />
 </head>
 <body>
   <div class="bg" aria-hidden="true"></div>
@@ -48,7 +49,7 @@
   <script src="marked.js"></script>
   <script src="turndown.js"></script>
   <script src="editor-core.js?v=a7d8edaf510c"></script>
-  <script type="module" src="ui.js?v=18869e14173a"></script>
+  <script type="module" src="ui.js?v=0eb9c12a80b5"></script>
   <script>
     document.addEventListener('DOMContentLoaded',()=>{
       const root=document.documentElement;

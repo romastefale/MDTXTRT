@@ -683,7 +683,7 @@ html[data-typing] .doc-sub{display:none}
 html[data-typing] .doc-block{justify-content:center}
 
 /* Folhas de 3 itens: dividem a largura da barra em 3 colunas */
-#listMenu .insert-grid,#quoteMenu .insert-grid,#linkMenu .insert-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+#listMenu .insert-grid,#quoteMenu .insert-grid,#linkMenu .insert-grid,#exportMenu .insert-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
 
 
 /* Versão estática (GitHub Pages): sem Telegram nem servidor, então saem os controles que dependem do bot. */
@@ -694,3 +694,28 @@ html[data-static] [data-plus-submenu="interaction"],
 html[data-static] [data-insert="audio"],html[data-static] [data-insert="document"],
 html[data-static] [data-link-kind="button"],
 html[data-static] [data-insert="map"],html[data-static] [data-insert="collage"],html[data-static] [data-insert="slideshow"]{display:none}
+
+/* Fundo da versão estática: o conceito do repositório HTML (docs/DESIGN-CONTRATO e TELA-CHEIA-E-BARRAS).
+   - Manchas orgânicas (produto/fundo-organico-*.svg) numa camada fixa de 100lvh, rasterizada uma vez: não encolhe
+     com o teclado nem quando as barras do navegador recolhem.
+   - O SVG começa e termina em --edge, que é a cor da barra do navegador (theme-color) no modo.
+   - O html não tem fundo; a cor do body vira a cor do canvas e cobre também o overscroll. */
+html[data-static]{--edge:#1b1646;--bg-art:url("produto/fundo-organico-escuro.svg");background:none}
+html[data-static].light{--edge:#8b82e6;--bg-art:url("produto/fundo-organico-claro.svg")}
+html[data-static] body{background-color:var(--edge)}
+html[data-static] .bg,html[data-static].light .bg{
+  top:0;height:100vh;height:100lvh;
+  background:var(--bg-art) center/100% 100% no-repeat,var(--edge)
+}
+/* Amostra de cor das barras do Safari 26 (engenharia reversa, não é API pública): elemento real, fixo e vazio.
+   background-clip:text impede que pinte pixels. Só tem altura em Safari de toque (>10px); nos demais fica com 0. */
+.safari-chrome-sample{
+  position:fixed;top:0;right:0;left:0;z-index:2147483647;height:0;border:0;outline:0;pointer-events:none;
+  background-color:var(--edge);background-clip:text;-webkit-background-clip:text;box-shadow:none;transition:none
+}
+@supports (-webkit-touch-callout:none){
+  @media (hover:none) and (pointer:coarse){
+    .safari-chrome-sample{height:11px}
+    :root[data-chrome-sample-refresh] .safari-chrome-sample{height:12px}
+  }
+}

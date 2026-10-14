@@ -92,9 +92,13 @@ function hasWebGL2() {
 
 
 
+// Versão estática (GitHub Pages): ligada pelo index.html estático (window.MDTXTRT_STATIC).
+const STATIC_SITE = typeof window !== "undefined" && window.MDTXTRT_STATIC === true;
+
 const backdrop = { key: "", canvas: null, img: null, src: "" };
 function backdropSource() {
   const light = document.documentElement.classList.contains("light");
+  if (STATIC_SITE) return light ? "produto/fundo-organico-claro.svg" : "produto/fundo-organico-escuro.svg";
   return light ? "produto/fundo-claro.svg" : "produto/fundo-escuro.svg";
 }
 function loadBackdrop() {
@@ -496,41 +500,55 @@ function QuoteMenu() {
   );
 }
 
-const STATIC_SITE = typeof window !== "undefined" && window.MDTXTRT_STATIC === true;
+// Folhas do topo (☰ e encaminhar): mesma linguagem da folha "Inserir" (＋): largura da barra, seções com rótulo e
+// grade de ícones, abrindo para baixo da pílula.
+function SheetSection({ label, children }) {
+  return (
+    <section className="insert-section">
+      <h3 className="insert-label">{label}</h3>
+      <div className="insert-grid">{children}</div>
+    </section>
+  );
+}
 
 function ExportMenu() {
   return (
-    <GlassContextMenu id="exportMenu" className="wide-menu export-menu" anchorId="exportBtn" placement="auto">
-      <div className="menu-list">
-        <MenuItem icon="file" id="libraryBtn">{STATIC_SITE ? "Meus rascunhos" : "Rascunhos e publicações"}</MenuItem>
-        <div className="menu-divider" role="separator" />
+    <GlassContextMenu id="exportMenu" className="wide-menu insert-sheet" anchorId="exportBtn" placement="bottom">
+      <div className="menu-list insert-body">
+        <SheetSection label="Documento">
+          <MenuItem icon="file" id="libraryBtn">{STATIC_SITE ? "Rascunhos" : "Rascunhos e publicações"}</MenuItem>
+        </SheetSection>
         {!STATIC_SITE && (
-          <>
-            <MenuItem icon="markdown" id="exportMdBtn">Enviar Markdown no chat</MenuItem>
-            <MenuItem icon="text_fields" id="exportTxtBtn">Enviar TXT no chat</MenuItem>
-            <div className="menu-divider" role="separator" />
-          </>
+          <SheetSection label="Enviar no chat">
+            <MenuItem icon="markdown" id="exportMdBtn">Markdown</MenuItem>
+            <MenuItem icon="text_fields" id="exportTxtBtn">TXT</MenuItem>
+          </SheetSection>
         )}
-        <MenuItem icon="light_mode" id="themeBtn" aria-label="Ativar modo claro" title="Ativar modo claro">
-          <span id="themeLabel">Tema</span>
-        </MenuItem>
+        <SheetSection label="Aparência">
+          <MenuItem icon="light_mode" id="themeBtn" aria-label="Ativar modo claro" title="Ativar modo claro">
+            <span id="themeLabel">Tema</span>
+          </MenuItem>
+        </SheetSection>
       </div>
     </GlassContextMenu>
   );
 }
 
-// Versão estática: o botão da direita abre este menu (encaminhar e baixar); o ☰ fica só com rascunhos e tema.
+// Versão estática: o botão da direita abre esta folha (encaminhar e baixar); o ☰ fica com rascunhos e tema.
 function ForwardMenu() {
   return (
-    <GlassContextMenu id="forwardMenu" className="wide-menu export-menu" anchorId="publishBtn" placement="auto">
-      <div className="menu-list">
-        <MenuItem icon="telegram" id="fwdTelegramBtn">Encaminhar ao Telegram</MenuItem>
-        <MenuItem icon="telegraph" id="fwdTelegraphBtn">Encaminhar ao Telegraph</MenuItem>
-        <MenuItem icon="export" id="fwdShareBtn">Compartilhar…</MenuItem>
-        <MenuItem icon="markdown" id="fwdCopyBtn">Copiar Markdown</MenuItem>
-        <div className="menu-divider" role="separator" />
-        <MenuItem icon="markdown" id="exportMdBtn">Baixar Markdown (.md)</MenuItem>
-        <MenuItem icon="text_fields" id="exportTxtBtn">Baixar texto (.txt)</MenuItem>
+    <GlassContextMenu id="forwardMenu" className="wide-menu insert-sheet" anchorId="publishBtn" placement="bottom">
+      <div className="menu-list insert-body">
+        <SheetSection label="Encaminhar">
+          <MenuItem icon="telegram" id="fwdTelegramBtn">Telegram</MenuItem>
+          <MenuItem icon="telegraph" id="fwdTelegraphBtn">Telegraph</MenuItem>
+          <MenuItem icon="export" id="fwdShareBtn">Compartilhar</MenuItem>
+          <MenuItem icon="markdown" id="fwdCopyBtn">Copiar</MenuItem>
+        </SheetSection>
+        <SheetSection label="Baixar">
+          <MenuItem icon="markdown" id="exportMdBtn">Markdown</MenuItem>
+          <MenuItem icon="text_fields" id="exportTxtBtn">Texto</MenuItem>
+        </SheetSection>
       </div>
     </GlassContextMenu>
   );

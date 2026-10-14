@@ -4,6 +4,7 @@ import { THEME_KEY } from "./constants.js";
 import { all, one } from "./dom.js";
 import { scheme } from "./main.js";
 import { storageBlocked } from "./storage.js";
+import { STATIC } from "./mode.js";
 
 export function applyAssets(){
   all('[data-icon]').forEach(el => {
@@ -31,7 +32,7 @@ export function syncBrowserChrome(mode,color){
 
 
 
-const EDGE_FALLBACK={light:'#d9d2f6',dark:'#171a26'};
+const EDGE_FALLBACK=STATIC?{light:'#8b82e6',dark:'#1b1646'}:{light:'#d9d2f6',dark:'#171a26'};
 function hexColor(value){
   const v=String(value||'').trim().toLowerCase();
   if(/^#[0-9a-f]{6}$/.test(v))return v;
@@ -43,6 +44,24 @@ function hexColor(value){
 export function edgeColor(mode){
   return hexColor(getComputedStyle(document.documentElement).getPropertyValue('--edge'))||EDGE_FALLBACK[mode==='light'?'light':'dark'];
 }
+// Safari 26 amostra a cor das barras de um elemento fixo real que encosta na borda de cima. Depois de trocar o tema,
+// 11px -> 12px -> 11px em dois quadros força uma nova amostra (mesma técnica do repositório HTML; não verificada aqui).
+let sampleRefreshing=false;
+function refreshSafariChromeSample(){
+  if(!STATIC||!document.body)return;
+  if(!document.querySelector('[data-safari-chrome-sample]')){
+    const sample=document.createElement('div');
+    sample.className='safari-chrome-sample';
+    sample.dataset.safariChromeSample='';
+    sample.setAttribute('aria-hidden','true');
+    document.body.prepend(sample);
+  }
+  if(sampleRefreshing)return;
+  sampleRefreshing=true;
+  const root=document.documentElement;
+  root.dataset.chromeSampleRefresh='';
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{delete root.dataset.chromeSampleRefresh;sampleRefreshing=false;}));
+}
 export function applyScheme(mode=resolvedTheme()){
   const next=mode==='light'?'light':'dark',light=next==='light';
   const root=document.documentElement;
@@ -52,7 +71,8 @@ export function applyScheme(mode=resolvedTheme()){
   const color=edgeColor(next);
   syncBrowserChrome(next,color);
   const statusMeta=one('#statusBarStyle');
-  if(statusMeta)statusMeta.content=light?'default':'black-translucent';
+  // Versão estática: a borda clara é roxa (#8b82e6), então a barra de status fica translúcida/branca nos dois modos.
+  if(statusMeta)statusMeta.content=light&&!STATIC?'default':'black-translucent';
   const btn=one('#themeBtn');
   if(btn){
     const icon=btn.querySelector('[data-icon]');
@@ -62,6 +82,7 @@ export function applyScheme(mode=resolvedTheme()){
     const text=one('#themeLabel');if(text)text.textContent=light?'Tema escuro':'Tema claro';
   }
   applyAssets();
+  refreshSafariChromeSample();
   const tg=getTg();
   if(S.session==='ready'&&tg){
     tg.setHeaderColor(color);
