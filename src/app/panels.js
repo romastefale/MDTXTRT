@@ -6,6 +6,7 @@ import { getTg } from "./theme.js";
 import { dismissDialog } from "./dialog.js";
 import { saveSel } from "./editing.js";
 import { closeLibrary } from "./library.js";
+import { STATIC } from "./mode.js";
 
 export function showToast(msg){
   
@@ -192,7 +193,8 @@ export function usableAnchorRect(rect,bounds){
 export function placePanel(panel,anchorRect=null){
   if(!panel)return;
   const id=panel.id;
-  const frame=fixedFrame(),viewport=frame.bounds,bounds=panelViewportBounds(viewport),edge=8,gap=8;
+  const frame=fixedFrame(),viewport=frame.bounds,bounds=panelViewportBounds(viewport),edge=8;
+  let gap=8;
   const fullHeight=Math.max(0,bounds.height-edge*2);
   const baseMax=Math.max(0,Math.min(420,bounds.height*.55,fullHeight));
   const maxWidth=Math.max(0,bounds.width-edge*2);
@@ -201,6 +203,8 @@ export function placePanel(panel,anchorRect=null){
   // Folhas (insert-sheet) medem a distância a partir da pílula (barra de baixo ou de cima), não do botão: assim ＋, ☰ e
   // encaminhar abrem com o mesmo espaço entre a folha e a barra.
   const pill=panel.classList.contains('insert-sheet')?anchor?.closest?.('.bar,.seg'):null;
+  // Versão estática: a folha fica colada na pílula (sem vão) e abre como uma extensão dela.
+  if(STATIC&&pill)gap=0;
   const rect=shiftToFixed(pill?.getBoundingClientRect()||anchorRect||anchor?.getBoundingClientRect()||null,frame);
   let box=panel.getBoundingClientRect();
   if(id==='dialogMenu'&&!usableAnchorRect(rect,viewport)){
@@ -248,7 +252,9 @@ export function placePanel(panel,anchorRect=null){
   // bounds.bottom já deixa 8px acima da barra de baixo; uma folha que abre para cima a partir da própria barra não
   // precisa de mais 8px de margem, senão ficaria a 16px da barra enquanto as do topo ficam a 8px.
   const bottomPad=pill&&side==='top'?0:edge;
-  const minTop=bounds.top+edge,maxTop=Math.max(minTop,bounds.bottom-bottomPad-boxHeight);
+  // Folha colada na barra de baixo (versão estática): o limite de baixo é o topo da própria barra, sem a margem de 8px.
+  const floor=STATIC&&pill&&side==='top'?rect.top:bounds.bottom-bottomPad;
+  const minTop=bounds.top+edge,maxTop=Math.max(minTop,floor-boxHeight);
   ui.setMenu(id,{left,top:clamp(proposed,minTop,maxTop)});
 }
 export function setMenuPanelOpen(panel,open){
