@@ -726,3 +726,24 @@ html[data-static] #exportMenu,html[data-static] #forwardMenu,#exportMenu,#forwar
 #exportMenu .insert-grid,#forwardMenu .insert-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
 .glass-menu.insert-sheet#exportMenu[data-anchor]{left:max(var(--bar-side-inset),var(--safe-left))}
 .glass-menu.insert-sheet#forwardMenu[data-anchor]{left:auto;right:max(var(--bar-side-inset),var(--safe-right))}
+
+/* Versão estática: ＋, ☰ e compartilhar como os botões do menu do HTML: um chip de vidro fosco (a mesma tinta
+   --vidro-tint, blur(5px) saturate(1.15)) empilhado sobre a pílula, sem a lente de refração. A lente redesenha uma cópia
+   do fundo sem a tinta da pílula, e por isso o chip quase não se destacava. Aberto/pressionado: a tinta dobra. */
+html[data-static]{--chip-tint:rgba(18,18,20,.3);--chip-tint-on:rgba(18,18,20,.5)}
+html[data-static].light{--chip-tint:rgba(238,240,245,.3);--chip-tint-on:rgba(238,240,245,.5)}
+html[data-static] #exportBtn .action-dot,
+html[data-static] #publishBtn .action-dot,
+html[data-static] #plusBtn{
+  background:var(--chip-tint);box-shadow:none;
+  -webkit-backdrop-filter:blur(5px) saturate(1.15);backdrop-filter:blur(5px) saturate(1.15)
+}
+html[data-static] #exportBtn .action-dot > .lens,
+html[data-static] #publishBtn .action-dot > .lens,
+html[data-static] #plusBtn > .lens{display:none}
+html[data-static] #exportBtn[aria-expanded="true"] .action-dot,
+html[data-static] #publishBtn[aria-expanded="true"] .action-dot,
+html[data-static] #plusBtn.on,
+html[data-static] #exportBtn:active .action-dot,
+html[data-static] #publishBtn:active .action-dot,
+html[data-static] #plusBtn:active{background:var(--chip-tint-on)}
