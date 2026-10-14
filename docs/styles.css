@@ -763,34 +763,41 @@ html.light{--icon-accent:color-mix(in srgb,var(--link) 58%,#06122e)}
 .bar > button.more.on .ui-svg{transform:rotate(45deg)}
 .insert-grid .sheet-ico .ui-svg{width:22px;height:22px}
 
-/* Versão estática: o menu aberto é uma extensão da barra, que não muda. A folha encosta na pílula (sem vão, ver
-   placePanel), tem a mesma largura e o mesmo vidro; dois cantos preenchidos (::before/::after) tapam o espaço que a
-   curva da pílula deixa nas pontas, e a silhueta do conjunto segue a da pílula. */
-html[data-static] .glass-menu.insert-sheet[data-menu-open]{--attach-r:calc(var(--bar-h)/2);--sheet-glass:var(--glass)}
-html[data-static] #exportMenu[data-menu-open],html[data-static] #forwardMenu[data-menu-open]{--attach-r:calc(var(--pill-h)/2)}
-html[data-static] .glass-menu.insert-sheet .glass-menu-material{
-  background:var(--sheet-glass,var(--glass))!important;-webkit-backdrop-filter:blur(14px) saturate(1.15)!important;backdrop-filter:blur(14px) saturate(1.15)!important;box-shadow:none!important
+/* Versão estática: o menu aberto nasce por trás da barra e aparece inteiro; a barra fica por cima e não muda. A folha
+   ocupa também o espaço da pílula (ver placePanel), mas uma máscara deixa um buraco com a forma exata da pílula, então
+   só aparecem a folha e os cantos que a curva da pílula deixa livres. Uma peça só de vidro: sem emendas. */
+html[data-static] .glass-menu.insert-sheet[data-menu-open]{
+  --r:calc(var(--bar-h)/2);--r2:var(--bar-h);--sheet-glass:var(--glass);pointer-events:none
 }
-/* Folha de baixo: cresce para cima; cantos de baixo retos, de cima arredondados. */
+html[data-static] #exportMenu[data-menu-open],html[data-static] #forwardMenu[data-menu-open]{--r:calc(var(--pill-h)/2);--r2:var(--pill-h)}
+html[data-static] .glass-menu.insert-sheet .menu-list{pointer-events:auto}
+html[data-static] .glass-menu.insert-sheet .glass-menu-material{
+  background:var(--sheet-glass,var(--glass))!important;-webkit-backdrop-filter:blur(14px) saturate(1.15)!important;backdrop-filter:blur(14px) saturate(1.15)!important;box-shadow:none!important;
+  -webkit-mask-repeat:no-repeat;mask-repeat:no-repeat
+}
+/* Folha de baixo (cresce para cima, nasce atrás da barra de baixo). */
 html[data-static] .glass-menu.insert-sheet[data-placement="top"][data-menu-open]{--menu-radius:26px 26px 0 0}
 html[data-static] .glass-menu.insert-sheet[data-placement="top"][data-menu-open] .glass-menu-material,
 html[data-static] .glass-menu.insert-sheet[data-placement="top"][data-menu-open] .glass-menu-content{border-radius:26px 26px 0 0!important}
-/* Folhas de cima: ocupam a largura toda da pílula e cada seção reparte o espaço entre os seus itens. */
+html[data-static] .glass-menu.insert-sheet[data-placement="top"][data-menu-open] .glass-menu-content{padding-bottom:calc(var(--r2) + 4px)}
+html[data-static] .glass-menu.insert-sheet[data-placement="top"][data-menu-open] .glass-menu-material{
+  -webkit-mask-image:linear-gradient(#000,#000),radial-gradient(circle at 100% 100%,transparent calc(var(--r) - .6px),#000 var(--r)),radial-gradient(circle at 0 100%,transparent calc(var(--r) - .6px),#000 var(--r));
+  mask-image:linear-gradient(#000,#000),radial-gradient(circle at 100% 100%,transparent calc(var(--r) - .6px),#000 var(--r)),radial-gradient(circle at 0 100%,transparent calc(var(--r) - .6px),#000 var(--r));
+  -webkit-mask-size:100% calc(100% - var(--r2)),var(--r) var(--r),var(--r) var(--r);mask-size:100% calc(100% - var(--r2)),var(--r) var(--r),var(--r) var(--r);
+  -webkit-mask-position:0 0,left 0 bottom var(--r),right 0 bottom var(--r);mask-position:0 0,left 0 bottom var(--r),right 0 bottom var(--r)
+}
+/* Folhas de cima (☰ e compartilhar): largura toda, nascem atrás da barra de cima. */
 html[data-static] #exportMenu,html[data-static] #forwardMenu{--menu-w:calc(100vw - max(var(--bar-side-inset),var(--safe-left)) - max(var(--bar-side-inset),var(--safe-right)))}
 html[data-static] .glass-menu.insert-sheet#exportMenu[data-anchor],html[data-static] .glass-menu.insert-sheet#forwardMenu[data-anchor]{left:max(var(--bar-side-inset),var(--safe-left));right:auto}
 html[data-static] #exportMenu[data-menu-open],html[data-static] #forwardMenu[data-menu-open]{--menu-radius:0 0 26px 26px}
 html[data-static] #exportMenu[data-menu-open] .glass-menu-material,html[data-static] #exportMenu[data-menu-open] .glass-menu-content,
 html[data-static] #forwardMenu[data-menu-open] .glass-menu-material,html[data-static] #forwardMenu[data-menu-open] .glass-menu-content{border-radius:0 0 26px 26px!important}
+html[data-static] #exportMenu[data-menu-open] .glass-menu-content,html[data-static] #forwardMenu[data-menu-open] .glass-menu-content{padding-top:var(--r2)}
+html[data-static] #exportMenu[data-menu-open] .glass-menu-material,html[data-static] #forwardMenu[data-menu-open] .glass-menu-material{
+  -webkit-mask-image:linear-gradient(#000,#000),radial-gradient(circle at 100% 0,transparent calc(var(--r) - .6px),#000 var(--r)),radial-gradient(circle at 0 0,transparent calc(var(--r) - .6px),#000 var(--r));
+  mask-image:linear-gradient(#000,#000),radial-gradient(circle at 100% 0,transparent calc(var(--r) - .6px),#000 var(--r)),radial-gradient(circle at 0 0,transparent calc(var(--r) - .6px),#000 var(--r));
+  -webkit-mask-size:100% calc(100% - var(--r2)),var(--r) var(--r),var(--r) var(--r);mask-size:100% calc(100% - var(--r2)),var(--r) var(--r),var(--r) var(--r);
+  -webkit-mask-position:left 0 bottom 0,left 0 top var(--r),right 0 top var(--r);mask-position:left 0 bottom 0,left 0 top var(--r),right 0 top var(--r)
+}
 html[data-static] #exportMenu .insert-grid,html[data-static] #forwardMenu .insert-grid{display:flex;gap:4px}
 html[data-static] #exportMenu .insert-grid > button,html[data-static] #forwardMenu .insert-grid > button{flex:1 1 0;min-width:0}
-/* Cantos de emenda. */
-html[data-static] .glass-menu.insert-sheet[data-menu-open]::before,html[data-static] .glass-menu.insert-sheet[data-menu-open]::after{
-  content:"";position:absolute;width:var(--attach-r);height:var(--attach-r);pointer-events:none;z-index:0;
-  background:var(--sheet-glass);-webkit-backdrop-filter:blur(14px) saturate(1.15);backdrop-filter:blur(14px) saturate(1.15)
-}
-html[data-static] .glass-menu.insert-sheet[data-placement="top"][data-menu-open]::before,html[data-static] .glass-menu.insert-sheet[data-placement="top"][data-menu-open]::after{bottom:calc(var(--attach-r)*-1)}
-html[data-static] .glass-menu.insert-sheet[data-placement="top"][data-menu-open]::before{left:0;-webkit-mask:radial-gradient(circle at 100% 100%,transparent calc(var(--attach-r) - .6px),#000 var(--attach-r));mask:radial-gradient(circle at 100% 100%,transparent calc(var(--attach-r) - .6px),#000 var(--attach-r))}
-html[data-static] .glass-menu.insert-sheet[data-placement="top"][data-menu-open]::after{right:0;-webkit-mask:radial-gradient(circle at 0 100%,transparent calc(var(--attach-r) - .6px),#000 var(--attach-r));mask:radial-gradient(circle at 0 100%,transparent calc(var(--attach-r) - .6px),#000 var(--attach-r))}
-html[data-static] #exportMenu[data-menu-open]::before,html[data-static] #exportMenu[data-menu-open]::after,html[data-static] #forwardMenu[data-menu-open]::before,html[data-static] #forwardMenu[data-menu-open]::after{top:calc(var(--attach-r)*-1)}
-html[data-static] #exportMenu[data-menu-open]::before,html[data-static] #forwardMenu[data-menu-open]::before{left:0;-webkit-mask:radial-gradient(circle at 100% 0,transparent calc(var(--attach-r) - .6px),#000 var(--attach-r));mask:radial-gradient(circle at 100% 0,transparent calc(var(--attach-r) - .6px),#000 var(--attach-r))}
-html[data-static] #exportMenu[data-menu-open]::after,html[data-static] #forwardMenu[data-menu-open]::after{right:0;-webkit-mask:radial-gradient(circle at 0 0,transparent calc(var(--attach-r) - .6px),#000 var(--attach-r));mask:radial-gradient(circle at 0 0,transparent calc(var(--attach-r) - .6px),#000 var(--attach-r))}

@@ -204,7 +204,8 @@ export function placePanel(panel,anchorRect=null){
   // encaminhar abrem com o mesmo espaço entre a folha e a barra.
   const pill=panel.classList.contains('insert-sheet')?anchor?.closest?.('.bar,.seg'):null;
   // Versão estática: a folha fica colada na pílula (sem vão) e abre como uma extensão dela.
-  if(STATIC&&pill)gap=0;
+  const attach=Boolean(STATIC&&pill);
+  if(attach)gap=0;
   const rect=shiftToFixed(pill?.getBoundingClientRect()||anchorRect||anchor?.getBoundingClientRect()||null,frame);
   let box=panel.getBoundingClientRect();
   if(id==='dialogMenu'&&!usableAnchorRect(rect,viewport)){
@@ -240,7 +241,9 @@ export function placePanel(panel,anchorRect=null){
   if(preference==='top')side=aboveSpace>=wanted||aboveSpace>=belowSpace?'top':'bottom';
   else if(preference==='bottom')side=belowSpace>=wanted||belowSpace>=aboveSpace?'bottom':'top';
   else side=aboveSpace>=wanted?'top':belowSpace>=wanted?'bottom':aboveSpace>=belowSpace?'top':'bottom';
-  const available=side==='top'?aboveSpace:belowSpace;
+  // Colada na barra, a folha também ocupa o espaço por trás dela (a barra fica por cima, intacta).
+  const overlap=attach&&rect?rect.height:0;
+  const available=(side==='top'?aboveSpace:belowSpace)+overlap;
   const limit=Math.max(0,Math.min(baseMax,available));
   ui.setMenu(id,{maxHeight:limit});
   box=panel.getBoundingClientRect();
@@ -248,13 +251,13 @@ export function placePanel(panel,anchorRect=null){
   const boxHeight=Math.min(box.height,limit);
   const minLeft=bounds.left+edge,maxLeft=Math.max(minLeft,bounds.right-edge-box.width);
   const left=clamp(rect.left+rect.width/2-box.width/2,minLeft,maxLeft);
-  const proposed=side==='top'?rect.top-gap-boxHeight:rect.bottom+gap;
+  const proposed=attach?(side==='top'?rect.bottom-boxHeight:rect.top):side==='top'?rect.top-gap-boxHeight:rect.bottom+gap;
   // bounds.bottom já deixa 8px acima da barra de baixo; uma folha que abre para cima a partir da própria barra não
   // precisa de mais 8px de margem, senão ficaria a 16px da barra enquanto as do topo ficam a 8px.
   const bottomPad=pill&&side==='top'?0:edge;
   // Folha colada na barra de baixo (versão estática): o limite de baixo é o topo da própria barra, sem a margem de 8px.
-  const floor=STATIC&&pill&&side==='top'?rect.top:bounds.bottom-bottomPad;
-  const minTop=bounds.top+edge,maxTop=Math.max(minTop,floor-boxHeight);
+  const floor=attach&&side==='top'?rect.bottom:bounds.bottom-bottomPad;
+  const minTop=attach?Math.min(bounds.top+edge,rect.top):bounds.top+edge,maxTop=Math.max(minTop,floor-boxHeight);
   ui.setMenu(id,{left,top:clamp(proposed,minTop,maxTop)});
 }
 export function setMenuPanelOpen(panel,open){
