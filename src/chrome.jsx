@@ -351,7 +351,32 @@ function useAnchorExpanded(id) {
   });
 }
 
+// Ícones de duas tintas: o traço principal usa a cor do texto (currentColor) e um detalhe usa o accent
+// (--icon-accent, derivado do --link). Os demais continuam como máscara de uma cor só (icons/*.svg).
+const DUO = {
+  plus: { ink: "M5 12h14", accent: "M12 5v14" },
+  menu: { ink: "M4 7h16M4 17h16", accent: "M4 12h10" },
+  export: { ink: "M8.5 10H7a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-1.5", accent: "M12 15V3.5M8.5 7 12 3.5 15.5 7" },
+  bold: { ink: "M8 5h5a3.5 3.5 0 0 1 0 7H8M8 12h6a3.5 3.5 0 0 1 0 7H8", accent: "M8 5v14", w: 2.3 },
+  italic: { ink: "M10 5h7M7 19h7", accent: "M14.5 5 9.5 19" },
+  underline: { ink: "M7 4v7a5 5 0 0 0 10 0V4", accent: "M5 20h14" },
+  link: { ink: "M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1", accent: "M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1" },
+  heading: { ink: "M6 5v14M18 5v14", accent: "M6 12h12" },
+  list: { ink: "M10 7h10M10 12h10M10 17h10", accent: "M5 7h.01M5 12h.01M5 17h.01", accentW: 3.4 },
+  quote: { ink: "M10 8h9M10 12h9M10 16h5", accent: "M5.5 5v14", accentW: 2.6 },
+  undo: { ink: "M5 7h10a4 4 0 0 1 0 8H9", accent: "M8 4 5 7l3 3" },
+  redo: { ink: "M19 7H9a4 4 0 0 0 0 8h6", accent: "M16 4l3 3-3 3" },
+};
 function Icon({ name }) {
+  const duo = DUO[name];
+  if (duo) {
+    return (
+      <svg className="ui-svg" viewBox="0 0 24 24" fill="none" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+        <path d={duo.ink} stroke="currentColor" strokeWidth={duo.w || 1.9} />
+        <path d={duo.accent} stroke="var(--icon-accent)" strokeWidth={duo.accentW || duo.w || 1.9} />
+      </svg>
+    );
+  }
   return <span className="ui-icon" data-icon={name} aria-hidden="true" />;
 }
 

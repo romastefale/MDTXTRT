@@ -748,3 +748,17 @@ html[data-static] #plusBtn.on,
 html[data-static] #exportBtn:active .action-dot,
 html[data-static] #publishBtn:active .action-dot,
 html[data-static] #plusBtn:active{background:var(--chip-tint-on)}
+
+/* Ícones de duas tintas (inline SVG): mesmo tamanho dos de máscara; o detalhe usa o accent do app. */
+:root{--icon-accent:color-mix(in srgb,var(--link) 78%,#fff)}
+html.light{--icon-accent:color-mix(in srgb,var(--link) 80%,#06122e)}
+.ui-svg{display:block;width:18px;height:18px;flex:none;overflow:visible}
+.seg button .ui-svg,.action-dot .ui-svg,.sheet-ico .ui-svg{width:16px;height:16px}
+.theme-switch .ui-svg{width:12px;height:12px}
+.seg .dest-chip .ui-svg{width:10px;height:10px;transform:rotate(90deg)}
+.action-dot > .ui-svg{position:relative;z-index:1}
+.sheet-ico .ui-svg,.sheet-ico svg{width:13px;height:13px}
+.menu-chevron .ui-svg{width:12px;height:12px}
+.bar > button.more .ui-svg{transition:transform .26s var(--glass-ease)}
+.bar > button.more.on .ui-svg{transform:rotate(45deg)}
+.insert-grid .sheet-ico .ui-svg{width:22px;height:22px}
