@@ -564,9 +564,9 @@ function ForwardMenu() {
           <MenuItem icon="telegram" id="fwdTelegramBtn">Telegram</MenuItem>
           <MenuItem icon="telegraph" id="fwdTelegraphBtn">Telegraph</MenuItem>
           <MenuItem icon="export" id="fwdShareBtn">Compartilhar</MenuItem>
-          <MenuItem icon="markdown" id="fwdCopyBtn">Copiar</MenuItem>
         </SheetSection>
-        <SheetSection label="Baixar">
+        <SheetSection label="Copiar e baixar">
+          <MenuItem icon="markdown" id="fwdCopyBtn">Copiar</MenuItem>
           <MenuItem icon="markdown" id="exportMdBtn">Markdown</MenuItem>
           <MenuItem icon="text_fields" id="exportTxtBtn">Texto</MenuItem>
         </SheetSection>
