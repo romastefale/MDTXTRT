@@ -49,12 +49,14 @@ export function edgeColor(mode){
 let sampleRefreshing=false;
 function refreshSafariChromeSample(){
   if(!STATIC||!document.body)return;
-  if(!document.querySelector('[data-safari-chrome-sample]')){
+  // Um elemento em cada borda: o Safari 26 amostra a barra de cima e a de baixo separadamente.
+  for(const edge of ['top','bottom']){
+    if(document.querySelector('[data-safari-chrome-sample="'+edge+'"]'))continue;
     const sample=document.createElement('div');
-    sample.className='safari-chrome-sample';
-    sample.dataset.safariChromeSample='';
+    sample.className='safari-chrome-sample safari-chrome-sample-'+edge;
+    sample.dataset.safariChromeSample=edge;
     sample.setAttribute('aria-hidden','true');
-    document.body.prepend(sample);
+    if(edge==='top')document.body.prepend(sample);else document.body.append(sample);
   }
   if(sampleRefreshing)return;
   sampleRefreshing=true;
