@@ -666,6 +666,17 @@ function PlusMenu() {
   return (
     <GlassContextMenu id="plusMenu" className="wide-menu insert-sheet" anchorId="plusBtn" placement="top">
       <div className="menu-list insert-body">
+        {STATIC_SITE && (
+          <div className="fmt-row" role="group" aria-label="Texto">
+            <button type="button" className="fmt-btn" data-cmd="bold" aria-label="Negrito" title="Negrito"><Icon name="bold" /></button>
+            <button type="button" className="fmt-btn" data-cmd="italic" aria-label="Itálico" title="Itálico"><Icon name="italic" /></button>
+            <button type="button" className="fmt-btn" data-cmd="underline" aria-label="Sublinhado" title="Sublinhado"><Icon name="underline" /></button>
+            <button type="button" className="fmt-btn" data-open="linkBtn" aria-label="Link" title="Link"><Icon name="link" /></button>
+            <button type="button" className="fmt-btn" data-open="headingBtn" aria-label="Título" title="Título"><Icon name="heading" /></button>
+            <button type="button" className="fmt-btn" data-open="listBtn" aria-label="Lista" title="Lista"><Icon name="list" /></button>
+            <button type="button" className="fmt-btn" data-open="quoteBtn" aria-label="Citação" title="Citação"><Icon name="quote" /></button>
+          </div>
+        )}
         {plusSections.map(section => <InsertSection key={section.id} section={section} />)}
       </div>
     </GlassContextMenu>

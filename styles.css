@@ -812,3 +812,12 @@ html[data-static] #plusMenu[data-menu-open] .glass-menu-content > *{animation:pl
 @media (prefers-reduced-motion:reduce){
   html[data-static] #plusMenu[data-menu-open] .glass-menu-material,html[data-static] #plusMenu[data-menu-open] .glass-menu-content > *{animation:none}
 }
+
+/* Faixa de texto no topo do painel ＋ (estática): os 7 botões da barra, em destaque (chips com a tinta e um anel no accent). */
+.fmt-row{display:flex;gap:4px;justify-content:space-between;margin:2px 0 4px;padding:6px;border-radius:20px;
+  background:var(--glass-field-soft);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--icon-accent) 28%,transparent)}
+.fmt-btn{flex:1 1 0;min-width:0;height:42px;border:0;border-radius:14px;display:grid;place-items:center;padding:0;
+  background:var(--glass-field);color:var(--text);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--icon-accent) 22%,transparent);
+  transition:transform .22s var(--glass-ease),background .16s ease}
+.fmt-btn:active{transform:scale(.95);background:var(--glass-press,var(--glass-field))}
+.fmt-btn .ui-svg{width:20px;height:20px}
