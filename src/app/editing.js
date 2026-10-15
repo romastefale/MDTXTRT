@@ -326,6 +326,9 @@ export function syncEditorSelectionUI(){
   toggleToolbarState(one('#quoteBtn'),Boolean(core.inBlock('blockquote')||core.inBlock('aside'))||panelIsOpen(one('#quoteMenu')));
   toggleToolbarState(one('#headingBtn'),/^(h[1-6]|footer)$/.test(kind)||panelIsOpen(one('#headingMenu')));
   toggleToolbarState(one('#linkBtn'),Boolean(core.linkHref())||Boolean(panelIsOpen(one('#linkMenu'))));
+  // Versão estática: a faixa de texto do painel ＋ espelha o estado dos botões (ocultos) da barra.
+  all('#plusMenu .fmt-row [data-cmd]').forEach(btn=>toggleToolbarState(btn,Boolean(core.activeMark(btn.dataset.cmd))));
+  for(const id of ['listBtn','quoteBtn','headingBtn','linkBtn'])toggleToolbarState(one(`#plusMenu .fmt-btn[data-open="${id}"]`),Boolean(one('#'+id)?.classList.contains('on')));
   syncHistoryButtons(core);
   
   ui.update({blockKind:kind});

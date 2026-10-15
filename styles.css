@@ -806,6 +806,8 @@ html[data-static] .glass-menu.insert-sheet.corner-sheet[data-menu-open] .glass-m
 html[data-static] .glass-menu.insert-sheet.corner-sheet[data-menu-open] .glass-menu-content > *{animation:plus-items .22s ease-out .12s both}
 /* Os itens ocupam o menu inteiro e passam rente ao × (sem faixa vazia embaixo); rolando, nada passa por baixo dele. */
 html[data-static] .glass-menu.insert-sheet.corner-sheet[data-menu-open][data-placement="top"] .glass-menu-content{padding:8px}
+html[data-static] .corner-sheet[data-scroll] .menu-list{padding-right:calc(var(--bar-h) + 4px)}
+/* O canto do botão (×) fica fora da área do menu: o toque nele atravessa até a camada de fechar. */
 html[data-static] .corner-sheet .menu-list{clip-path:polygon(0 0,100% 0,100% calc(100% - var(--bar-h) + 4px),calc(100% - var(--bar-h) + 4px) calc(100% - var(--bar-h) + 4px),calc(100% - var(--bar-h) + 4px) 100%,0 100%)}
 html[data-static] .corner-slot{flex:0 0 calc((100% - 4px*(var(--cols,4) - 1))/var(--cols,4));min-width:0;height:1px;visibility:hidden;pointer-events:none}
 @keyframes corner-grow{
@@ -825,3 +827,6 @@ html[data-static] .corner-slot{flex:0 0 calc((100% - 4px*(var(--cols,4) - 1))/va
   transition:transform .22s var(--glass-ease),background .16s ease}
 .fmt-btn:active{transform:scale(.95);background:var(--glass-press,var(--glass-field))}
 .fmt-btn .ui-svg{width:20px;height:20px}
+.fmt-btn.on{background:color-mix(in srgb,var(--icon-accent) 30%,var(--glass-field));box-shadow:inset 0 0 0 1.5px var(--icon-accent)}
+/* O canto do botão (×) fica fora da área do menu: o toque nele atravessa até a camada de fechar. */
+html[data-static] .corner-sheet .menu-list{clip-path:polygon(0 0,100% 0,100% calc(100% - var(--bar-h) + 4px),calc(100% - var(--bar-h) + 4px) calc(100% - var(--bar-h) + 4px),calc(100% - var(--bar-h) + 4px) 100%,0 100%)}

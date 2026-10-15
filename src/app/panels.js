@@ -192,23 +192,23 @@ export function usableAnchorRect(rect,bounds){
 }
 // Versão estática: cada seção de uma folha reparte os seus itens em linhas equilibradas (6 viram 3+3, 8 viram 4+4,
 // 10 viram 5+5), com a última linha centralizada. Conta só os itens visíveis; roda a cada abertura.
-function sheetColumns(n){
+function sheetColumns(n,max=4){
   if(n<=4)return Math.max(1,n);
   let best=3,bestScore=Infinity;
-  for(const cols of [3,4,5]){
+  for(const cols of [3,4,5].filter(c=>c<=max)){
     const rows=Math.ceil(n/cols),score=rows*100+(cols*rows-n)*30+(cols===5?150:0);
     if(score<bestScore){bestScore=score;best=cols;}
   }
   return best;
 }
-function balanceSheetGrids(panel){
-  const corner=panel.classList.contains('corner-sheet');
+function balanceSheetGrids(panel,cornerRows=true){
+  const corner=cornerRows&&panel.classList.contains('corner-sheet');
   panel.querySelectorAll('.corner-slot').forEach(el=>el.remove());
   let last=null,lastCols=0,lastN=0;
   for(const grid of panel.querySelectorAll('.insert-grid')){
     const n=[...grid.children].filter(el=>!el.hidden&&getComputedStyle(el).display!=='none').length;
     if(!n)continue;
-    const cols=sheetColumns(n);
+    const cols=sheetColumns(n,4);
     grid.style.setProperty('--cols',String(cols));
     if(getComputedStyle(grid).display!=='none'&&!grid.closest('[hidden]')){last=grid;lastCols=cols;lastN=n;}
   }
@@ -223,7 +223,7 @@ function balanceSheetGrids(panel){
       last.append(slot);
     }else{
       let best=0,bestScore=Infinity;
-      for(const cols of [3,4,5]){
+      for(const cols of [3,4]){
         const rest=lastN%cols;
         if(rest===0||rest===cols-1)continue;
         const rows=Math.ceil(lastN/cols),score=rows*100+(cols*rows-lastN)*30+(cols===5?150:0);
@@ -304,6 +304,16 @@ export function placePanel(panel,anchorRect=null){
   const minTop=attach?Math.min(bounds.top+edge,rect.top):bounds.top+edge,maxTop=Math.max(minTop,floor-boxHeight);
   const top=clamp(proposed,minTop,maxTop);
   ui.setMenu(id,{left,top});
+  // Folha com o botão (×) no canto: se o conteúdo rola, o menu fica mais estreito (uma coluna livre à direita, na altura
+  // toda) e rola livremente, sem nada passar por cima do botão. Sem rolagem, os itens passam rente ao botão.
+  if(STATIC&&panel.classList.contains('corner-sheet')){
+    const list=panel.querySelector('.menu-list');
+    panel.removeAttribute('data-scroll');
+    if(list&&list.scrollHeight>list.clientHeight+1){
+      panel.setAttribute('data-scroll','');
+      balanceSheetGrids(panel,false);
+    }
+  }
 }
 export function setMenuPanelOpen(panel,open){
   if(!panel)return;
