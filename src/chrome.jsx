@@ -921,7 +921,7 @@ function DismissLayer() {
 }
 
 function PlusButton() {
-  const plusOpen = useUI(state => Object.entries(state.menus).some(([id, menu]) => menu.open && (id === "plusMenu" || id.startsWith("plus-"))));
+  const plusOpen = useUI(state => Object.entries(state.menus).some(([id, menu]) => menu.open && (id === "plusMenu" || id.startsWith("plus-") || (STATIC_SITE && ["linkMenu", "headingMenu", "listMenu", "quoteMenu"].includes(id)))));
   const expanded = useAnchorExpanded("plusBtn");
   return (
     <button type="button" className={plusOpen ? "more on" : "more"} id="plusBtn" aria-label="Mais opções" title="Mais opções" aria-haspopup="menu" aria-expanded={expanded}>
@@ -1055,13 +1055,13 @@ function Chrome() {
         <GlassControl className="bar" id="typebar">
           <ChromeLens optics={BAR_REFRACTION} variant="bar" />
           <PlusButton />
-          <button type="button" data-cmd="bold" aria-label="Negrito"><Icon name="bold" /></button>
-          <button type="button" data-cmd="italic" aria-label="Itálico"><Icon name="italic" /></button>
-          <button type="button" data-cmd="underline" aria-label="Sublinhado"><Icon name="underline" /></button>
-          <AnchorButton id="linkBtn" icon="link" aria-label="Link" />
-          <AnchorButton id="headingBtn" icon="heading" aria-label="Título" aria-haspopup="menu" />
-          <AnchorButton id="listBtn" icon="list" aria-label="Lista" aria-haspopup="menu" />
-          <AnchorButton id="quoteBtn" icon="quote" aria-label="Citação" aria-haspopup="menu" />
+          <button type="button" className="static-off" data-cmd="bold" aria-label="Negrito"><Icon name="bold" /></button>
+          <button type="button" className="static-off" data-cmd="italic" aria-label="Itálico"><Icon name="italic" /></button>
+          <button type="button" className="static-off" data-cmd="underline" aria-label="Sublinhado"><Icon name="underline" /></button>
+          <AnchorButton id="linkBtn" className="static-off" icon="link" aria-label="Link" />
+          <AnchorButton id="headingBtn" className="static-off" icon="heading" aria-label="Título" aria-haspopup="menu" />
+          <AnchorButton id="listBtn" className="static-off" icon="list" aria-label="Lista" aria-haspopup="menu" />
+          <AnchorButton id="quoteBtn" className="static-off" icon="quote" aria-label="Citação" aria-haspopup="menu" />
         </GlassControl>
       </div>
     </>

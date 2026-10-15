@@ -137,7 +137,7 @@ menuDismissLayer?.addEventListener('click',event=>{
 });
 all('#typebar [data-cmd], [data-plus-submenu] [data-cmd], #listMenu [data-cmd], #plusMenu .fmt-row [data-cmd]').forEach(btn => btn.addEventListener('click', ()=>{try{exec(btn.dataset.cmd);closePanels();}catch(err){showToast(err.message);}}));
 // Faixa de texto do painel ＋ (versão estática): link, título, lista e citação abrem o menu do botão da barra.
-all('#plusMenu .fmt-row [data-open]').forEach(btn => btn.addEventListener('click', ()=>{closePanels();one('#'+btn.dataset.open)?.click();}));
+all('#plusMenu .fmt-row [data-open]').forEach(btn => btn.addEventListener('click', ()=>{const menu={linkBtn:'#linkMenu',headingBtn:'#headingMenu',listBtn:'#listMenu',quoteBtn:'#quoteMenu'}[btn.dataset.open];closePanels();togglePanel(menu,one('#plusBtn'));}));
 all('#typebar [data-block], #headingMenu [data-block], #quoteMenu [data-block]').forEach(btn => btn.addEventListener('click', ()=>{try{formatBlock(btn.dataset.block);}catch(err){showToast(err.message);}}));
 document.querySelectorAll('[data-plus-submenu] [data-insert], #quoteMenu [data-insert], #listMenu [data-insert]').forEach(btn => btn.addEventListener('click', ()=>{void insertFeature(btn.dataset.insert).catch(err=>showToast(err.message));}));
 export const tableActions=Object.freeze({

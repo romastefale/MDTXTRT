@@ -280,7 +280,7 @@ export function placePanel(panel,anchorRect=null){
   ui.setMenu(id,{left,top});
   // Experimento (versão estática): o menu ＋ nasce do próprio botão. Guarda a distância entre o botão e as bordas da folha
   // para a animação de abrir partir do tamanho do botão.
-  if(STATIC&&id==='plusMenu'){
+  if(STATIC&&['plusMenu','linkMenu','headingMenu','listMenu','quoteMenu'].includes(id)){
     const btn=one('#plusBtn')?.getBoundingClientRect();
     if(btn){
       const w=box.width,h=boxHeight;
