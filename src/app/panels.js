@@ -202,9 +202,35 @@ function sheetColumns(n){
   return best;
 }
 function balanceSheetGrids(panel){
+  const corner=panel.classList.contains('corner-sheet');
+  panel.querySelectorAll('.corner-slot').forEach(el=>el.remove());
+  let last=null,lastCols=0,lastN=0;
   for(const grid of panel.querySelectorAll('.insert-grid')){
     const n=[...grid.children].filter(el=>!el.hidden&&getComputedStyle(el).display!=='none').length;
-    if(n)grid.style.setProperty('--cols',String(sheetColumns(n)));
+    if(!n)continue;
+    const cols=sheetColumns(n);
+    grid.style.setProperty('--cols',String(cols));
+    if(getComputedStyle(grid).display!=='none'&&!grid.closest('[hidden]')){last=grid;lastCols=cols;lastN=n;}
+  }
+  // Folha com o botão (×) no canto de baixo à direita: os itens passam rente a ele e ocupam o menu inteiro, então a última
+  // linha nunca chega ao canto. Escolhe colunas em que a última linha deixa uma coluna livre de cada lado (resto de 1 a
+  // colunas-2); com até 4 itens, a linha única ganha uma coluna extra vazia no lugar do ×.
+  if(corner&&last){
+    if(lastN<=4){
+      last.style.setProperty('--cols',String(lastN+1));
+      const slot=document.createElement('span');
+      slot.className='corner-slot';slot.setAttribute('aria-hidden','true');
+      last.append(slot);
+    }else{
+      let best=0,bestScore=Infinity;
+      for(const cols of [3,4,5]){
+        const rest=lastN%cols;
+        if(rest===0||rest===cols-1)continue;
+        const rows=Math.ceil(lastN/cols),score=rows*100+(cols*rows-lastN)*30+(cols===5?150:0);
+        if(score<bestScore){bestScore=score;best=cols;}
+      }
+      if(best)last.style.setProperty('--cols',String(best));
+    }
   }
 }
 export function placePanel(panel,anchorRect=null){
@@ -278,18 +304,6 @@ export function placePanel(panel,anchorRect=null){
   const minTop=attach?Math.min(bounds.top+edge,rect.top):bounds.top+edge,maxTop=Math.max(minTop,floor-boxHeight);
   const top=clamp(proposed,minTop,maxTop);
   ui.setMenu(id,{left,top});
-  // Experimento (versão estática): o menu ＋ nasce do próprio botão. Guarda a distância entre o botão e as bordas da folha
-  // para a animação de abrir partir do tamanho do botão.
-  if(STATIC&&['plusMenu','linkMenu','headingMenu','listMenu','quoteMenu'].includes(id)){
-    const btn=one('#plusBtn')?.getBoundingClientRect();
-    if(btn){
-      const w=box.width,h=boxHeight;
-      panel.style.setProperty('--mt',Math.max(0,btn.top-top)+'px');
-      panel.style.setProperty('--ml',Math.max(0,btn.left-left)+'px');
-      panel.style.setProperty('--mr',Math.max(0,left+w-btn.right)+'px');
-      panel.style.setProperty('--mb',Math.max(0,top+h-btn.bottom)+'px');
-    }
-  }
 }
 export function setMenuPanelOpen(panel,open){
   if(!panel)return;

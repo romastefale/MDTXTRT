@@ -793,28 +793,29 @@ html[data-static] .glass-menu.insert-sheet .insert-grid > button{flex:0 0 calc((
 html[data-static]:has(.glass-menu.insert-sheet[data-menu-open]) .bar-wrap,html[data-static]:has(.glass-menu.insert-sheet[data-menu-open]) .topbar{z-index:41}
 html[data-static]:has(.glass-menu.insert-sheet[data-menu-open]) :is(.bar-wrap,.topbar),html[data-static]:has(.glass-menu.insert-sheet[data-menu-open]) :is(.bar-wrap,.topbar) *{pointer-events:none!important}
 
-/* Experimento (estática): o menu ＋ é o próprio botão que cresce. Ao abrir, a pílula e os outros botões somem e o botão ＋
-   (que vira ×) fica no canto de um painel com os itens dentro. A abertura parte do tamanho do botão (clip-path). */
-html[data-static]:has(:is(#plusMenu,#linkMenu,#headingMenu,#listMenu,#quoteMenu)[data-menu-open]) #typebar{
+/* Versão estática: o ＋ fica no canto inferior direito. O menu (＋, link, título, lista, citação) é uma folha de largura toda
+   que nasce do canto do botão e o envolve: o botão continua dentro dela, virando ×, e os itens terminam acima da linha dele. */
+html[data-static] .bar{margin:0 0 0 auto}
+html[data-static] .bar > .static-off{display:none!important}
+html[data-static]:has(.corner-sheet[data-menu-open]) #typebar{
   background:transparent!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important;box-shadow:none!important;border-color:transparent!important
 }
-html[data-static]:has(:is(#plusMenu,#linkMenu,#headingMenu,#listMenu,#quoteMenu)[data-menu-open]) #typebar .lens-bar{opacity:0}
-html[data-static] #typebar > button:not(#plusBtn){transition:opacity .16s ease}
-html[data-static]:has(:is(#plusMenu,#linkMenu,#headingMenu,#listMenu,#quoteMenu)[data-menu-open]) #typebar > button:not(#plusBtn){opacity:0}
-html[data-static] :is(#plusMenu,#linkMenu,#headingMenu,#listMenu,#quoteMenu)[data-menu-open]{animation:none}
-html[data-static] :is(#plusMenu,#linkMenu,#headingMenu,#listMenu,#quoteMenu)[data-menu-open] .glass-menu-material{animation:plus-morph .36s cubic-bezier(.22,.9,.28,1) both}
-html[data-static] :is(#plusMenu,#linkMenu,#headingMenu,#listMenu,#quoteMenu)[data-menu-open] .glass-menu-content > *{animation:plus-items .22s ease-out .14s both}
-@keyframes plus-morph{
-  from{clip-path:inset(var(--mt,0) var(--mr,0) var(--mb,0) var(--ml,0) round 999px)}
+html[data-static]:has(.corner-sheet[data-menu-open]) #typebar .lens-bar{opacity:0}
+html[data-static] .glass-menu.insert-sheet.corner-sheet[data-menu-open]{animation:none}
+html[data-static] .glass-menu.insert-sheet.corner-sheet[data-menu-open] .glass-menu-material{animation:corner-grow .34s cubic-bezier(.22,.9,.28,1) both}
+html[data-static] .glass-menu.insert-sheet.corner-sheet[data-menu-open] .glass-menu-content > *{animation:plus-items .22s ease-out .12s both}
+/* Os itens ocupam o menu inteiro e passam rente ao × (sem faixa vazia embaixo); rolando, nada passa por baixo dele. */
+html[data-static] .glass-menu.insert-sheet.corner-sheet[data-menu-open][data-placement="top"] .glass-menu-content{padding:8px}
+html[data-static] .corner-sheet .menu-list{clip-path:polygon(0 0,100% 0,100% calc(100% - var(--bar-h) + 4px),calc(100% - var(--bar-h) + 4px) calc(100% - var(--bar-h) + 4px),calc(100% - var(--bar-h) + 4px) 100%,0 100%)}
+html[data-static] .corner-slot{flex:0 0 calc((100% - 4px*(var(--cols,4) - 1))/var(--cols,4));min-width:0;height:1px;visibility:hidden;pointer-events:none}
+@keyframes corner-grow{
+  from{clip-path:inset(calc(100% - var(--bar-h)) 0 0 calc(100% - var(--bar-h)) round 999px)}
   to{clip-path:inset(0 0 0 0 round 26px 26px var(--r) var(--r))}
 }
 @keyframes plus-items{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 @media (prefers-reduced-motion:reduce){
-  html[data-static] :is(#plusMenu,#linkMenu,#headingMenu,#listMenu,#quoteMenu)[data-menu-open] .glass-menu-material,html[data-static] :is(#plusMenu,#linkMenu,#headingMenu,#listMenu,#quoteMenu)[data-menu-open] .glass-menu-content > *{animation:none}
+  html[data-static] .glass-menu.insert-sheet.corner-sheet[data-menu-open] .glass-menu-material,html[data-static] .glass-menu.insert-sheet.corner-sheet[data-menu-open] .glass-menu-content > *{animation:none}
 }
-
-/* Na versão estática a barra de baixo tem só o ＋: os 7 botões de texto ficam no topo do painel. */
-html[data-static] .bar > .static-off{display:none!important}
 
 /* Faixa de texto no topo do painel ＋ (estática): os 7 botões da barra, em destaque (chips com a tinta e um anel no accent). */
 .fmt-row{display:flex;gap:4px;justify-content:space-between;margin:2px 0 4px;padding:6px;border-radius:20px;

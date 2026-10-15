@@ -461,7 +461,7 @@ function GlassControl({ className = "", children, style, ...props }) {
 
 function LinkMenu() {
   return (
-    <GlassContextMenu id="linkMenu" className="wide-menu insert-sheet" anchorId="linkBtn" placement="top">
+    <GlassContextMenu id="linkMenu" className="wide-menu insert-sheet corner-sheet" anchorId="linkBtn" placement="top">
       <div className="menu-list insert-body"><div className="insert-grid">
         <MenuItem icon="link" data-link-kind="hyperlink">Hiperlink</MenuItem>
         <MenuItem icon="link" data-link-kind="url">Link</MenuItem>
@@ -473,7 +473,7 @@ function LinkMenu() {
 
 function HeadingMenu() {
   return (
-    <GlassContextMenu id="headingMenu" className="heading-menu wide-menu insert-sheet" anchorId="headingBtn" placement="top">
+    <GlassContextMenu id="headingMenu" className="heading-menu wide-menu insert-sheet corner-sheet" anchorId="headingBtn" placement="top">
       <div className="menu-list insert-body"><div className="insert-grid">
         <MenuItem icon="h1" data-block="h1" currentKey="h1" hideOnTelegraph>Título H1</MenuItem>
         <MenuItem icon="h2" data-block="h2" currentKey="h2" hideOnTelegraph>Título H2</MenuItem>
@@ -490,7 +490,7 @@ function HeadingMenu() {
 
 function ListMenu() {
   return (
-    <GlassContextMenu id="listMenu" className="wide-menu insert-sheet" anchorId="listBtn" placement="top">
+    <GlassContextMenu id="listMenu" className="wide-menu insert-sheet corner-sheet" anchorId="listBtn" placement="top">
       <div className="menu-list insert-body"><div className="insert-grid">
         <MenuItem icon="list" data-cmd="insertUnorderedList">Lista com marcadores</MenuItem>
         <MenuItem icon="format_list_numbered" data-insert="ordered">Lista ordenada</MenuItem>
@@ -502,7 +502,7 @@ function ListMenu() {
 
 function QuoteMenu() {
   return (
-    <GlassContextMenu id="quoteMenu" className="wide-menu insert-sheet" anchorId="quoteBtn" placement="top">
+    <GlassContextMenu id="quoteMenu" className="wide-menu insert-sheet corner-sheet" anchorId="quoteBtn" placement="top">
       <div className="menu-list insert-body"><div className="insert-grid">
         <MenuItem icon="quote" data-block="blockquote" currentKey="blockquote">Citação</MenuItem>
         <MenuItem icon="pullquote" data-insert="pullquote" currentKey="pullquote">Citação em destaque</MenuItem>
@@ -664,7 +664,7 @@ function InsertSection({ section }) {
 
 function PlusMenu() {
   return (
-    <GlassContextMenu id="plusMenu" className="wide-menu insert-sheet" anchorId="plusBtn" placement="top">
+    <GlassContextMenu id="plusMenu" className="wide-menu insert-sheet corner-sheet" anchorId="plusBtn" placement="top">
       <div className="menu-list insert-body">
         {STATIC_SITE && (
           <div className="fmt-row" role="group" aria-label="Texto">
