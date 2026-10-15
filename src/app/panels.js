@@ -192,7 +192,7 @@ export function usableAnchorRect(rect,bounds){
 }
 // Versão estática: cada seção de uma folha reparte os seus itens em linhas equilibradas (6 viram 3+3, 8 viram 4+4,
 // 10 viram 5+5), com a última linha centralizada. Conta só os itens visíveis; roda a cada abertura.
-function sheetColumns(n,max=5){
+function sheetColumns(n,max=4){
   if(n<=4)return Math.max(1,n);
   let best=3,bestScore=Infinity;
   for(const cols of [3,4,5].filter(c=>c<=max)){
@@ -208,7 +208,7 @@ function balanceSheetGrids(panel,cornerRows=true){
   for(const grid of panel.querySelectorAll('.insert-grid')){
     const n=[...grid.children].filter(el=>!el.hidden&&getComputedStyle(el).display!=='none').length;
     if(!n)continue;
-    const cols=sheetColumns(n,cornerRows?5:4);
+    const cols=sheetColumns(n,4);
     grid.style.setProperty('--cols',String(cols));
     if(getComputedStyle(grid).display!=='none'&&!grid.closest('[hidden]')){last=grid;lastCols=cols;lastN=n;}
   }
@@ -222,14 +222,22 @@ function balanceSheetGrids(panel,cornerRows=true){
       slot.className='corner-slot';slot.setAttribute('aria-hidden','true');
       last.append(slot);
     }else{
+      // no máximo 4 colunas; resto 1..colunas-2 deixa o canto livre; resto colunas-1 ganha um espaço vazio no lugar do ×
       let best=0,bestScore=Infinity;
-      for(const cols of [3,4,5]){
+      for(const cols of [3,4]){
         const rest=lastN%cols;
-        if(rest===0||rest===cols-1)continue;
-        const rows=Math.ceil(lastN/cols),score=rows*100+(cols*rows-lastN)*30+(cols===5?150:0);
+        if(rest===0)continue;
+        const rows=Math.ceil(lastN/cols),score=rows*100+(cols*rows-lastN)*30+(rest===cols-1?20:0);
         if(score<bestScore){bestScore=score;best=cols;}
       }
-      if(best)last.style.setProperty('--cols',String(best));
+      if(!best)best=4;
+      last.style.setProperty('--cols',String(best));
+      const rest=lastN%best;
+      if(rest===0||rest===best-1){
+        const slot=document.createElement('span');
+        slot.className='corner-slot';slot.setAttribute('aria-hidden','true');
+        last.append(slot);
+      }
     }
   }
 }
