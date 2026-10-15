@@ -792,3 +792,23 @@ html[data-static] .glass-menu.insert-sheet .insert-grid > button{flex:0 0 calc((
 /* As barras passam por cima da folha aberta; tocar nelas continua fechando o menu (o toque atravessa até a camada de fechar). */
 html[data-static]:has(.glass-menu.insert-sheet[data-menu-open]) .bar-wrap,html[data-static]:has(.glass-menu.insert-sheet[data-menu-open]) .topbar{z-index:41}
 html[data-static]:has(.glass-menu.insert-sheet[data-menu-open]) :is(.bar-wrap,.topbar),html[data-static]:has(.glass-menu.insert-sheet[data-menu-open]) :is(.bar-wrap,.topbar) *{pointer-events:none!important}
+
+/* Experimento (estática): o menu ＋ é o próprio botão que cresce. Ao abrir, a pílula e os outros botões somem e o botão ＋
+   (que vira ×) fica no canto de um painel com os itens dentro. A abertura parte do tamanho do botão (clip-path). */
+html[data-static]:has(#plusMenu[data-menu-open]) #typebar{
+  background:transparent!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important;box-shadow:none!important;border-color:transparent!important
+}
+html[data-static]:has(#plusMenu[data-menu-open]) #typebar .lens-bar{opacity:0}
+html[data-static] #typebar > button:not(#plusBtn){transition:opacity .16s ease}
+html[data-static]:has(#plusMenu[data-menu-open]) #typebar > button:not(#plusBtn){opacity:0}
+html[data-static] #plusMenu[data-menu-open]{animation:none}
+html[data-static] #plusMenu[data-menu-open] .glass-menu-material{animation:plus-morph .36s cubic-bezier(.22,.9,.28,1) both}
+html[data-static] #plusMenu[data-menu-open] .glass-menu-content > *{animation:plus-items .22s ease-out .14s both}
+@keyframes plus-morph{
+  from{clip-path:inset(var(--mt,0) var(--mr,0) var(--mb,0) var(--ml,0) round 999px)}
+  to{clip-path:inset(0 0 0 0 round 26px 26px var(--r) var(--r))}
+}
+@keyframes plus-items{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){
+  html[data-static] #plusMenu[data-menu-open] .glass-menu-material,html[data-static] #plusMenu[data-menu-open] .glass-menu-content > *{animation:none}
+}

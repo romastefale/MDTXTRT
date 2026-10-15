@@ -276,7 +276,20 @@ export function placePanel(panel,anchorRect=null){
   // Folha colada na barra de baixo (versão estática): o limite de baixo é o topo da própria barra, sem a margem de 8px.
   const floor=attach&&side==='top'?rect.bottom:bounds.bottom-bottomPad;
   const minTop=attach?Math.min(bounds.top+edge,rect.top):bounds.top+edge,maxTop=Math.max(minTop,floor-boxHeight);
-  ui.setMenu(id,{left,top:clamp(proposed,minTop,maxTop)});
+  const top=clamp(proposed,minTop,maxTop);
+  ui.setMenu(id,{left,top});
+  // Experimento (versão estática): o menu ＋ nasce do próprio botão. Guarda a distância entre o botão e as bordas da folha
+  // para a animação de abrir partir do tamanho do botão.
+  if(STATIC&&id==='plusMenu'){
+    const btn=one('#plusBtn')?.getBoundingClientRect();
+    if(btn){
+      const w=box.width,h=boxHeight;
+      panel.style.setProperty('--mt',Math.max(0,btn.top-top)+'px');
+      panel.style.setProperty('--ml',Math.max(0,btn.left-left)+'px');
+      panel.style.setProperty('--mr',Math.max(0,left+w-btn.right)+'px');
+      panel.style.setProperty('--mb',Math.max(0,top+h-btn.bottom)+'px');
+    }
+  }
 }
 export function setMenuPanelOpen(panel,open){
   if(!panel)return;
